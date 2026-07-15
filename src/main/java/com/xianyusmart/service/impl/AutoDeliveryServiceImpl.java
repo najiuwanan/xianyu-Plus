@@ -4,6 +4,8 @@ import com.xianyusmart.entity.XianyuGoodsAutoDeliveryConfig;
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.entity.XianyuGoodsAutoReplyRecord;
 import com.xianyusmart.entity.XianyuGoodsConfig;
+import com.xianyusmart.entity.XianyuAccount;
+import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.xianyusmart.mapper.XianyuGoodsAutoDeliveryConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
@@ -48,6 +50,9 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
     
     @Autowired
     private XianyuGoodsOrderMapper orderMapper;
+    
+    @Autowired
+    private XianyuAccountMapper accountMapper;
     
     @Autowired
     private XianyuGoodsAutoReplyRecordMapper autoReplyRecordMapper;
@@ -499,14 +504,22 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     executeAutoConfirmShipment(accountId, orderId);
                 }
                 
-                boolean autoAskFlower = (baseConfig != null && baseConfig.getAutoAskFlower() != null && baseConfig.getAutoAskFlower() == 1);
-                if (autoAskFlower && baseConfig.getAutoAskFlowerText() != null && !baseConfig.getAutoAskFlowerText().trim().isEmpty()) {
+                boolean autoAskFlower = false;
+                String askFlowerText = "";
+                XianyuAccount account = accountMapper.selectById(accountId);
+                if (account != null) {
+                    autoAskFlower = (account.getAutoAskFlower() != null && account.getAutoAskFlower() == 1);
+                    askFlowerText = account.getAutoAskFlowerText();
+                }
+                
+                if (autoAskFlower && askFlowerText != null && !askFlowerText.trim().isEmpty()) {
                     log.info("【账号{}】检测到求小红花开关已开启，发送求花话术: orderId={}", accountId, orderId);
+                    final String finalText = askFlowerText;
                     taskExecutor.execute(() -> {
                         try {
                             HumanLikeDelayUtils.longDelay();
-                            webSocketService.sendMessage(accountId, cid, toId, baseConfig.getAutoAskFlowerText());
-                            sentMessageSaveService.saveAiAssistantReply(accountId, cid, toId, baseConfig.getAutoAskFlowerText(), xyGoodsId);
+                            webSocketService.sendMessage(accountId, cid, toId, finalText);
+                            sentMessageSaveService.saveAiAssistantReply(accountId, cid, toId, finalText, xyGoodsId);
                         } catch (Exception e) {
                             log.error("【账号{}】自动求小红花发送异常: orderId={}", accountId, orderId, e);
                         }

@@ -162,6 +162,18 @@ public class AccountController {
             if (reqDTO.getAccountNote() != null) {
                 account.setAccountNote(reqDTO.getAccountNote());
             }
+            if (reqDTO.getAutoRateEnabled() != null) {
+                account.setAutoRateEnabled(reqDTO.getAutoRateEnabled());
+            }
+            if (reqDTO.getAutoRateText() != null) {
+                account.setAutoRateText(reqDTO.getAutoRateText());
+            }
+            if (reqDTO.getAutoAskFlower() != null) {
+                account.setAutoAskFlower(reqDTO.getAutoAskFlower());
+            }
+            if (reqDTO.getAutoAskFlowerText() != null) {
+                account.setAutoAskFlowerText(reqDTO.getAutoAskFlowerText());
+            }
             
             accountMapper.updateById(account);
             

@@ -21,7 +21,9 @@ const formData = ref({
   id: 0,
   accountNote: '',
   autoRateEnabled: 0,
-  autoRateText: ''
+  autoRateText: '',
+  autoAskFlower: 0,
+  autoAskFlowerText: ''
 })
 
 watch(() => props.account, (newAccount) => {
@@ -30,14 +32,18 @@ watch(() => props.account, (newAccount) => {
       id: newAccount.id,
       accountNote: newAccount.accountNote || '',
       autoRateEnabled: newAccount.autoRateEnabled || 0,
-      autoRateText: newAccount.autoRateText || ''
+      autoRateText: newAccount.autoRateText || '',
+      autoAskFlower: newAccount.autoAskFlower || 0,
+      autoAskFlowerText: newAccount.autoAskFlowerText || ''
     }
   } else {
     formData.value = {
       id: 0,
       accountNote: '',
       autoRateEnabled: 0,
-      autoRateText: ''
+      autoRateText: '',
+      autoAskFlower: 0,
+      autoAskFlowerText: ''
     }
   }
 }, { immediate: true })
@@ -105,6 +111,30 @@ const handleSubmit = async () => {
               class="modal-input"
               style="height: 60px; resize: vertical; padding: 12px;"
               placeholder="默认：不错的买家！"
+            ></textarea>
+          </div>
+          
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="font-size: 14px; font-weight: 500; color: #1c1c1e;">发货后求小红花</div>
+            <label class="switch-toggle" style="position: relative; display: inline-block; width: 44px; height: 24px;">
+              <input 
+                type="checkbox" 
+                v-model="formData.autoAskFlower" 
+                :true-value="1" 
+                :false-value="0" 
+                style="opacity: 0; width: 0; height: 0;"
+              />
+              <span class="slider" :class="{ 'slider-active': formData.autoAskFlower === 1 }" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e5e5ea; transition: .4s; border-radius: 24px;"></span>
+              <span class="slider-thumb" :style="{ transform: formData.autoAskFlower === 1 ? 'translateX(20px)' : 'translateX(2px)' }" style="position: absolute; height: 20px; width: 20px; left: 0; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></span>
+            </label>
+          </div>
+          <div v-if="formData.autoAskFlower === 1" style="margin-bottom: 12px;">
+            <div style="margin-bottom: 8px; font-size: 13px; color: rgba(28,28,30,.55);">求小红花文案</div>
+            <textarea
+              v-model="formData.autoAskFlowerText"
+              class="modal-input"
+              style="height: 60px; resize: vertical; padding: 12px;"
+              placeholder="默认：亲，商品已发货，觉得不错麻烦给个五星小红花哦~"
             ></textarea>
           </div>
         </div>

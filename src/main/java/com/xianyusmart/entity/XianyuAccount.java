@@ -48,9 +48,19 @@ public class XianyuAccount {
     private Integer autoRateEnabled;
 
     /**
-     * 自动评价的默认文案
+     * 自动评价默认文案
      */
     private String autoRateText;
+    
+    /**
+     * 发货后是否求小红花 1:是 0:否
+     */
+    private Integer autoAskFlower;
+
+    /**
+     * 求小红花文案
+     */
+    private String autoAskFlowerText;
 
     
     /**

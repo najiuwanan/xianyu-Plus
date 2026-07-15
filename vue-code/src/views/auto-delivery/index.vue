@@ -359,31 +359,6 @@ onMounted(() => {
                 </label>
               </div>
             </div>
-            <div class="ad__master-toggles" style="margin-top: 12px; display: block;">
-              <div class="ad__master-toggle" style="width: 100%; align-items: flex-start; flex-direction: column; background: transparent; padding: 0;">
-                <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                  <div class="ad__toggle-label">发货后求小红花</div>
-                  <label class="ad__switch ad__switch--sm">
-                    <input
-                      type="checkbox"
-                      v-model="configForm.autoAskFlower"
-                      :true-value="1"
-                      :false-value="0"
-                    />
-                    <span class="ad__switch-track"></span>
-                    <span class="ad__switch-thumb"></span>
-                  </label>
-                </div>
-                <div v-if="configForm.autoAskFlower === 1" style="width: 100%; margin-top: 12px;">
-                  <textarea
-                    v-model="configForm.autoAskFlowerText"
-                    class="native-input"
-                    :rows="2"
-                    placeholder="请输入求小红花的文案，例如：亲，觉得不错的话麻烦给个五星小红花哦~"
-                  ></textarea>
-                </div>
-              </div>
-            </div>
           </div>
 
           <!-- SKU Selector -->

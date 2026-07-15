@@ -16,6 +16,8 @@ export interface Account {
   updatedTime: string
   autoRateEnabled?: number
   autoRateText?: string
+  autoAskFlower?: number
+  autoAskFlowerText?: string
 }
 
 // 商品类型
