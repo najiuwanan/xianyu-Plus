@@ -24,7 +24,10 @@ export function updateAccount(data: Partial<Account>) {
   return request({
     url: '/account/update',
     method: 'POST',
-    data
+    data: {
+      ...data,
+      accountId: data.id
+    }
   })
 }
 
