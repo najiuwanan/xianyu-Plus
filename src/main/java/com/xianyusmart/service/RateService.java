@@ -45,7 +45,7 @@ public class RateService {
         }
 
         XianyuCookie cookie = cookieMapper.selectOne(new QueryWrapper<XianyuCookie>().eq("xianyu_account_id", accountId));
-        if (cookie == null || cookie.getCookiesStr() == null) {
+        if (cookie == null || cookie.getCookieText() == null) {
             log.warn("【自动评价】账号 {} Cookie不存在", accountId);
             return false;
         }
@@ -57,7 +57,7 @@ public class RateService {
         dataMap.put("createOrAppend", 0);
 
         log.info("【自动评价】尝试给订单 {} 提交好评...", tradeId);
-        String response = XianyuApiUtils.callApi("mtop.taobao.idle.rate.create", dataMap, cookie.getCookiesStr());
+        String response = XianyuApiUtils.callApi("mtop.taobao.idle.rate.create", dataMap, cookie.getCookieText());
 
         if (XianyuApiUtils.isSuccess(response)) {
             log.info("【自动评价】订单 {} 评价成功", tradeId);
@@ -78,7 +78,7 @@ public class RateService {
      */
     public List<Map<String, Object>> getPendingRateList(Long accountId) {
         XianyuCookie cookie = cookieMapper.selectOne(new QueryWrapper<XianyuCookie>().eq("xianyu_account_id", accountId));
-        if (cookie == null || cookie.getCookiesStr() == null) {
+        if (cookie == null || cookie.getCookieText() == null) {
             return null;
         }
 
@@ -90,7 +90,7 @@ public class RateService {
         searchParam.put("sellerRateStatus", "5");
         dataMap.put("rateSearchParam", searchParam);
 
-        String response = XianyuApiUtils.callApi("mtop.taobao.idle.merchant.rate.list", dataMap, cookie.getCookiesStr());
+        String response = XianyuApiUtils.callApi("mtop.taobao.idle.merchant.rate.list", dataMap, cookie.getCookieText());
         
         if (XianyuApiUtils.isSuccess(response)) {
             Map<String, Object> data = XianyuApiUtils.extractData(response);
