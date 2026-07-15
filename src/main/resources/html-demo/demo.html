@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XianYuSmart</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+            background: #e8e8e8;
+            color: #1a1a1a;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* 侧边栏 */
+        .sidebar {
+            width: 260px;
+            background: #f8f8f8;
+            border-right: 1px solid #d4d4d4;
+            display: flex;
+            flex-direction: column;
+            padding: 20px 0;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            padding: 0 24px 24px;
+            gap: 12px;
+        }
+
+        .logo-icon {
+            width: 32px;
+            height: 32px;
+            background: #2a2a2a;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .logo-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .nav-menu {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .nav-item {
+            padding: 12px 24px;
+            margin: 2px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: #666666;
+        }
+
+        .nav-item:hover {
+            background: #ececec;
+            color: #1a1a1a;
+        }
+
+        .nav-item.active {
+            background: #1a1a1a;
+            color: white;
+        }
+
+        .nav-section {
+            margin-top: 24px;
+            padding: 0 24px 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #999999;
+            text-transform: uppercase;
+        }
+
+        .upgrade-box {
+            margin: 16px;
+            padding: 20px;
+            background: #1a1a1a;
+            border-radius: 12px;
+            color: white;
+        }
+
+        .upgrade-box h3 {
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        .upgrade-box p {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-bottom: 16px;
+        }
+
+        .upgrade-btn {
+            width: 100%;
+            padding: 10px;
+            background: white;
+            color: #1a1a1a;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .upgrade-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        /* 主内容区 */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 32px 40px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+
+        .welcome {
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .btn-outline {
+            background: white;
+            color: #1a1a1a;
+            border: 1px solid #d4d4d4;
+        }
+
+        .btn-outline:hover {
+            background: #f8f8f8;
+        }
+
+        .btn-primary {
+            background: #1a1a1a;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2a2a2a;
+        }
+
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #d4d4d4;
+            transition: all 0.2s;
+        }
+
+        .stat-card:hover {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .stat-title {
+            font-size: 14px;
+            color: #666666;
+        }
+
+        .stat-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .stat-change {
+            font-size: 13px;
+            color: #34c759;
+        }
+
+        /* 内容卡片 */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #d4d4d4;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .card-action {
+            color: #1a1a1a;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* 图表占位 */
+        .chart-placeholder {
+            height: 280px;
+            background: #fafafa;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999999;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-line {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+        .chart-line svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* 账号列表 */
+        .account-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .account-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .account-item:hover {
+            background: #fafafa;
+        }
+
+        .account-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        .account-info {
+            flex: 1;
+        }
+
+        .account-name {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .account-status {
+            font-size: 12px;
+            color: #666666;
+        }
+
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-online {
+            background: #d1f4e0;
+            color: #34c759;
+        }
+
+        .status-offline {
+            background: #ffe5e5;
+            color: #ff3b30;
+        }
+
+        /* 商品网格 */
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #d4d4d4;
+            overflow: hidden;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .product-card:hover {
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            transform: translateY(-2px);
+        }
+
+        .product-image {
+            width: 100%;
+            height: 160px;
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 48px;
+        }
+
+        .product-info {
+            padding: 16px;
+        }
+
+        .product-title {
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .product-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #666666;
+        }
+
+        .product-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .btn-small {
+            flex: 1;
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-share {
+            background: #1a1a1a;
+            color: white;
+        }
+
+        .btn-edit {
+            background: #f0f0f0;
+            color: #1a1a1a;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+        <div class="logo">
+            <div class="logo-icon">闲</div>
+            <div class="logo-text">自动化管理</div>
+        </div>
+
+        <nav class="nav-menu">
+            <div class="nav-item active">
+                📊 仪表板
+            </div>
+            <div class="nav-item">
+                👤 账号管理
+            </div>
+            <div class="nav-item">
+                📦 商品管理
+            </div>
+            <div class="nav-item">
+                💬 消息管理
+            </div>
+
+            <div class="nav-section">自动化</div>
+            <div class="nav-item">
+                🤖 自动发货
+            </div>
+            <div class="nav-item">
+                💭 自动回复
+            </div>
+            <div class="nav-item">
+                📝 操作记录
+            </div>
+
+            <div class="nav-section">系统</div>
+            <div class="nav-item">
+                🔌 WebSocket状态
+            </div>
+            <div class="nav-item">
+                ⚙️ 系统设置
+            </div>
+        </nav>
+
+        <div class="upgrade-box">
+            <h3>🚀 升级至专业版</h3>
+            <p>无限账号管理，高级自动化功能</p>
+            <button class="upgrade-btn">立即升级</button>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+        <div class="header">
+            <h1 class="welcome">欢迎回来，管理员！</h1>
+            <div class="header-actions">
+                <button class="btn btn-outline">📤 导出数据</button>
+                <button class="btn btn-primary">+ 添加账号</button>
+            </div>
+        </div>
+
+        <!-- 统计卡片 -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">在线账号</div>
+                    <div class="stat-icon" style="background: #d1f4e0; color: #34c759;">👤</div>
+                </div>
+                <div class="stat-value">8</div>
+                <div class="stat-change">✓ 2个账号刚刚上线</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">在售商品</div>
+                    <div class="stat-icon" style="background: #e5e0ff; color: #667eea;">📦</div>
+                </div>
+                <div class="stat-value">156</div>
+                <div class="stat-change">12个商品今日更新</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">待处理消息</div>
+                    <div class="stat-icon" style="background: #fff4e5; color: #ff9500;">💬</div>
+                </div>
+                <div class="stat-value">23</div>
+                <div class="stat-change">需要及时回复</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-title">今日自动发货</div>
+                    <div class="stat-icon" style="background: #e5f5ff; color: #007aff;">🚚</div>
+                </div>
+                <div class="stat-value">47</div>
+                <div class="stat-change">成功率 98.5%</div>
+            </div>
+        </div>
+
+        <!-- 内容区域 -->
+        <div class="content-grid">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">商品统计趋势</h2>
+                    <div class="card-action">📅 最近6个月 ›</div>
+                </div>
+                <div class="chart-placeholder">
+                    <div class="chart-line">
+                        <svg viewBox="0 0 600 280" preserveAspectRatio="none">
+                            <defs>
+                                <linearGradient id="gradient1" x1="0%" y1="0%" x2="0%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#1a1a1a;stop-opacity:0.1" />
+                                    <stop offset="100%" style="stop-color:#1a1a1a;stop-opacity:0" />
+                                </linearGradient>
+                            </defs>
+                            <path d="M0,200 L100,180 L200,120 L300,140 L400,80 L500,100 L600,60"
+                                  fill="none" stroke="#1a1a1a" stroke-width="3"/>
+                            <path d="M0,200 L100,180 L200,120 L300,140 L400,80 L500,100 L600,60 L600,280 L0,280 Z"
+                                  fill="url(#gradient1)"/>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">账号列表</h2>
+                    <div class="card-action">查看全部 ›</div>
+                </div>
+                <div class="account-list">
+                    <div class="account-item">
+                        <div class="account-avatar">张</div>
+                        <div class="account-info">
+                            <div class="account-name">张三的小店</div>
+                            <div class="account-status">商品: 45个</div>
+                        </div>
+                        <span class="status-badge status-online">在线</span>
+                    </div>
+                    <div class="account-item">
+                        <div class="account-avatar" style="background: #4a4a4a;">李</div>
+                        <div class="account-info">
+                            <div class="account-name">李四百货</div>
+                            <div class="account-status">商品: 32个</div>
+                        </div>
+                        <span class="status-badge status-online">在线</span>
+                    </div>
+                    <div class="account-item">
+                        <div class="account-avatar" style="background: #666666;">王</div>
+                        <div class="account-info">
+                            <div class="account-name">王五闲置</div>
+                            <div class="account-status">商品: 28个</div>
+                        </div>
+                        <span class="status-badge status-offline">离线</span>
+                    </div>
+                    <div class="account-item">
+                        <div class="account-avatar" style="background: #8a8a8a;">赵</div>
+                        <div class="account-info">
+                            <div class="account-name">赵六二手</div>
+                            <div class="account-status">商品: 51个</div>
+                        </div>
+                        <span class="status-badge status-online">在线</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 热门商品 -->
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">热门商品</h2>
+                <div class="card-action">🔄 刷新 ›</div>
+            </div>
+            <div class="products-grid">
+                <div class="product-card">
+                    <div class="product-image">📱</div>
+                    <div class="product-info">
+                        <div class="product-title">iPhone 13 Pro 256G</div>
+                        <div class="product-meta">
+                            <span>¥4,999</span>
+                            <span>👁️ 128</span>
+                        </div>
+                        <div class="product-actions">
+                            <button class="btn-small btn-share">分享</button>
+                            <button class="btn-small btn-edit">编辑</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="product-card">
+                    <div class="product-image" style="background: #2a2a2a;">💻</div>
+                    <div class="product-info">
+                        <div class="product-title">MacBook Pro 14寸</div>
+                        <div class="product-meta">
+                            <span>¥12,800</span>
+                            <span>👁️ 256</span>
+                        </div>
+                        <div class="product-actions">
+                            <button class="btn-small btn-share">分享</button>
+                            <button class="btn-small btn-edit">编辑</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="product-card">
+                    <div class="product-image" style="background: #4a4a4a;">⌚</div>
+                    <div class="product-info">
+                        <div class="product-title">Apple Watch Series 7</div>
+                        <div class="product-meta">
+                            <span>¥2,299</span>
+                            <span>👁️ 89</span>
+                        </div>
+                        <div class="product-actions">
+                            <button class="btn-small btn-share">分享</button>
+                            <button class="btn-small btn-edit">编辑</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="product-card">
+                    <div class="product-image" style="background: #666666;">🎧</div>
+                    <div class="product-info">
+                        <div class="product-title">AirPods Pro 2代</div>
+                        <div class="product-meta">
+                            <span>¥1,499</span>
+                            <span>👁️ 167</span>
+                        </div>
+                        <div class="product-actions">
+                            <button class="btn-small btn-share">分享</button>
+                            <button class="btn-small btn-edit">编辑</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>

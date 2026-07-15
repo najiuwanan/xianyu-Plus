@@ -1,0 +1,107 @@
+server:
+  port: 12400
+
+app:
+  version: 1.0.0
+  update:
+    release-api: ${UPDATE_RELEASE_API:}
+  executor:
+    core-size: ${EXECUTOR_CORE_SIZE:4}
+    max-size: ${EXECUTOR_MAX_SIZE:8}
+    queue-capacity: ${EXECUTOR_QUEUE_CAPACITY:500}
+  delivery:
+    claim-batch-size: ${DELIVERY_CLAIM_BATCH_SIZE:20}
+    dispatch-delay-ms: ${DELIVERY_DISPATCH_DELAY_MS:1000}
+    lease-seconds: ${DELIVERY_LEASE_SECONDS:120}
+    max-attempts: ${DELIVERY_MAX_ATTEMPTS:3}
+  security:
+    allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:12400}
+    trust-proxy: ${TRUST_PROXY:false}
+
+# AI功能开关（默认开启，API Key从数据库xianyu_sys_setting表读取，未配置时AI功能自动降级）
+ai:
+  enabled: ${AI_ENABLED:true}
+  vectorstore:
+    simple:
+      file-path: ${VECTOR_STORE_FILE:data/vectorstore.json}
+
+# JWT配置
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: ${JWT_EXPIRATION_MS:28800000}  # 默认8小时
+
+
+spring:
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/xianyusmart?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&rewriteBatchedStatements=true}
+    username: ${DB_USERNAME:xianyusmart}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:10}
+      minimum-idle: ${DB_POOL_MIN_IDLE:2}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:10000}
+      validation-timeout: 3000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+  # AI配置说明：
+  # - ai_api_key、ai_base_url、ai_model 配置在数据库 xianyu_sys_setting 表中
+  # - 通过 DynamicAIChatClientManager 动态读取，支持热更新无需重启
+  # - 默认值：base_url=https://dashscope.aliyuncs.com/compatible-mode, model=deepseek-v3
+
+# SimpleVectorStore配置（本地文件持久化）
+
+# MyBatis配置
+mybatis-plus:
+  type-handlers-package: com.xianyusmart.config
+  configuration:
+    default-enum-type-handler: org.apache.ibatis.type.EnumOrdinalTypeHandler
+
+# WebSocket配置（参考Python代码）
+websocket:
+  # 心跳间隔（秒）
+  heartbeat-interval: 15
+  # 心跳超时（秒）
+  heartbeat-timeout: 5
+  # Token刷新间隔（秒，默认1小时）
+  token-refresh-interval: 3600
+  # Token重试间隔（秒，默认5分钟）
+  token-retry-interval: 300
+  # 凭证刷新间隔（分钟），用于Cookie保活和_m_h5_tk兜底刷新
+  credential-refresh-min-minutes: 15
+  credential-refresh-max-minutes: 20
+  # 消息过期时间（毫秒，默认5分钟）
+  message-expire-time: 300000
+  # 人工接管超时（秒，默认1小时）
+  manual-mode-timeout: 3600
+  # 人工接管切换关键词
+  toggle-keywords: 。
+  # 模拟人工输入延迟
+  simulate-human-typing: false
+  # 连接重连延迟（秒）
+  reconnect-delay: 5
+  # 最大重连次数
+  max-reconnect-attempts: 10
+  # 消息发送重试次数
+  message-retry-attempts: 3
+  # 消息发送重试延迟（毫秒）
+  message-retry-delay: 1000
+  # 打印原始消息开关（解密后的消息）
+  print-raw-message: ${PRINT_RAW_MESSAGE:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never

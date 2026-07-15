@@ -1,0 +1,56 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE
+.idea
+.vscode
+*.iml
+*.ipr
+*.iws
+.codeartsdoer
+
+# Build outputs
+target/
+dist/
+vue-code/dist/
+vue-code/node_modules/
+node_modules/
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# Data
+dbdata/
+data/
+*.db
+*.db-journal
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Docker (不需要复制到构建上下文)
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Demo (已删除)
+demo/

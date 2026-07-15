@@ -1,0 +1,49 @@
+name: xianyusmart
+
+services:
+  app:
+    build:
+      context: ../..
+    image: xianyusmart:1.0.0
+    restart: unless-stopped
+    environment:
+      DB_URL: ${DB_URL:?DB_URL is required}
+      DB_USERNAME: ${DB_USERNAME:-xianyusmart}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-28800000}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?ALLOWED_ORIGINS is required}
+      TRUST_PROXY: ${TRUST_PROXY:-true}
+      UPDATE_RELEASE_API: ${UPDATE_RELEASE_API:-}
+      DB_POOL_MAX_SIZE: ${DB_POOL_MAX_SIZE:-10}
+      DB_POOL_MIN_IDLE: ${DB_POOL_MIN_IDLE:-2}
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=55 -XX:InitialRAMPercentage=20 -XX:+ExitOnOutOfMemoryError}
+      TZ: ${TZ:-Asia/Shanghai}
+    extra_hosts:
+      # 复用宿主机 MySQL，避免低内存服务器重复运行数据库实例。
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:12400:12400"
+    volumes:
+      - app-data:/app/data
+      - app-logs:/app/logs
+    mem_limit: 768m
+    cpus: 1.5
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:12400/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 45s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  app-data:
+  app-logs:

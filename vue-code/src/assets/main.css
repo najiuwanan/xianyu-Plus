@@ -1,0 +1,46 @@
+@import './base.css';
+
+/* 统一移除高成本装饰效果，降低渲染开销并保持商业界面一致。 */
+*,
+*::before,
+*::after {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+*:focus-visible {
+  outline: 2px solid #155eef;
+  outline-offset: 2px;
+}
+
+a {
+  text-decoration: none;
+  color: #155eef;
+  transition: color 0.15s ease;
+}
+
+a:hover {
+  color: #004eeb;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes toast-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes confirm-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes confirm-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
