@@ -48,7 +48,7 @@ services:
       JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=20 -XX:+ExitOnOutOfMemoryError}
       TZ: ${TZ:-Asia/Shanghai}
     ports:
-      - "127.0.0.1:12400:12400"
+      - "12400:12400"
     volumes:
       - app-data:/app/data
       - app-logs:/app/logs
