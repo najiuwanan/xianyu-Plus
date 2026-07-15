@@ -10,7 +10,7 @@
 
 当前版本：`1.0.0`
 
-[核心价值](#核心价值) · [能力范围](#能力范围) · [业务流程](#业务流程) · [快速启动](#快速启动) · [配置说明](#配置说明) · [开发构建](#开发构建) · [日常运维](#日常运维)
+[核心价值](#核心价值) · [能力范围](#能力范围) · [业务流程](#业务流程) · [镜像部署](#镜像部署) · [快速启动](#快速启动) · [配置说明](#配置说明) · [开发构建](#开发构建) · [日常运维](#日常运维)
 
 ## 核心价值
 
@@ -89,6 +89,39 @@ flowchart LR
 - Vue 3、TypeScript、Vite
 - Docker Compose
 - Nginx
+
+## 镜像部署
+
+每个正式 Release 会自动发布 `linux/amd64` 镜像到 GitHub Container Registry。固定版本适合生产部署，`latest` 适合体验最新正式版本。
+
+```bash
+docker pull ghcr.io/evvvvvvvan/xianyusmart:v1.0.0
+docker pull ghcr.io/evvvvvvvan/xianyusmart:latest
+```
+
+使用仓库内的 Docker Compose 启动固定版本：
+
+Linux：
+
+```bash
+cp .env.example .env
+# 修改 .env 中的数据库密码和 JWT 强密钥
+export APP_IMAGE=ghcr.io/evvvvvvvan/xianyusmart:v1.0.0
+docker compose pull app
+docker compose up -d --no-build
+```
+
+Windows PowerShell：
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+$env:APP_IMAGE = 'ghcr.io/evvvvvvvan/xianyusmart:v1.0.0'
+docker compose pull app
+docker compose up -d --no-build
+```
+
+镜像启动仍依赖 `.env` 中的 MySQL、JWT 和跨域配置。Windows Docker Desktop 需要使用 Linux 容器模式。生产环境建议固定版本标签，避免 `latest` 更新带来未计划的版本变化。
 
 ## 快速启动
 
