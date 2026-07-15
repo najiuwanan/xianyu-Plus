@@ -125,6 +125,22 @@ docker compose up -d --no-build
 
 ## 快速启动
 
+### 一键安装 (Linux)
+
+只需在终端执行以下命令，即可自动克隆代码、生成随机高强度密钥并启动运行环境：
+
+```bash
+git clone https://github.com/najiuwanan/xianyu-Plus.git && cd xianyu-Plus && chmod +x install.sh && ./install.sh
+```
+
+### 一键更新并重启 (Linux)
+
+当您在 GitHub 上修改了代码后，只需要执行以下命令即可自动拉取最新代码并重启服务器：
+
+```bash
+cd xianyu-Plus && chmod +x update.sh && ./update.sh
+```
+
 ### 环境要求
 
 - Docker Engine 24+ 或 Docker Desktop
@@ -132,16 +148,11 @@ docker compose up -d --no-build
 - Linux 生产环境建议 2 核、2 GB 内存起步
 - Windows 可使用 Docker Desktop 完成功能测试
 
-### Linux
-
-```bash
-chmod +x install.sh
-./install.sh
-```
-
 ### Windows PowerShell
 
 ```powershell
+git clone https://github.com/najiuwanan/xianyu-Plus.git
+cd xianyu-Plus
 Copy-Item .env.example .env
 notepad .env
 docker compose up -d --build
