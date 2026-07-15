@@ -18,20 +18,26 @@ const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const formData = ref({
-  accountId: 0,
-  accountNote: ''
+  id: 0,
+  accountNote: '',
+  autoRateEnabled: 0,
+  autoRateText: ''
 })
 
 watch(() => props.account, (newAccount) => {
   if (newAccount) {
     formData.value = {
-      accountId: newAccount.id,
-      accountNote: newAccount.accountNote || ''
+      id: newAccount.id,
+      accountNote: newAccount.accountNote || '',
+      autoRateEnabled: newAccount.autoRateEnabled || 0,
+      autoRateText: newAccount.autoRateText || ''
     }
   } else {
     formData.value = {
-      accountId: 0,
-      accountNote: ''
+      id: 0,
+      accountNote: '',
+      autoRateEnabled: 0,
+      autoRateText: ''
     }
   }
 }, { immediate: true })
@@ -70,12 +76,37 @@ const handleSubmit = async () => {
         </div>
         
         <div class="modal-body">
+          <div style="margin-bottom: 12px; font-size: 13px; color: rgba(28,28,30,.55);">账号备注</div>
           <input 
             v-model="formData.accountNote"
             type="text"
             class="modal-input"
             placeholder="账号备注"
+            style="margin-bottom: 20px;"
           />
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <div style="font-size: 14px; font-weight: 500; color: #1c1c1e;">开启自动评价</div>
+            <label class="switch-toggle" style="position: relative; display: inline-block; width: 44px; height: 24px;">
+              <input 
+                type="checkbox" 
+                v-model="formData.autoRateEnabled" 
+                :true-value="1" 
+                :false-value="0" 
+                style="opacity: 0; width: 0; height: 0;"
+              />
+              <span class="slider" :class="{ 'slider-active': formData.autoRateEnabled === 1 }" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e5e5ea; transition: .4s; border-radius: 24px;"></span>
+              <span class="slider-thumb" :style="{ transform: formData.autoRateEnabled === 1 ? 'translateX(20px)' : 'translateX(2px)' }" style="position: absolute; height: 20px; width: 20px; left: 0; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></span>
+            </label>
+          </div>
+          <div v-if="formData.autoRateEnabled === 1" style="margin-bottom: 12px;">
+            <div style="margin-bottom: 8px; font-size: 13px; color: rgba(28,28,30,.55);">评价文案</div>
+            <textarea
+              v-model="formData.autoRateText"
+              class="modal-input"
+              style="height: 60px; resize: vertical; padding: 12px;"
+              placeholder="默认：不错的买家！"
+            ></textarea>
+          </div>
         </div>
         
         <div class="modal-footer">

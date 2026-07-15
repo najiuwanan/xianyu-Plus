@@ -65,6 +65,16 @@ public class XianyuGoodsAutoDeliveryConfig {
     private Integer autoConfirmShipment;
 
     /**
+     * 发货后是否自动求小红花：0-关闭，1-开启
+     */
+    private Integer autoAskFlower;
+
+    /**
+     * 自动求小红花的文案
+     */
+    private String autoAskFlowerText;
+
+    /**
      * 自动回复延时秒数（RAG回复延时）
      */
     private Integer ragDelaySeconds;

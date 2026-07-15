@@ -79,7 +79,9 @@ export function useAutoDelivery() {
     kamiConfigIds: '',
     kamiDeliveryTemplate: '',
     autoDeliveryImageUrl: '',
-    autoConfirmShipment: 0
+    autoConfirmShipment: 0,
+    autoAskFlower: 0,
+    autoAskFlowerText: ''
   })
 
   const kamiConfigOptions = ref<KamiConfig[]>([])
@@ -397,12 +399,18 @@ export function useAutoDelivery() {
           if (response.data.autoConfirmShipment != null) {
             configForm.value.autoConfirmShipment = response.data.autoConfirmShipment
           }
+          if (response.data.autoAskFlower != null) {
+            configForm.value.autoAskFlower = response.data.autoAskFlower
+          }
+          configForm.value.autoAskFlowerText = response.data.autoAskFlowerText || ''
         } else {
           configForm.value.deliveryMode = 1
           configForm.value.autoDeliveryContent = ''
           configForm.value.kamiConfigIds = ''
           configForm.value.kamiDeliveryTemplate = ''
           configForm.value.autoDeliveryImageUrl = ''
+          configForm.value.autoAskFlower = 0
+          configForm.value.autoAskFlowerText = ''
         }
       } else {
         throw new Error(response.msg || '获取配置失败')
@@ -445,7 +453,9 @@ export function useAutoDelivery() {
         kamiConfigIds: configForm.value.kamiConfigIds,
         kamiDeliveryTemplate: configForm.value.kamiDeliveryTemplate.trim(),
         autoDeliveryImageUrl: configForm.value.autoDeliveryImageUrl.trim(),
-        autoConfirmShipment: configForm.value.autoConfirmShipment
+        autoConfirmShipment: configForm.value.autoConfirmShipment,
+        autoAskFlower: configForm.value.autoAskFlower,
+        autoAskFlowerText: configForm.value.autoAskFlowerText.trim()
       }
 
       const response = await saveOrUpdateAutoDeliveryConfig(req)

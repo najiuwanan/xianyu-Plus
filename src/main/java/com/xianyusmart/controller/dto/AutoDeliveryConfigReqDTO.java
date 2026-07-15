@@ -57,4 +57,14 @@ public class AutoDeliveryConfigReqDTO {
      * 自动确认发货开关：0-关闭，1-开启
      */
     private Integer autoConfirmShipment;
+
+    /**
+     * 发货后是否自动求小红花：0-关闭，1-开启
+     */
+    private Integer autoAskFlower;
+
+    /**
+     * 自动求小红花的文案
+     */
+    private String autoAskFlowerText;
 }

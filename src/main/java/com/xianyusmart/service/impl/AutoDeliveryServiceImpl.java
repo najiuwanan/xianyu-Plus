@@ -498,6 +498,20 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     log.info("【账号{}】检测到自动确认发货开关已开启，准备自动确认发货: orderId={}", accountId, orderId);
                     executeAutoConfirmShipment(accountId, orderId);
                 }
+                
+                boolean autoAskFlower = (baseConfig != null && baseConfig.getAutoAskFlower() != null && baseConfig.getAutoAskFlower() == 1);
+                if (autoAskFlower && baseConfig.getAutoAskFlowerText() != null && !baseConfig.getAutoAskFlowerText().trim().isEmpty()) {
+                    log.info("【账号{}】检测到求小红花开关已开启，发送求花话术: orderId={}", accountId, orderId);
+                    taskExecutor.execute(() -> {
+                        try {
+                            HumanLikeDelayUtils.longDelay();
+                            webSocketService.sendMessage(accountId, cid, toId, baseConfig.getAutoAskFlowerText());
+                            sentMessageSaveService.saveAiAssistantReply(accountId, cid, toId, baseConfig.getAutoAskFlowerText(), xyGoodsId);
+                        } catch (Exception e) {
+                            log.error("【账号{}】自动求小红花发送异常: orderId={}", accountId, orderId, e);
+                        }
+                    });
+                }
             }
 
         } catch (Exception e) {

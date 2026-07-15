@@ -41,6 +41,17 @@ public class XianyuAccount {
      * 账号状态 1:正常 -1:需要手机号验证
      */
     private Integer status;
+
+    /**
+     * 是否开启自动评价买家：0-关闭，1-开启
+     */
+    private Integer autoRateEnabled;
+
+    /**
+     * 自动评价的默认文案
+     */
+    private String autoRateText;
+
     
     /**
      * 创建时间（SQLite存储为TEXT）
