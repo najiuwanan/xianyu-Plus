@@ -26,11 +26,11 @@ COPY .mvn/ .mvn/
 COPY mvnw mvnw.cmd pom.xml ./
 RUN chmod +x mvnw
 
-# 复制前端构建产物到 static 目录
-COPY --from=frontend-build /app/vue-code/../src/main/resources/static src/main/resources/static/
-
 # 复制后端源码
 COPY src/ src/
+
+# 复制前端构建产物到 static 目录，覆盖源码中旧的静态文件
+COPY --from=frontend-build /app/vue-code/../src/main/resources/static src/main/resources/static/
 
 # 构建 JAR并执行测试
 RUN --mount=type=cache,target=/root/.m2/repository ./mvnw clean package
