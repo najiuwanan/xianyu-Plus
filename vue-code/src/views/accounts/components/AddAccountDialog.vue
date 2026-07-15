@@ -100,7 +100,7 @@ const handleSubmit = async () => {
                 :false-value="0" 
                 style="opacity: 0; width: 0; height: 0;"
               />
-              <span class="slider" :class="{ 'slider-active': formData.autoRateEnabled === 1 }" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e5e5ea; transition: .4s; border-radius: 24px;"></span>
+              <span class="slider" :class="{ 'slider-active': formData.autoRateEnabled === 1 }" :style="{ backgroundColor: formData.autoRateEnabled === 1 ? '#34c759' : '#e5e5ea' }" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; transition: .4s; border-radius: 24px;"></span>
               <span class="slider-thumb" :style="{ transform: formData.autoRateEnabled === 1 ? 'translateX(20px)' : 'translateX(2px)' }" style="position: absolute; height: 20px; width: 20px; left: 0; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></span>
             </label>
           </div>
@@ -124,7 +124,7 @@ const handleSubmit = async () => {
                 :false-value="0" 
                 style="opacity: 0; width: 0; height: 0;"
               />
-              <span class="slider" :class="{ 'slider-active': formData.autoAskFlower === 1 }" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e5e5ea; transition: .4s; border-radius: 24px;"></span>
+              <span class="slider" :class="{ 'slider-active': formData.autoAskFlower === 1 }" :style="{ backgroundColor: formData.autoAskFlower === 1 ? '#34c759' : '#e5e5ea' }" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; transition: .4s; border-radius: 24px;"></span>
               <span class="slider-thumb" :style="{ transform: formData.autoAskFlower === 1 ? 'translateX(20px)' : 'translateX(2px)' }" style="position: absolute; height: 20px; width: 20px; left: 0; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></span>
             </label>
           </div>
