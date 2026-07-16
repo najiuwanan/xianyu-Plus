@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
-import { getCurrentUser, changePassword } from '@/api/system'
+import { getCurrentUser, changePassword, fetchModels } from '@/api/system'
 import { logout } from '@/api/auth'
 import { getSetting, saveSetting, testEmail } from '@/api/setting'
 import { getAIStatus } from '@/api/ai'
@@ -66,6 +66,9 @@ const aiModel = ref(DEFAULT_MODEL)
 const aiApiKeySaving = ref(false)
 const showApiKey = ref(false)
 
+const fetchingModels = ref(false)
+const availableModels = ref<string[]>([])
+
 // Embedding 模型配置（可选，默认共用 AI 配置）
 const EMBEDDING_API_KEY_SETTING = 'ai_embedding_api_key'
 const EMBEDDING_BASE_URL_SETTING = 'ai_embedding_base_url'
@@ -78,6 +81,51 @@ const embeddingModel = ref(DEFAULT_EMBEDDING_MODEL)
 const embeddingSaving = ref(false)
 const showEmbeddingApiKey = ref(false)
 const showEmbeddingConfig = ref(false)
+
+const fetchingEmbeddingModels = ref(false)
+const availableEmbeddingModels = ref<string[]>([])
+
+async function handleFetchModels(type: 'chat' | 'embedding') {
+  const apiKey = type === 'chat' ? aiApiKey.value.trim() : embeddingApiKey.value.trim() || aiApiKey.value.trim()
+  const baseUrl = type === 'chat' ? aiBaseUrl.value.trim() : embeddingBaseUrl.value.trim() || aiBaseUrl.value.trim()
+  
+  if (!apiKey) {
+    toast.warning('请先输入 API Key')
+    return
+  }
+  if (!baseUrl) {
+    toast.warning('请先输入 Base URL')
+    return
+  }
+
+  if (type === 'chat') {
+    fetchingModels.value = true
+  } else {
+    fetchingEmbeddingModels.value = true
+  }
+
+  try {
+    const res = await fetchModels({ apiKey, baseUrl })
+    if (res.code === 200 && res.data && res.data.models) {
+      if (type === 'chat') {
+        availableModels.value = res.data.models
+      } else {
+        availableEmbeddingModels.value = res.data.models
+      }
+      toast.success('获取模型成功，请在下拉框中选择')
+    } else {
+      toast.error(res.msg || '获取模型失败')
+    }
+  } catch (e: any) {
+    toast.error('请求失败: ' + (e.message || '未知错误'))
+  } finally {
+    if (type === 'chat') {
+      fetchingModels.value = false
+    } else {
+      fetchingEmbeddingModels.value = false
+    }
+  }
+}
 
 // 邮箱通知配置
 const EMAIL_SMTP_HOST_KEY = 'email_smtp_host'
@@ -927,14 +975,28 @@ function handleBackupMenuEnter() {
             </div>
 
             <div class="settings__field">
-              <label class="settings__label">模型名称</label>
+              <label class="settings__label" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>模型名称</span>
+                <button 
+                  class="settings__btn settings__btn--secondary" 
+                  style="min-height: 28px; height: 28px; font-size: 13px; padding: 0 10px;"
+                  :disabled="fetchingModels"
+                  @click="handleFetchModels('chat')"
+                >
+                  {{ fetchingModels ? '获取中...' : '一键获取模型' }}
+                </button>
+              </label>
               <input
                 v-model="aiModel"
                 type="text"
                 class="settings__input"
-                placeholder="AI 对话模型名称"
+                placeholder="AI 对话模型"
                 :disabled="aiApiKeySaving"
+                list="chat-models"
               />
+              <datalist id="chat-models">
+                <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+              </datalist>
             </div>
 
             <div class="settings__actions">
@@ -1003,14 +1065,28 @@ function handleBackupMenuEnter() {
             </div>
 
             <div class="settings__field">
-              <label class="settings__label">模型名称</label>
+              <label class="settings__label" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>模型名称</span>
+                <button 
+                  class="settings__btn settings__btn--secondary" 
+                  style="min-height: 28px; height: 28px; font-size: 13px; padding: 0 10px;"
+                  :disabled="fetchingEmbeddingModels"
+                  @click="handleFetchModels('embedding')"
+                >
+                  {{ fetchingEmbeddingModels ? '获取中...' : '一键获取模型' }}
+                </button>
+              </label>
               <input
                 v-model="embeddingModel"
                 type="text"
                 class="settings__input"
                 placeholder="Embedding 模型名称，如 text-embedding-v3"
                 :disabled="embeddingSaving"
+                list="embedding-models"
               />
+              <datalist id="embedding-models">
+                <option v-for="m in availableEmbeddingModels" :key="m" :value="m">{{ m }}</option>
+              </datalist>
             </div>
 
             <div class="settings__actions">

@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xianyusmart.common.ResultObject;
 import com.xianyusmart.controller.dto.ChangePasswordReqDTO;
 import com.xianyusmart.controller.dto.CurrentUserRespDTO;
+import com.xianyusmart.controller.dto.FetchModelsReqDTO;
+import com.xianyusmart.controller.dto.FetchModelsRespDTO;
 import com.xianyusmart.controller.dto.VersionInfoRespDTO;
 import com.xianyusmart.entity.SysUser;
 import com.xianyusmart.exception.BusinessException;
@@ -21,6 +23,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 系统设置控制器
@@ -179,5 +183,65 @@ public class SystemController {
             }
         }
         return 0;
+    }
+
+    @PostMapping("/fetchModels")
+    public ResultObject<FetchModelsRespDTO> fetchModels(@RequestBody FetchModelsReqDTO reqDTO) {
+        try {
+            if (reqDTO.getApiKey() == null || reqDTO.getApiKey().trim().isEmpty()) {
+                return ResultObject.validateFailed("API Key不能为空");
+            }
+            if (reqDTO.getBaseUrl() == null || reqDTO.getBaseUrl().trim().isEmpty()) {
+                return ResultObject.validateFailed("Base URL不能为空");
+            }
+
+            String url = reqDTO.getBaseUrl().trim();
+            if (url.endsWith("/")) {
+                url = url.substring(0, url.length() - 1);
+            }
+            if (!url.endsWith("/v1")) {
+                url += "/v1";
+            }
+            url += "/models";
+
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(15))
+                    .header("Authorization", "Bearer " + reqDTO.getApiKey().trim())
+                    .header("Accept", "application/json")
+                    .GET()
+                    .build();
+
+            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                log.warn("获取模型失败, url: {}, status: {}, body: {}", url, response.statusCode(), response.body());
+                return ResultObject.failed("获取失败，请检查参数，状态码：" + response.statusCode());
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(response.body());
+            JsonNode dataNode = root.path("data");
+
+            List<String> models = new ArrayList<>();
+            if (dataNode.isArray()) {
+                for (JsonNode node : dataNode) {
+                    String id = node.path("id").asText("");
+                    if (!id.isEmpty()) {
+                        models.add(id);
+                    }
+                }
+            }
+
+            FetchModelsRespDTO respDTO = new FetchModelsRespDTO();
+            respDTO.setModels(models);
+            return ResultObject.success(respDTO);
+        } catch (Exception e) {
+            log.error("获取模型异常", e);
+            return ResultObject.failed("获取模型异常：" + e.getMessage());
+        }
     }
 }
