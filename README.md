@@ -117,6 +117,7 @@ docker compose down
 | `JWT_SECRET` | 登录会话密钥 |
 | `ALLOWED_ORIGINS` | 允许访问的前端来源 |
 | `TZ` | 时区，默认 `Asia/Shanghai` |
+| `RED_FLOWER_INTERVAL_MS` | 求小红花扫描间隔，默认 5 分钟 |
 
 日常使用不需要修改这些值。若手动调整 `.env`，修改后执行 `docker compose up -d --build` 使其生效。
 

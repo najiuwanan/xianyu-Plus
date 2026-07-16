@@ -46,42 +46,47 @@ public class XianyuApiCallUtils {
      */
     public ApiCallResult callApiWithRetry(Long accountId, String apiName, 
                                           Map<String, Object> dataMap, String cookiesStr) {
-        return callApiWithRetry(accountId, apiName, dataMap, cookiesStr, null, null, 0);
+        return callApiWithRetry(accountId, apiName, dataMap, cookiesStr, "1.0", null, null, 0);
     }
 
     public ApiCallResult callApiWithRetry(Long accountId, String apiName,
                                           Map<String, Object> dataMap, String cookiesStr,
                                           Map<String, String> extraHeaders) {
-        return callApiWithRetry(accountId, apiName, dataMap, cookiesStr, extraHeaders, null, 0);
+        return callApiWithRetry(accountId, apiName, dataMap, cookiesStr, "1.0", extraHeaders, null, 0);
     }
 
     public ApiCallResult callApiWithRetry(Long accountId, String apiName,
                                           Map<String, Object> dataMap, String cookiesStr,
                                           Map<String, String> extraHeaders,
                                           Map<String, String> extraQueryParams) {
-        return callApiWithRetry(accountId, apiName, dataMap, cookiesStr, extraHeaders, extraQueryParams, 0);
+        return callApiWithRetry(accountId, apiName, dataMap, cookiesStr, "1.0", extraHeaders, extraQueryParams, 0);
     }
-    
-    private ApiCallResult callApiWithRetry(Long accountId, String apiName,
-                                           Map<String, Object> dataMap, String cookiesStr,
-                                           int retryCount) {
-        return callApiWithRetry(accountId, apiName, dataMap, cookiesStr, null, null, retryCount);
+
+    /**
+     * 调用指定版本路径的闲鱼接口。
+     *
+     * <p>评价接口需要请求 {@code /4.0/}，而部分接口仍使用 {@code /1.0/}，
+     * 因此不能让调用方被通用默认路径限制。</p>
+     */
+    public ApiCallResult callApiWithRetry(Long accountId, String apiName,
+                                          Map<String, Object> dataMap, String cookiesStr,
+                                          String endpointVersion,
+                                          Map<String, String> extraHeaders,
+                                          Map<String, String> extraQueryParams) {
+        return callApiWithRetry(accountId, apiName, dataMap, cookiesStr, endpointVersion,
+                extraHeaders, extraQueryParams, 0);
     }
 
     private ApiCallResult callApiWithRetry(Long accountId, String apiName,
                                            Map<String, Object> dataMap, String cookiesStr,
-                                           Map<String, String> extraHeaders,
-                                           int retryCount) {
-        return callApiWithRetry(accountId, apiName, dataMap, cookiesStr, extraHeaders, null, retryCount);
-    }
-
-    private ApiCallResult callApiWithRetry(Long accountId, String apiName,
-                                           Map<String, Object> dataMap, String cookiesStr,
+                                           String endpointVersion,
                                            Map<String, String> extraHeaders,
                                            Map<String, String> extraQueryParams,
                                            int retryCount) {
         try {
-            XianyuApiUtils.ApiCallResultWithHeaders result = XianyuApiUtils.callApiWithHeaders(apiName, dataMap, cookiesStr, null, null, extraHeaders, extraQueryParams);
+            XianyuApiUtils.ApiCallResultWithHeaders result = XianyuApiUtils.callApiWithHeaders(
+                    apiName, dataMap, cookiesStr, endpointVersion, null, null,
+                    extraHeaders, extraQueryParams);
 
             String response = result.getBody();
             if (response == null || response.isEmpty()) {
@@ -91,10 +96,11 @@ public class XianyuApiCallUtils {
 
             // 2. 【关键】处理响应中的Set-Cookie（参考Python: session自动处理 + clear_duplicate_cookies）
             List<String> setCookieHeaders = result.getSetCookieHeaders();
+            String cookieFromResponse = cookiesStr;
             if (!setCookieHeaders.isEmpty()) {
                 log.info("【账号{}】检测到响应中的Set-Cookie，数量: {}", accountId, setCookieHeaders.size());
                 // 更新Cookie到数据库
-                updateCookiesFromResponse(accountId, cookiesStr, setCookieHeaders);
+                cookieFromResponse = updateCookiesFromResponse(accountId, cookiesStr, setCookieHeaders);
             }
 
             // 3. 解析响应
@@ -128,6 +134,13 @@ public class XianyuApiCallUtils {
                     return new ApiCallResult(false, response, "令牌过期且自动刷新失败", true);
                 }
 
+                // 响应已给出可用的新 Cookie 时，直接使用它重试一次，避免多余的浏览器刷新。
+                if (cookieFromResponse != null && !cookieFromResponse.equals(cookiesStr)) {
+                    log.info("【账号{}】使用响应 Set-Cookie 重试 API 调用", accountId);
+                    return callApiWithRetry(accountId, apiName, dataMap, cookieFromResponse, endpointVersion,
+                            extraHeaders, extraQueryParams, retryCount + 1);
+                }
+
                 // 尝试刷新Cookie
                 boolean refreshSuccess = cookieRefreshService.refreshCookie(accountId);
 
@@ -141,7 +154,8 @@ public class XianyuApiCallUtils {
                     String newCookieStr = accountService.getCookieByAccountId(accountId);
                     if (newCookieStr != null && !newCookieStr.isEmpty()) {
                         // 递归调用，重试API
-                        return callApiWithRetry(accountId, apiName, dataMap, newCookieStr, retryCount + 1);
+                        return callApiWithRetry(accountId, apiName, dataMap, newCookieStr, endpointVersion,
+                                extraHeaders, extraQueryParams, retryCount + 1);
                     } else {
                         log.error("【账号{}】获取新Cookie失败", accountId);
                     }
@@ -176,7 +190,7 @@ public class XianyuApiCallUtils {
      * @param currentCookieStr 当前Cookie字符串
      * @param setCookieHeaders 响应中的Set-Cookie列表
      */
-    private void updateCookiesFromResponse(Long accountId, String currentCookieStr, List<String> setCookieHeaders) {
+    private String updateCookiesFromResponse(Long accountId, String currentCookieStr, List<String> setCookieHeaders) {
         try {
             // 合并Cookie
             String newCookieStr = mergeCookies(currentCookieStr, setCookieHeaders);
@@ -189,8 +203,10 @@ public class XianyuApiCallUtils {
                 accountService.updateCookie(accountId, newCookieStr);
                 log.info("【账号{}】Cookie已从响应Set-Cookie更新到数据库", accountId);
             }
+            return newCookieStr;
         } catch (Exception e) {
             log.error("【账号{}】处理响应Set-Cookie失败", accountId, e);
+            return currentCookieStr;
         }
     }
 

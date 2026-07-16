@@ -128,14 +128,8 @@ const handleSubmit = async () => {
               <span class="slider-thumb" :style="{ transform: formData.autoAskFlower === 1 ? 'translateX(20px)' : 'translateX(2px)' }" style="position: absolute; height: 20px; width: 20px; left: 0; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></span>
             </label>
           </div>
-          <div v-if="formData.autoAskFlower === 1" style="margin-bottom: 12px;">
-            <div style="margin-bottom: 8px; font-size: 13px; color: rgba(28,28,30,.55);">求小红花文案</div>
-            <textarea
-              v-model="formData.autoAskFlowerText"
-              class="modal-input"
-              style="height: 60px; resize: vertical; padding: 12px;"
-              placeholder="默认：亲，商品已发货，觉得不错麻烦给个五星小红花哦~"
-            ></textarea>
+          <div v-if="formData.autoAskFlower === 1" style="margin: -4px 0 12px; font-size: 13px; line-height: 1.5; color: rgba(28,28,30,.55);">
+            系统会定时对近 10 天内已自动发货的订单发起闲鱼小红花请求，不会向买家额外发送聊天话术。
           </div>
         </div>
         
