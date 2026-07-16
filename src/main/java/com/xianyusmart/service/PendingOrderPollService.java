@@ -67,6 +67,10 @@ public class PendingOrderPollService {
                 XianyuGoodsOrder existing = orderMapper.selectByAccountIdAndOrderId(accountId, orderId);
                 if (existing != null) {
                     enrichFromDetailApi(accountId, orderId, existing);
+                    String itemId = (String) commonData.get("itemId");
+                    if (!Integer.valueOf(1).equals(existing.getState()) && isAutoDeliveryEnabled(accountId, itemId)) {
+                        deliveryTaskService.requeue(existing.getId());
+                    }
                     continue;
                 }
 

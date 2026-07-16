@@ -21,6 +21,24 @@ export interface ChatMessage {
   loading?: boolean
 }
 
+interface TriggerMessage {
+  msgContent?: string
+  senderUserName?: string
+  senderUserId?: string
+  messageTime?: number
+}
+
+interface RagHitDetail {
+  score?: number
+  content?: string
+}
+
+interface TriggerContext {
+  triggerMessages: TriggerMessage[]
+  ragHitDetails: RagHitDetail[]
+  contextMessages: string
+}
+
 export function useAutoReply() {
   const route = useRoute()
   const router = useRouter()
@@ -1220,12 +1238,20 @@ export function useAutoReply() {
   }
 
   // Parse trigger context JSON
-  const parseTriggerContext = (jsonStr: string | null | undefined) => {
-    if (!jsonStr) return null
+  const parseTriggerContext = (jsonStr: string | null | undefined): TriggerContext => {
+    const emptyContext: TriggerContext = { triggerMessages: [], ragHitDetails: [], contextMessages: '' }
+    if (!jsonStr) return emptyContext
     try {
-      return JSON.parse(jsonStr)
+      const parsed: unknown = JSON.parse(jsonStr)
+      if (!parsed || typeof parsed !== 'object') return emptyContext
+      const context = parsed as Partial<TriggerContext>
+      return {
+        triggerMessages: Array.isArray(context.triggerMessages) ? context.triggerMessages : [],
+        ragHitDetails: Array.isArray(context.ragHitDetails) ? context.ragHitDetails : [],
+        contextMessages: typeof context.contextMessages === 'string' ? context.contextMessages : ''
+      }
     } catch {
-      return null
+      return emptyContext
     }
   }
 

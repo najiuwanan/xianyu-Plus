@@ -24,8 +24,13 @@ export function getConnectionStatus(accountId: number) {
 }
 
 // 启动连接
+export interface StartConnectionResult {
+  needCaptcha?: boolean;
+  captchaUrl?: string;
+}
+
 export function startConnection(accountId: number) {
-  return request({
+  return request<StartConnectionResult>({
     url: '/websocket/start',
     method: 'POST',
     data: { xianyuAccountId: accountId }

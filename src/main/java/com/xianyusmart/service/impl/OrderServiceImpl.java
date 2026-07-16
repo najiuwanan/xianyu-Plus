@@ -18,6 +18,7 @@ import com.xianyusmart.service.KamiConfigService;
 import com.xianyusmart.service.OrderService;
 import com.xianyusmart.service.delivery.DeliveryContext;
 import com.xianyusmart.service.delivery.DeliveryStrategyResolver;
+import com.xianyusmart.service.delivery.OrderDetailFetcher;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +57,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     private KamiConfigService kamiConfigService;
+
+    @Autowired
+    private OrderDetailFetcher orderDetailFetcher;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -446,7 +450,16 @@ public class OrderServiceImpl implements OrderService {
     public String consignDummyDeliveryWithConfig(Long accountId, String xyGoodsId, String orderId) {
         log.info("【账号{}】带配置凭证发货: xyGoodsId={}, orderId={}", accountId, xyGoodsId, orderId);
 
-        XianyuGoodsAutoDeliveryConfig deliveryConfig = autoDeliveryConfigMapper.findByAccountIdAndGoodsIdAndSkuId(accountId, xyGoodsId, null);
+        XianyuGoodsOrder existingOrder = orderMapper.selectByAccountIdAndOrderId(accountId, orderId);
+        String orderSkuId = null;
+        OrderDetailFetcher.OrderDetailInfo orderDetail = orderDetailFetcher.fetch(accountId, xyGoodsId, orderId);
+        if (orderDetail != null) {
+            orderSkuId = orderDetail.skuId;
+        }
+
+        XianyuGoodsAutoDeliveryConfig deliveryConfig = orderSkuId == null || orderSkuId.isBlank()
+                ? null
+                : autoDeliveryConfigMapper.findByAccountIdAndGoodsIdAndSkuId(accountId, xyGoodsId, orderSkuId);
         if (deliveryConfig == null) {
             deliveryConfig = autoDeliveryConfigMapper.findByAccountIdAndGoodsIdNoSku(accountId, xyGoodsId);
         }
@@ -459,7 +472,6 @@ public class OrderServiceImpl implements OrderService {
         int deliveryMode = deliveryConfig.getDeliveryMode() != null ? deliveryConfig.getDeliveryMode() : 1;
 
         // 从订单记录中获取 sId 和 buyerUserName，供卡密发货策略使用
-        XianyuGoodsOrder existingOrder = orderMapper.selectByAccountIdAndOrderId(accountId, orderId);
         String sId = null;
         String buyerUserName = null;
         if (existingOrder != null) {

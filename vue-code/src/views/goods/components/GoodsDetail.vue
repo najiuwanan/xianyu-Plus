@@ -127,7 +127,10 @@ const loadDetail = async () => {
       currentImageIndex.value = 0
 
       try {
-        const skuRes = await getGoodsSkuDetail(props.goodsId)
+        if (props.accountId == null) {
+          throw new Error('未选择账号')
+        }
+        const skuRes = await getGoodsSkuDetail(props.accountId, props.goodsId)
         if (skuRes.code === 200 || skuRes.code === 0) {
           const rawSkuList = skuRes.data?.skuList || []
           const rawPropList = skuRes.data?.propertyList || []

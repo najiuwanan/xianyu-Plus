@@ -283,12 +283,12 @@ export function useAutoDelivery() {
   }
 
   const loadSkuList = async () => {
-    if (!selectedGoods.value) {
+    if (!selectedGoods.value || !selectedAccountId.value) {
       skuList.value = []
       return
     }
     try {
-      const res = await getGoodsSkuList(selectedGoods.value.item.xyGoodId)
+      const res = await getGoodsSkuList(selectedAccountId.value, selectedGoods.value.item.xyGoodId)
       if (res.code === 200 || res.code === 0) {
         skuList.value = (res.data || []).sort((a, b) => {
           if (a.propertySortOrder !== b.propertySortOrder) return (a.propertySortOrder ?? 0) - (b.propertySortOrder ?? 0)

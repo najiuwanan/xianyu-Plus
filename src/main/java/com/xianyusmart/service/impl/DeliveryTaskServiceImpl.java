@@ -71,14 +71,17 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
     }
 
     @Override
-    public void complete(Long taskId) {
-        orderMapper.completeTask(taskId);
+    public void complete(Long taskId, String workerId) {
+        if (orderMapper.completeTask(taskId, workerId) == 0) {
+            log.warn("任务租约已失效，忽略完成操作: taskId={}", taskId);
+        }
     }
 
     @Override
-    public void retryOrFail(Long taskId, String errorMessage) {
+    public void retryOrFail(Long taskId, String workerId, String errorMessage) {
         XianyuGoodsOrder task = orderMapper.selectById(taskId);
-        if (task == null) {
+        if (task == null || !workerId.equals(task.getLeaseOwner())) {
+            log.warn("任务租约已失效，忽略重试操作: taskId={}", taskId);
             return;
         }
         int attempts = task.getAttemptCount() != null ? task.getAttemptCount() : 0;
@@ -86,14 +89,23 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
         String status = exhausted ? DeliveryStatus.FAILED.name() : DeliveryStatus.RETRY_WAIT.name();
         LocalDateTime nextRetryTime = exhausted ? null : LocalDateTime.now().plusSeconds(Math.min(300L, 5L << attempts));
         String safeMessage = errorMessage == null ? "自动发货失败" : errorMessage.substring(0, Math.min(errorMessage.length(), 500));
-        orderMapper.retryOrFailTask(taskId, status, nextRetryTime, safeMessage);
+        if (orderMapper.retryOrFailTask(taskId, status, nextRetryTime, safeMessage, workerId) == 0) {
+            log.warn("任务租约已失效，忽略重试操作: taskId={}", taskId);
+        }
     }
 
     @Override
-    public void markReviewRequired(Long taskId, String errorMessage) {
+    public void markReviewRequired(Long taskId, String workerId, String errorMessage) {
         String safeMessage = errorMessage == null ? "发送结果不确定，请人工核对" :
                 errorMessage.substring(0, Math.min(errorMessage.length(), 500));
-        orderMapper.markTaskReviewRequired(taskId, safeMessage);
+        if (orderMapper.markTaskReviewRequired(taskId, safeMessage, workerId) == 0) {
+            log.warn("任务租约已失效，忽略人工复核操作: taskId={}", taskId);
+        }
+    }
+
+    @Override
+    public boolean renewLease(Long taskId, String workerId) {
+        return orderMapper.renewTaskLease(taskId, workerId, leaseSeconds) > 0;
     }
 
     @Override

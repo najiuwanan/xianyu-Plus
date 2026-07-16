@@ -365,7 +365,7 @@ CREATE TABLE xianyu_goods_sku (
     created_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
-    UNIQUE KEY uk_goods_sku_remote (xy_goods_id, sku_key),
+    UNIQUE KEY uk_goods_sku_account_remote (xianyu_account_id, xy_goods_id, sku_key),
     KEY idx_goods_sku_account (xianyu_account_id),
     CONSTRAINT fk_goods_sku_account FOREIGN KEY (xianyu_account_id) REFERENCES xianyu_account (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -383,7 +383,7 @@ CREATE TABLE xianyu_goods_sku_property (
     created_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     updated_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
     PRIMARY KEY (id),
-    UNIQUE KEY uk_sku_property_value (xy_goods_id, property_id, value_id),
+    UNIQUE KEY uk_sku_property_account_value (xianyu_account_id, xy_goods_id, property_id, value_id),
     KEY idx_sku_property_account (xianyu_account_id),
     CONSTRAINT fk_sku_property_account FOREIGN KEY (xianyu_account_id) REFERENCES xianyu_account (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

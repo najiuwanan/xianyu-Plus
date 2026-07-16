@@ -46,6 +46,7 @@ const showManualUpdateTokenDialog = ref(false);
 const showQRUpdateDialog = ref(false);
 // 滑块验证引导对话框
 const showCaptchaGuideDialog = ref(false);
+const captchaUrl = ref('');
 
 // 响应式检测
 const isMobile = ref(false);
@@ -98,6 +99,10 @@ const handleStartConnection = async () => {
       addLog('连接启动成功');
       await loadConnectionStatus();
     } else if (response.code === 1001 && response.data?.needCaptcha) {
+      captchaUrl.value = response.data.captchaUrl || '';
+      if (!captchaUrl.value) {
+        throw new Error('未获取到滑块验证地址，请稍后重新启动连接');
+      }
       addLog('⚠️ 检测到需要滑块验证', true);
       showCaptchaGuideDialog.value = true;
     } else {
@@ -244,12 +249,11 @@ const handleQRUpdateSuccess = async () => {
   await loadConnectionStatus();
 };
 
-// 滑块验证确认回调
-const handleCaptchaConfirm = () => {
-  window.open('https://www.goofish.com/im', '_blank');
-  addLog('✅ 已打开闲鱼IM页面');
-  addLog('📌 完成验证后，请点击"❓ 如何获取？"按钮查看教程');
-  showInfo('请在闲鱼IM页面完成验证，然后使用帮助按钮获取Cookie和Token');
+// 滑块验证完成回调
+const handleCaptchaSuccess = async () => {
+  captchaUrl.value = '';
+  addLog('滑块验证已完成，正在刷新连接状态');
+  await loadConnectionStatus();
 };
 
 // 关闭对话框
@@ -497,8 +501,11 @@ onBeforeUnmount(() => {
 
     <!-- 滑块验证引导对话框 -->
     <CaptchaGuideDialog
+      v-if="accountId && captchaUrl"
       v-model="showCaptchaGuideDialog"
-      @confirm="handleCaptchaConfirm"
+      :account-id="accountId"
+      :captcha-url="captchaUrl"
+      @success="handleCaptchaSuccess"
     />
         </div>
       </div>

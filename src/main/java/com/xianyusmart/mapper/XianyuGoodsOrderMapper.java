@@ -146,21 +146,28 @@ public interface XianyuGoodsOrderMapper {
                    @Param("leaseSeconds") int leaseSeconds);
 
     @Update("UPDATE xianyu_goods_order SET delivery_status = 'COMPLETED', delivered_quantity = expected_quantity, " +
-            "next_retry_time = NULL, lease_owner = NULL, lease_expire_time = NULL, last_error_code = NULL, last_error_message = NULL WHERE id = #{id}")
-    int completeTask(@Param("id") Long id);
+            "next_retry_time = NULL, lease_owner = NULL, lease_expire_time = NULL, last_error_code = NULL, last_error_message = NULL " +
+            "WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId} AND lease_expire_time > NOW(3)")
+    int completeTask(@Param("id") Long id, @Param("workerId") String workerId);
 
     @Update("UPDATE xianyu_goods_order SET delivery_status = #{status}, next_retry_time = #{nextRetryTime}, " +
-            "lease_owner = NULL, lease_expire_time = NULL, last_error_code = 'DELIVERY_FAILED', last_error_message = #{errorMessage} WHERE id = #{id}")
+            "lease_owner = NULL, lease_expire_time = NULL, last_error_code = 'DELIVERY_FAILED', last_error_message = #{errorMessage} " +
+            "WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId} AND lease_expire_time > NOW(3)")
     int retryOrFailTask(@Param("id") Long id, @Param("status") String status,
                         @Param("nextRetryTime") java.time.LocalDateTime nextRetryTime,
-                        @Param("errorMessage") String errorMessage);
+                        @Param("errorMessage") String errorMessage, @Param("workerId") String workerId);
 
     @Update("UPDATE xianyu_goods_order SET delivery_status = 'REVIEW_REQUIRED', next_retry_time = NULL, " +
-            "lease_owner = NULL, lease_expire_time = NULL, last_error_code = 'DELIVERY_UNCERTAIN', last_error_message = #{errorMessage} WHERE id = #{id}")
-    int markTaskReviewRequired(@Param("id") Long id, @Param("errorMessage") String errorMessage);
+            "lease_owner = NULL, lease_expire_time = NULL, last_error_code = 'DELIVERY_UNCERTAIN', last_error_message = #{errorMessage} " +
+            "WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId} AND lease_expire_time > NOW(3)")
+    int markTaskReviewRequired(@Param("id") Long id, @Param("errorMessage") String errorMessage, @Param("workerId") String workerId);
+
+    @Update("UPDATE xianyu_goods_order SET lease_expire_time = DATE_ADD(NOW(3), INTERVAL #{leaseSeconds} SECOND) " +
+            "WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId} AND lease_expire_time > NOW(3)")
+    int renewTaskLease(@Param("id") Long id, @Param("workerId") String workerId, @Param("leaseSeconds") int leaseSeconds);
 
     @Update("UPDATE xianyu_goods_order SET delivery_status = 'PENDING', next_retry_time = NOW(3), " +
-            "lease_owner = NULL, lease_expire_time = NULL WHERE id = #{id} AND state <> 1 AND delivery_status IN ('FAILED', 'RETRY_WAIT')")
+            "lease_owner = NULL, lease_expire_time = NULL WHERE id = #{id} AND state <> 1 AND delivery_status IN ('FAILED', 'RETRY_WAIT', 'SKIPPED')")
     int requeueTask(@Param("id") Long id);
     
     @Update("UPDATE xianyu_goods_order SET confirm_state = 1 WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId}")
@@ -187,7 +194,7 @@ public interface XianyuGoodsOrderMapper {
     @Select("<script>" +
             "SELECT r.*, g.title as goods_title " +
             "FROM xianyu_goods_order r " +
-            "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id " +
+            "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id AND r.xianyu_account_id = g.xianyu_account_id " +
             "WHERE 1=1 " +
             "<if test='accountId != null'>" +
             "AND r.xianyu_account_id = #{accountId} " +
@@ -237,7 +244,7 @@ public interface XianyuGoodsOrderMapper {
 
     @Select("<script>" +
             "SELECT COUNT(*) FROM xianyu_goods_order r " +
-            "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id " +
+            "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id AND r.xianyu_account_id = g.xianyu_account_id " +
             "WHERE 1=1 " +
             "<if test='accountId != null'>" +
             "AND r.xianyu_account_id = #{accountId} " +

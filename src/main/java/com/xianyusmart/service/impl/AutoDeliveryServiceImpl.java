@@ -45,6 +45,9 @@ import java.util.concurrent.Executor;
 @Slf4j
 @Service
 public class AutoDeliveryServiceImpl implements AutoDeliveryService {
+
+    /** A retry could duplicate text that has already reached the buyer. */
+    public static final String PARTIAL_DELIVERY_REVIEW_PREFIX = "PARTIAL_DELIVERY_REVIEW: ";
     
     @Autowired
     private XianyuGoodsConfigMapper goodsConfigMapper;
@@ -499,7 +502,11 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                         emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, "消息发送失败");
                         return;
                     }
-                    break;
+                    String partialFailure = PARTIAL_DELIVERY_REVIEW_PREFIX
+                            + "已成功发送 " + i + "/" + deliveryCount + " 条发货内容，剩余内容发送失败，请人工核对后处理。";
+                    updateRecordState(recordId, -1, allContent.toString(), partialFailure);
+                    emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, partialFailure);
+                    return;
                 }
             }
 

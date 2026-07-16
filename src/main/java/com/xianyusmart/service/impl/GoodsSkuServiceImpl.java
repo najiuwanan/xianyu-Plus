@@ -27,16 +27,18 @@ public class GoodsSkuServiceImpl implements GoodsSkuService {
     }
 
     @Override
-    public List<XianyuGoodsSku> listByXyGoodsId(String xyGoodsId) {
+    public List<XianyuGoodsSku> listByAccountIdAndXyGoodsId(Long xianyuAccountId, String xyGoodsId) {
         LambdaQueryWrapper<XianyuGoodsSku> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(XianyuGoodsSku::getXianyuAccountId, xianyuAccountId);
         wrapper.eq(XianyuGoodsSku::getXyGoodsId, xyGoodsId);
         wrapper.orderByAsc(XianyuGoodsSku::getPropertySortOrder, XianyuGoodsSku::getValueSortOrder);
         return goodsSkuMapper.selectList(wrapper);
     }
 
     @Override
-    public int countByXyGoodsId(String xyGoodsId) {
+    public int countByAccountIdAndXyGoodsId(Long xianyuAccountId, String xyGoodsId) {
         LambdaQueryWrapper<XianyuGoodsSku> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(XianyuGoodsSku::getXianyuAccountId, xianyuAccountId);
         wrapper.eq(XianyuGoodsSku::getXyGoodsId, xyGoodsId);
         return Math.toIntExact(goodsSkuMapper.selectCount(wrapper));
     }
@@ -44,7 +46,7 @@ public class GoodsSkuServiceImpl implements GoodsSkuService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void saveSkus(String xyGoodsId, Long xianyuAccountId, List<XianyuGoodsSku> skuList) {
-        deleteByXyGoodsId(xyGoodsId);
+        deleteByAccountIdAndXyGoodsId(xianyuAccountId, xyGoodsId);
 
         String now = getCurrentTimeString();
         for (XianyuGoodsSku sku : skuList) {
@@ -59,8 +61,9 @@ public class GoodsSkuServiceImpl implements GoodsSkuService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void deleteByXyGoodsId(String xyGoodsId) {
+    public void deleteByAccountIdAndXyGoodsId(Long xianyuAccountId, String xyGoodsId) {
         LambdaQueryWrapper<XianyuGoodsSku> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(XianyuGoodsSku::getXianyuAccountId, xianyuAccountId);
         wrapper.eq(XianyuGoodsSku::getXyGoodsId, xyGoodsId);
         goodsSkuMapper.delete(wrapper);
     }

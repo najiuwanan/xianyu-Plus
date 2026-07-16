@@ -83,7 +83,7 @@ flowchart LR
 
 - Java 21
 - Spring Boot 3.5
-- MySQL 5.7+
+- MySQL 8.0+
 - Flyway
 - MyBatis-Plus
 - Vue 3、TypeScript、Vite
@@ -95,8 +95,8 @@ flowchart LR
 每个正式 Release 会自动发布 `linux/amd64` 镜像到 GitHub Container Registry。固定版本适合生产部署，`latest` 适合体验最新正式版本。
 
 ```bash
-docker pull ghcr.io/evvvvvvvan/xianyusmart:v1.0.0
-docker pull ghcr.io/evvvvvvvan/xianyusmart:latest
+docker pull ghcr.io/najiuwanan/xianyu-plus:v1.0.0
+docker pull ghcr.io/najiuwanan/xianyu-plus:latest
 ```
 
 使用仓库内的 Docker Compose 启动固定版本：
@@ -106,7 +106,7 @@ Linux：
 ```bash
 cp .env.example .env
 # 修改 .env 中的数据库密码和 JWT 强密钥
-export APP_IMAGE=ghcr.io/evvvvvvvan/xianyusmart:v1.0.0
+export APP_IMAGE=ghcr.io/najiuwanan/xianyu-plus:v1.0.0
 docker compose pull app
 docker compose up -d --no-build
 ```
@@ -116,7 +116,7 @@ Windows PowerShell：
 ```powershell
 Copy-Item .env.example .env
 notepad .env
-$env:APP_IMAGE = 'ghcr.io/evvvvvvvan/xianyusmart:v1.0.0'
+$env:APP_IMAGE = 'ghcr.io/najiuwanan/xianyu-plus:v1.0.0'
 docker compose pull app
 docker compose up -d --no-build
 ```
@@ -228,7 +228,7 @@ docker compose --profile proxy up -d --build
 
 ### Windows 本地开发
 
-准备 Java 21、Node.js 20+、MySQL 5.7+，然后创建数据库和账号：
+准备 Java 21、Node.js 20+、MySQL 8.0+，然后创建数据库和账号：
 
 ```sql
 CREATE DATABASE xianyusmart CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

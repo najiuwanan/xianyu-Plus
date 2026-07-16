@@ -6,6 +6,7 @@ import com.xianyusmart.enums.KamiStatus;
 import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.xianyusmart.mapper.XianyuKamiItemMapper;
+import com.xianyusmart.service.impl.AutoDeliveryServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +18,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ScheduledFuture;
+import org.springframework.scheduling.TaskScheduler;
+import java.time.Duration;
 
 @Slf4j
 @Component
@@ -31,10 +35,14 @@ public class DeliveryTaskScheduler {
     private final PendingOrderPollService pendingOrderPollService;
     private final WebSocketService webSocketService;
     private final Executor taskExecutor;
+    private final TaskScheduler taskScheduler;
     private final String workerId = buildWorkerId();
 
     @Value("${app.delivery.claim-batch-size:20}")
     private int claimBatchSize;
+
+    @Value("${app.delivery.lease-seconds:120}")
+    private int leaseSeconds;
 
     public DeliveryTaskScheduler(DeliveryTaskService deliveryTaskService,
                                  AutoDeliveryService autoDeliveryService,
@@ -44,7 +52,8 @@ public class DeliveryTaskScheduler {
                                  OrderService orderService,
                                  PendingOrderPollService pendingOrderPollService,
                                  WebSocketService webSocketService,
-                                 @Qualifier("taskExecutor") Executor taskExecutor) {
+                                 @Qualifier("taskExecutor") Executor taskExecutor,
+                                 @Qualifier("taskScheduler") TaskScheduler taskScheduler) {
         this.deliveryTaskService = deliveryTaskService;
         this.autoDeliveryService = autoDeliveryService;
         this.orderMapper = orderMapper;
@@ -54,6 +63,7 @@ public class DeliveryTaskScheduler {
         this.pendingOrderPollService = pendingOrderPollService;
         this.webSocketService = webSocketService;
         this.taskExecutor = taskExecutor;
+        this.taskScheduler = taskScheduler;
     }
 
     @Scheduled(fixedDelayString = "${app.delivery.dispatch-delay-ms:1000}", initialDelay = 5000)
@@ -69,9 +79,6 @@ public class DeliveryTaskScheduler {
             return;
         }
         for (XianyuAccount account : accounts) {
-            if (webSocketService.isConnected(account.getId())) {
-                continue;
-            }
             try {
                 List<Map<String, Object>> pendingOrders = orderService.queryPendingOrders(account.getId());
                 if (pendingOrders != null && !pendingOrders.isEmpty()) {
@@ -84,6 +91,13 @@ public class DeliveryTaskScheduler {
     }
 
     private void executeTask(XianyuGoodsOrder task) {
+        long renewalSeconds = Math.max(10, leaseSeconds / 2L);
+        ScheduledFuture<?> renewal = taskScheduler.scheduleAtFixedRate(
+                () -> {
+                    if (!deliveryTaskService.renewLease(task.getId(), workerId)) {
+                        log.warn("发货任务续租失败，任务可能已被其他工作线程接管: taskId={}", task.getId());
+                    }
+                }, Duration.ofSeconds(renewalSeconds));
         try {
             String sId = task.getSid();
             if (sId == null || sId.isBlank()) {
@@ -96,16 +110,24 @@ public class DeliveryTaskScheduler {
 
             XianyuGoodsOrder result = orderMapper.selectById(task.getId());
             if (result != null && Integer.valueOf(1).equals(result.getState())) {
-                deliveryTaskService.complete(task.getId());
-            } else if (kamiItemMapper.countByOrderAndStatus(task.getOrderId(), KamiStatus.REVIEW_REQUIRED.getCode()) > 0) {
-                deliveryTaskService.markReviewRequired(task.getId(), result != null ? result.getFailReason() : null);
+                deliveryTaskService.complete(task.getId(), workerId);
+            } else if (requiresManualReview(task, result)) {
+                deliveryTaskService.markReviewRequired(task.getId(), workerId, result != null ? result.getFailReason() : null);
             } else {
-                deliveryTaskService.retryOrFail(task.getId(), result != null ? result.getFailReason() : null);
+                deliveryTaskService.retryOrFail(task.getId(), workerId, result != null ? result.getFailReason() : null);
             }
         } catch (Exception e) {
             log.error("订单任务执行异常: taskId={}, orderId={}", task.getId(), task.getOrderId(), e);
-            deliveryTaskService.retryOrFail(task.getId(), e.getMessage());
+            deliveryTaskService.retryOrFail(task.getId(), workerId, e.getMessage());
+        } finally {
+            renewal.cancel(false);
         }
+    }
+
+    private boolean requiresManualReview(XianyuGoodsOrder task, XianyuGoodsOrder result) {
+        return kamiItemMapper.countByOrderAndStatus(task.getOrderId(), KamiStatus.REVIEW_REQUIRED.getCode()) > 0
+                || (result != null && result.getFailReason() != null
+                && result.getFailReason().startsWith(AutoDeliveryServiceImpl.PARTIAL_DELIVERY_REVIEW_PREFIX));
     }
 
     private String buildWorkerId() {

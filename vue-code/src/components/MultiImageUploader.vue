@@ -31,13 +31,16 @@ const canAdd = computed(() => imageUrls.value.length < props.max)
 
 const uploadingIndex = ref(-1)
 const uploadProgress = ref(0)
+let progressInterval: ReturnType<typeof setInterval> | null = null
 
 const triggerFileInput = (index: number) => {
+  if (uploadingIndex.value !== -1) return
   const input = document.getElementById(`multi-img-input-${index}`) as HTMLInputElement
   input?.click()
 }
 
 const handleFileChange = async (index: number, event: Event) => {
+  if (uploadingIndex.value !== -1) return
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
   if (!file) return
@@ -57,13 +60,14 @@ const handleFileChange = async (index: number, event: Event) => {
   uploadProgress.value = 0
 
   try {
-    const progressInterval = setInterval(() => {
+    progressInterval = setInterval(() => {
       if (uploadProgress.value < 90) uploadProgress.value += 10
     }, 100)
 
     const res = await uploadImage(props.accountId, file)
 
     clearInterval(progressInterval)
+    progressInterval = null
     uploadProgress.value = 100
 
     if (res && res.code === 200 && res.data) {
@@ -81,6 +85,10 @@ const handleFileChange = async (index: number, event: Event) => {
   } catch (error: any) {
     toast.error(error.message || '图片上传失败')
   } finally {
+    if (progressInterval) {
+      clearInterval(progressInterval)
+      progressInterval = null
+    }
     setTimeout(() => {
       uploadingIndex.value = -1
       uploadProgress.value = 0

@@ -27,6 +27,7 @@ const uploading = ref(false)
 const uploadProgress = ref(0)
 const previewUrl = computed(() => props.modelValue)
 const fileInput = ref<HTMLInputElement | null>(null)
+let progressInterval: ReturnType<typeof setInterval> | null = null
 
 const handleFileSelect = async (event: Event) => {
   const target = event.target as HTMLInputElement
@@ -51,12 +52,13 @@ const handleFileSelect = async (event: Event) => {
 }
 
 const doUpload = async (file: File) => {
+  if (uploading.value) return
   uploading.value = true
   uploadProgress.value = 0
   
   try {
     // 模拟上传进度
-    const progressInterval = setInterval(() => {
+    progressInterval = setInterval(() => {
       if (uploadProgress.value < 90) {
         uploadProgress.value += 10
       }
@@ -65,6 +67,7 @@ const doUpload = async (file: File) => {
     const res = await uploadImage(props.accountId, file)
     
     clearInterval(progressInterval)
+    progressInterval = null
     uploadProgress.value = 100
     
     if (res && res.code === 200 && res.data) {
@@ -79,6 +82,10 @@ const doUpload = async (file: File) => {
     emit('error', error.message || '上传失败')
     toast.error(error.message || '图片上传失败')
   } finally {
+    if (progressInterval) {
+      clearInterval(progressInterval)
+      progressInterval = null
+    }
     setTimeout(() => {
       uploading.value = false
       uploadProgress.value = 0

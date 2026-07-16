@@ -57,7 +57,8 @@ public class ChatMessageEventAutoDeliveryListener {
                 return;
             }
 
-            if (message.getXyGoodsId() == null || message.getSId() == null) {
+            if (message.getXyGoodsId() == null || message.getSId() == null
+                    || message.getOrderId() == null || message.getOrderId().isBlank()) {
                 log.warn("【账号{}】消息缺少商品ID或会话ID，无法触发自动发货: pnmId={}", accountId, message.getPnmId());
                 return;
             }

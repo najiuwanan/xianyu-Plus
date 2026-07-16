@@ -6,11 +6,11 @@ import java.util.List;
 
 public interface GoodsSkuService {
 
-    List<XianyuGoodsSku> listByXyGoodsId(String xyGoodsId);
+    List<XianyuGoodsSku> listByAccountIdAndXyGoodsId(Long xianyuAccountId, String xyGoodsId);
 
-    int countByXyGoodsId(String xyGoodsId);
+    int countByAccountIdAndXyGoodsId(Long xianyuAccountId, String xyGoodsId);
 
     void saveSkus(String xyGoodsId, Long xianyuAccountId, List<XianyuGoodsSku> skuList);
 
-    void deleteByXyGoodsId(String xyGoodsId);
+    void deleteByAccountIdAndXyGoodsId(Long xianyuAccountId, String xyGoodsId);
 }

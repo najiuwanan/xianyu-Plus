@@ -87,7 +87,8 @@ public class GoodsBackupHandler implements DataBackupHandler {
                 }
 
                 LambdaQueryWrapper<XianyuGoodsInfo> wrapper = new LambdaQueryWrapper<>();
-                wrapper.eq(XianyuGoodsInfo::getXyGoodId, xyGoodId);
+                wrapper.eq(XianyuGoodsInfo::getXyGoodId, xyGoodId)
+                        .eq(XianyuGoodsInfo::getXianyuAccountId, accountId);
                 XianyuGoodsInfo existing = goodsInfoMapper.selectOne(wrapper);
 
                 XianyuGoodsInfo goods = new XianyuGoodsInfo();

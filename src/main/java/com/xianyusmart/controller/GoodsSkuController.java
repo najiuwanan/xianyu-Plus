@@ -25,9 +25,10 @@ public class GoodsSkuController {
     private GoodsSkuPropertyService goodsSkuPropertyService;
 
     @PostMapping("/list")
-    public ResultObject<List<XianyuGoodsSku>> listByGoodsId(@RequestParam("xyGoodsId") String xyGoodsId) {
+    public ResultObject<List<XianyuGoodsSku>> listByGoodsId(@RequestParam("xianyuAccountId") Long xianyuAccountId,
+                                                            @RequestParam("xyGoodsId") String xyGoodsId) {
         try {
-            List<XianyuGoodsSku> skuList = goodsSkuService.listByXyGoodsId(xyGoodsId);
+            List<XianyuGoodsSku> skuList = goodsSkuService.listByAccountIdAndXyGoodsId(xianyuAccountId, xyGoodsId);
             return ResultObject.success(skuList);
         } catch (Exception e) {
             log.error("查询商品SKU列表失败: xyGoodsId={}", xyGoodsId, e);
@@ -36,10 +37,11 @@ public class GoodsSkuController {
     }
 
     @PostMapping("/detail")
-    public ResultObject<Map<String, Object>> skuDetail(@RequestParam("xyGoodsId") String xyGoodsId) {
+    public ResultObject<Map<String, Object>> skuDetail(@RequestParam("xianyuAccountId") Long xianyuAccountId,
+                                                       @RequestParam("xyGoodsId") String xyGoodsId) {
         try {
-            List<XianyuGoodsSku> skuList = goodsSkuService.listByXyGoodsId(xyGoodsId);
-            List<XianyuGoodsSkuProperty> propertyList = goodsSkuPropertyService.listByXyGoodsId(xyGoodsId);
+            List<XianyuGoodsSku> skuList = goodsSkuService.listByAccountIdAndXyGoodsId(xianyuAccountId, xyGoodsId);
+            List<XianyuGoodsSkuProperty> propertyList = goodsSkuPropertyService.listByAccountIdAndXyGoodsId(xianyuAccountId, xyGoodsId);
             Map<String, Object> data = new HashMap<>();
             data.put("skuList", skuList);
             data.put("propertyList", propertyList);

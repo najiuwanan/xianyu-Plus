@@ -28,8 +28,7 @@ const updateDialog = ref<InstanceType<typeof UpdateDialog> | null>(null)
 const loadVersion = async () => {
   try {
     const updateRes = await checkUpdate()
-    const latest = updateRes.data?.latestVersion || ''
-    hasNewVersion.value = latest > currentVersion.value
+    hasNewVersion.value = updateRes.data?.hasUpdate === true
   } catch {
     // ignore
   }

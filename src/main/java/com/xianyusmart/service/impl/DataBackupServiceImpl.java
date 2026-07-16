@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -70,6 +71,7 @@ public class DataBackupServiceImpl implements DataBackupService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public BackupImportRespBO importData(BackupImportReqBO reqBO) {
         BackupImportRespBO respBO = new BackupImportRespBO();
         List<String> failedModules = new ArrayList<>();
@@ -98,7 +100,10 @@ public class DataBackupServiceImpl implements DataBackupService {
 
         Map<String, Object> importContext = new LinkedHashMap<>();
 
-        for (String moduleKey : modulesData.keySet()) {
+        List<String> moduleKeys = new ArrayList<>(modulesData.keySet());
+        moduleKeys.sort(Comparator.comparingInt((String moduleKey) -> "account".equals(moduleKey) ? 0 : 1)
+                .thenComparing(Comparator.naturalOrder()));
+        for (String moduleKey : moduleKeys) {
             if (moduleKey.startsWith("_")) continue;
             if (selectedModules != null && !selectedModules.contains(moduleKey)) continue;
 
@@ -117,6 +122,7 @@ public class DataBackupServiceImpl implements DataBackupService {
                 log.info("[DataBackup] 导入模块 {} 成功", moduleKey);
             } catch (Exception e) {
                 failedModules.add(moduleKey);
+                org.springframework.transaction.interceptor.TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
                 log.error("[DataBackup] 导入模块 {} 失败", moduleKey, e);
             }
         }

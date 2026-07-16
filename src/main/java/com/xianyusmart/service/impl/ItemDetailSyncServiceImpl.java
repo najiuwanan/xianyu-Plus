@@ -15,6 +15,7 @@ import com.xianyusmart.utils.ItemDetailUtils;
 import com.xianyusmart.utils.XianyuApiUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -40,6 +41,10 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    @Lazy
+    private ItemDetailSyncServiceImpl self;
 
     private final ConcurrentHashMap<String, SyncProgress> progressMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, String> accountSyncMap = new ConcurrentHashMap<>();
@@ -79,7 +84,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
 
         String cookieStr = accountService.getCookieByAccountId(accountId);
 
-        executeSync(syncId, accountId, items, cookieStr);
+        self.executeSync(syncId, accountId, items, cookieStr);
 
         log.info("启动异步详情同步: syncId={}, accountId={}, itemCount={}", syncId, accountId, items.size());
         return syncId;
@@ -176,8 +181,8 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
                     goodsSkuPropertyService.saveProperties(itemId, accountId, propertyList);
                 }
             } else {
-                goodsSkuService.deleteByXyGoodsId(itemId);
-                goodsSkuPropertyService.deleteByXyGoodsId(itemId);
+                goodsSkuService.deleteByAccountIdAndXyGoodsId(accountId, itemId);
+                goodsSkuPropertyService.deleteByAccountIdAndXyGoodsId(accountId, itemId);
                 goodsInfoService.updateSkuCount(itemId, 0);
             }
 
