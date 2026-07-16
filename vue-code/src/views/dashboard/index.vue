@@ -25,7 +25,7 @@ onMounted(loadStatistics)
     <header class="merchant-dashboard__header">
       <div>
         <h1>经营概览</h1>
-        <p>优先处理履约异常和卡密库存，保证订单按时交付。</p>
+        <p>优先处理履约异常和卡券库存，保证订单按时交付。</p>
       </div>
       <button class="button button--secondary" :disabled="loading" @click="loadStatistics">
         {{ loading ? '刷新中' : '刷新数据' }}
@@ -44,7 +44,7 @@ onMounted(loadStatistics)
         <small>笔订单已完成</small>
       </article>
       <article class="metric-card">
-        <span>可用卡密</span>
+        <span>可用卡券</span>
         <strong>{{ stats.availableKamiCount }}</strong>
         <small>{{ stats.lowStockConfigCount }} 个仓库库存预警</small>
       </article>
@@ -83,7 +83,7 @@ onMounted(loadStatistics)
         </button>
         <button class="todo-row" @click="go('/kami-config')">
           <span class="status-dot status-dot--orange"></span>
-          <span class="todo-row__label">卡密库存预警</span>
+          <span class="todo-row__label">卡券库存预警</span>
           <strong>{{ stats.lowStockConfigCount }}</strong>
           <span class="todo-row__action">补充库存</span>
         </button>

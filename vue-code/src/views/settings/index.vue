@@ -1560,7 +1560,7 @@ function handleBackupMenuEnter() {
         <!-- 产品定位 -->
         <div class="settings__section">
           <div class="settings__section-title">闲鱼Plus（XianYuPlus）</div>
-          <p class="settings__desc">个人私有部署的闲鱼虚拟商品管理与自动化助手，支持商品管理、卡密库存、自动发货、自动评价和异常待办。</p>
+          <p class="settings__desc">个人私有部署的闲鱼虚拟商品管理与自动化助手，支持商品管理、卡券库存、自动发货、自动评价和异常待办。</p>
         </div>
 
         <!-- 许可证与使用限制 -->

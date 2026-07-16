@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, inject, defineComponent, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, inject } from 'vue'
 import { toast } from '@/utils/toast'
 import { showConfirm } from '@/utils/confirm'
-import '@/styles/header-selectors.css'
 import {
-  getKamiConfigsByAccountId,
+  getKamiConfigs,
   saveKamiConfig,
   deleteKamiConfig,
   queryKamiItems,
@@ -16,12 +15,7 @@ import {
   type KamiConfig,
   type KamiItem
 } from '@/api/kami-config'
-import { getAccountList } from '@/api/account'
-import type { Account } from '@/types'
-import IconChevronDown from '@/components/icons/IconChevronDown.vue'
 
-const accounts = ref<Account[]>([])
-const selectedAccountId = ref<number | null>(null)
 const kamiConfigs = ref<KamiConfig[]>([])
 const configLoading = ref(false)
 
@@ -65,57 +59,17 @@ const checkScreenSize = () => {
   isMobile.value = window.innerWidth < 768
 }
 
-// 导航栏注入 — 必须在 setup 顶层调用
+// 卡券库不再属于单个账号，进入页面时清除其他页面遗留的账号筛选器。
 const setHeaderContent = inject<(content: any) => void>('setHeaderContent')
-
-const HeaderSelectors = defineComponent({
-  setup() {
-    return () => h('div', { class: 'header-selectors' }, [
-      h('div', { class: 'header-select-wrap' }, [
-        h('select', {
-          class: 'header-select',
-          onChange: (e: Event) => {
-            const val = (e.target as HTMLSelectElement).value
-            selectedAccountId.value = val ? parseInt(val) : null
-          }
-        }, [
-          h('option', { value: '', disabled: true, selected: !selectedAccountId.value }, '账号'),
-          ...accounts.value.map(acc =>
-            h('option', {
-              value: acc.id.toString(),
-              selected: selectedAccountId.value === acc.id
-            }, acc.accountNote || acc.unb)
-          )
-        ]),
-        h(IconChevronDown, { class: 'header-select-icon' })
-      ])
-    ])
-  }
-})
 
 const selectedConfig = computed(() => {
   return kamiConfigs.value.find(c => c.id === selectedConfigId.value)
 })
 
-const loadAccounts = async () => {
-  try {
-    const res = await getAccountList()
-    if (res.code === 200 && res.data) {
-      accounts.value = res.data.accounts || []
-      if (accounts.value.length > 0 && !selectedAccountId.value) {
-        selectedAccountId.value = accounts.value[0]!.id
-      }
-    }
-  } catch (e) {
-    console.error('加载账号失败', e)
-  }
-}
-
 const loadKamiConfigs = async () => {
-  if (!selectedAccountId.value) return
   configLoading.value = true
   try {
-    const res = await getKamiConfigsByAccountId(selectedAccountId.value)
+    const res = await getKamiConfigs()
     if (res.code === 200) {
       kamiConfigs.value = res.data || []
       if (kamiConfigs.value.length > 0 && !selectedConfigId.value && !isMobile.value) {
@@ -127,7 +81,7 @@ const loadKamiConfigs = async () => {
       }
     }
   } catch (e) {
-    console.error('加载卡密配置失败', e)
+    console.error('加载卡券库失败', e)
   } finally {
     configLoading.value = false
   }
@@ -146,16 +100,10 @@ const loadKamiItems = async () => {
       kamiItems.value = res.data || []
     }
   } catch (e) {
-    console.error('加载卡密列表失败', e)
+    console.error('加载卡券列表失败', e)
   } finally {
     itemsLoading.value = false
   }
-}
-
-const handleAccountChange = () => {
-  selectedConfigId.value = null
-  kamiItems.value = []
-  loadKamiConfigs()
 }
 
 const selectConfig = (config: KamiConfig) => {
@@ -166,14 +114,9 @@ const selectConfig = (config: KamiConfig) => {
 }
 
 const handleCreate = async () => {
-  if (!selectedAccountId.value) {
-    toast.warning('请先选择账号')
-    return
-  }
   createLoading.value = true
   try {
     const res = await saveKamiConfig({
-      xianyuAccountId: selectedAccountId.value,
       aliasName: createForm.value.aliasName || '未命名'
     })
     if (res.code === 200) {
@@ -198,7 +141,7 @@ const handleCreate = async () => {
 const handleDeleteConfig = async (config: KamiConfig) => {
   try {
     await showConfirm(
-      `确定删除卡密配置「${config.aliasName || config.id}」及其所有卡密？`,
+      `确定删除卡券库「${config.aliasName || config.id}」及其所有卡券？`,
       '删除确认'
     )
     const res = await deleteKamiConfig(config.id)
@@ -217,7 +160,7 @@ const handleDeleteConfig = async (config: KamiConfig) => {
 
 const handleAddKami = async () => {
   if (!addContent.value.trim()) {
-    toast.warning('请输入卡密内容')
+    toast.warning('请输入卡券内容')
     return
   }
   addLoading.value = true
@@ -244,7 +187,7 @@ const handleAddKami = async () => {
 
 const handleBatchImport = async () => {
   if (!importContent.value.trim()) {
-    toast.warning('请输入卡密内容')
+    toast.warning('请输入卡券内容')
     return
   }
   importLoading.value = true
@@ -271,7 +214,7 @@ const handleBatchImport = async () => {
 
 const handleDeleteItem = async (item: KamiItem) => {
   try {
-    await showConfirm('确定删除该卡密？', '删除确认')
+    await showConfirm('确定删除该卡券？', '删除确认')
     const res = await deleteKamiItem(item.id)
     if (res.code === 200) {
       toast.success('删除成功')
@@ -285,7 +228,7 @@ const handleDeleteItem = async (item: KamiItem) => {
 
 const handleResetItem = async (item: KamiItem) => {
   try {
-    await showConfirm('确定重置该卡密为未使用状态？', '重置确认')
+    await showConfirm('确定重置该卡券为未使用状态？', '重置确认')
     const res = await resetKamiItem(item.id)
     if (res.code === 200) {
       toast.success('重置成功')
@@ -318,7 +261,6 @@ const handleSaveAlert = async () => {
   try {
     const res = await saveKamiConfig({
       id: selectedConfigId.value,
-      xianyuAccountId: selectedAccountId.value!,
       aliasName: selectedConfig.value?.aliasName,
       alertEnabled: alertForm.value.alertEnabled,
       alertThresholdType: alertForm.value.alertThresholdType,
@@ -367,7 +309,7 @@ const handleExport = async () => {
     const configName = selectedConfig.value?.aliasName || `配置${selectedConfigId.value}`
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '').replace('T', '_')
 
-    const header = '序号\t卡密内容\t状态\t订单ID\t使用时间\t添加时间\n'
+    const header = '序号\t卡券内容\t状态\t订单ID\t使用时间\t添加时间\n'
     const rows = allItems.map(item =>
       `${item.sortOrder}\t${item.kamiContent}\t${item.status === 0 ? '未使用' : '已使用'}\t${item.orderId || ''}\t${item.usedTime || ''}\t${item.createTime}`
     ).join('\n')
@@ -386,19 +328,15 @@ const handleExport = async () => {
   }
 }
 
-watch(selectedAccountId, () => {
-  if (selectedAccountId.value) {
-    selectedConfigId.value = null
-    kamiItems.value = []
-    loadKamiConfigs()
-  }
-})
-
-onMounted(async () => {
+onMounted(() => {
   checkScreenSize()
   window.addEventListener('resize', checkScreenSize)
-  if (setHeaderContent) setHeaderContent(HeaderSelectors)
-  await loadAccounts()
+  if (setHeaderContent) setHeaderContent(null)
+  loadKamiConfigs()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', checkScreenSize)
 })
 </script>
 
@@ -412,8 +350,8 @@ onMounted(async () => {
       <div v-if="!selectedConfigId" class="kami-mobile">
         <header class="kami-mobile__header">
           <div class="kami-mobile__header-top">
-            <h1 class="kami-page__title">卡密仓库</h1>
-            <button class="btn-primary btn-sm" @click="showCreateDialog = true" :disabled="!selectedAccountId">
+            <h1 class="kami-page__title">卡券管理</h1>
+            <button class="btn-primary btn-sm" @click="showCreateDialog = true">
               新建
             </button>
           </div>
@@ -421,14 +359,14 @@ onMounted(async () => {
 
         <div class="kami-mobile__list">
           <div v-if="configLoading" class="kami-page__empty">加载中...</div>
-          <div v-else-if="kamiConfigs.length === 0" class="kami-page__empty">暂无配置，点击右上角新建</div>
+          <div v-else-if="kamiConfigs.length === 0" class="kami-page__empty">暂无卡券库，点击右上角新建</div>
           <div
             v-for="config in kamiConfigs"
             :key="config.id"
             class="config-card"
             @click="selectConfig(config)"
           >
-            <div class="config-card__name">{{ config.aliasName || `配置#${config.id}` }}</div>
+            <div class="config-card__name">{{ config.aliasName || `卡券库#${config.id}` }}</div>
             <div class="config-card__stats">
               <span class="config-card__stat">总量 {{ config.totalCount }}</span>
               <span class="config-card__stat used">已用 {{ config.usedCount }}</span>
@@ -443,14 +381,14 @@ onMounted(async () => {
         </div>
       </div>
 
-      <!-- 卡密详情视图 -->
+      <!-- 卡券详情视图 -->
       <div v-else class="kami-mobile">
         <header class="kami-mobile__header">
           <div class="kami-mobile__header-top">
             <button class="kami-mobile__back" @click="selectedConfigId = null; kamiItems = []">
               ← 返回
             </button>
-            <span class="kami-mobile__config-name">{{ selectedConfig?.aliasName || `配置#${selectedConfigId}` }}</span>
+            <span class="kami-mobile__config-name">{{ selectedConfig?.aliasName || `卡券库#${selectedConfigId}` }}</span>
           </div>
           <div class="kami-mobile__detail-actions">
             <button class="btn-default btn-sm" @click="showAddDialog = true">添加</button>
@@ -474,7 +412,7 @@ onMounted(async () => {
           <input
             v-model="filterKeyword"
             class="native-input"
-            placeholder="搜索卡密"
+            placeholder="搜索卡券"
             style="flex: 2;"
             @keyup.enter="handleFilterChange"
           />
@@ -483,7 +421,7 @@ onMounted(async () => {
 
         <div class="kami-mobile__items">
           <div v-if="itemsLoading" class="kami-page__empty">加载中...</div>
-          <div v-else-if="kamiItems.length === 0" class="kami-page__empty">暂无卡密</div>
+          <div v-else-if="kamiItems.length === 0" class="kami-page__empty">暂无卡券</div>
           <div
             v-for="item in kamiItems"
             :key="item.id"
@@ -510,22 +448,11 @@ onMounted(async () => {
     <!-- ===== 桌面端 ===== -->
     <template v-else>
       <header class="kami-page__header">
-        <h1 class="kami-page__title">卡密仓库</h1>
+        <h1 class="kami-page__title">卡券管理</h1>
         <div class="kami-page__actions">
-          <select
-            v-model="selectedAccountId"
-            class="account-select native-select"
-            @change="handleAccountChange"
-          >
-            <option value="" disabled>选择账号</option>
-            <option
-              v-for="acc in accounts"
-              :key="acc.id"
-              :value="acc.id"
-            >{{ acc.accountNote || `账号${acc.id}` }}</option>
-          </select>
-          <button class="btn-primary" @click="showCreateDialog = true" :disabled="!selectedAccountId">
-            新建密钥仓库
+          <span class="kami-page__shared-hint">所有账号共享同一套卡券库存</span>
+          <button class="btn-primary" @click="showCreateDialog = true">
+            新建卡券库
           </button>
         </div>
       </header>
@@ -533,7 +460,7 @@ onMounted(async () => {
       <div class="kami-page__body">
         <div class="kami-page__sidebar">
           <div v-if="configLoading" class="kami-page__empty">加载中...</div>
-          <div v-else-if="kamiConfigs.length === 0" class="kami-page__empty">暂无配置，点击右上角新建</div>
+          <div v-else-if="kamiConfigs.length === 0" class="kami-page__empty">暂无卡券库，点击右上角新建</div>
           <div
             v-for="config in kamiConfigs"
             :key="config.id"
@@ -541,7 +468,7 @@ onMounted(async () => {
             :class="{ 'config-card--active': selectedConfigId === config.id }"
             @click="selectConfig(config)"
           >
-            <div class="config-card__name">{{ config.aliasName || `配置#${config.id}` }}</div>
+            <div class="config-card__name">{{ config.aliasName || `卡券库#${config.id}` }}</div>
             <div class="config-card__stats">
               <span class="config-card__stat">总量 {{ config.totalCount }}</span>
               <span class="config-card__stat used">已用 {{ config.usedCount }}</span>
@@ -556,12 +483,12 @@ onMounted(async () => {
         </div>
 
         <div class="kami-page__main">
-          <div v-if="!selectedConfig" class="kami-page__empty-main">请选择左侧卡密配置</div>
+          <div v-if="!selectedConfig" class="kami-page__empty-main">请选择左侧卡券库</div>
           <template v-else>
             <div class="kami-detail__header">
-              <h2>{{ selectedConfig.aliasName || `配置#${selectedConfig.id}` }}</h2>
+              <h2>{{ selectedConfig.aliasName || `卡券库#${selectedConfig.id}` }}</h2>
               <div class="kami-detail__actions">
-                <button class="btn-default" @click="showAddDialog = true">添加卡密</button>
+                <button class="btn-default" @click="showAddDialog = true">添加卡券</button>
                 <button class="btn-primary" @click="showImportDialog = true">批量导入</button>
                 <button class="btn-success" @click="openExportDialog">导出</button>
                 <button class="btn-warning" @click="openAlertDialog">预警配置</button>
@@ -582,7 +509,7 @@ onMounted(async () => {
               <input
                 v-model="filterKeyword"
                 class="native-input"
-                placeholder="搜索卡密内容"
+                placeholder="搜索卡券内容"
                 style="width: 200px; margin-right: 8px;"
                 @keyup.enter="handleFilterChange"
               />
@@ -592,12 +519,12 @@ onMounted(async () => {
             <div class="kami-detail__table">
               <div v-if="itemsLoading" class="kami-page__empty">加载中...</div>
               <template v-else>
-                <div v-if="kamiItems.length === 0" class="kami-page__empty">暂无卡密</div>
+                <div v-if="kamiItems.length === 0" class="kami-page__empty">暂无卡券</div>
                 <table v-else class="kami-table">
                   <thead>
                     <tr>
                       <th>序号</th>
-                      <th>卡密内容</th>
+                      <th>卡券内容</th>
                       <th>状态</th>
                       <th>订单ID</th>
                       <th>使用时间</th>
@@ -635,12 +562,12 @@ onMounted(async () => {
 
     <!-- ===== 弹窗（共用） ===== -->
     <Teleport to="body">
-      <!-- 新建卡密配置 -->
+      <!-- 新建卡券库 -->
       <Transition name="modal">
         <div v-if="showCreateDialog" class="modal-overlay" @click.self="showCreateDialog = false">
           <div class="modal-container">
             <div class="modal-header">
-              <h2 class="modal-title">新建卡密配置</h2>
+              <h2 class="modal-title">新建卡券库</h2>
               <button class="modal-close" @click="showCreateDialog = false">×</button>
             </div>
             <div class="modal-body">
@@ -657,16 +584,16 @@ onMounted(async () => {
         </div>
       </Transition>
 
-      <!-- 添加卡密 -->
+      <!-- 添加卡券 -->
       <Transition name="modal">
         <div v-if="showAddDialog" class="modal-overlay" @click.self="showAddDialog = false">
           <div class="modal-container">
             <div class="modal-header">
-              <h2 class="modal-title">添加卡密</h2>
+              <h2 class="modal-title">添加卡券</h2>
               <button class="modal-close" @click="showAddDialog = false">×</button>
             </div>
             <div class="modal-body">
-              <textarea v-model="addContent" class="form-textarea" :rows="3" placeholder="请输入卡密内容"></textarea>
+              <textarea v-model="addContent" class="form-textarea" :rows="3" placeholder="请输入卡券内容"></textarea>
             </div>
             <div class="modal-footer">
               <button class="btn btn-secondary" @click="showAddDialog = false">取消</button>
@@ -676,17 +603,17 @@ onMounted(async () => {
         </div>
       </Transition>
 
-      <!-- 批量导入 -->
+      <!-- 批量导入卡券 -->
       <Transition name="modal">
         <div v-if="showImportDialog" class="modal-overlay" @click.self="showImportDialog = false">
           <div class="modal-container modal-container--lg">
             <div class="modal-header">
-              <h2 class="modal-title">批量导入卡密</h2>
+              <h2 class="modal-title">批量导入卡券</h2>
               <button class="modal-close" @click="showImportDialog = false">×</button>
             </div>
             <div class="modal-body">
-              <p class="form-hint">每行一条卡密，重复卡密不会跳过</p>
-              <textarea v-model="importContent" class="form-textarea" :rows="10" placeholder="卡密1&#10;卡密2&#10;卡密3"></textarea>
+              <p class="form-hint">每行一条卡券，重复内容不会跳过</p>
+              <textarea v-model="importContent" class="form-textarea" :rows="10" placeholder="卡券1&#10;卡券2&#10;卡券3"></textarea>
             </div>
             <div class="modal-footer">
               <button class="btn btn-secondary" @click="showImportDialog = false">取消</button>
@@ -726,7 +653,7 @@ onMounted(async () => {
               <div class="form-row">
                 <label class="form-label">阈值数值</label>
                 <input type="number" v-model.number="alertForm.alertThresholdValue" class="form-input form-input--num" :min="1" :max="alertForm.alertThresholdType === 2 ? 100 : 99999" />
-                <span class="form-suffix">{{ alertForm.alertThresholdType === 1 ? '可用卡密低于此数量时预警' : '可用比例低于此百分比时预警' }}</span>
+                <span class="form-suffix">{{ alertForm.alertThresholdType === 1 ? '可用卡券低于此数量时预警' : '可用比例低于此百分比时预警' }}</span>
               </div>
               <div class="form-row">
                 <label class="form-label">预警邮箱</label>
@@ -741,12 +668,12 @@ onMounted(async () => {
         </div>
       </Transition>
 
-      <!-- 导出卡密 -->
+      <!-- 导出卡券 -->
       <Transition name="modal">
         <div v-if="showExportDialog" class="modal-overlay" @click.self="showExportDialog = false">
           <div class="modal-container">
             <div class="modal-header">
-              <h2 class="modal-title">导出卡密</h2>
+              <h2 class="modal-title">导出卡券</h2>
               <button class="modal-close" @click="showExportDialog = false">×</button>
             </div>
             <div class="modal-body">
@@ -804,8 +731,9 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
 }
-.account-select {
-  width: 180px;
+.kami-page__shared-hint {
+  font-size: 13px;
+  color: rgba(28,28,30,.55);
 }
 .kami-page__body {
   flex: 1;

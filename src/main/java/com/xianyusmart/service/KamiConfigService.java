@@ -11,7 +11,7 @@ public interface KamiConfigService {
 
     ResultObject<KamiConfigRespDTO> createOrUpdateConfig(KamiConfigReqDTO reqDTO);
 
-    ResultObject<List<KamiConfigRespDTO>> getConfigsByAccountId(Long xianyuAccountId);
+    ResultObject<List<KamiConfigRespDTO>> getConfigs();
 
     ResultObject<KamiConfigRespDTO> getConfigById(Long id);
 

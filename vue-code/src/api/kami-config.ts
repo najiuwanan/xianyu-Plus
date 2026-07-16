@@ -2,7 +2,7 @@ import { request } from '@/utils/request';
 
 export interface KamiConfig {
   id: number;
-  xianyuAccountId: number;
+  xianyuAccountId?: number | null;
   aliasName: string;
   alertEnabled?: number;
   alertThresholdType?: number;
@@ -28,7 +28,7 @@ export interface KamiItem {
 
 export interface SaveKamiConfigReq {
   id?: number;
-  xianyuAccountId: number;
+  xianyuAccountId?: number | null;
   aliasName?: string;
   alertEnabled?: number;
   alertThresholdType?: number;
@@ -50,11 +50,10 @@ export function saveKamiConfig(data: SaveKamiConfigReq) {
   });
 }
 
-export function getKamiConfigsByAccountId(xianyuAccountId: number) {
+export function getKamiConfigs() {
   return request<KamiConfig[]>({
     url: '/kami-config/list',
-    method: 'POST',
-    params: { xianyuAccountId }
+    method: 'POST'
   });
 }
 

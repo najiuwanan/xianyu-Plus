@@ -84,7 +84,7 @@ const router = createRouter({
       path: '/kami-config',
       name: 'kami-config',
       component: () => import('@/views/kami-config/index.vue'),
-      meta: { title: '卡密配置', icon: '🔑' }
+      meta: { title: '卡券管理', icon: '🔑' }
     },
     {
       path: '/auto-reply',

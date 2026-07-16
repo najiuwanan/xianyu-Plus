@@ -22,4 +22,13 @@ class FlywayMigrationConsistencyTest {
         assertTrue(v5.contains("DROP INDEX uk_goods_sku_remote"));
         assertTrue(v5.contains("DROP INDEX uk_sku_property_value"));
     }
+
+    @Test
+    void sharedKamiMigrationKeepsExistingInventoryWhenAnAccountIsDeleted() throws IOException {
+        String v7 = new ClassPathResource("db/migration/V7__make_kami_configs_shared.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertTrue(v7.contains("MODIFY COLUMN xianyu_account_id BIGINT NULL"));
+        assertTrue(v7.contains("ON DELETE SET NULL"));
+    }
 }

@@ -25,7 +25,7 @@ import { showSuccess, showError, showInfo } from '@/utils'
 import { getConnectionStatus } from '@/api/websocket'
 import { toast } from '@/utils/toast'
 import {
-  getKamiConfigsByAccountId,
+  getKamiConfigs,
   type KamiConfig
 } from '@/api/kami-config'
 import type { Account } from '@/types'
@@ -354,9 +354,8 @@ export function useAutoDelivery() {
   }
 
   const loadKamiConfigOptions = async () => {
-    if (!selectedAccountId.value) return
     try {
-      const res = await getKamiConfigsByAccountId(selectedAccountId.value)
+      const res = await getKamiConfigs()
       if (res.code === 200) {
         kamiConfigOptions.value = res.data || []
       }
@@ -432,7 +431,7 @@ export function useAutoDelivery() {
       return
     }
     if (configForm.value.deliveryMode === 2 && !configForm.value.kamiConfigIds) {
-      showInfo('请绑定卡密配置')
+      showInfo('请绑定卡券库')
       return
     }
 
@@ -665,7 +664,7 @@ export function useAutoDelivery() {
       return
     }
     if (configForm.value.deliveryMode === 2 && !configForm.value.kamiConfigIds) {
-      showError('请绑定卡密配置！')
+      showError('请绑定卡券库！')
       return
     }
 

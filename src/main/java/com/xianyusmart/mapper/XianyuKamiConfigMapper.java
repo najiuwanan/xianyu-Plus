@@ -14,6 +14,6 @@ public interface XianyuKamiConfigMapper extends BaseMapper<XianyuKamiConfig> {
     @Select("SELECT * FROM xianyu_kami_config WHERE id = #{id} FOR UPDATE")
     XianyuKamiConfig lockById(@Param("id") Long id);
 
-    @Select("SELECT * FROM xianyu_kami_config WHERE xianyu_account_id = #{xianyuAccountId} ORDER BY create_time DESC")
-    List<XianyuKamiConfig> findByAccountId(@Param("xianyuAccountId") Long xianyuAccountId);
+    @Select("SELECT * FROM xianyu_kami_config ORDER BY create_time DESC, id DESC")
+    List<XianyuKamiConfig> findAllByCreateTime();
 }

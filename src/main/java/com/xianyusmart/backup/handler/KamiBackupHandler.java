@@ -34,7 +34,7 @@ public class KamiBackupHandler implements DataBackupHandler {
 
     @Override
     public String getModuleName() {
-        return "卡密仓库";
+        return "卡券管理";
     }
 
     @Override
@@ -42,31 +42,37 @@ public class KamiBackupHandler implements DataBackupHandler {
         List<XianyuKamiConfig> kamiConfigs = kamiConfigMapper.selectList(null);
 
         List<Map<String, Object>> configList = new ArrayList<>();
-        Map<Long, String> configIdToUnb = new HashMap<>();
+        Map<Long, String> configIdToBackupKey = new HashMap<>();
         for (XianyuKamiConfig config : kamiConfigs) {
-            XianyuAccount account = accountMapper.selectById(config.getXianyuAccountId());
-            if (account == null) continue;
+            XianyuAccount account = config.getXianyuAccountId() == null
+                    ? null
+                    : accountMapper.selectById(config.getXianyuAccountId());
 
             Map<String, Object> map = new LinkedHashMap<>();
-            map.put("unb", account.getUnb());
+            // 卡券库全局共享，使用来源配置 ID 保持配置与库存项的关联。
+            String backupKey = String.valueOf(config.getId());
+            map.put("configKey", backupKey);
+            if (account != null) {
+                map.put("unb", account.getUnb());
+            }
             map.put("aliasName", config.getAliasName());
             map.put("alertEnabled", config.getAlertEnabled());
             map.put("alertThresholdType", config.getAlertThresholdType());
             map.put("alertThresholdValue", config.getAlertThresholdValue());
             map.put("alertEmail", config.getAlertEmail());
             configList.add(map);
-            configIdToUnb.put(config.getId(), account.getUnb());
+            configIdToBackupKey.put(config.getId(), backupKey);
         }
 
         List<Map<String, Object>> itemList = new ArrayList<>();
         for (XianyuKamiConfig config : kamiConfigs) {
             List<XianyuKamiItem> items = kamiItemMapper.findByConfigIdAndStatus(config.getId(), 0);
-            String unb = configIdToUnb.get(config.getId());
-            if (unb == null) continue;
+            String backupKey = configIdToBackupKey.get(config.getId());
+            if (backupKey == null) continue;
 
             for (XianyuKamiItem item : items) {
                 Map<String, Object> map = new LinkedHashMap<>();
-                map.put("unb", unb);
+                map.put("configKey", backupKey);
                 map.put("aliasName", config.getAliasName());
                 map.put("kamiContent", item.getKamiContent());
                 itemList.add(map);
@@ -96,21 +102,28 @@ public class KamiBackupHandler implements DataBackupHandler {
             int skippedCount = 0;
             for (Map<String, Object> map : configMaps) {
                 try {
-                    String unb = (String) map.get("unb");
                     String aliasName = (String) map.get("aliasName");
-                    if (unb == null || aliasName == null) continue;
+                    String configKey = (String) map.get("configKey");
+                    String unb = (String) map.get("unb");
+                    if (aliasName == null) continue;
 
-                    Long accountId = unbToAccountId.get(unb);
-                    if (accountId == null) {
-                        log.warn("[KamiBackup] 跳过配置: 找不到账号, unb={}, aliasName={}", unb, aliasName);
+                    // 兼容旧备份：旧格式按账号恢复；新格式一律恢复为全局共享卡券库。
+                    Long accountId = configKey == null && unb != null ? unbToAccountId.get(unb) : null;
+                    if (configKey == null && unb != null && accountId == null) {
+                        log.warn("[KamiBackup] 跳过旧卡券配置: 找不到账号, unb={}, aliasName={}", unb, aliasName);
                         skippedCount++;
                         continue;
                     }
 
                     LambdaQueryWrapper<XianyuKamiConfig> wrapper = new LambdaQueryWrapper<>();
-                    wrapper.eq(XianyuKamiConfig::getXianyuAccountId, accountId)
-                           .eq(XianyuKamiConfig::getAliasName, aliasName);
-                    XianyuKamiConfig existing = kamiConfigMapper.selectOne(wrapper);
+                    wrapper.eq(XianyuKamiConfig::getAliasName, aliasName);
+                    if (accountId == null) {
+                        wrapper.isNull(XianyuKamiConfig::getXianyuAccountId);
+                    } else {
+                        wrapper.eq(XianyuKamiConfig::getXianyuAccountId, accountId);
+                    }
+                    List<XianyuKamiConfig> matches = kamiConfigMapper.selectList(wrapper);
+                    XianyuKamiConfig existing = matches.size() == 1 ? matches.getFirst() : null;
 
                     XianyuKamiConfig config = new XianyuKamiConfig();
                     config.setXianyuAccountId(accountId);
@@ -130,7 +143,8 @@ public class KamiBackupHandler implements DataBackupHandler {
                         config.setUsedCount(existing.getUsedCount());
                         kamiConfigMapper.updateById(config);
                     }
-                    configKeyToId.put(unb + ":" + aliasName, config.getId());
+                    String mapKey = configKey != null ? configKey : unb + ":" + aliasName;
+                    configKeyToId.put(mapKey, config.getId());
                 } catch (Exception e) {
                     log.warn("[KamiBackup] 导入单条卡密配置失败: {}", e.getMessage());
                 }
@@ -146,12 +160,14 @@ public class KamiBackupHandler implements DataBackupHandler {
             int skippedCount = 0;
             for (Map<String, Object> map : itemMaps) {
                 try {
+                    String configKey = (String) map.get("configKey");
                     String unb = (String) map.get("unb");
                     String aliasName = (String) map.get("aliasName");
                     String kamiContent = (String) map.get("kamiContent");
-                    if (unb == null || aliasName == null || kamiContent == null) continue;
+                    if (aliasName == null || kamiContent == null) continue;
 
-                    Long configId = configKeyToId.get(unb + ":" + aliasName);
+                    String mapKey = configKey != null ? configKey : unb + ":" + aliasName;
+                    Long configId = configKeyToId.get(mapKey);
                     if (configId == null) {
                         skippedCount++;
                         continue;

@@ -55,7 +55,8 @@ public class KamiConfigServiceImpl implements KamiConfigService {
                 }
             } else {
                 config = new XianyuKamiConfig();
-                config.setXianyuAccountId(reqDTO.getXianyuAccountId());
+                // 新建卡券库不再绑定账号；历史记录中的账号字段仅为兼容旧数据和备份而保留。
+                config.setXianyuAccountId(null);
                 config.setTotalCount(0);
                 config.setUsedCount(0);
             }
@@ -87,9 +88,9 @@ public class KamiConfigServiceImpl implements KamiConfigService {
     }
 
     @Override
-    public ResultObject<List<KamiConfigRespDTO>> getConfigsByAccountId(Long xianyuAccountId) {
+    public ResultObject<List<KamiConfigRespDTO>> getConfigs() {
         try {
-            List<XianyuKamiConfig> configs = kamiConfigMapper.findByAccountId(xianyuAccountId);
+            List<XianyuKamiConfig> configs = kamiConfigMapper.findAllByCreateTime();
             List<KamiConfigRespDTO> result = configs.stream()
                     .map(this::toConfigRespDTO)
                     .collect(Collectors.toList());

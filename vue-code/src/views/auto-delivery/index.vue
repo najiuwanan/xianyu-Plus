@@ -448,24 +448,24 @@ onMounted(() => {
           <!-- ====== 卡密发货视图 ====== -->
           <template v-if="configForm.deliveryMode === 2">
             <div class="ad__config-section">
-              <div class="ad__config-section-title">卡密配置绑定</div>
+              <div class="ad__config-section-title">卡券库绑定</div>
               <div style="margin-bottom: 12px;">
                 <select
                   v-model="selectedKamiConfigId"
                   class="native-select"
                   style="width: 280px; max-width: 100%;"
                 >
-                  <option value="" disabled>请选择卡密配置</option>
+                  <option value="" disabled>请选择卡券库</option>
                   <option
                     v-for="opt in kamiConfigOptions"
                     :key="opt.id"
                     :value="String(opt.id)"
                   >
-                    {{ opt.aliasName || `配置#${opt.id}` }}
+                    {{ opt.aliasName || `卡券库#${opt.id}` }}
                   </option>
                 </select>
                 <div v-if="kamiConfigOptions.length === 0" style="color: rgba(28,28,30,.55); font-size: 13px; margin-top: 8px;">
-                  暂无卡密配置，请先在「卡密配置」页面创建
+                  暂无卡券库，请先在「卡券管理」页面创建
                 </div>
               </div>
 
