@@ -54,7 +54,7 @@ const router = createRouter({
       path: '/messages',
       name: 'messages',
       component: () => import('@/views/messages/index.vue'),
-      meta: { title: '消息管理', icon: '💬' }
+      meta: { title: '在线客服', icon: '💬' }
     },
     {
       path: '/notifications',

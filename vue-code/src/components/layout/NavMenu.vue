@@ -36,7 +36,7 @@ const onSelect = (index: string) => {
     </router-link>
     <router-link to="/messages" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/messages')">
       <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      <span>消息管理</span>
+      <span>在线客服</span>
     </router-link>
 
     <router-link to="/notifications" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/notifications')">

@@ -7,6 +7,9 @@ import lombok.Data;
  */
 @Data
 public class MsgContextReqDTO {
+
+    /** 账号 ID；新客服界面传入，用于隔离多账号的同名会话。 */
+    private Long xianyuAccountId;
     
     /**
      * 会话ID

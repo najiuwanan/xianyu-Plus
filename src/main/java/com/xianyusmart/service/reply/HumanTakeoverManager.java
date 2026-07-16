@@ -98,6 +98,16 @@ public class HumanTakeoverManager {
         takeover(accountId, sId, DEFAULT_MINUTES);
     }
 
+    /** 提前结束人工接管，让该会话恢复自动回复策略。 */
+    public void release(Long accountId, String sId) {
+        if (accountId == null || sId == null || sId.isBlank()) {
+            return;
+        }
+        takeoverMap.remove(buildKey(accountId, sId));
+        interventionRecordMapper.deleteByAccountAndSId(accountId, sId);
+        log.info("【账号{}】已结束人工接管: sId={}", accountId, sId);
+    }
+
     /**
      * 检查会话是否处于人工接管中
      *

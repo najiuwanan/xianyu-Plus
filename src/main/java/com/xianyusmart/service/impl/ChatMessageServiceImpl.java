@@ -9,6 +9,8 @@ import com.xianyusmart.controller.dto.MsgContextReqDTO;
 import com.xianyusmart.controller.dto.MsgDTO;
 import com.xianyusmart.controller.dto.MsgListReqDTO;
 import com.xianyusmart.controller.dto.MsgListRespDTO;
+import com.xianyusmart.controller.dto.ChatSessionDTO;
+import com.xianyusmart.controller.dto.ChatSessionReqDTO;
 import com.xianyusmart.service.ChatMessageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -135,7 +137,10 @@ public class ChatMessageServiceImpl implements ChatMessageService {
             int limit = reqDTO.getLimit() != null && reqDTO.getLimit() > 0 ? reqDTO.getLimit() : 20;
             int offset = reqDTO.getOffset() != null && reqDTO.getOffset() >= 0 ? reqDTO.getOffset() : 0;
             
-            List<XianyuChatMessage> messages = chatMessageMapper.findRecentBySId(reqDTO.getSid(), limit, offset);
+            List<XianyuChatMessage> messages = reqDTO.getXianyuAccountId() == null
+                    ? chatMessageMapper.findRecentBySId(reqDTO.getSid(), limit, offset)
+                    : chatMessageMapper.findRecentByAccountAndSId(
+                            reqDTO.getXianyuAccountId(), reqDTO.getSid(), limit, offset);
             
             List<MsgDTO> msgDTOList = new ArrayList<>();
             if (messages != null) {
@@ -159,6 +164,26 @@ public class ChatMessageServiceImpl implements ChatMessageService {
         } catch (Exception e) {
             log.error("查询上下文消息失败: sid={}", reqDTO.getSid(), e);
             return ResultObject.failed("查询上下文消息失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public ResultObject<List<ChatSessionDTO>> getSessionList(ChatSessionReqDTO reqDTO) {
+        try {
+            if (reqDTO.getXianyuAccountId() == null) {
+                return ResultObject.validateFailed("xianyuAccountId不能为空");
+            }
+            XianyuAccount account = accountMapper.selectById(reqDTO.getXianyuAccountId());
+            if (account == null) {
+                return ResultObject.validateFailed("账号不存在");
+            }
+            int limit = reqDTO.getLimit() == null ? 80 : Math.max(1, Math.min(reqDTO.getLimit(), 200));
+            List<ChatSessionDTO> sessions = chatMessageMapper.findRecentSessions(
+                    reqDTO.getXianyuAccountId(), account.getUnb(), limit);
+            return ResultObject.success(sessions);
+        } catch (Exception e) {
+            log.error("查询在线客服会话失败: accountId={}", reqDTO.getXianyuAccountId(), e);
+            return ResultObject.failed("查询在线客服会话失败: " + e.getMessage());
         }
     }
 }

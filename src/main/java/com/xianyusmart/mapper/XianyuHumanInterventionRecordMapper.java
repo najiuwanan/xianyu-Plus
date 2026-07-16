@@ -23,4 +23,7 @@ public interface XianyuHumanInterventionRecordMapper {
 
     @Delete("DELETE FROM xianyu_human_intervention_record WHERE end_time < NOW(3)")
     int cleanExpired();
+
+    @Delete("DELETE FROM xianyu_human_intervention_record WHERE xianyu_account_id = #{accountId} AND s_id = #{sId}")
+    int deleteByAccountAndSId(@Param("accountId") Long accountId, @Param("sId") String sId);
 }

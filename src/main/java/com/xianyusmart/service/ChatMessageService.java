@@ -5,6 +5,8 @@ import com.xianyusmart.entity.XianyuChatMessage;
 import com.xianyusmart.controller.dto.MsgContextReqDTO;
 import com.xianyusmart.controller.dto.MsgListReqDTO;
 import com.xianyusmart.controller.dto.MsgListRespDTO;
+import com.xianyusmart.controller.dto.ChatSessionDTO;
+import com.xianyusmart.controller.dto.ChatSessionReqDTO;
 import java.util.List;
 
 /**
@@ -48,4 +50,7 @@ public interface ChatMessageService {
      * @return 消息列表
      */
     ResultObject<?> getContextMessages(MsgContextReqDTO reqDTO);
+
+    /** 查询账号最近活跃会话，供在线客服使用。 */
+    ResultObject<List<ChatSessionDTO>> getSessionList(ChatSessionReqDTO reqDTO);
 }

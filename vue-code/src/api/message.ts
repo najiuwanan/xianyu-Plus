@@ -31,6 +31,17 @@ export interface MessageListResponse {
   pageSize: number;
 }
 
+export interface ChatSession {
+  sid: string;
+  buyerUserName: string;
+  buyerUserId: string;
+  xyGoodsId?: string;
+  lastMessage?: string;
+  lastMessageTime?: string | number;
+  lastContentType?: number;
+  takeoverEndTime?: string;
+}
+
 // 获取消息列表
 export function getMessageList(data: {
   xianyuAccountId: number;
@@ -49,13 +60,41 @@ export function getMessageList(data: {
 // 根据会话ID获取上下文消息
 export function getContextMessages(data: {
   sid: string;
+  xianyuAccountId?: number;
   limit?: number;
   offset?: number;
 }) {
   return request<ChatMessage[]>({
     url: '/msg/context',
     method: 'POST',
-    data: { sid: data.sid, limit: data.limit || 20, offset: data.offset || 0 }
+    data: {
+      sid: data.sid,
+      xianyuAccountId: data.xianyuAccountId,
+      limit: data.limit || 20,
+      offset: data.offset || 0
+    }
+  });
+}
+
+export function getChatSessions(xianyuAccountId: number, limit = 80) {
+  return request<ChatSession[]>({
+    url: '/msg/sessions',
+    method: 'POST',
+    data: { xianyuAccountId, limit }
+  });
+}
+
+export function updateChatTakeover(data: {
+  xianyuAccountId: number;
+  sid: string;
+  xyGoodsId?: string;
+  enabled: boolean;
+  durationMinutes?: number;
+}) {
+  return request<string>({
+    url: '/msg/takeover',
+    method: 'POST',
+    data
   });
 }
 
