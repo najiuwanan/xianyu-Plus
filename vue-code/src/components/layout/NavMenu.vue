@@ -98,11 +98,11 @@ const onSelect = (index: string) => {
 }
 
 .nav-menu-item--active {
-  background: #eef4ff !important;
+  background: #FFC107 !important;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
-  color: #155eef;
-  box-shadow: none;
+  color: #1F2329;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
   font-weight: 600;
 }
 

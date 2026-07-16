@@ -1,5 +1,5 @@
 :root {
-  --ab: #155eef;
+  --ab: #FFC107;
   --ar: #d92d20;
   --ag: #079455;
   --ao: #dc6803;
@@ -33,12 +33,12 @@
   --color-border-hover: #98a2b3;
   --color-heading: #1f2329;
   --color-text: #344054;
-  --color-primary: #155eef;
-  --color-primary-hover: #004eeb;
+  --color-primary: #FFC107;
+  --color-primary-hover: #FFB300;
   --color-success: #079455;
   --color-warning: #dc6803;
   --color-danger: #d92d20;
-  --color-info: #155eef;
+  --color-info: #FFC107;
 
   font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
   color-scheme: light;
@@ -63,7 +63,7 @@ body {
   font-weight: 600;
 }
 
-.table-action-btn { color: #155eef; }
+.table-action-btn { color: #E6A23C; }
 .table-action-btn-danger { color: #d92d20; }
 
 .table-action-btn:hover,

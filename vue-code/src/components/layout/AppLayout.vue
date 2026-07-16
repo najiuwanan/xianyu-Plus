@@ -86,7 +86,7 @@ const pageIconMap: Record<string, any> = {
   '/settings': markRaw(IconShield)
 }
 
-const currentPageTitle = computed(() => pageTitleMap[route.path] || 'XianYuSmart')
+const currentPageTitle = computed(() => pageTitleMap[route.path] || '闲鱼Plus')
 const currentPageIcon = computed(() => pageIconMap[route.path] || null)
 
 // 检测屏幕尺寸并自动设置设备类型
@@ -171,9 +171,9 @@ onUnmounted(() => {
         <div class="drawer-menu" @click.stop>
           <div class="drawer-header">
             <div class="logo" @click="openUpdateDialog" style="cursor: pointer">
-              <div class="logo-icon">X</div>
+              <div class="logo-icon">闲</div>
               <div class="logo-text-wrap">
-                <div class="logo-text">XianYuSmart</div>
+                <div class="logo-text">闲鱼Plus</div>
                 <div class="version-tag" :class="{ 'has-update': hasNewVersion }">
                   v{{ currentVersion }}
                   <span v-if="hasNewVersion" class="update-dot"></span>
@@ -195,9 +195,9 @@ onUnmounted(() => {
     <div v-if="isDesktop" class="layout-container">
       <aside class="sidebar">
         <div class="logo" @click="openUpdateDialog" style="cursor: pointer">
-          <div class="logo-icon">X</div>
+          <div class="logo-icon">闲</div>
           <div class="logo-text-wrap">
-            <div class="logo-text">XianYuSmart</div>
+            <div class="logo-text">闲鱼Plus</div>
             <div class="version-tag" :class="{ 'has-update': hasNewVersion }">
               v{{ currentVersion }}
               <span v-if="hasNewVersion" class="update-dot"></span>
@@ -282,18 +282,18 @@ onUnmounted(() => {
 }
 
 .logo-icon {
-  width: 32px;
-  height: 32px;
-  background: #155eef;
-  border: 1px solid #155eef;
-  box-shadow: none;
-  border-radius: 6px;
+  width: 34px;
+  height: 34px;
+  background: var(--ab);
+  border: none;
+  box-shadow: 0 4px 10px rgba(255, 193, 7, 0.4);
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  font-size: 18px;
-  font-weight: bold;
+  color: #1F2329;
+  font-size: 20px;
+  font-weight: 800;
   flex-shrink: 0;
 }
 

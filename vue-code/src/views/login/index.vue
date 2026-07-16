@@ -93,7 +93,7 @@ function handleKeydown(e: KeyboardEvent) {
       <!-- Logo -->
       <div class="login-logo">
         <div class="login-logo-icon">闲</div>
-        <div class="login-logo-text">XianYuSmart</div>
+        <div class="login-logo-text">闲鱼Plus</div>
       </div>
 
       <!-- Loading -->
@@ -224,14 +224,14 @@ function handleKeydown(e: KeyboardEvent) {
 
 .login-card {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   background: #ffffff;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: 1px solid #e4e7ec;
-  border-radius: 8px;
-  box-shadow: none;
-  padding: 40px 32px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+  padding: 48px 36px;
   position: relative;
   overflow: hidden;
 }
@@ -250,22 +250,24 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 .login-logo-icon {
-  width: 40px;
-  height: 40px;
-  background: #155eef;
-  border-radius: 6px;
+  width: 48px;
+  height: 48px;
+  background: var(--ab, #FFC107);
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
-  font-size: 22px;
-  font-weight: bold;
+  color: #1F2329;
+  font-size: 26px;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
 }
 
 .login-logo-text {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 24px;
+  font-weight: 700;
   color: #1c1c1e;
+  letter-spacing: -0.5px;
 }
 
 /* Loading */
@@ -344,8 +346,9 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 .login-input:focus {
-  border-color: #155eef;
+  border-color: var(--ab, #FFC107);
   background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.15);
 }
 
 .login-input::placeholder {
@@ -377,10 +380,10 @@ function handleKeydown(e: KeyboardEvent) {
 .login-btn {
   width: 100%;
   height: 48px;
-  background: #155eef;
-  color: #fff;
+  background: var(--ab, #FFC107);
+  color: #1F2329;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 16px;
   font-weight: 600;
   cursor: pointer;
@@ -389,11 +392,14 @@ function handleKeydown(e: KeyboardEvent) {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-top: 4px;
+  margin-top: 8px;
+  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.2);
 }
 
 .login-btn:hover {
-  background: #004eeb;
+  background: var(--color-primary-hover, #FFB300);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(255, 193, 7, 0.3);
 }
 
 .login-btn:active {
@@ -408,8 +414,8 @@ function handleKeydown(e: KeyboardEvent) {
 .login-btn-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: #fff;
+  border: 2px solid rgba(31, 35, 41, 0.3);
+  border-top-color: #1F2329;
   border-radius: 50%;
   animation: login-spin 0.6s linear infinite;
 }
