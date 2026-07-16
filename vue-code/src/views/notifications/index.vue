@@ -2,7 +2,7 @@
   <div class="notifications-container">
     <div class="header">
       <h1 class="title">通知渠道</h1>
-      <p class="subtitle">管理消息通知渠道，支持钉钉、飞书、Bark、Webhook、PushPlus等多种方式</p>
+      <p class="subtitle">管理系统通知渠道，支持邮件、钉钉、飞书、Bark、Webhook、PushPlus 等多种方式</p>
     </div>
 
     <div class="section-title">
@@ -16,7 +16,9 @@
         <div class="channel-icon">{{ type.icon }}</div>
         <div class="channel-name">{{ type.name }}</div>
         <div class="channel-desc">{{ type.desc }}</div>
-        <button class="add-btn" @click="openConfigModal(type)">+ 配置</button>
+        <button class="add-btn" @click="type.id === 'email' ? openEmailConfigModal() : openConfigModal(type)">
+          {{ type.id === 'email' && emailConfigured ? '已配置 · 管理' : '+ 配置' }}
+        </button>
       </div>
     </div>
 
@@ -132,15 +134,99 @@
         </div>
       </div>
     </div>
+
+    <!-- 邮件通知使用既有的 SMTP 配置，避免影响现有的业务邮件发送逻辑。 -->
+    <div v-if="showEmailModal" class="modal-overlay" @click="showEmailModal = false">
+      <div class="modal-content email-modal" @click.stop>
+        <div class="email-modal__header">
+          <div>
+            <h2>邮件通知</h2>
+            <p>配置 SMTP 后，可接收系统重要提醒。</p>
+          </div>
+          <span v-if="emailConfigured" class="email-status">已配置</span>
+        </div>
+
+        <div class="form-group">
+          <label>SMTP 服务器</label>
+          <input v-model="emailSmtpHost" type="text" placeholder="例如：smtp.qq.com" :disabled="emailSaving" />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>SMTP 端口</label>
+            <input v-model="emailSmtpPort" type="text" placeholder="465" :disabled="emailSaving" />
+          </div>
+          <div class="form-group form-group--switch">
+            <label>启用 SSL</label>
+            <label class="switch">
+              <input v-model="emailSmtpSsl" type="checkbox" :disabled="emailSaving" />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>用户名</label>
+          <input v-model="emailSmtpUsername" type="text" placeholder="发件邮箱账号" :disabled="emailSaving" />
+        </div>
+        <div class="form-group">
+          <label>密码 / 授权码</label>
+          <div class="password-input">
+            <input v-model="emailSmtpPassword" :type="showEmailPassword ? 'text' : 'password'" placeholder="邮箱密码或 SMTP 授权码" :disabled="emailSaving" />
+            <button type="button" @click="showEmailPassword = !showEmailPassword">{{ showEmailPassword ? '隐藏' : '显示' }}</button>
+          </div>
+          <p class="form-hint">QQ 邮箱请填写 SMTP 授权码，而不是登录密码。</p>
+        </div>
+        <div class="form-group">
+          <label>收件人邮箱</label>
+          <input v-model="emailSmtpFrom" type="text" placeholder="接收系统通知的邮箱地址" :disabled="emailSaving" />
+        </div>
+
+        <div class="form-divider">提醒事件</div>
+        <p class="form-hint email-event-hint">卡券库存预警、缺货和自动发货失败等邮件会继续按原有规则发送。</p>
+        <div class="email-event-list">
+          <div class="email-event">
+            <span>
+              <strong>消息监听掉线提醒</strong>
+              <small>WebSocket 多次重连失败时发送邮件</small>
+            </span>
+            <label class="switch">
+              <input v-model="wsDisconnectNotifyEnabled" type="checkbox" :disabled="emailSaving" />
+              <span class="slider"></span>
+            </label>
+          </div>
+          <div class="email-event">
+            <span>
+              <strong>Cookie 过期 / 风控验证提醒</strong>
+              <small>Cookie 无法续期或需要人工验证时发送邮件</small>
+            </span>
+            <label class="switch">
+              <input v-model="cookieExpireNotifyEnabled" type="checkbox" :disabled="emailSaving" />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-test" type="button" @click="handleTestEmail" :disabled="!emailConfigured || emailTesting || emailSaving" title="请先保存完整的邮件配置">
+            {{ emailTesting ? '发送中...' : '发送测试邮件' }}
+          </button>
+          <button class="btn-cancel" @click="showEmailModal = false">取消</button>
+          <button class="btn-save" @click="saveEmailConfig" :disabled="emailSaving">
+            {{ emailSaving ? '保存中...' : '保存' }}
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { getNotificationChannels, saveNotificationChannel, deleteNotificationChannel, testNotificationChannel, type NotificationChannel } from '@/api/notification'
+import { getSetting, saveSetting, testEmail } from '@/api/setting'
 import { toast } from '@/utils/toast'
 
 const channelTypes = [
+  { id: 'email', name: '邮件通知', desc: 'SMTP 邮件系统通知', icon: '✉️' },
   { id: 'dingtalk', name: '钉钉通知', desc: '钉钉机器人消息', icon: '🔔' },
   { id: 'feishu', name: '飞书通知', desc: '飞书机器人消息', icon: '✈️' },
   { id: 'bark', name: 'Bark通知', desc: 'iOS推送通知', icon: '📱' },
@@ -155,6 +241,28 @@ const editingChannel = ref<NotificationChannel>({ type: '', name: '', config: '{
 const formConfig = ref<any>({})
 const saving = ref(false)
 const testingId = ref<number | null>(null)
+const showEmailModal = ref(false)
+const emailSmtpHost = ref('')
+const emailSmtpPort = ref('465')
+const emailSmtpUsername = ref('')
+const emailSmtpPassword = ref('')
+const emailSmtpFrom = ref('')
+const emailSmtpSsl = ref(true)
+const wsDisconnectNotifyEnabled = ref(false)
+const cookieExpireNotifyEnabled = ref(false)
+const emailConfigured = ref(false)
+const emailSaving = ref(false)
+const emailTesting = ref(false)
+const showEmailPassword = ref(false)
+
+const EMAIL_SMTP_HOST_KEY = 'email_smtp_host'
+const EMAIL_SMTP_PORT_KEY = 'email_smtp_port'
+const EMAIL_SMTP_USERNAME_KEY = 'email_smtp_username'
+const EMAIL_SMTP_PASSWORD_KEY = 'email_smtp_password'
+const EMAIL_SMTP_FROM_KEY = 'email_smtp_from'
+const EMAIL_SMTP_SSL_KEY = 'email_smtp_ssl'
+const EMAIL_WS_DISCONNECT_NOTIFY_KEY = 'email_notify_ws_disconnect_enabled'
+const EMAIL_COOKIE_EXPIRE_NOTIFY_KEY = 'email_notify_cookie_expire_enabled'
 
 const createDefaultFormConfig = () => ({
   notifyAutoDelivery: true,
@@ -194,6 +302,89 @@ const loadChannels = async () => {
     }
   } catch (e: any) {
     toast.error('加载通知渠道失败: ' + e.message)
+  }
+}
+
+const loadEmailConfig = async () => {
+  try {
+    const [hostRes, portRes, userRes, passRes, fromRes, sslRes, wsDisconnectRes, cookieExpireRes] = await Promise.all([
+      getSetting({ settingKey: EMAIL_SMTP_HOST_KEY }),
+      getSetting({ settingKey: EMAIL_SMTP_PORT_KEY }),
+      getSetting({ settingKey: EMAIL_SMTP_USERNAME_KEY }),
+      getSetting({ settingKey: EMAIL_SMTP_PASSWORD_KEY }),
+      getSetting({ settingKey: EMAIL_SMTP_FROM_KEY }),
+      getSetting({ settingKey: EMAIL_SMTP_SSL_KEY }),
+      getSetting({ settingKey: EMAIL_WS_DISCONNECT_NOTIFY_KEY }),
+      getSetting({ settingKey: EMAIL_COOKIE_EXPIRE_NOTIFY_KEY })
+    ])
+
+    emailSmtpHost.value = hostRes.code === 200 ? hostRes.data?.settingValue || '' : ''
+    emailSmtpPort.value = portRes.code === 200 ? portRes.data?.settingValue || '465' : '465'
+    emailSmtpUsername.value = userRes.code === 200 ? userRes.data?.settingValue || '' : ''
+    emailSmtpPassword.value = passRes.code === 200 ? passRes.data?.settingValue || '' : ''
+    emailSmtpFrom.value = fromRes.code === 200 ? fromRes.data?.settingValue || '' : ''
+    emailSmtpSsl.value = sslRes.code !== 200 || !sslRes.data?.settingValue || ['1', 'true'].includes(sslRes.data.settingValue)
+    wsDisconnectNotifyEnabled.value = wsDisconnectRes.code === 200 && ['1', 'true'].includes(wsDisconnectRes.data?.settingValue || '')
+    cookieExpireNotifyEnabled.value = cookieExpireRes.code === 200 && ['1', 'true'].includes(cookieExpireRes.data?.settingValue || '')
+    emailConfigured.value = Boolean(emailSmtpHost.value && emailSmtpPort.value && emailSmtpUsername.value && emailSmtpPassword.value && emailSmtpFrom.value)
+  } catch (error) {
+    console.error('加载邮件通知配置失败', error)
+    toast.error('加载邮件通知配置失败')
+  }
+}
+
+const openEmailConfigModal = async () => {
+  await loadEmailConfig()
+  showEmailModal.value = true
+}
+
+const saveEmailConfig = async () => {
+  if (!emailSmtpHost.value.trim() || !emailSmtpPort.value.trim() || !emailSmtpUsername.value.trim() || !emailSmtpPassword.value.trim() || !emailSmtpFrom.value.trim()) {
+    toast.warning('请完整填写 SMTP 配置和收件人邮箱')
+    return
+  }
+
+  emailSaving.value = true
+  try {
+    const results = await Promise.all([
+      saveSetting({ settingKey: EMAIL_SMTP_HOST_KEY, settingValue: emailSmtpHost.value.trim(), settingDesc: 'SMTP服务器地址' }),
+      saveSetting({ settingKey: EMAIL_SMTP_PORT_KEY, settingValue: emailSmtpPort.value.trim(), settingDesc: 'SMTP服务器端口' }),
+      saveSetting({ settingKey: EMAIL_SMTP_USERNAME_KEY, settingValue: emailSmtpUsername.value.trim(), settingDesc: 'SMTP登录用户名' }),
+      saveSetting({ settingKey: EMAIL_SMTP_PASSWORD_KEY, settingValue: emailSmtpPassword.value.trim(), settingDesc: 'SMTP登录密码/授权码' }),
+      saveSetting({ settingKey: EMAIL_SMTP_FROM_KEY, settingValue: emailSmtpFrom.value.trim(), settingDesc: '接收系统通知的收件人邮箱地址' }),
+      saveSetting({ settingKey: EMAIL_SMTP_SSL_KEY, settingValue: emailSmtpSsl.value ? '1' : '0', settingDesc: '是否启用SSL（1启用，0关闭）' }),
+      saveSetting({ settingKey: EMAIL_WS_DISCONNECT_NOTIFY_KEY, settingValue: wsDisconnectNotifyEnabled.value ? '1' : '0', settingDesc: 'WebSocket断开且无法重连时邮件通知开关' }),
+      saveSetting({ settingKey: EMAIL_COOKIE_EXPIRE_NOTIFY_KEY, settingValue: cookieExpireNotifyEnabled.value ? '1' : '0', settingDesc: 'Cookie过期或风控验证时邮件通知开关' })
+    ])
+    if (results.every(result => result.code === 200)) {
+      emailConfigured.value = true
+      toast.success('邮件通知配置已保存')
+      showEmailModal.value = false
+    } else {
+      toast.error('部分邮件通知配置保存失败，请重试')
+    }
+  } catch (error) {
+    console.error('保存邮件通知配置失败', error)
+    toast.error('保存邮件通知配置失败')
+  } finally {
+    emailSaving.value = false
+  }
+}
+
+const handleTestEmail = async () => {
+  emailTesting.value = true
+  try {
+    const result = await testEmail()
+    if (result.code === 200) {
+      toast.success('测试邮件已发送，请检查收件箱')
+    } else {
+      toast.error(result.msg || '测试邮件发送失败')
+    }
+  } catch (error: any) {
+    console.error('测试邮件发送失败', error)
+    toast.error(error.message || '测试邮件发送失败')
+  } finally {
+    emailTesting.value = false
   }
 }
 
@@ -302,6 +493,7 @@ const testChannel = async (ch: NotificationChannel) => {
 
 onMounted(() => {
   loadChannels()
+  loadEmailConfig()
 })
 </script>
 
@@ -585,5 +777,126 @@ input:checked + .slider:before {
   font-family: inherit;
   font-size: 13px;
   resize: vertical;
+}
+
+.email-modal {
+  width: 560px;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+}
+.email-modal__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+}
+.email-modal__header h2 {
+  margin-bottom: 6px;
+}
+.email-modal__header p {
+  margin: 0 0 20px;
+  color: #6b7280;
+  font-size: 13px;
+}
+.email-status {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #16a34a;
+  font-size: 12px;
+  font-weight: 600;
+}
+.form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 140px;
+  gap: 16px;
+}
+.form-group--switch {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.form-group--switch .switch {
+  margin-top: 2px;
+}
+.password-input {
+  display: flex;
+}
+.password-input input {
+  border-radius: 4px 0 0 4px;
+}
+.password-input button {
+  flex: 0 0 auto;
+  border: 1px solid #d1d5db;
+  border-left: 0;
+  border-radius: 0 4px 4px 0;
+  padding: 0 12px;
+  background: #f9fafb;
+  color: #4b5563;
+  cursor: pointer;
+  font-size: 12px;
+}
+.email-event-hint {
+  margin-top: -4px;
+  margin-bottom: 10px;
+}
+.email-event-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.email-event {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+}
+.email-event strong,
+.email-event small {
+  display: block;
+}
+.email-event strong {
+  color: #374151;
+  font-size: 13px;
+}
+.email-event small {
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 12px;
+}
+.btn-test {
+  margin-right: auto;
+  border: 1px solid #3b82f6;
+  border-radius: 4px;
+  padding: 8px 12px;
+  background: white;
+  color: #2563eb;
+  cursor: pointer;
+  font-size: 14px;
+}
+.btn-test:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+@media (max-width: 520px) {
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .form-group--switch {
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+  }
+  .form-group--switch .switch {
+    margin-top: 0;
+  }
+  .email-event {
+    align-items: flex-start;
+  }
 }
 </style>
