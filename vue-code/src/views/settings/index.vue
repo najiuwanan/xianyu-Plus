@@ -57,8 +57,50 @@ const similarityThresholdSaving = ref(false)
 const AI_API_KEY_SETTING = 'ai_api_key'
 const AI_BASE_URL_SETTING = 'ai_base_url'
 const AI_MODEL_SETTING = 'ai_model'
+const AI_PROVIDER_SETTING = 'ai_provider'
 const DEFAULT_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-mode'
 const DEFAULT_MODEL = 'deepseek-v3'
+
+type AiProvider = 'openai-compatible' | 'gemini' | 'dashscope-compatible' | 'deepseek'
+
+const AI_PROVIDERS: Array<{
+  value: AiProvider
+  label: string
+  baseUrl: string
+  defaultModel: string
+  description: string
+}> = [
+  {
+    value: 'openai-compatible',
+    label: 'OpenAI 兼容（自定义）',
+    baseUrl: '',
+    defaultModel: '',
+    description: '适用于 OpenAI、OpenRouter、硅基流动、智谱等兼容 OpenAI 协议的服务。地址由你自行填写。'
+  },
+  {
+    value: 'gemini',
+    label: 'Google Gemini',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    defaultModel: 'gemini-3.5-flash',
+    description: '使用 Gemini 官方 OpenAI 兼容接口，选择后会自动填入正确地址。'
+  },
+  {
+    value: 'dashscope-compatible',
+    label: '阿里云百炼（兼容模式）',
+    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode',
+    defaultModel: 'qwen-plus',
+    description: '适用于通义千问、百炼平台中的 DeepSeek 等 OpenAI 兼容模型。'
+  },
+  {
+    value: 'deepseek',
+    label: 'DeepSeek 官方',
+    baseUrl: 'https://api.deepseek.com',
+    defaultModel: 'deepseek-v4-flash',
+    description: '使用 DeepSeek 官方 API；不要与 Gemini 或百炼的地址混用。'
+  }
+]
+
+const aiProvider = ref<AiProvider>('dashscope-compatible')
 
 const aiApiKey = ref('')
 const aiBaseUrl = ref(DEFAULT_BASE_URL)
@@ -131,6 +173,33 @@ const testingChat = ref(false)
 const testingEmbedding = ref(false)
 const showChatDropdown = ref(false)
 const showEmbeddingDropdown = ref(false)
+
+function getProvider(provider: AiProvider) {
+  return AI_PROVIDERS.find(item => item.value === provider) ?? AI_PROVIDERS[0]!
+}
+
+function isAiProvider(value: string | undefined): value is AiProvider {
+  return AI_PROVIDERS.some(item => item.value === value)
+}
+
+function inferProviderFromBaseUrl(baseUrl: string): AiProvider {
+  const url = baseUrl.toLowerCase()
+  if (url.includes('generativelanguage.googleapis.com')) return 'gemini'
+  if (url.includes('dashscope.aliyuncs.com')) return 'dashscope-compatible'
+  if (url.includes('api.deepseek.com')) return 'deepseek'
+  return 'openai-compatible'
+}
+
+function handleProviderChange() {
+  const provider = getProvider(aiProvider.value)
+  availableModels.value = []
+  showChatDropdown.value = false
+
+  if (provider.baseUrl) {
+    aiBaseUrl.value = provider.baseUrl
+    aiModel.value = provider.defaultModel
+  }
+}
 
 function hideChatDropdownDelay() {
   setTimeout(() => { showChatDropdown.value = false }, 200)
@@ -285,7 +354,8 @@ onMounted(async () => {
 
 async function loadAIConfig() {
   try {
-    const [apiKeyRes, baseUrlRes, modelRes] = await Promise.all([
+    const [providerRes, apiKeyRes, baseUrlRes, modelRes] = await Promise.all([
+      getSetting({ settingKey: AI_PROVIDER_SETTING }),
       getSetting({ settingKey: AI_API_KEY_SETTING }),
       getSetting({ settingKey: AI_BASE_URL_SETTING }),
       getSetting({ settingKey: AI_MODEL_SETTING })
@@ -299,6 +369,21 @@ async function loadAIConfig() {
     }
     if (modelRes.code === 200 && modelRes.data && modelRes.data.settingValue) {
       aiModel.value = modelRes.data.settingValue
+    }
+    const savedProvider = providerRes.code === 200 ? providerRes.data?.settingValue : undefined
+    aiProvider.value = isAiProvider(savedProvider)
+      ? savedProvider
+      : inferProviderFromBaseUrl(aiBaseUrl.value)
+
+    // 兼容此前只填写 Gemini 域名的配置：旧地址会被请求成 /v1/models 并导致认证失败。
+    if (!isAiProvider(savedProvider)
+      && aiProvider.value === 'gemini'
+      && aiBaseUrl.value.replace(/\/$/, '') === 'https://generativelanguage.googleapis.com') {
+      const gemini = getProvider('gemini')
+      aiBaseUrl.value = gemini.baseUrl
+      if (aiModel.value === DEFAULT_MODEL) {
+        aiModel.value = gemini.defaultModel
+      }
     }
   } catch (e) {
     console.error('获取AI配置失败:', e)
@@ -465,8 +550,13 @@ async function handleSaveAIConfig() {
 
   aiApiKeySaving.value = true
   try {
-    // 保存三个配置
-    const [keyRes, urlRes, modelRes] = await Promise.all([
+    // 保存服务商类型和三项 AI 配置
+    const [providerRes, keyRes, urlRes, modelRes] = await Promise.all([
+      saveSetting({
+        settingKey: AI_PROVIDER_SETTING,
+        settingValue: aiProvider.value,
+        settingDesc: 'AI 服务商类型，用于自动应用兼容的 API 地址'
+      }),
       saveSetting({
         settingKey: AI_API_KEY_SETTING,
         settingValue: aiApiKey.value.trim(),
@@ -484,7 +574,7 @@ async function handleSaveAIConfig() {
       })
     ])
 
-    if (keyRes.code === 200 && urlRes.code === 200 && modelRes.code === 200) {
+    if (providerRes.code === 200 && keyRes.code === 200 && urlRes.code === 200 && modelRes.code === 200) {
       toast.success('AI 配置保存成功，已立即生效')
       // 刷新 AI 状态
       await loadAIStatus()
@@ -498,9 +588,12 @@ async function handleSaveAIConfig() {
 }
 
 function handleResetAIConfig() {
+  aiProvider.value = 'dashscope-compatible'
   aiApiKey.value = ''
   aiBaseUrl.value = DEFAULT_BASE_URL
   aiModel.value = DEFAULT_MODEL
+  availableModels.value = []
+  showChatDropdown.value = false
 }
 
 async function handleSaveEmbeddingConfig() {
@@ -1012,9 +1105,24 @@ function handleBackupMenuEnter() {
           <p class="settings__desc">配置 AI 对话服务，配置后立即生效，无需重启服务</p>
           <div class="settings__form">
             <div class="settings__field">
+              <label class="settings__label">服务商类型</label>
+              <select
+                v-model="aiProvider"
+                class="settings__input"
+                :disabled="aiApiKeySaving"
+                @change="handleProviderChange"
+              >
+                <option v-for="provider in AI_PROVIDERS" :key="provider.value" :value="provider.value">
+                  {{ provider.label }}
+                </option>
+              </select>
+              <p class="settings__hint">{{ getProvider(aiProvider).description }}</p>
+            </div>
+
+            <div class="settings__field">
               <label class="settings__label">
                 API Key
-                <span class="settings__label-hint">（本项目默认使用 AliApiKey，请从这里获取：<a href="https://bailian.console.aliyun.com/" target="_blank" class="settings__link">https://bailian.console.aliyun.com/</a>）</span>
+                <span class="settings__label-hint">（请填写所选服务商的官方 API Key，不要使用其他服务商的密钥）</span>
               </label>
               <div class="settings__input-wrap">
                 <input
@@ -1104,10 +1212,10 @@ function handleBackupMenuEnter() {
           </div>
         </div>
 
-        <!-- Embedding 配置 -->
+        <!-- 知识库 Embedding 配置 -->
         <div class="settings__section">
           <div class="settings__section-header">
-            <div class="settings__section-title">Embedding 模型配置</div>
+            <div class="settings__section-title">知识库检索模型（高级）</div>
             <button
               class="settings__toggle-btn"
               @click="showEmbeddingConfig = !showEmbeddingConfig"
@@ -1116,7 +1224,7 @@ function handleBackupMenuEnter() {
             </button>
           </div>
           <p class="settings__desc">
-            配置向量嵌入模型（用于 RAG 知识库）。默认共用对话模型的配置。
+            仅在自动回复使用“知识库资料”时需要。它会把资料转换为可检索内容，帮助 AI 根据商品资料作答；不使用知识库时无需调整。默认共用对话模型的配置。
             <strong>注意：修改后需要重启服务才能生效。</strong>
           </p>
           <div class="settings__form">

@@ -180,10 +180,14 @@ public class DynamicVectorStoreManager {
     private VectorStore buildVectorStore(String apiKey, String baseUrl, String model) {
         try {
             // 创建 OpenAiApi 实例
-            OpenAiApi openAiApi = OpenAiApi.builder()
+            OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
                     .apiKey(new SimpleApiKey(apiKey.trim()))
-                    .baseUrl(baseUrl)
-                    .build();
+                    .baseUrl(baseUrl);
+            if (usesVersionedOpenAiEndpoint(baseUrl)) {
+                apiBuilder.completionsPath("/chat/completions")
+                        .embeddingsPath("/embeddings");
+            }
+            OpenAiApi openAiApi = apiBuilder.build();
 
             // 创建 EmbeddingOptions（指定模型）
             OpenAiEmbeddingOptions embeddingOptions = OpenAiEmbeddingOptions.builder()
@@ -237,5 +241,10 @@ public class DynamicVectorStoreManager {
         if (a == null && b == null) return true;
         if (a == null || b == null) return false;
         return a.equals(b);
+    }
+
+    private static boolean usesVersionedOpenAiEndpoint(String baseUrl) {
+        String normalized = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "").toLowerCase();
+        return normalized.endsWith("/v1") || normalized.endsWith("/openai");
     }
 }

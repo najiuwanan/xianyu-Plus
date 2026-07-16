@@ -189,10 +189,17 @@ public class DynamicAIChatClientManager {
         String effectiveModel = (model != null && !model.trim().isEmpty()) ? model.trim() : DEFAULT_MODEL;
 
         // 创建OpenAiApi实例
-        OpenAiApi openAiApi = OpenAiApi.builder()
+        OpenAiApi.Builder apiBuilder = OpenAiApi.builder()
                 .apiKey(new SimpleApiKey(apiKey.trim()))
-                .baseUrl(effectiveBaseUrl)
-                .build();
+                .baseUrl(effectiveBaseUrl);
+
+        // Spring AI 的默认路径带有 /v1。Gemini OpenAI 兼容地址和用户自定义的
+        // 版本化地址本身已经包含路径，需要改用相对的 OpenAI 端点，避免请求成 /v1/v1。
+        if (usesVersionedOpenAiEndpoint(effectiveBaseUrl)) {
+            apiBuilder.completionsPath("/chat/completions")
+                    .embeddingsPath("/embeddings");
+        }
+        OpenAiApi openAiApi = apiBuilder.build();
 
         // 创建ChatModel
         OpenAiChatOptions chatOptions = OpenAiChatOptions.builder()
@@ -224,6 +231,11 @@ public class DynamicAIChatClientManager {
         if (a == null && b == null) return true;
         if (a == null || b == null) return false;
         return a.equals(b);
+    }
+
+    private static boolean usesVersionedOpenAiEndpoint(String baseUrl) {
+        String normalized = baseUrl == null ? "" : baseUrl.replaceAll("/+$", "").toLowerCase();
+        return normalized.endsWith("/v1") || normalized.endsWith("/openai");
     }
 
     /**
