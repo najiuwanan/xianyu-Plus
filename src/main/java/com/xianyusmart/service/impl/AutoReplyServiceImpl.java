@@ -174,7 +174,7 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                 try {
                     String title = "需要人工介入回复";
                     String goodsName = "未知商品";
-                    XianyuGoods goods = goodsMapper.selectById(xyGoodsId);
+                    XianyuGoodsInfo goods = goodsInfoMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<XianyuGoodsInfo>().eq(XianyuGoodsInfo::getXyGoodId, xyGoodsId));
                     if (goods != null) {
                         goodsName = goods.getTitle() != null ? goods.getTitle() : goodsName;
                     }

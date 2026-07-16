@@ -34,7 +34,7 @@ public class NotificationChannelServiceImpl extends ServiceImpl<SysNotificationC
         if (accountId != null) {
             XianyuAccount account = accountMapper.selectById(accountId);
             if (account != null) {
-                String remark = account.getRemark() != null ? account.getRemark() : "";
+                String remark = account.getAccountNote() != null ? account.getAccountNote() : "";
                 finalTitle = String.format("[%s] 账号: %d (%s)", title, accountId, remark);
             } else {
                 finalTitle = String.format("[%s] 账号: %d", title, accountId);
