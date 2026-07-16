@@ -7,6 +7,7 @@ import com.xianyusmart.service.OperationLogService;
 
 import com.xianyusmart.service.WebSocketService;
 import com.xianyusmart.service.WebSocketTokenService;
+import com.xianyusmart.service.NotificationChannelService;
 import com.xianyusmart.utils.XianyuSignUtils;
 import com.xianyusmart.websocket.WebSocketInitializer;
 import com.xianyusmart.websocket.WebSocketMessageHandler;
@@ -1007,6 +1008,17 @@ public class WebSocketServiceImpl implements WebSocketService {
                 log.debug("获取账号备注失败: {}", e.getMessage());
             }
             emailNotifyService.sendWsDisconnectNotifyEmail(accountId, accountNote);
+            
+            // --- 触发多渠道通知 ---
+            try {
+                String title = "账号异常掉线";
+                String content = String.format("账号：%d 在 %s 掉线！\n原因：WebSocket连接断开且无法重连（可能是Cookie过期或被风控）。\n建议：请立即前往后台重新扫码登录，以免影响自动发货！", 
+                    accountId, new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date()));
+                notificationChannelService.dispatchMessage("ACCOUNT_OFFLINE", accountId, title, content);
+            } catch (Exception ex) {
+                log.error("触发账号掉线多渠道通知失败", ex);
+            }
+            
         } catch (Exception e) {
             log.warn("触发WebSocket断开连接邮件通知异常: {}", e.getMessage());
         }

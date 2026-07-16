@@ -1,8 +1,10 @@
 package com.xianyusmart.service.impl;
 
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.entity.SysNotificationChannel;
 import com.xianyusmart.mapper.SysNotificationChannelMapper;
+import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.xianyusmart.service.NotificationChannelService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,15 +22,43 @@ import java.util.List;
 @Service
 public class NotificationChannelServiceImpl extends ServiceImpl<SysNotificationChannelMapper, SysNotificationChannel> implements NotificationChannelService {
 
+    @Autowired
+    private XianyuAccountMapper accountMapper;
+
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Override
-    public void dispatchMessage(String title, String content) {
+    public void dispatchMessage(String eventType, Long accountId, String title, String content) {
+        String finalTitle = title;
+        if (accountId != null) {
+            XianyuAccount account = accountMapper.selectById(accountId);
+            if (account != null) {
+                String remark = account.getRemark() != null ? account.getRemark() : "";
+                finalTitle = String.format("[%s] 账号: %d (%s)", title, accountId, remark);
+            } else {
+                finalTitle = String.format("[%s] 账号: %d", title, accountId);
+            }
+        }
+
         List<SysNotificationChannel> channels = this.lambdaQuery().eq(SysNotificationChannel::getStatus, 1).list();
         for (SysNotificationChannel channel : channels) {
             try {
-                sendNotification(channel.getType(), channel.getConfig(), title, content);
+                JsonNode config = OBJECT_MAPPER.readTree(channel.getConfig());
+                
+                // Smart Event Filtering
+                boolean shouldNotify = true;
+                if ("AUTO_DELIVERY".equals(eventType)) {
+                    shouldNotify = config.path("notifyAutoDelivery").asBoolean(true);
+                } else if ("ACCOUNT_OFFLINE".equals(eventType)) {
+                    shouldNotify = config.path("notifyAccountOffline").asBoolean(true);
+                } else if ("NEW_MESSAGE".equals(eventType)) {
+                    shouldNotify = config.path("notifyNewMessage").asBoolean(true);
+                }
+
+                if (shouldNotify) {
+                    sendNotification(channel.getType(), config, finalTitle, content);
+                }
             } catch (Exception e) {
                 log.error("Failed to send notification via {}: {}", channel.getName(), e.getMessage());
             }
@@ -36,12 +66,12 @@ public class NotificationChannelServiceImpl extends ServiceImpl<SysNotificationC
     }
 
     public void sendTestMessage(String type, String configJson) throws Exception {
-        sendNotification(type, configJson, "XianYuPlus 测试通知", "如果您看到这条消息，说明通知渠道配置成功！");
+        JsonNode config = OBJECT_MAPPER.readTree(configJson);
+        sendNotification(type, config, "XianYuPlus 测试通知", "如果您看到这条消息，说明通知渠道配置成功！");
     }
 
-    private void sendNotification(String type, String configJson, String title, String content) throws Exception {
-        if (configJson == null || configJson.trim().isEmpty()) return;
-        JsonNode config = OBJECT_MAPPER.readTree(configJson);
+    private void sendNotification(String type, JsonNode config, String title, String content) throws Exception {
+        if (config == null) return;
 
         switch (type) {
             case "dingtalk":

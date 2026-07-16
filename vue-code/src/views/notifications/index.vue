@@ -78,6 +78,19 @@
           </div>
         </template>
 
+        <div class="form-divider">接收哪些通知？</div>
+        <div class="checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="formConfig.notifyAutoDelivery" /> 自动发货成功通知
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="formConfig.notifyAccountOffline" /> 账号异常/掉线通知
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="formConfig.notifyNewMessage" /> 收到新消息需人工介入
+          </label>
+        </div>
+
         <div class="modal-actions">
           <button class="btn-cancel" @click="showModal = false">取消</button>
           <button class="btn-save" @click="saveChannel" :disabled="saving">
@@ -128,7 +141,7 @@ const getChannelTypeName = (typeId: string) => {
 const openConfigModal = (type: typeof channelTypes[0]) => {
   currentType.value = type
   editingChannel.value = { type: type.id, name: `${type.name} 1`, config: '{}', status: 1 }
-  formConfig.value = {}
+  formConfig.value = { notifyAutoDelivery: true, notifyAccountOffline: true, notifyNewMessage: true }
   showModal.value = true
 }
 
@@ -137,8 +150,12 @@ const editChannel = (ch: NotificationChannel) => {
   editingChannel.value = { ...ch }
   try {
     formConfig.value = JSON.parse(ch.config)
+    // Backward compatibility for existing configs
+    if (formConfig.value.notifyAutoDelivery === undefined) formConfig.value.notifyAutoDelivery = true
+    if (formConfig.value.notifyAccountOffline === undefined) formConfig.value.notifyAccountOffline = true
+    if (formConfig.value.notifyNewMessage === undefined) formConfig.value.notifyNewMessage = true
   } catch {
-    formConfig.value = {}
+    formConfig.value = { notifyAutoDelivery: true, notifyAccountOffline: true, notifyNewMessage: true }
   }
   showModal.value = true
 }
@@ -448,5 +465,34 @@ input:checked + .slider:before {
 }
 .btn-save:disabled {
   opacity: 0.7;
+}
+
+/* Checkbox group */
+.form-divider {
+  margin-top: 20px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 16px;
+}
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+  color: #4b5563;
+  cursor: pointer;
+}
+.checkbox-label input[type="checkbox"] {
+  margin-right: 8px;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 </style>

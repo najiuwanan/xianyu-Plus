@@ -13,8 +13,10 @@ import com.xianyusmart.mapper.XianyuGoodsAutoReplyRecordMapper;
 import com.xianyusmart.service.AutoDeliveryService;
 import com.xianyusmart.service.EmailNotifyService;
 import com.xianyusmart.service.KamiConfigService;
+import com.xianyusmart.service.NotificationChannelService;
 import com.xianyusmart.service.OrderService;
 import com.xianyusmart.service.WebSocketService;
+import com.xianyusmart.service.XianyuAccountService;
 import com.xianyusmart.service.delivery.DeliveryContext;
 import com.xianyusmart.service.delivery.DeliveryStrategyResolver;
 import com.xianyusmart.service.delivery.OrderDetailFetcher;
@@ -75,6 +77,12 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
     @Autowired
     private DeliveryStrategyResolver deliveryStrategyResolver;
+
+    @Autowired
+    private NotificationChannelService notificationChannelService;
+
+    @Autowired
+    private XianyuAccountService xianyuAccountService;
 
     @Autowired
     private KamiConfigService kamiConfigService;
@@ -497,6 +505,22 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
             if (anySuccess) {
                 updateRecordState(recordId, 1, allContent.toString(), null);
+                
+                // --- 触发多渠道通知 ---
+                try {
+                    String title = "自动发货成功";
+                    String goodsName = "未知商品";
+                    XianyuGoods goods = goodsMapper.selectById(xyGoodsId);
+                    if (goods != null) {
+                        goodsName = goods.getTitle() != null ? goods.getTitle() : goodsName;
+                    }
+                    String notifContent = String.format("订单号：%s\n商品：%s\n买家：%s\n发货内容：\n%s", 
+                                          orderId, goodsName, buyerUserName, allContent.toString());
+                    notificationChannelService.dispatchMessage("AUTO_DELIVERY", accountId, title, notifContent);
+                } catch (Exception e) {
+                    log.error("触发多渠道通知失败", e);
+                }
+
                 XianyuGoodsAutoDeliveryConfig baseConfig = autoDeliveryConfigMapper.findByAccountIdAndGoodsIdNoSku(accountId, xyGoodsId);
                 boolean autoConfirm = (baseConfig != null && baseConfig.getAutoConfirmShipment() != null && baseConfig.getAutoConfirmShipment() == 1);
                 if (autoConfirm) {

@@ -16,6 +16,7 @@ import com.xianyusmart.mapper.XianyuChatMessageMapper;
 import com.xianyusmart.service.AIService;
 import com.xianyusmart.service.AutoReplyService;
 import com.xianyusmart.service.WebSocketService;
+import com.xianyusmart.service.NotificationChannelService;
 import com.xianyusmart.service.bo.RAGReplyResult;
 import com.xianyusmart.service.reply.ReplyStrategy;
 import com.xianyusmart.service.reply.ReplyStrategyResolver;
@@ -60,6 +61,9 @@ public class AutoReplyServiceImpl implements AutoReplyService {
 
     @Autowired
     private ReplyStrategyResolver replyStrategyResolver;
+
+    @Autowired
+    private NotificationChannelService notificationChannelService;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -165,6 +169,25 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             if (!replyResult.isSuccess() || replyResult.getItems() == null || replyResult.getItems().isEmpty()) {
                 log.warn("【账号{}】回复策略未生成有效内容", accountId);
                 updateRecordState(record.getId(), -1, null);
+                
+                // --- 触发多渠道通知 ---
+                try {
+                    String title = "需要人工介入回复";
+                    String goodsName = "未知商品";
+                    XianyuGoods goods = goodsMapper.selectById(xyGoodsId);
+                    if (goods != null) {
+                        goodsName = goods.getTitle() != null ? goods.getTitle() : goodsName;
+                    }
+                    String buyerName = triggerContext.getSenderUserName() != null ? triggerContext.getSenderUserName() : "买家";
+                    String msgContent = triggerContext.getMsgContent() != null ? triggerContext.getMsgContent() : "未知内容";
+                    
+                    String notifContent = String.format("商品：%s\n买家：%s\n买家消息：\n%s\n原因：AI无法回答或未匹配到关键词，请尽快手动回复！", 
+                                          goodsName, buyerName, msgContent);
+                    notificationChannelService.dispatchMessage("NEW_MESSAGE", accountId, title, notifContent);
+                } catch (Exception e) {
+                    log.error("触发人工介入多渠道通知失败", e);
+                }
+                
                 return;
             }
             
