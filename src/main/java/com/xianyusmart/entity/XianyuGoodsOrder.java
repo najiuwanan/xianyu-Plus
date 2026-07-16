@@ -68,6 +68,16 @@ public class XianyuGoodsOrder {
 
     private String deliveryChannel;
 
+    /**
+     * 闲鱼交易状态，与本系统的自动发货任务状态分开保存。
+     */
+    private String tradeStatus;
+
+    /**
+     * 闲鱼交易状态的展示文案，例如“退款中”“已退款”。
+     */
+    private String tradeStatusText;
+
     private String lastErrorCode;
 
     private String lastErrorMessage;

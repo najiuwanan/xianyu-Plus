@@ -48,5 +48,11 @@ public class OrderDTO {
 
     private Integer buyNum;
 
+    private String deliveryStatus;
+
+    private String tradeStatus;
+
+    private String tradeStatusText;
+
     private String createTime;
 }

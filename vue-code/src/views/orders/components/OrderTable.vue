@@ -119,22 +119,50 @@ const getStatusText = (state: number) => {
   return state === 1 ? '成功' : '失败'
 }
 
-const getDeliveryText = (state: number) => {
+const getDeliveryText = (state: number, deliveryStatus?: string) => {
+  if (deliveryStatus === 'SKIPPED') return '非自动发货'
   if (state === 1) return '已发货'
   if (state === 0) return '待发货'
   return '失败'
 }
 
-const getDeliveryColor = (state: number) => {
+const getDeliveryColor = (state: number, deliveryStatus?: string) => {
+  if (deliveryStatus === 'SKIPPED') return 'rgba(28,28,30,.55)'
   if (state === 1) return '#30D158'
   if (state === 0) return '#FF9F0A'
   return '#FF453A'
 }
 
-const getDeliveryBg = (state: number) => {
+const getDeliveryBg = (state: number, deliveryStatus?: string) => {
+  if (deliveryStatus === 'SKIPPED') return 'rgba(120,120,128,.12)'
   if (state === 1) return 'rgba(48,209,88,.2)'
   if (state === 0) return 'rgba(255,159,10,.18)'
   return 'rgba(255,69,58,.15)'
+}
+
+const getTradeStatusColor = (status?: string) => {
+  if (status === 'COMPLETED') return '#30D158'
+  if (status === 'REFUNDING') return '#FF9F0A'
+  if (status === 'REFUNDED') return '#FF453A'
+  if (status === 'PENDING_PAYMENT' || status === 'PENDING_SHIPMENT') return '#FF9F0A'
+  if (status === 'SHIPPED') return '#007AFF'
+  return 'rgba(28,28,30,.55)'
+}
+
+const getTradeStatusBg = (status?: string) => {
+  if (status === 'COMPLETED') return 'rgba(48,209,88,.2)'
+  if (status === 'REFUNDING' || status === 'PENDING_PAYMENT' || status === 'PENDING_SHIPMENT') return 'rgba(255,159,10,.18)'
+  if (status === 'REFUNDED') return 'rgba(255,69,58,.15)'
+  if (status === 'SHIPPED') return 'rgba(0,122,255,.12)'
+  return 'rgba(120,120,128,.12)'
+}
+
+const getTradeStatusText = (order: DeliveryRecordItem) => order.tradeStatusText || '未同步'
+
+const canConfirmShipment = (order: DeliveryRecordItem) => {
+  return order.state === 1
+    && order.deliveryStatus !== 'SKIPPED'
+    && !['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')
 }
 
 const getConfirmText = (state: number) => {
@@ -163,11 +191,20 @@ const getConfirmBg = (state: number) => {
           <span
             class="order-card__status"
             :style="{
-              color: getDeliveryColor(order.state),
-              background: getDeliveryBg(order.state)
+              color: getDeliveryColor(order.state, order.deliveryStatus),
+              background: getDeliveryBg(order.state, order.deliveryStatus)
             }"
           >
-            {{ getDeliveryText(order.state) }}
+            {{ getDeliveryText(order.state, order.deliveryStatus) }}
+          </span>
+          <span
+            class="order-card__status"
+            :style="{
+              color: getTradeStatusColor(order.tradeStatus),
+              background: getTradeStatusBg(order.tradeStatus)
+            }"
+          >
+            {{ getTradeStatusText(order) }}
           </span>
           <span v-if="order.state === -1 && order.failReason" class="order-card__fail-reason">{{ order.failReason }}</span>
           <span
@@ -211,7 +248,7 @@ const getConfirmBg = (state: number) => {
           <span>复制订单ID</span>
         </button>
         <button
-          v-if="order.orderId"
+          v-if="order.orderId && canConfirmShipment(order)"
           class="order-card__action order-card__action--detail"
           @click="handleClickDetail(order)"
         >
@@ -246,7 +283,8 @@ const getConfirmBg = (state: number) => {
           <th class="table__th table__th--center">规格</th>
           <th class="table__th table__th--center">买家</th>
           <th class="table__th table__th--center">发货内容</th>
-          <th class="table__th table__th--center">发货状态</th>
+          <th class="table__th table__th--center">交易状态</th>
+          <th class="table__th table__th--center">自动发货</th>
           <th class="table__th table__th--center">确认状态</th>
           <th class="table__th table__th--center">下单时间</th>
           <th class="table__th table__th--actions">操作</th>
@@ -276,11 +314,22 @@ const getConfirmBg = (state: number) => {
             <span
               class="status-tag"
               :style="{
-                color: getDeliveryColor(order.state),
-                background: getDeliveryBg(order.state)
+                color: getTradeStatusColor(order.tradeStatus),
+                background: getTradeStatusBg(order.tradeStatus)
               }"
             >
-              {{ getDeliveryText(order.state) }}
+              {{ getTradeStatusText(order) }}
+            </span>
+          </td>
+          <td class="table__td table__td--center">
+            <span
+              class="status-tag"
+              :style="{
+                color: getDeliveryColor(order.state, order.deliveryStatus),
+                background: getDeliveryBg(order.state, order.deliveryStatus)
+              }"
+            >
+              {{ getDeliveryText(order.state, order.deliveryStatus) }}
             </span>
             <span v-if="order.state === -1 && order.failReason" class="fail-reason" :title="order.failReason">{{ order.failReason }}</span>
           </td>
@@ -300,7 +349,7 @@ const getConfirmBg = (state: number) => {
           </td>
           <td class="table__td table__td--actions">
             <button
-              v-if="order.orderId"
+              v-if="order.orderId && canConfirmShipment(order)"
               class="table__action table__action--detail"
               @click="handleClickDetail(order)"
             >

@@ -1,5 +1,5 @@
 import { ref, reactive, computed, onMounted, nextTick } from 'vue'
-import { queryDeliveryRecordList, confirmShipment } from '@/api/order'
+import { queryDeliveryRecordList, confirmShipment, syncOrderHistory } from '@/api/order'
 import { getAccountList } from '@/api/account'
 import { getGoodsList, type GoodsItemWithConfig } from '@/api/goods'
 import type { DeliveryRecordVO, DeliveryRecordQueryReq } from '@/api/order'
@@ -13,6 +13,7 @@ export interface DeliveryRecordItem extends DeliveryRecordVO {
 
 export function useOrderManager() {
   const loading = ref(false)
+  const syncingOrders = ref(false)
   const orderList = ref<DeliveryRecordItem[]>([])
   const total = ref(0)
   const accounts = ref<Account[]>([])
@@ -178,6 +179,29 @@ export function useOrderManager() {
     }
   }
 
+  const handleSyncOrders = async () => {
+    if (!queryParams.xianyuAccountId) {
+      showInfo('请先选择账号')
+      return
+    }
+
+    syncingOrders.value = true
+    try {
+      const response = await syncOrderHistory(queryParams.xianyuAccountId)
+      if (response.code !== 0 && response.code !== 200) {
+        throw new Error(response.msg || '同步订单失败')
+      }
+      const data = response.data
+      showSuccess(`已同步 ${data?.syncedCount || 0} 笔订单，其中退款订单 ${data?.refundCount || 0} 笔`)
+      queryParams.pageNum = 1
+      await loadOrders()
+    } catch (error: any) {
+      showError('同步订单失败: ' + (error.message || '未知错误'))
+    } finally {
+      syncingOrders.value = false
+    }
+  }
+
   const handleReset = () => {
     queryParams.keyword = undefined
     queryParams.pageNum = 1
@@ -226,6 +250,7 @@ export function useOrderManager() {
 
   return {
     loading,
+    syncingOrders,
     orderList,
     total,
     accounts,
@@ -242,6 +267,7 @@ export function useOrderManager() {
     totalPages,
     loadAccounts,
     loadOrders,
+    handleSyncOrders,
     loadGoods,
     handleAccountChange,
     handleReset,

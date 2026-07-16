@@ -27,6 +27,9 @@ export interface DeliveryRecordVO {
   consignTime?: string
   totalPrice?: string
   buyNum?: number
+  deliveryStatus?: string
+  tradeStatus?: string
+  tradeStatusText?: string
   createTime: string
 }
 
@@ -80,6 +83,20 @@ export function getPendingOrders(xianyuAccountId: number) {
 export function deliverPendingOrders(xianyuAccountId: number) {
   return request<number>({
     url: '/order/deliverPendingOrders',
+    method: 'POST',
+    data: { xianyuAccountId }
+  })
+}
+
+export interface OrderHistorySyncResult {
+  soldCount: number
+  refundCount: number
+  syncedCount: number
+}
+
+export function syncOrderHistory(xianyuAccountId: number) {
+  return request<OrderHistorySyncResult>({
+    url: '/order/syncHistory',
     method: 'POST',
     data: { xianyuAccountId }
   })

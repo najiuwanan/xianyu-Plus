@@ -43,5 +43,15 @@ public interface OrderService {
 
     List<Map<String, Object>> queryPendingOrders(Long accountId);
 
+    /**
+     * 查询卖家全部售出订单，仅用于订单管理同步，不会触发自动发货。
+     */
+    List<Map<String, Object>> querySoldOrders(Long accountId, int maxPages);
+
+    /**
+     * 查询退款中和已退款订单，仅用于订单管理同步，不会触发自动发货。
+     */
+    List<Map<String, Object>> queryRefundOrders(Long accountId);
+
     Map<String, Object> getOrderDetailMap(Long accountId, String orderId);
 }

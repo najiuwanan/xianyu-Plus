@@ -92,6 +92,113 @@ public class PendingOrderPollService {
         }
     }
 
+    /**
+     * 同步订单管理需要的交易快照。该方法只写入/更新展示数据，绝不进入自动发货队列。
+     */
+    public int syncOrderHistoryToDb(Long accountId, List<Map<String, Object>> orders) {
+        if (orders == null || orders.isEmpty()) {
+            return 0;
+        }
+
+        int synced = 0;
+        for (Map<String, Object> order : orders) {
+            try {
+                XianyuGoodsOrder snapshot = buildHistoryRecord(accountId, order);
+                if (snapshot == null || snapshot.getOrderId() == null) {
+                    continue;
+                }
+
+                XianyuGoodsOrder existing = orderMapper.selectByAccountIdAndOrderId(accountId, snapshot.getOrderId());
+                if (existing == null) {
+                    orderMapper.insert(snapshot);
+                } else {
+                    orderMapper.updateTradeSnapshot(
+                            existing.getId(),
+                            snapshot.getXyGoodsId(),
+                            snapshot.getBuyerUserId(),
+                            snapshot.getBuyerUserName(),
+                            snapshot.getGoodsTitle(),
+                            snapshot.getOrderCreateTime(),
+                            snapshot.getPaySuccessTime(),
+                            snapshot.getTotalPrice(),
+                            snapshot.getBuyNum(),
+                            snapshot.getTradeStatus(),
+                            snapshot.getTradeStatusText()
+                    );
+                }
+                synced++;
+            } catch (Exception e) {
+                log.warn("【账号{}】同步订单交易状态失败", accountId, e);
+            }
+        }
+        return synced;
+    }
+
+    @SuppressWarnings("unchecked")
+    private XianyuGoodsOrder buildHistoryRecord(Long accountId, Map<String, Object> order) {
+        Object commonDataObj = order.get("commonData");
+        if (!(commonDataObj instanceof Map)) {
+            return null;
+        }
+
+        XianyuGoodsOrder record = buildOrderRecord(accountId, order);
+        if (record.getOrderId() == null || record.getOrderId().isBlank()) {
+            return null;
+        }
+
+        Map<String, Object> commonData = (Map<String, Object>) commonDataObj;
+        String forcedStatus = stringValue(order.get("_xianyuPlusTradeStatus"));
+        String forcedText = stringValue(order.get("_xianyuPlusTradeStatusText"));
+        applyTradeStatus(record, commonData, forcedStatus, forcedText);
+
+        // 历史订单可能是手工发货或退款订单。明确标为跳过，防止被任务调度器领取。
+        record.setPnmId("history_" + record.getOrderId());
+        record.setState(0);
+        record.setConfirmState(0);
+        record.setDeliveryStatus(DeliveryStatus.SKIPPED.name());
+        record.setDeliveryChannel("HISTORY_SYNC");
+        return record;
+    }
+
+    private void applyTradeStatus(XianyuGoodsOrder record, Map<String, Object> commonData,
+                                  String forcedStatus, String forcedText) {
+        if (forcedStatus != null && !forcedStatus.isBlank()) {
+            record.setTradeStatus(forcedStatus);
+            record.setTradeStatusText(forcedText);
+            return;
+        }
+
+        String rawStatus = stringValue(commonData.get("orderStatus"));
+        if ("true".equalsIgnoreCase(stringValue(commonData.get("inRefund")))) {
+            record.setTradeStatus("REFUNDING");
+            record.setTradeStatusText("退款中");
+            return;
+        }
+
+        if ("待付款".equals(rawStatus)) {
+            record.setTradeStatus("PENDING_PAYMENT");
+        } else if ("待发货".equals(rawStatus)) {
+            record.setTradeStatus("PENDING_SHIPMENT");
+        } else if ("已发货".equals(rawStatus)) {
+            record.setTradeStatus("SHIPPED");
+        } else if ("交易成功".equals(rawStatus)) {
+            record.setTradeStatus("COMPLETED");
+        } else if ("退款中".equals(rawStatus)) {
+            record.setTradeStatus("REFUNDING");
+        } else if ("退款成功".equals(rawStatus) || "已退款".equals(rawStatus)) {
+            record.setTradeStatus("REFUNDED");
+        } else if ("交易关闭".equals(rawStatus) || "退款关闭".equals(rawStatus)) {
+            record.setTradeStatus("CLOSED");
+        } else {
+            record.setTradeStatus("UNKNOWN");
+        }
+        record.setTradeStatusText(rawStatus == null || rawStatus.isBlank() ? "状态未知" : rawStatus);
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
     private XianyuGoodsOrder queueOrder(Long accountId, Map<String, Object> order) {
         XianyuGoodsOrder record = buildOrderRecord(accountId, order);
         if (!isAutoDeliveryEnabled(accountId, record.getXyGoodsId())) {
@@ -131,6 +238,9 @@ public class PendingOrderPollService {
             Map<String, Object> buyerInfo = (Map<String, Object>) buyerInfoObj;
             buyerNick = (String) buyerInfo.get("userNick");
             buyerUserId = (String) buyerInfo.get("userId");
+            if (buyerUserId == null || buyerUserId.isBlank()) {
+                buyerUserId = stringValue(buyerInfo.get("buyerId"));
+            }
         }
 
         String goodsTitle = null;

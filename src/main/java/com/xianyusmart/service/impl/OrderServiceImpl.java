@@ -351,6 +351,9 @@ public class OrderServiceImpl implements OrderService {
             result.put("consignTime", order.getConsignTime());
             result.put("totalPrice", order.getTotalPrice());
             result.put("buyNum", order.getBuyNum());
+            result.put("deliveryStatus", order.getDeliveryStatus());
+            result.put("tradeStatus", order.getTradeStatus());
+            result.put("tradeStatusText", order.getTradeStatusText());
             return objectMapper.writeValueAsString(result);
         } catch (Exception e) {
             log.error("【账号{}】获取本地订单详情异常: orderId={}", accountId, orderId, e);
@@ -361,59 +364,160 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> queryPendingOrders(Long accountId) {
+        return querySoldOrdersByCode(accountId, "NOT_SHIP", 1);
+    }
+
+    @Override
+    public List<Map<String, Object>> querySoldOrders(Long accountId, int maxPages) {
+        return querySoldOrdersByCode(accountId, "ALL", Math.max(1, Math.min(maxPages, 10)));
+    }
+
+    @Override
+    public List<Map<String, Object>> queryRefundOrders(Long accountId) {
+        List<Map<String, Object>> orders = new ArrayList<>();
+        String cookieStr = accountService.getCookieByAccountId(accountId);
+        if (cookieStr == null || cookieStr.isBlank()) {
+            log.warn("[{}] cannot sync refund orders because the cookie is unavailable", accountId);
+            return orders;
+        }
+
+        for (String disputeStatus : List.of("1", "2", "3", "5")) {
+            try {
+                Map<String, Object> dataMap = new HashMap<>();
+                dataMap.put("pageNumber", 1);
+                dataMap.put("rowsPerPage", 30);
+                dataMap.put("queryType", "refund");
+                dataMap.put("refundSearchParam", Map.of("disputeStatus", disputeStatus, "queryCode", "ALL"));
+
+                XianyuApiCallUtils.ApiCallResult result = xianyuApiCallUtils.callApiWithRetry(
+                        accountId,
+                        "mtop.taobao.idle.merchant.refund.list",
+                        dataMap,
+                        cookieStr,
+                        orderListHeaders(),
+                        orderListQueryParams()
+                );
+                if (!result.isSuccess()) {
+                    log.warn("[{}] refund-order request failed for disputeStatus={}: {}", accountId, disputeStatus, result.getErrorMessage());
+                    continue;
+                }
+
+                Map<String, Object> responseData = result.extractData();
+                Map<String, Object> data = asMap(responseData == null ? null : responseData.get("data"));
+                List<Map<String, Object>> items = asMapList(data == null ? null : data.get("items"));
+                String tradeStatus = "5".equals(disputeStatus) ? "REFUNDED" : "REFUNDING";
+                String tradeStatusText = "5".equals(disputeStatus) ? "已退款" : "退款中";
+                for (Map<String, Object> item : items) {
+                    Map<String, Object> copy = new HashMap<>(item);
+                    copy.put("_xianyuPlusTradeStatus", tradeStatus);
+                    copy.put("_xianyuPlusTradeStatusText", tradeStatusText);
+                    orders.add(copy);
+                }
+            } catch (Exception e) {
+                log.warn("[{}] refund-order request failed for disputeStatus={}", accountId, disputeStatus, e);
+            }
+        }
+        return orders;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> querySoldOrdersByCode(Long accountId, String queryCode, int maxPages) {
         try {
             String cookieStr = accountService.getCookieByAccountId(accountId);
             if (cookieStr == null || cookieStr.isEmpty()) {
-                log.error("【账号{}】未找到Cookie", accountId);
+                log.warn("[{}] cannot sync orders because the cookie is unavailable", accountId);
                 return List.of();
             }
 
-            Map<String, Object> dataMap = new HashMap<>();
-            dataMap.put("pageNumber", 1);
-            dataMap.put("rowsPerPage", 20);
-            dataMap.put("orderIds", "");
-            dataMap.put("queryCode", "NOT_SHIP");
-            dataMap.put("orderSearchParam", "{}");
+            List<Map<String, Object>> orders = new ArrayList<>();
+            for (int page = 1; page <= maxPages; page++) {
+                Map<String, Object> dataMap = new HashMap<>();
+                dataMap.put("pageNumber", page);
+                dataMap.put("rowsPerPage", 30);
+                dataMap.put("orderIds", "");
+                dataMap.put("queryCode", queryCode);
+                dataMap.put("orderSearchParam", "{}");
 
-            Map<String, String> extraHeaders = new HashMap<>();
-            extraHeaders.put("idle_site_biz_code", "COMMONPRO");
-            extraHeaders.put("Origin", "https://seller.goofish.com");
-            extraHeaders.put("Referer", "https://seller.goofish.com/?site=COMMONPRO");
+                XianyuApiCallUtils.ApiCallResult result = xianyuApiCallUtils.callApiWithRetry(
+                        accountId,
+                        "mtop.taobao.idle.trade.merchant.sold.get",
+                        dataMap,
+                        cookieStr,
+                        orderListHeaders(),
+                        orderListQueryParams()
+                );
+                if (!result.isSuccess()) {
+                    log.warn("[{}] order request failed for queryCode={}: {}", accountId, queryCode, result.getErrorMessage());
+                    break;
+                }
 
-            Map<String, String> extraQueryParams = new HashMap<>();
-            extraQueryParams.put("type", "json");
-            extraQueryParams.put("valueType", "string");
-
-            XianyuApiCallUtils.ApiCallResult result = xianyuApiCallUtils.callApiWithRetry(
-                    accountId,
-                    "mtop.taobao.idle.trade.merchant.sold.get",
-                    dataMap,
-                    cookieStr,
-                    extraHeaders,
-                    extraQueryParams
-            );
-
-            if (!result.isSuccess()) {
-                log.warn("【账号{}】查询待发货订单失败: {}", accountId, result.getErrorMessage());
-                return List.of();
+                Map<String, Object> responseData = result.extractData();
+                Map<String, Object> module = asMap(responseData == null ? null : responseData.get("module"));
+                List<Map<String, Object>> items = asMapList(module == null ? null : module.get("items"));
+                if (items.isEmpty()) {
+                    break;
+                }
+                orders.addAll(items);
+                if (items.size() < 30) {
+                    break;
+                }
             }
-
-            Map<String, Object> responseData = result.extractData();
-            if (responseData == null) {
-                return List.of();
-            }
-
-            Object moduleObj = responseData.get("module");
-            if (!(moduleObj instanceof Map)) return List.of();
-            Map<String, Object> module = (Map<String, Object>) moduleObj;
-
-            Object itemsObj = module.get("items");
-            if (!(itemsObj instanceof List)) return List.of();
-            return (List<Map<String, Object>>) itemsObj;
+            return orders;
         } catch (Exception e) {
-            log.error("【账号{}】查询待发货订单异常", accountId, e);
+            log.warn("[{}] order request failed for queryCode={}", accountId, queryCode, e);
             return List.of();
         }
+    }
+
+    private Map<String, String> orderListHeaders() {
+        Map<String, String> headers = new HashMap<>();
+        headers.put("idle_site_biz_code", "COMMONPRO");
+        headers.put("Origin", "https://seller.goofish.com");
+        headers.put("Referer", "https://seller.goofish.com/?site=COMMONPRO");
+        return headers;
+    }
+
+    private Map<String, String> orderListQueryParams() {
+        Map<String, String> params = new HashMap<>();
+        params.put("type", "json");
+        params.put("valueType", "string");
+        return params;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asMap(Object value) {
+        if (value instanceof Map<?, ?> rawMap) {
+            Map<String, Object> result = new HashMap<>();
+            for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+                if (entry.getKey() != null) {
+                    result.put(String.valueOf(entry.getKey()), entry.getValue());
+                }
+            }
+            return result;
+        }
+        if (value instanceof String text && text.trim().startsWith("{")) {
+            try {
+                return objectMapper.readValue(text, Map.class);
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> asMapList(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object item : list) {
+            Map<String, Object> map = asMap(item);
+            if (map != null) {
+                result.add(map);
+            }
+        }
+        return result;
     }
 
     @Override

@@ -20,6 +20,7 @@ const isDesktopCollapsed = computed(() => !isMobile.value && goodsPanelCollapsed
 
 const {
   loading,
+  syncingOrders,
   orderList,
   total,
   accounts,
@@ -33,6 +34,7 @@ const {
   totalPages,
   loadAccounts,
   loadOrders,
+  handleSyncOrders,
   loadGoods,
   handleAccountChange,
   handleReset,
@@ -198,6 +200,15 @@ const executeConfirmShipment = async () => {
             共 {{ total }} 条
           </span>
         </template>
+        <button
+          class="btn btn--secondary"
+          :class="{ 'btn--loading': syncingOrders }"
+          :disabled="syncingOrders || loading"
+          @click="handleSyncOrders"
+        >
+          <IconRefresh />
+          <span class="mobile-hidden">同步订单</span>
+        </button>
         <button
           class="btn btn--secondary"
           :class="{ 'btn--loading': loading }"

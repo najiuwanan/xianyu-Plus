@@ -77,6 +77,9 @@ public class OrderController {
                 dto.setConsignTime(order.getConsignTime());
                 dto.setTotalPrice(order.getTotalPrice());
                 dto.setBuyNum(order.getBuyNum());
+                dto.setDeliveryStatus(order.getDeliveryStatus());
+                dto.setTradeStatus(order.getTradeStatus());
+                dto.setTradeStatusText(order.getTradeStatusText());
                 dto.setCreateTime(order.getCreateTime());
                 orderDTOs.add(dto);
             }
@@ -172,6 +175,33 @@ public class OrderController {
     @lombok.Data
     public static class PendingOrdersReqDTO {
         private Long xianyuAccountId;
+    }
+
+    /**
+     * 手动同步订单管理数据：包含全部售出订单、退款中和已退款订单。
+     * 同步过程不会触发自动发货。
+     */
+    @PostMapping("/syncHistory")
+    public ResultObject<Map<String, Integer>> syncOrderHistory(@RequestBody PendingOrdersReqDTO reqDTO) {
+        if (reqDTO.getXianyuAccountId() == null) {
+            return ResultObject.failed("账号ID不能为空");
+        }
+        try {
+            List<Map<String, Object>> soldOrders = orderService.querySoldOrders(reqDTO.getXianyuAccountId(), 10);
+            List<Map<String, Object>> refundOrders = orderService.queryRefundOrders(reqDTO.getXianyuAccountId());
+            List<Map<String, Object>> allOrders = new ArrayList<>(soldOrders);
+            // 退款数据后写入，确保同一订单以退款状态为准。
+            allOrders.addAll(refundOrders);
+            int synced = pendingOrderPollService.syncOrderHistoryToDb(reqDTO.getXianyuAccountId(), allOrders);
+            return ResultObject.success(Map.of(
+                    "soldCount", soldOrders.size(),
+                    "refundCount", refundOrders.size(),
+                    "syncedCount", synced
+            ));
+        } catch (Exception e) {
+            log.error("同步订单历史失败", e);
+            return ResultObject.failed("同步订单失败: " + e.getMessage());
+        }
     }
 
     @PostMapping("/deliverPendingOrders")
