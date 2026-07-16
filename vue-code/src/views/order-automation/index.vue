@@ -123,6 +123,21 @@ const statusClass = (enabled: number, status: number) => {
   return 'status--pending'
 }
 
+const redFlowerStatusText = (record: OrderAutomationRecord) => {
+  if (record.redFlowerEnabled !== 1) return '未开启'
+  if (record.confirmState !== 1) return '等待确认发货'
+  return statusText(record.redFlowerEnabled, record.redFlowerStatus)
+}
+
+const redFlowerStatusClass = (record: OrderAutomationRecord) => {
+  if (record.redFlowerEnabled !== 1) return 'status--disabled'
+  if (record.confirmState !== 1) return 'status--waiting'
+  return statusClass(record.redFlowerEnabled, record.redFlowerStatus)
+}
+
+const canRetryRedFlower = (record: OrderAutomationRecord) =>
+  record.redFlowerEnabled === 1 && record.confirmState === 1 && record.redFlowerStatus === 2
+
 const formatTime = (value?: string) => {
   if (!value) return '-'
   const date = new Date(value)
@@ -199,7 +214,7 @@ onMounted(async () => {
     </div>
 
     <div class="hint">
-      小红花失败后系统会在下次重试时间自动再试；自动评价会在下一轮定时扫描中继续处理。
+      小红花只会在确认发货成功后处理，失败后会在下次重试时间自动再试；买家确认收货后，自动评价最迟会在下一轮扫描（默认约 2 分钟）中处理。
     </div>
 
     <div class="table-card">
@@ -234,8 +249,8 @@ onMounted(async () => {
                 <p v-if="record.rateError" class="error-text" :title="record.rateError">{{ record.rateError }}</p>
               </td>
               <td>
-                <span class="status" :class="statusClass(record.redFlowerEnabled, record.redFlowerStatus)">
-                  {{ statusText(record.redFlowerEnabled, record.redFlowerStatus) }}
+                <span class="status" :class="redFlowerStatusClass(record)">
+                  {{ redFlowerStatusText(record) }}
                 </span>
                 <p v-if="record.redFlowerTime" class="cell-time">{{ formatTime(record.redFlowerTime) }}</p>
                 <p v-if="record.redFlowerError" class="error-text" :title="record.redFlowerError">{{ record.redFlowerError }}</p>
@@ -251,11 +266,11 @@ onMounted(async () => {
                     :disabled="isRetrying(record, 'RATE')" @click="retry(record, 'RATE')">
                     {{ isRetrying(record, 'RATE') ? '重试中…' : '重试评价' }}
                   </button>
-                  <button v-if="canRetry(record.redFlowerEnabled, record.redFlowerStatus)" class="retry-button"
+                  <button v-if="canRetryRedFlower(record)" class="retry-button"
                     :disabled="isRetrying(record, 'RED_FLOWER')" @click="retry(record, 'RED_FLOWER')">
                     {{ isRetrying(record, 'RED_FLOWER') ? '重试中…' : '重试小红花' }}
                   </button>
-                  <span v-if="!canRetry(record.rateEnabled, record.rateStatus) && !canRetry(record.redFlowerEnabled, record.redFlowerStatus)" class="muted">无需操作</span>
+                  <span v-if="!canRetry(record.rateEnabled, record.rateStatus) && !canRetryRedFlower(record)" class="muted">无需操作</span>
                 </div>
               </td>
             </tr>
@@ -308,6 +323,7 @@ tbody tr:last-child td { border-bottom:0; }
 .status--success { color:#067647; background:#ecfdf3; }
 .status--failed { color:#b42318; background:#fef3f2; }
 .status--pending { color:#b54708; background:#fffaeb; }
+.status--waiting { color:#475467; background:#f2f4f7; }
 .status--disabled { color:#667085; background:#f2f4f7; }
 .error-text { color:#b42318; font-size:12px; line-height:18px; max-width:220px; margin:7px 0 0; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 .retry-time { color:#b54708; font-size:12px; line-height:18px; }

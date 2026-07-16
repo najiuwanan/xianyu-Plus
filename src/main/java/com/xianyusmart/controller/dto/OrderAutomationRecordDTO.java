@@ -16,6 +16,10 @@ public class OrderAutomationRecordDTO {
     private String buyerUserName;
     private String goodsTitle;
     private LocalDateTime orderCreateTime;
+    /**
+     * 卖家确认发货状态：1-已确认，0-未确认。
+     */
+    private Integer confirmState;
 
     private Integer rateEnabled;
     private Integer rateStatus;

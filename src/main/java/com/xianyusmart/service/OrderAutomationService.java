@@ -85,6 +85,10 @@ public class OrderAutomationService {
     }
 
     private OrderAutomationRetryRespDTO retryRedFlower(Long accountId, String orderId) {
+        if (automationRecordMapper.countConfirmedShipmentOrder(accountId, orderId) <= 0) {
+            return new OrderAutomationRetryRespDTO(false, "RED_FLOWER",
+                    "订单尚未确认发货，暂不能请求小红花");
+        }
         boolean success = redFlowerService.retryRedFlower(accountId, orderId);
         return new OrderAutomationRetryRespDTO(success, "RED_FLOWER",
                 success ? "小红花重试成功" : "小红花重试失败，失败原因和下次重试时间已更新");

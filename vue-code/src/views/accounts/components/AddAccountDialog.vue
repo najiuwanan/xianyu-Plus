@@ -126,7 +126,7 @@ const handleSubmit = async () => {
                 <span class="automation-card__icon automation-card__icon--flower">花</span>
                 <div class="automation-card__info">
                   <strong>自动求小红花</strong>
-                  <span>自动发货后请求买家赠送小红花</span>
+                  <span>确认发货成功后请求买家赠送小红花</span>
                 </div>
                 <label class="switch-toggle">
                   <input type="checkbox" v-model="formData.autoAskFlower" :true-value="1" :false-value="0" />
@@ -134,7 +134,7 @@ const handleSubmit = async () => {
                 </label>
               </div>
               <p v-if="formData.autoAskFlower === 1" class="automation-card__hint">
-                系统会定时处理近 10 天已自动发货的订单，不会额外向买家发送聊天消息。
+                系统会定时处理近 10 天已确认发货的订单，不会额外向买家发送聊天消息。
               </p>
             </section>
           </div>

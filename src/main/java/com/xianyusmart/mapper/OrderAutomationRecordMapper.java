@@ -20,7 +20,7 @@ public interface OrderAutomationRecordMapper {
 
     @Select("<script>" +
             "SELECT o.xianyu_account_id AS account_id, a.account_note AS account_name, " +
-            "o.order_id, o.buyer_user_name, o.goods_title, o.create_time AS order_create_time, " +
+            "o.order_id, o.buyer_user_name, o.goods_title, o.create_time AS order_create_time, o.confirm_state, " +
             "a.auto_rate_enabled AS rate_enabled, COALESCE(r.rate_status, 0) AS rate_status, " +
             "r.rate_time, r.rate_error, a.auto_ask_flower AS red_flower_enabled, " +
             "COALESCE(r.red_flower_status, 0) AS red_flower_status, r.red_flower_time, " +
@@ -57,6 +57,7 @@ public interface OrderAutomationRecordMapper {
             @Result(property = "buyerUserName", column = "buyer_user_name"),
             @Result(property = "goodsTitle", column = "goods_title"),
             @Result(property = "orderCreateTime", column = "order_create_time"),
+            @Result(property = "confirmState", column = "confirm_state"),
             @Result(property = "rateEnabled", column = "rate_enabled"),
             @Result(property = "rateStatus", column = "rate_status"),
             @Result(property = "rateTime", column = "rate_time"),
@@ -132,11 +133,19 @@ public interface OrderAutomationRecordMapper {
             "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId} AND state = 1")
     int countSuccessfulDeliveryOrder(@Param("accountId") Long accountId, @Param("orderId") String orderId);
 
+    /**
+     * 小红花只能在卖家已确认发货后请求，避免在尚未确认发货的订单上提前触发。
+     */
+    @Select("SELECT COUNT(1) FROM xianyu_goods_order " +
+            "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId} " +
+            "AND state = 1 AND confirm_state = 1")
+    int countConfirmedShipmentOrder(@Param("accountId") Long accountId, @Param("orderId") String orderId);
+
     @Select("SELECT o.order_id AS orderId FROM xianyu_goods_order o " +
             "LEFT JOIN xianyu_order_automation_record r " +
             "ON r.xianyu_account_id = o.xianyu_account_id AND r.order_id = o.order_id " +
             "WHERE o.xianyu_account_id = #{accountId} " +
-            "AND o.state = 1 AND o.order_id IS NOT NULL AND o.order_id <> '' " +
+            "AND o.state = 1 AND o.confirm_state = 1 AND o.order_id IS NOT NULL AND o.order_id <> '' " +
             "AND o.create_time >= DATE_SUB(NOW(3), INTERVAL #{lookbackDays} DAY) " +
             "AND (r.red_flower_status IS NULL OR r.red_flower_status <> 1) " +
             "AND (r.red_flower_next_retry_time IS NULL OR r.red_flower_next_retry_time <= NOW(3)) " +

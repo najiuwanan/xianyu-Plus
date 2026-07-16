@@ -78,6 +78,18 @@ class OrderAutomationServiceTest {
         verify(automationRecordMapper).findExecutionRecords(eq(null), eq("ALL"), eq(100), eq(0));
     }
 
+    @Test
+    void doesNotRetryRedFlowerBeforeShipmentIsConfirmed() {
+        when(automationRecordMapper.countSuccessfulDeliveryOrder(8L, "trade-8")).thenReturn(1);
+        when(automationRecordMapper.countConfirmedShipmentOrder(8L, "trade-8")).thenReturn(0);
+
+        OrderAutomationRetryRespDTO result = service().retry(8L, "trade-8", "RED_FLOWER");
+
+        assertFalse(result.isSuccess());
+        assertEquals("订单尚未确认发货，暂不能请求小红花", result.getMessage());
+        verify(redFlowerService, never()).retryRedFlower(any(), any());
+    }
+
     private OrderAutomationService service() {
         return new OrderAutomationService(automationRecordMapper, accountMapper, rateService, redFlowerService);
     }

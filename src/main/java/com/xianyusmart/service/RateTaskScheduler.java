@@ -26,9 +26,11 @@ public class RateTaskScheduler {
     private RateService rateService;
 
     /**
-     * 每10分钟执行一次，扫描所有开启了自动评价的账号
+     * 默认每两分钟扫描一次。买家确认收货后，闲鱼把订单放入待评价列表即可处理；
+     * 间隔可通过 app.automation.rate-scan-delay-ms 配置调整。
      */
-    @Scheduled(fixedDelay = 600000)
+    @Scheduled(fixedDelayString = "${app.automation.rate-scan-delay-ms:120000}",
+            initialDelayString = "${app.automation.rate-scan-initial-delay-ms:30000}")
     public void scheduleAutoRate() {
         log.info("【自动评价任务】开始执行定时扫描...");
         
@@ -64,8 +66,8 @@ public class RateTaskScheduler {
                     : "不错的买家！";
 
             for (Map<String, Object> item : pendingList) {
-                String tradeId = String.valueOf(item.get("bizOrderId"));
-                if (tradeId != null && !tradeId.isEmpty() && !"null".equals(tradeId)) {
+                String tradeId = extractTradeId(item);
+                if (tradeId != null) {
                     // 执行评价
                     rateService.rateBuyer(accountId, tradeId, feedbackText);
                     // 每次评价间隔 2 秒，防止过快被限制
@@ -75,5 +77,24 @@ public class RateTaskScheduler {
         } catch (Exception e) {
             log.error("【自动评价任务】账号 {} 处理失败: {}", account.getId(), e.getMessage());
         }
+    }
+
+    /**
+     * 闲鱼待评价列表在不同页面版本中可能使用不同的订单号字段。
+     * 不能只读取 bizOrderId，否则接口返回成功却会被静默跳过。
+     */
+    private String extractTradeId(Map<String, Object> item) {
+        for (String key : List.of("bizOrderId", "tradeId", "orderId", "id")) {
+            Object value = item.get(key);
+            if (value == null) {
+                continue;
+            }
+            String tradeId = String.valueOf(value).trim();
+            if (!tradeId.isEmpty() && !"null".equalsIgnoreCase(tradeId)) {
+                return tradeId;
+            }
+        }
+        log.warn("【自动评价任务】待评价订单缺少订单号，已跳过。字段：{}", item.keySet());
+        return null;
     }
 }
