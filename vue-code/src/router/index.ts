@@ -48,7 +48,7 @@ const router = createRouter({
       path: '/orders',
       name: 'orders',
       component: () => import('@/views/orders/index.vue'),
-      meta: { title: '发货记录', icon: '📋' }
+      meta: { title: '订单管理', icon: '📋' }
     },
     {
       path: '/messages',
@@ -97,6 +97,12 @@ const router = createRouter({
       name: 'operation-log',
       component: () => import('@/views/operation-log/index.vue'),
       meta: { title: '操作记录', icon: '📜' }
+    },
+    {
+      path: '/runtime-log',
+      name: 'runtime-log',
+      component: () => import('@/views/runtime-log/index.vue'),
+      meta: { title: '实时日志', icon: '📟' }
     },
     {
       path: '/settings',

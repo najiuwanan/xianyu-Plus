@@ -167,10 +167,10 @@ export function useOrderManager() {
       }))
       total.value = response.data?.total || 0
     } catch (error: any) {
-      console.error('查询发货记录失败:', error)
+      console.error('查询订单失败:', error)
       // 只有在错误消息未显示过时才弹出提示（避免重复显示）
       if (!error.messageShown) {
-        showError('查询发货记录失败: ' + (error.message || '未知错误'))
+        showError('查询订单失败: ' + (error.message || '未知错误'))
       }
       orderList.value = []
     } finally {

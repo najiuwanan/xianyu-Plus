@@ -17,6 +17,11 @@ services:
       - --max-connections=100
     volumes:
       - mysql-data:/var/lib/mysql
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
       interval: 5s
@@ -49,6 +54,11 @@ services:
       TZ: ${TZ:-Asia/Shanghai}
     ports:
       - "12400:12400"
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     volumes:
       - app-data:/app/data
       - app-logs:/app/logs
@@ -74,6 +84,11 @@ services:
     volumes:
       - ./deploy/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
       - ./deploy/nginx/certs:/etc/nginx/certs:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     networks:
       - xianyusmart
 

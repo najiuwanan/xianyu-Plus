@@ -6,6 +6,7 @@ import { logout } from '@/api/auth'
 import { getSetting, saveSetting } from '@/api/setting'
 import { getAIStatus } from '@/api/ai'
 import { getBackupModules, exportBackup, importBackup, getLogDates, downloadLog, type BackupModule } from '@/api/backup'
+import { getLogRetention, saveLogRetention } from '@/api/runtime-log'
 import { toast } from '@/utils/toast'
 import { showConfirm } from '@/utils/confirm'
 import { clearAuthToken } from '@/utils/request'
@@ -14,6 +15,7 @@ import IconRobot from '@/components/icons/IconRobot.vue'
 import IconChat from '@/components/icons/IconChat.vue'
 import IconBackup from '@/components/icons/IconBackup.vue'
 import IconInfo from '@/components/icons/IconInfo.vue'
+import IconLog from '@/components/icons/IconLog.vue'
 
 const router = useRouter()
 
@@ -278,8 +280,52 @@ const menuItems = [
   { key: 'ai', label: 'AI 服务配置', icon: markRaw(IconRobot) },
   { key: 'prompt', label: 'AI客服配置', icon: markRaw(IconChat) },
   { key: 'backup', label: '备份与恢复', icon: markRaw(IconBackup) },
+  { key: 'logs', label: '日志清理', icon: markRaw(IconLog) },
   { key: 'about', label: '关于', icon: markRaw(IconInfo) }
 ]
+
+const LOG_RETENTION_OPTIONS = [1, 3, 5, 7, 30]
+const logRetentionDays = ref(7)
+const logRetentionConfigured = ref(false)
+const logRetentionLoaded = ref(false)
+const logRetentionSaving = ref(false)
+
+async function loadLogRetention() {
+  if (logRetentionLoaded.value) return
+  try {
+    const res = await getLogRetention()
+    if (res.code === 200 && res.data) {
+      logRetentionDays.value = res.data.days || 7
+      logRetentionConfigured.value = res.data.configured === true
+      logRetentionLoaded.value = true
+    }
+  } catch (e) {
+    console.error('获取日志保留设置失败:', e)
+  }
+}
+
+async function handleSaveLogRetention() {
+  logRetentionSaving.value = true
+  try {
+    const res = await saveLogRetention(logRetentionDays.value)
+    if (res.code === 200) {
+      logRetentionConfigured.value = true
+      logRetentionLoaded.value = true
+      const result = res.data
+      toast.success(`日志保留设置已保存，已清理 ${result?.fileLogDirectoriesDeleted || 0} 个日志目录和 ${result?.operationLogsDeleted || 0} 条操作日志`)
+    }
+  } catch (e) {
+    console.error('保存日志保留设置失败:', e)
+  } finally {
+    logRetentionSaving.value = false
+  }
+}
+
+function handleSettingsMenuSelect(key: string) {
+  activeMenu.value = key
+  if (key === 'backup') handleBackupMenuEnter()
+  if (key === 'logs') loadLogRetention()
+}
 
 onMounted(async () => {
   loading.value = true
@@ -819,7 +865,7 @@ function handleBackupMenuEnter() {
           :key="item.key"
           class="settings__menu-item"
           :class="{ 'settings__menu-item--active': activeMenu === item.key }"
-          @click="activeMenu = item.key; item.key === 'backup' && handleBackupMenuEnter()"
+          @click="handleSettingsMenuSelect(item.key)"
         >
           <span class="settings__menu-icon"><component :is="item.icon" /></span>
           <span class="settings__menu-label">{{ item.label }}</span>
@@ -1362,6 +1408,52 @@ function handleBackupMenuEnter() {
         </div>
       </div>
 
+      <!-- 日志清理 -->
+      <div v-if="activeMenu === 'logs'" class="settings__panel">
+        <div class="settings__panel-title">日志清理</div>
+
+        <div class="settings__section settings__section--first">
+          <div class="settings__section-title">项目日志保留时间</div>
+          <p class="settings__desc">
+            选择后会立即清理超过保留时间的项目日志，并在每天凌晨 3:30 自动清理一次。
+            清理范围包括应用运行日志和操作日志，不会删除飞牛系统或其他应用的日志。
+          </p>
+          <div class="settings__retention-options">
+            <button
+              v-for="days in LOG_RETENTION_OPTIONS"
+              :key="days"
+              type="button"
+              class="settings__retention-option"
+              :class="{ 'settings__retention-option--active': logRetentionDays === days }"
+              :disabled="logRetentionSaving"
+              @click="logRetentionDays = days"
+            >
+              {{ days }} 天
+            </button>
+          </div>
+          <p class="settings__hint">
+            {{ logRetentionConfigured ? `当前已启用：保留最近 ${logRetentionDays} 天。` : '尚未保存，当前不会自动删除历史日志。' }}
+          </p>
+          <div class="settings__actions">
+            <button
+              class="settings__btn settings__btn--primary"
+              :disabled="logRetentionSaving"
+              @click="handleSaveLogRetention"
+            >
+              {{ logRetentionSaving ? '保存并清理中...' : '保存并立即清理' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="settings__warning-box">
+          <div class="settings__warning-icon">ℹ️</div>
+          <div class="settings__warning-content">
+            <strong>容器控制台日志</strong>
+            <p>项目已限制为最多 3 个 20MB 文件，避免 Docker 控制台日志持续占用空间。</p>
+          </div>
+        </div>
+      </div>
+
       <!-- 关于 -->
       <div v-if="activeMenu === 'about'" class="settings__panel">
         <div class="settings__panel-title">关于</div>
@@ -1564,6 +1656,49 @@ function handleBackupMenuEnter() {
   margin-top: 24px;
   padding-top: 24px;
   border-top: 0.5px solid rgba(60,60,67,.12);
+}
+
+.settings__section--first {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.settings__retention-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.settings__retention-option {
+  min-width: 68px;
+  height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(60,60,67,.14);
+  border-radius: 9px;
+  color: #475467;
+  background: rgba(255,255,255,.66);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all .18s ease;
+}
+
+.settings__retention-option:hover:not(:disabled) {
+  border-color: #0a84ff;
+  color: #0a84ff;
+}
+
+.settings__retention-option--active {
+  border-color: #0a84ff;
+  color: #fff;
+  background: #0a84ff;
+  box-shadow: 0 4px 12px rgba(10,132,255,.24);
+}
+
+.settings__retention-option:disabled {
+  opacity: .55;
+  cursor: not-allowed;
 }
 
 .settings__section-header {

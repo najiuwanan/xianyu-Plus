@@ -15,7 +15,7 @@ import IconPackage from '@/components/icons/IconPackage.vue'
 
 import OrderTable from './components/OrderTable.vue'
 
-const goodsPanelCollapsed = ref(true)
+const goodsPanelCollapsed = ref(false)
 const isDesktopCollapsed = computed(() => !isMobile.value && goodsPanelCollapsed.value)
 
 const {
@@ -160,7 +160,7 @@ const executeConfirmShipment = async () => {
         <div class="orders__title-icon">
           <IconClipboard />
         </div>
-        <h1 class="orders__title">发货记录</h1>
+        <h1 class="orders__title">订单管理</h1>
       </div>
       <div class="orders__actions">
         <div class="orders__select-wrap">

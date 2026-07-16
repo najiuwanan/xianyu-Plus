@@ -62,7 +62,7 @@ const pageTitleMap: Record<string, string> = {
   '/accounts': '账号管理',
   '/connection': '连接管理',
   '/goods': '商品管理',
-  '/orders': '发货记录',
+  '/orders': '订单管理',
   '/messages': '消息管理',
   '/notifications': '通知渠道',
   '/kami-config': '卡券管理',
@@ -71,6 +71,7 @@ const pageTitleMap: Record<string, string> = {
 
   '/auto-reply': '自动回复',
   '/operation-log': '操作日志',
+  '/runtime-log': '实时日志',
   '/settings': '系统设置'
 }
 
@@ -86,6 +87,7 @@ const pageIconMap: Record<string, any> = {
 
   '/auto-reply': markRaw(IconChat),
   '/operation-log': markRaw(IconLog),
+  '/runtime-log': markRaw(IconLog),
   '/settings': markRaw(IconShield)
 }
 

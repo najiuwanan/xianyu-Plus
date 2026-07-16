@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { inject, defineComponent, h, onBeforeUnmount, onMounted, ref } from 'vue'
+import { inject, defineComponent, h, onMounted } from 'vue'
 import { useOperationLog } from './useOperationLog'
-import { getRuntimeLogTail } from '@/api/runtime-log'
 import './operation-log.css'
 import '@/styles/header-selectors.css'
 
@@ -45,51 +44,6 @@ const {
   handleAccountSelectChange
 } = useOperationLog()
 
-const runtimeLogLines = ref<string[]>([])
-const runtimeLogLoading = ref(false)
-const runtimeLogPaused = ref(false)
-const runtimeLogMessage = ref('')
-const runtimeLogUpdatedAt = ref('')
-let runtimeLogTimer: number | undefined
-let runtimeLogRequestInFlight = false
-
-const loadRuntimeLogs = async () => {
-  if (runtimeLogRequestInFlight) return
-
-  runtimeLogRequestInFlight = true
-  runtimeLogLoading.value = true
-  try {
-    const response = await getRuntimeLogTail()
-    if (response.code === 0 || response.code === 200) {
-      runtimeLogLines.value = response.data?.lines || []
-      runtimeLogMessage.value = response.data?.message || ''
-      runtimeLogUpdatedAt.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
-    }
-  } catch (error) {
-    console.error('加载实时运行日志失败:', error)
-  } finally {
-    runtimeLogLoading.value = false
-    runtimeLogRequestInFlight = false
-  }
-}
-
-const toggleRuntimeLogRefresh = () => {
-  runtimeLogPaused.value = !runtimeLogPaused.value
-  if (!runtimeLogPaused.value) {
-    loadRuntimeLogs()
-  }
-}
-
-const clearRuntimeLogDisplay = () => {
-  runtimeLogLines.value = []
-  runtimeLogMessage.value = '已清空当前页面显示，服务器上的日志文件不会受影响。'
-}
-
-const handlePageRefresh = () => {
-  handleRefresh()
-  loadRuntimeLogs()
-}
-
 // 导航栏注入
 const setHeaderContent = inject<(content: any) => void>('setHeaderContent')
 
@@ -118,7 +72,7 @@ const HeaderSelectors = defineComponent({
       h('button', {
         class: ['header-refresh-btn', { 'header-refresh-btn--loading': loading.value }],
         disabled: loading.value,
-        onClick: handlePageRefresh
+        onClick: handleRefresh
       }, [
         h(IconRefresh, { class: 'header-refresh-icon' })
       ])
@@ -128,18 +82,6 @@ const HeaderSelectors = defineComponent({
 
 onMounted(() => {
   if (setHeaderContent) setHeaderContent(HeaderSelectors)
-  loadRuntimeLogs()
-  runtimeLogTimer = window.setInterval(() => {
-    if (!runtimeLogPaused.value) {
-      loadRuntimeLogs()
-    }
-  }, 2000)
-})
-
-onBeforeUnmount(() => {
-  if (runtimeLogTimer !== undefined) {
-    window.clearInterval(runtimeLogTimer)
-  }
 })
 </script>
 
@@ -174,7 +116,7 @@ onBeforeUnmount(() => {
             <IconChevronDown />
           </span>
         </div>
-        <button class="btn btn--secondary" @click="handlePageRefresh">
+        <button class="btn btn--secondary" @click="handleRefresh">
           <IconRefresh />
           <span class="mobile-hidden">刷新</span>
         </button>
@@ -394,46 +336,6 @@ onBeforeUnmount(() => {
         </template>
       </div>
     </div>
-
-    <section class="ol__runtime-log" aria-label="实时运行日志">
-      <div class="ol__runtime-log-header">
-        <div>
-          <div class="ol__runtime-log-title-row">
-            <h2 class="ol__runtime-log-title">实时运行日志</h2>
-            <span
-              class="ol__runtime-log-status"
-              :class="{ 'ol__runtime-log-status--paused': runtimeLogPaused }"
-            >
-              <i></i>
-              {{ runtimeLogPaused ? '已暂停' : '每 2 秒刷新' }}
-            </span>
-          </div>
-          <p class="ol__runtime-log-hint">
-            显示应用最新 200 行运行记录；仅供查看，不会修改或删除服务器日志。
-            <span v-if="runtimeLogUpdatedAt">上次刷新：{{ runtimeLogUpdatedAt }}</span>
-          </p>
-        </div>
-        <div class="ol__runtime-log-actions">
-          <button class="btn btn--ghost btn--sm" @click="toggleRuntimeLogRefresh">
-            {{ runtimeLogPaused ? '继续刷新' : '暂停刷新' }}
-          </button>
-          <button class="btn btn--secondary btn--sm" :disabled="runtimeLogLoading" @click="loadRuntimeLogs">
-            <IconRefresh />
-            刷新
-          </button>
-          <button class="btn btn--ghost btn--sm" @click="clearRuntimeLogDisplay">清空显示</button>
-        </div>
-      </div>
-      <div class="ol__runtime-log-view">
-        <div v-if="runtimeLogLoading && runtimeLogLines.length === 0" class="ol__runtime-log-empty">
-          正在读取运行日志…
-        </div>
-        <pre v-else-if="runtimeLogLines.length" class="ol__runtime-log-content">{{ runtimeLogLines.join('\n') }}</pre>
-        <div v-else class="ol__runtime-log-empty">
-          {{ runtimeLogMessage || '当前暂无运行日志。' }}
-        </div>
-      </div>
-    </section>
 
     <!-- Detail Dialog -->
     <Transition name="overlay-fade">
