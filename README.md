@@ -1,344 +1,152 @@
-# XianYuSmart
+# XianYuSmart（闲鱼 Plus）
 
-[![Java 21](https://img.shields.io/badge/Java-21-2f6f5e)](https://www.oracle.com/java/technologies/downloads/#java21)
-[![Spring Boot 3.5](https://img.shields.io/badge/Spring%20Boot-3.5-2f6f5e)](https://spring.io/projects/spring-boot)
-[![Vue 3](https://img.shields.io/badge/Vue-3-2f6f5e)](https://vuejs.org/)
-[![MySQL](https://img.shields.io/badge/MySQL-5.7%2B-2f6f5e)](https://www.mysql.com/)
-[![License](https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-2f6f5e)](LICENSE)
+面向个人卖家的闲鱼虚拟商品管理与自动化助手。项目支持私有部署，可在飞牛 OS、Linux 服务器或安装了 Docker 的电脑上运行。
 
-面向单商家私有部署的闲鱼虚拟商品经营系统，聚焦卡密库存、自动交付、客服自动化和异常待办，在有限服务器资源下保持可恢复、可追踪、易运维。
+> 本项目与闲鱼平台无官方关联。请仅在遵守法律法规、平台规则及账号使用规范的前提下使用。
 
-当前版本：`1.0.0`
+## 功能概览
 
-[核心价值](#核心价值) · [能力范围](#能力范围) · [业务流程](#业务流程) · [镜像部署](#镜像部署) · [快速启动](#快速启动) · [配置说明](#配置说明) · [开发构建](#开发构建) · [日常运维](#日常运维) · [许可证与免责声明](#许可证与免责声明)
+- 多闲鱼账号管理、登录与连接状态查看
+- 商品与 SKU 同步、自动发货开关和发货规则配置
+- 文本、图片、卡密等虚拟商品自动发货
+- 卡密库存管理、低库存提醒与发货记录查询
+- 自动确认发货、自动发送求小红花话术
+- 自动评价：按账号配置定时扫描待评价订单
+- 关键词、商品规则与 AI 自动回复
+- 订单、消息、异常待办、操作日志和数据备份
 
-## 核心价值
+## 快速安装
 
-| 经营问题 | 处理方式 |
-| --- | --- |
-| 卡密重复发送、少发或超卖 | MySQL 行级锁、整单预占、发送成功后核销、失败释放或转人工复核 |
-| 服务重启后订单或回复丢失 | 发货任务与回复任务持久化，租约超时后自动恢复 |
-| 多入口同时触发重复发货 | 订单号幂等入队，WebSocket 与接口发现统一进入任务队列 |
-| 消息高峰占用失控 | 共用有界线程池、有限队列、批量领取和连接池上限 |
-| 客服自动化误回复 | 人工接管状态持久化，关键词、商品回复和 AI 回复按结果统一判定 |
-| 库存与失败情况发现太晚 | 首页集中显示可用卡密、低库存、待处理、需复核和失败任务 |
-| 私有部署凭据泄露 | JWT 强密钥、会话摘要存储、密码变更全量失效、备份排除敏感字段 |
-| 公网访问边界不清晰 | 应用仅绑定本机端口，Nginx 提供 HTTPS、限流和反向代理 |
+### 飞牛 OS / Linux
 
-## 能力范围
-
-| 经营自动化 | 可靠交付 | 私有运维 |
-| --- | --- | --- |
-| 账号、Cookie、连接与掉线提醒 | 多数量卡密原子预占与幂等交付 | MySQL 自动建表和版本迁移 |
-| 商品、SKU、发货规则与卡密仓库 | 发货任务重试、租约恢复与人工复核 | Docker Compose、健康检查与 HTTPS 代理 |
-| 文本、卡密和多数量商品自动发货 | 人工接管与延迟回复恢复 | 业务数据备份与操作日志 |
-| 关键词、商品配置与 AI 自动回复 | 消息、订单和发货结果全程留痕 | 默认排除 Cookie、API Key、邮箱密码等敏感值 |
-| 收入、交付、回复、库存与异常工作台 | 失败任务集中待办 | 有界线程池、连接池与批量调度参数 |
-
-## 业务流程
-
-```mermaid
-flowchart LR
-    XY["闲鱼消息与订单"] --> WS["连接与消息路由"]
-    WS --> SAVE["消息持久化"]
-    WS --> REPLY["回复任务"]
-    WS --> DISCOVER["订单发现"]
-    API["订单接口补偿"] --> DISCOVER
-    DISCOVER --> TASK["持久化发货任务"]
-    TASK --> CLAIM["租约领取与有限并发"]
-    CLAIM --> RULE["商品与 SKU 规则解析"]
-    RULE --> CARD["卡密整单预占"]
-    RULE --> TEXT["文本内容"]
-    CARD --> SEND["闲鱼消息发送"]
-    TEXT --> SEND
-    SEND -->|成功| COMMIT["核销库存与记录交付"]
-    SEND -->|可重试失败| RETRY["退避重试"]
-    SEND -->|不可确认| REVIEW["人工复核"]
-    RETRY --> TASK
-    REPLY --> HUMAN["人工接管校验"]
-    HUMAN --> RULES["关键词 / 商品 / AI"]
-    RULES --> SEND
-    COMMIT --> DASH["商家工作台"]
-    REVIEW --> DASH
-```
-
-### 发货状态
-
-`PENDING -> PROCESSING -> SUCCESS`
-
-- 临时网络或接口失败：`PROCESSING -> RETRY -> PENDING`
-- 超过重试上限或发送结果不确定：`PROCESSING -> REVIEW_REQUIRED`
-- 进程异常退出：租约过期后重新领取
-
-### 卡密状态
-
-`AVAILABLE -> RESERVED -> USED`
-
-- 只有库存数量完整满足订单数量时才会预占。
-- 消息确认发送成功后才会核销为 `USED`。
-- 明确发送失败时释放为 `AVAILABLE`。
-- 发送结果无法确认时保留关联并进入人工复核，避免重复发送。
-
-## 技术基线
-
-- Java 21
-- Spring Boot 3.5
-- MySQL 8.0+
-- Flyway
-- MyBatis-Plus
-- Vue 3、TypeScript、Vite
-- Docker Compose
-- Nginx
-
-## 镜像部署
-
-每个正式 Release 会自动发布 `linux/amd64` 镜像到 GitHub Container Registry。固定版本适合生产部署，`latest` 适合体验最新正式版本。
-
-```bash
-docker pull ghcr.io/najiuwanan/xianyu-plus:v1.0.0
-docker pull ghcr.io/najiuwanan/xianyu-plus:latest
-```
-
-使用仓库内的 Docker Compose 启动固定版本：
-
-Linux：
-
-```bash
-cp .env.example .env
-# 修改 .env 中的数据库密码和 JWT 强密钥
-export APP_IMAGE=ghcr.io/najiuwanan/xianyu-plus:v1.0.0
-docker compose pull app
-docker compose up -d --no-build
-```
-
-Windows PowerShell：
-
-```powershell
-Copy-Item .env.example .env
-notepad .env
-$env:APP_IMAGE = 'ghcr.io/najiuwanan/xianyu-plus:v1.0.0'
-docker compose pull app
-docker compose up -d --no-build
-```
-
-镜像启动仍依赖 `.env` 中的 MySQL、JWT 和跨域配置。Windows Docker Desktop 需要使用 Linux 容器模式。生产环境建议固定版本标签，避免 `latest` 更新带来未计划的版本变化。
-
-## 快速启动
-
-### 一键安装 (Linux)
-
-只需在终端执行以下命令，即可自动克隆代码、生成随机高强度密钥并启动运行环境：
+在飞牛 OS 的终端或 Linux 终端执行：
 
 ```bash
 git clone https://github.com/najiuwanan/xianyu-Plus.git && cd xianyu-Plus && chmod +x install.sh && ./install.sh
 ```
 
-### 一键更新并重启 (Linux)
+安装脚本会创建 `.env` 文件、生成随机运行密码并构建启动服务。
 
-当您在 GitHub 上修改了代码后，只需要执行以下命令即可自动拉取最新代码并重启服务器：
+完成后访问：
+
+```text
+http://你的设备IP:12400
+```
+
+首次打开会进入管理员账号创建页面。
+
+### 更新到最新版
+
+在已安装项目的目录中执行：
 
 ```bash
 cd xianyu-Plus && chmod +x update.sh && ./update.sh
 ```
 
-### 环境要求
+该命令会拉取 GitHub 上的最新代码、重新构建并重启服务。更新前建议先完成数据备份。
+
+## 使用前准备
+
+1. 登录后台并创建管理员账号。
+2. 添加闲鱼账号，完成登录并确认账号连接正常。
+3. 同步需要管理的商品和 SKU。
+4. 为商品配置自动发货内容、图片或卡密，并开启自动发货。
+5. 如需使用自动求小红花或自动评价，请在对应账号设置中开启并填写话术。
+
+建议先用一个测试商品完成一次小额订单验证，确认登录状态、消息发送和发货内容均符合预期后，再用于日常商品。
+
+## 自动化说明
+
+### 自动发货
+
+收到订单后，系统会根据商品和 SKU 配置发送文本、图片或卡密。自动发货失败、库存不足或发送结果无法确认时，会保留记录并进入待处理状态，便于人工核对。
+
+### 自动求小红花
+
+当自动发货成功后，若账号已开启“自动求小红花”并设置了话术，系统会延迟发送对应消息。
+
+### 自动评价
+
+开启“自动评价”的账号会定时扫描待评价订单并提交预设评价内容。实际可用性取决于账号登录状态及平台接口状态。
+
+## 部署要求
 
 - Docker Engine 24+ 或 Docker Desktop
 - Docker Compose v2
-- Linux 生产环境建议 2 核、2 GB 内存起步
-- Windows 可使用 Docker Desktop 完成功能测试
+- 建议至少 2 核 CPU、4 GB 内存
+- 默认使用 MySQL 8.4 容器，无需额外安装数据库
 
-### Windows PowerShell
+飞牛 OS 通常可通过 Docker 或 Compose 应用运行本项目。请确保 12400 端口未被其他服务占用。
 
-```powershell
-git clone https://github.com/najiuwanan/xianyu-Plus.git
-cd xianyu-Plus
-Copy-Item .env.example .env
-notepad .env
-docker compose up -d --build
+## 常用运维命令
+
+查看服务状态：
+
+```bash
 docker compose ps
 ```
 
-启动前必须修改 `.env` 中的三个示例密钥。`JWT_SECRET` 至少使用 32 个随机字节，数据库密码不得复用。
-
-启动后访问：`http://localhost:12400`
-
-全新数据库首次访问会进入管理员账号创建页，密码长度限制为 8 至 72 位。
-
-### 公网 HTTPS
-
-1. 将证书保存为：
-
-```text
-deploy/nginx/certs/fullchain.pem
-deploy/nginx/certs/privkey.pem
-```
-
-2. 修改 `.env`：
-
-```dotenv
-ALLOWED_ORIGINS=https://shop.example.com
-TRUST_PROXY=true
-```
-
-3. 启动代理配置：
+查看应用日志：
 
 ```bash
-docker compose --profile proxy up -d --build
+docker compose logs -f --tail=200 app
 ```
 
-4. 域名解析到服务器后访问 `https://shop.example.com`。
+查看数据库日志：
 
-应用容器只映射 `127.0.0.1:12400`，公网流量统一经过 Nginx。生产环境不得直接开放 MySQL 和 12400 端口。
+```bash
+docker compose logs -f --tail=200 mysql
+```
 
-## 配置说明
+停止服务：
 
-复制 `.env.example` 为 `.env` 后按环境修改：
+```bash
+docker compose down
+```
 
-| 变量 | 说明 | 推荐值 |
-| --- | --- | --- |
-| `DB_NAME` | MySQL 数据库名 | `xianyusmart` |
-| `DB_USERNAME` | 业务数据库账号 | 独立低权限账号 |
-| `DB_PASSWORD` | 业务数据库密码 | 随机强密码 |
-| `DB_ROOT_PASSWORD` | MySQL root 密码 | 与业务密码不同 |
-| `JWT_SECRET` | 登录令牌签名密钥 | 48 字节以上随机值 |
-| `ALLOWED_ORIGINS` | 允许访问的前端来源 | 完整 HTTPS 域名 |
-| `TRUST_PROXY` | 是否信任代理头 | 仅 Nginx 部署设为 `true` |
-| `UPDATE_RELEASE_API` | 自有 GitHub 发行版 API | 留空关闭，格式为 `https://api.github.com/repos/OWNER/REPO/releases/latest` |
-| `DB_POOL_MAX_SIZE` | 最大数据库连接数 | 单实例默认 `10` |
-| `DB_POOL_MIN_IDLE` | 最小空闲连接数 | 默认 `2` |
-| `JAVA_OPTS` | JVM 容器内存策略 | 默认值适合小型私有实例 |
+数据保存在 Docker 数据卷中；停止服务不会删除数据。如需彻底删除数据，请先自行确认并备份。
 
-可在 `compose.yaml` 的 `app.environment` 中补充以下调优变量：
+## 配置文件
 
-| 变量 | 默认值 | 作用 |
-| --- | ---: | --- |
-| `EXECUTOR_CORE_SIZE` | 4 | 通用业务线程数 |
-| `EXECUTOR_MAX_SIZE` | 8 | 通用业务最大线程数 |
-| `EXECUTOR_QUEUE_CAPACITY` | 500 | 有界任务队列容量 |
-| `DELIVERY_CLAIM_BATCH_SIZE` | 20 | 单轮领取发货任务数 |
-| `DELIVERY_DISPATCH_DELAY_MS` | 1000 | 发货调度间隔 |
-| `DELIVERY_LEASE_SECONDS` | 120 | 任务处理租约 |
-| `DELIVERY_MAX_ATTEMPTS` | 3 | 最大发货尝试次数 |
-| `PRINT_RAW_MESSAGE` | false | 原始消息日志开关，生产环境保持关闭 |
+首次安装会自动创建 `.env`。常用配置包括：
 
-调大并发前应同步评估闲鱼接口频率、MySQL 连接数和服务器内存。单商家场景优先保持默认值，通过异常待办确认实际瓶颈后再调整。
+| 配置项 | 说明 |
+| --- | --- |
+| `DB_PASSWORD` | 应用数据库密码 |
+| `DB_ROOT_PASSWORD` | MySQL 管理员密码 |
+| `JWT_SECRET` | 登录会话密钥 |
+| `ALLOWED_ORIGINS` | 允许访问的前端来源 |
+| `TZ` | 时区，默认 `Asia/Shanghai` |
 
-## 开发构建
+日常使用不需要修改这些值。若手动调整 `.env`，修改后执行 `docker compose up -d --build` 使其生效。
 
-### Windows 本地开发
+## 本地开发
 
-准备 Java 21、Node.js 20+、MySQL 8.0+，然后创建数据库和账号：
+开发环境需要 Java 21、Node.js 20+ 和 MySQL 8.0+。
 
-```sql
-CREATE DATABASE xianyusmart CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'xianyusmart'@'localhost' IDENTIFIED BY 'replace-with-strong-password';
-GRANT ALL PRIVILEGES ON xianyusmart.* TO 'xianyusmart'@'localhost';
-FLUSH PRIVILEGES;
+前端：
+
+```bash
+cd vue-code
+npm install
+npm run dev
 ```
 
 后端：
 
-```powershell
-$env:DB_PASSWORD = 'replace-with-strong-password'
-$env:JWT_SECRET = 'replace-with-at-least-32-random-bytes'
-.\mvnw.cmd spring-boot:run
-```
-
-前端：
-
-```powershell
-Set-Location vue-code
-npm ci
-npm run dev
-```
-
-前端开发地址为 `http://localhost:5173`，接口自动代理到 `http://localhost:12400`。
-
-## 构建与验证
-
-```powershell
-Set-Location vue-code
-npm ci
-npm run type-check
-npm run build:spring
-Set-Location ..
-.\mvnw.cmd clean test
-.\mvnw.cmd clean package
-```
-
-Linux 将 `mvnw.cmd` 替换为 `./mvnw`。
-
-## 目录与职责
-
-```text
-src/main/java/com/xianyusmart/
-├─ controller/          HTTP 接口与工作台聚合
-├─ service/             账号、消息、回复、发货和持久化任务
-├─ service/delivery/    文本与卡密交付策略
-├─ websocket/           闲鱼长连接、路由和重连
-├─ mapper/              MySQL 数据访问与任务锁定
-├─ interceptor/         登录认证边界
-├─ backup/              可选择的数据备份
-└─ config/              线程池、Web、数据库与 AI 配置
-
-src/main/resources/
-├─ db/migration/        Flyway 数据库结构
-├─ static/              已构建的 Vue 前端
-└─ application.yaml     运行参数
-
-vue-code/src/
-├─ api/                 前端接口封装
-├─ components/          共用组件与布局
-├─ views/               商家业务页面
-├─ utils/               请求、提示与确认工具
-└─ assets/              简约商业主题
-
-deploy/nginx/            HTTPS、限流和反向代理
-compose.yaml             应用、MySQL、Nginx 编排
-```
-
-## 日常运维
-
-查看状态与日志：
-
 ```bash
-docker compose ps
-docker compose logs -f --tail=200 app
-docker compose logs -f --tail=200 mysql
+./mvnw spring-boot:run
 ```
 
-更新本地代码后：
+Windows 环境请使用 `mvnw.cmd`。
 
-```bash
-docker compose up -d --build
-```
+## 重要说明
 
-备份 MySQL：
+- 闲鱼的登录、接口和平台规则可能调整，自动化功能需要关注账号状态和异常待办。
+- 涉及真实订单、卡密或资金时，请保持库存、发货记录和异常任务的日常核对。
+- 不要将 `.env`、Cookie、Token、密码或卡密提交到 GitHub 或公开分享。
+- 更新、迁移或重装前，请先备份业务数据。
 
-```bash
-docker compose exec mysql mysqldump -uxianyusmart -p xianyusmart > xianyusmart.sql
-```
+## 许可证
 
-恢复前应先停止应用写入并验证备份文件。业务数据导出不包含 Cookie、AI Key、邮箱密码等敏感配置，灾备流程需单独保存运行环境变量和证书。
-
-## 使用边界
-
-- 闲鱼接口、Cookie 和风控策略可能变化，账号状态与异常待办需要持续关注。
-- 自动化频率应符合平台规则，不应用于欺诈、骚扰或绕过平台安全机制。
-- 公网部署必须启用 HTTPS、强密码、主机防火墙和定期备份。
-- 全新环境使用 MySQL，不提供 SQLite 历史数据自动迁移。
-
-## 许可证与免责声明
-
-本项目采用 [PolyForm Noncommercial License 1.0.0](LICENSE)，仅授权个人学习、技术研究、实验和其他非商业用途。
-
-**禁止任何商业用途**，包括销售、收费部署、托管服务、SaaS、代运营、商业获客、收费培训，以及通过广告、订阅、佣金或增值服务直接或间接获利。
-
-- 使用行为必须遵守法律法规、闲鱼平台服务协议和账号使用规则。
-- 严禁用于欺诈、骚扰、垃圾信息、虚假交易、恶意营销、批量账号控制或规避平台安全机制。
-- 自动化操作可能触发验证码、滑块验证、登录失效、账号限制或封禁。
-- Cookie、Token、密码、API Key 和卡密属于敏感数据，必须妥善保管并定期备份。
-- 本项目按“现状”提供，在适用法律允许的最大范围内不对账号、数据、交易或业务损失承担责任。
-
-下载、复制、修改、部署、运行或分发本项目，即表示已阅读并接受 [完整使用限制与免责声明](DISCLAIMER.md)。
+本项目采用 [PolyForm Noncommercial License 1.0.0](LICENSE)，仅限非商业用途。完整使用限制与免责声明见 [DISCLAIMER.md](DISCLAIMER.md)。
