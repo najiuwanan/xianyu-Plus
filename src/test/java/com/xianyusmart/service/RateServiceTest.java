@@ -48,4 +48,20 @@ class RateServiceTest {
         assertEquals("4.0", query.getValue().get("v"));
         verify(automationRecordMapper).markRateSuccess(3L, "trade-200");
     }
+
+    @Test
+    void readsPendingRateItemsWhenMtopDataIsSerializedAsJsonText() {
+        when(accountService.getCookieByAccountId(3L)).thenReturn("_m_h5_tk=token_123");
+        when(xianyuApiCallUtils.callApiWithRetry(eq(3L),
+                eq("mtop.taobao.idle.merchant.rate.list"), anyMap(), any(), eq("1.0"), anyMap(), anyMap()))
+                .thenReturn(new XianyuApiCallUtils.ApiCallResult(true,
+                        "{\"data\":\"{\\\"module\\\":{\\\"items\\\":[{\\\"bizOrderId\\\":\\\"trade-200\\\"}],\\\"totalCount\\\":1}}\"}",
+                        null, false));
+
+        RateService service = new RateService(accountService, xianyuApiCallUtils, automationRecordMapper);
+
+        RateService.PendingRateOrderCheck result = service.checkOrderReadyForRate(3L, "trade-200");
+
+        assertTrue(result.ready());
+    }
 }

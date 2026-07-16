@@ -313,7 +313,6 @@ public class XianyuApiCallUtils {
         /**
          * 从响应中提取data字段
          */
-        @SuppressWarnings("unchecked")
         public Map<String, Object> extractData() {
             if (response == null || response.isEmpty()) {
                 return null;
@@ -322,7 +321,20 @@ public class XianyuApiCallUtils {
             try {
                 ObjectMapper mapper = new ObjectMapper();
                 Map<String, Object> responseMap = mapper.readValue(response, Map.class);
-                return (Map<String, Object>) responseMap.get("data");
+                Object rawData = responseMap.get("data");
+                if (rawData instanceof Map<?, ?> rawMap) {
+                    Map<String, Object> data = new HashMap<>();
+                    for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+                        if (entry.getKey() != null) {
+                            data.put(String.valueOf(entry.getKey()), entry.getValue());
+                        }
+                    }
+                    return data;
+                }
+                if (rawData instanceof String dataText && !dataText.isBlank()) {
+                    return mapper.readValue(dataText, Map.class);
+                }
+                return null;
             } catch (Exception e) {
                 log.error("提取data字段失败", e);
                 return null;

@@ -86,7 +86,7 @@ public class OrderAutomationService {
     }
 
     /**
-     * 只在闲鱼已将订单放入待评价列表后提交评价，供待执行订单即时检查使用。
+     * 优先通过待评价列表确认；若列表接口未及时返回，则由评价接口进行一次最终校验。
      */
     private OrderAutomationRetryRespDTO checkAndRate(Long accountId, String orderId) {
         XianyuAccount account = accountMapper.selectById(accountId);
@@ -94,12 +94,14 @@ public class OrderAutomationService {
             return new OrderAutomationRetryRespDTO(false, "RATE_CHECK", "账号不存在，无法检查自动评价");
         }
         RateService.PendingRateOrderCheck check = rateService.checkOrderReadyForRate(accountId, orderId);
-        if (!check.ready()) {
-            return new OrderAutomationRetryRespDTO(false, "RATE_CHECK", check.message());
-        }
         String feedback = StringUtils.hasText(account.getAutoRateText())
                 ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
         boolean success = rateService.rateBuyer(accountId, orderId, feedback);
+        if (!check.ready()) {
+            return new OrderAutomationRetryRespDTO(success, "RATE_CHECK",
+                    success ? "待评价列表未返回该订单，但已通过闲鱼评价接口提交成功"
+                            : "待评价列表未返回该订单，已尝试直接评价；若仍不可评价请稍后重试");
+        }
         return new OrderAutomationRetryRespDTO(success, "RATE_CHECK",
                 success ? "订单已进入待评价列表，自动评价成功" : "订单已进入待评价列表，但评价失败，失败原因已更新");
     }
