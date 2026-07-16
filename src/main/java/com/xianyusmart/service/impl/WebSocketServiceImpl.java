@@ -67,6 +67,9 @@ public class WebSocketServiceImpl implements WebSocketService {
     @Autowired
     private com.xianyusmart.mapper.XianyuAccountMapper xianyuAccountMapper;
 
+    @Autowired
+    private NotificationChannelService notificationChannelService;
+
 
     // 存储WebSocket客户端
     private final Map<Long, XianyuWebSocketClient> webSocketClients = new ConcurrentHashMap<>();

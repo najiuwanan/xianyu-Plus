@@ -178,8 +178,8 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                     if (goods != null) {
                         goodsName = goods.getTitle() != null ? goods.getTitle() : goodsName;
                     }
-                    String buyerName = triggerContext.getSenderUserName() != null ? triggerContext.getSenderUserName() : "买家";
-                    String msgContent = triggerContext.getMsgContent() != null ? triggerContext.getMsgContent() : "未知内容";
+                    String buyerName = record.getBuyerUserName() != null ? record.getBuyerUserName() : "买家";
+                    String msgContent = record.getBuyerMessage() != null ? record.getBuyerMessage() : "未知内容";
                     
                     String notifContent = String.format("商品：%s\n买家：%s\n买家消息：\n%s\n原因：AI无法回答或未匹配到关键词，请尽快手动回复！", 
                                           goodsName, buyerName, msgContent);
