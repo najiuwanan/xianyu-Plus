@@ -1,8 +1,6 @@
 package com.xianyusmart.service;
 
-import com.xianyusmart.entity.XianyuCookie;
 import com.xianyusmart.mapper.OrderAutomationRecordMapper;
-import com.xianyusmart.mapper.XianyuCookieMapper;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,7 +22,7 @@ import static org.mockito.Mockito.when;
 class RateServiceTest {
 
     @Mock
-    private XianyuCookieMapper cookieMapper;
+    private AccountService accountService;
     @Mock
     private XianyuApiCallUtils xianyuApiCallUtils;
     @Mock
@@ -32,14 +30,12 @@ class RateServiceTest {
 
     @Test
     void usesTheDedicatedRatingEndpointAndRecordsSuccess() {
-        XianyuCookie cookie = new XianyuCookie();
-        cookie.setCookieText("_m_h5_tk=token_123");
-        when(cookieMapper.selectOne(any())).thenReturn(cookie);
+        when(accountService.getCookieByAccountId(3L)).thenReturn("_m_h5_tk=token_123");
         when(xianyuApiCallUtils.callApiWithRetry(eq(3L),
                 eq("mtop.taobao.idle.rate.create"), anyMap(), any(), eq("4.0"), anyMap(), anyMap()))
                 .thenReturn(new XianyuApiCallUtils.ApiCallResult(true, "{}", null, false));
 
-        RateService service = new RateService(cookieMapper, xianyuApiCallUtils, automationRecordMapper);
+        RateService service = new RateService(accountService, xianyuApiCallUtils, automationRecordMapper);
 
         assertTrue(service.rateBuyer(3L, "trade-200", "好买家"));
 
