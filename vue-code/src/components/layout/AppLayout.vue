@@ -59,8 +59,8 @@ const setHeaderContent = (content: any) => {
 provide('setHeaderContent', setHeaderContent)
 
 const pageTitleMap: Record<string, string> = {
-  '/dashboard': '仪表板',
-  '/accounts': '闲鱼账号',
+  '/dashboard': '仪表盘',
+  '/accounts': '账号管理',
   '/connection': '连接管理',
   '/goods': '商品管理',
   '/orders': '发货记录',
