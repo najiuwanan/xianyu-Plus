@@ -143,6 +143,33 @@ const formConfig = ref<any>({})
 const saving = ref(false)
 const testingId = ref<number | null>(null)
 
+const createDefaultFormConfig = () => ({
+  notifyAutoDelivery: true,
+  notifyAccountOffline: true,
+  notifyNewMessage: true,
+  templates: {
+    AUTO_DELIVERY: { content: '' },
+    ACCOUNT_OFFLINE: { content: '' },
+    NEW_MESSAGE: { content: '' }
+  }
+})
+
+const normalizeFormConfig = (config: unknown) => {
+  const defaults = createDefaultFormConfig()
+  const source = config && typeof config === 'object' ? config as Record<string, any> : {}
+  const templates = source.templates && typeof source.templates === 'object' ? source.templates : {}
+
+  return {
+    ...defaults,
+    ...source,
+    templates: {
+      AUTO_DELIVERY: { ...defaults.templates.AUTO_DELIVERY, ...templates.AUTO_DELIVERY },
+      ACCOUNT_OFFLINE: { ...defaults.templates.ACCOUNT_OFFLINE, ...templates.ACCOUNT_OFFLINE },
+      NEW_MESSAGE: { ...defaults.templates.NEW_MESSAGE, ...templates.NEW_MESSAGE }
+    }
+  }
+}
+
 const loadChannels = async () => {
   try {
     const res = await getNotificationChannels()
@@ -161,7 +188,7 @@ const getChannelTypeName = (typeId: string) => {
 const openConfigModal = (type: typeof channelTypes[0]) => {
   currentType.value = type
   editingChannel.value = { type: type.id, name: `${type.name} 1`, config: '{}', status: 1 }
-  formConfig.value = { notifyAutoDelivery: true, notifyAccountOffline: true, notifyNewMessage: true }
+  formConfig.value = createDefaultFormConfig()
   showModal.value = true
 }
 
@@ -169,29 +196,9 @@ const editChannel = (ch: NotificationChannel) => {
   currentType.value = channelTypes.find(t => t.id === ch.type) || null
   editingChannel.value = { ...ch }
   try {
-    formConfig.value = JSON.parse(ch.config)
-    // Backward compatibility for existing configs
-    if (formConfig.value.notifyAutoDelivery === undefined) formConfig.value.notifyAutoDelivery = true
-    if (formConfig.value.notifyAccountOffline === undefined) formConfig.value.notifyAccountOffline = true
-    if (formConfig.value.notifyNewMessage === undefined) formConfig.value.notifyNewMessage = true
-    if (!formConfig.value.templates) {
-      formConfig.value.templates = {
-        AUTO_DELIVERY: { content: '' },
-        ACCOUNT_OFFLINE: { content: '' },
-        NEW_MESSAGE: { content: '' }
-      }
-    }
+    formConfig.value = normalizeFormConfig(JSON.parse(ch.config || '{}'))
   } catch {
-    formConfig.value = { 
-      notifyAutoDelivery: true, 
-      notifyAccountOffline: true, 
-      notifyNewMessage: true,
-      templates: {
-        AUTO_DELIVERY: { content: '' },
-        ACCOUNT_OFFLINE: { content: '' },
-        NEW_MESSAGE: { content: '' }
-      }
-    }
+    formConfig.value = createDefaultFormConfig()
   }
   showModal.value = true
 }

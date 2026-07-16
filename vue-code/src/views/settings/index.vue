@@ -1559,8 +1559,8 @@ function handleBackupMenuEnter() {
 
         <!-- 产品定位 -->
         <div class="settings__section">
-          <div class="settings__section-title">XianYuSmart</div>
-          <p class="settings__desc">单商家私有化的闲鱼虚拟商品经营系统，聚焦卡密库存、可恢复发货、客服自动化和异常待办。</p>
+          <div class="settings__section-title">闲鱼Plus（XianYuPlus）</div>
+          <p class="settings__desc">个人私有部署的闲鱼虚拟商品管理与自动化助手，支持商品管理、卡密库存、自动发货、自动评价和异常待办。</p>
         </div>
 
         <!-- 许可证与使用限制 -->
@@ -1604,25 +1604,15 @@ function handleBackupMenuEnter() {
         <!-- 更新教程 -->
         <div class="settings__section">
           <div class="settings__section-title">更新教程</div>
-          <p class="settings__desc">更新前先完成 MySQL 备份，再重新构建服务。</p>
+          <p class="settings__desc">更新前建议先完成 MySQL 备份；飞牛 OS 和 Linux 可直接使用项目内置的一键更新脚本。</p>
 
           <div class="settings__tutorial">
             <div class="settings__tutorial-step">
               <div class="settings__step-number">1</div>
               <div class="settings__step-content">
-                <div class="settings__step-title">拉取当前仓库更新</div>
+                <div class="settings__step-title">一键更新并重启</div>
                 <div class="settings__code-block">
-                  <code>git pull --ff-only</code>
-                </div>
-              </div>
-            </div>
-
-            <div class="settings__tutorial-step">
-              <div class="settings__step-number">2</div>
-              <div class="settings__step-content">
-                <div class="settings__step-title">重新构建并启动</div>
-                <div class="settings__code-block">
-                  <code>docker compose up -d --build</code>
+                  <code>cd ~/xianyu-Plus &amp;&amp; chmod +x update.sh &amp;&amp; ./update.sh</code>
                 </div>
               </div>
             </div>
