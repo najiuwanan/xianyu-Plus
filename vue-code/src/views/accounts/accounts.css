@@ -234,7 +234,7 @@
 
 .accounts__table-wrap {
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
   min-height: 0;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;

@@ -65,6 +65,7 @@ const getPageButtons = () => {
 
 // 手机端商品列表滚动容器
 const mobileGoodsRef = ref<HTMLElement | null>(null)
+// 紧凑模式仍显示商品名称，方便在较宽的消息区快速辨识商品。
 const sidebarCollapsed = ref(true)
 
 const handleMobileGoodsScroll = () => {
@@ -254,6 +255,7 @@ const checkScreenSize = () => {
                 <div v-else class="messages__sidebar-icon-placeholder">
                   <IconImage />
                 </div>
+                <span class="messages__sidebar-icon-name">{{ goods.item.title || '未命名商品' }}</span>
               </div>
             </div>
           </template>

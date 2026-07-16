@@ -56,6 +56,25 @@ const getStatusBg = (status: number) => {
     default: return 'rgba(0, 122, 255, 0.1)'
   }
 }
+
+const getStatusRing = (status: number) => {
+  const info = getAccountStatusText(status)
+  switch (info.type) {
+    case 'success': return '0 0 0 4px rgba(52,199,89,.10)'
+    case 'warning': return '0 0 0 4px rgba(255,149,0,.12)'
+    case 'danger': return '0 0 0 4px rgba(255,59,48,.10)'
+    default: return '0 0 0 4px rgba(0,122,255,.10)'
+  }
+}
+
+const getStatusDescription = (status: number) => {
+  if (status === 1) return '账号状态正常'
+  if (status === -2) return '请前往连接管理完成验证'
+  if (status === -1) return '请检查账号连接状态'
+  return '请检查账号连接状态'
+}
+
+const isEnabled = (value?: number) => value === 1
 </script>
 
 <template>
@@ -103,6 +122,18 @@ const getStatusBg = (status: number) => {
         </div>
       </div>
 
+      <div class="account-card__automation">
+        <span class="account-card__automation-label">自动化</span>
+        <div class="account-card__automation-list">
+          <span class="automation-chip" :class="{ 'automation-chip--on': isEnabled(account.autoRateEnabled) }">
+            自动评价 {{ isEnabled(account.autoRateEnabled) ? '已开启' : '已关闭' }}
+          </span>
+          <span class="automation-chip" :class="{ 'automation-chip--on': isEnabled(account.autoAskFlower) }">
+            自动求花 {{ isEnabled(account.autoAskFlower) ? '已开启' : '已关闭' }}
+          </span>
+        </div>
+      </div>
+
       <div class="account-card__footer">
         <button class="account-card__btn account-card__btn--edit" @click="emit('edit', account)">
           <IconEdit />
@@ -130,7 +161,8 @@ const getStatusBg = (status: number) => {
           <th class="table__th table__th--id">ID</th>
           <th class="table__th">UNB</th>
           <th class="table__th">账号备注</th>
-          <th class="table__th table__th--status">状态</th>
+          <th class="table__th table__th--status">账号状态</th>
+          <th class="table__th table__th--automation">自动化</th>
           <th class="table__th table__th--time">创建时间</th>
           <th class="table__th table__th--time">更新时间</th>
           <th class="table__th table__th--actions">操作</th>
@@ -142,27 +174,37 @@ const getStatusBg = (status: number) => {
           <td class="table__td">{{ account.unb }}</td>
           <td class="table__td">{{ account.accountNote || '未命名账号' }}</td>
           <td class="table__td table__td--status">
-            <span
-              class="status-tag"
-              :style="{
-                color: getStatusColor(account.status),
-                background: getStatusBg(account.status)
-              }"
-            >
-              {{ getAccountStatusText(account.status).text }}
-            </span>
+            <div class="account-status">
+              <span class="account-status__dot" :style="{ background: getStatusColor(account.status), boxShadow: getStatusRing(account.status) }"></span>
+              <div class="account-status__text">
+                <strong :style="{ color: getStatusColor(account.status) }">{{ getAccountStatusText(account.status).text }}</strong>
+                <span>{{ getStatusDescription(account.status) }}</span>
+              </div>
+            </div>
+          </td>
+          <td class="table__td table__td--automation">
+            <div class="automation-list">
+              <span class="automation-chip" :class="{ 'automation-chip--on': isEnabled(account.autoRateEnabled) }">
+                <i></i>自动评价 {{ isEnabled(account.autoRateEnabled) ? '已开启' : '已关闭' }}
+              </span>
+              <span class="automation-chip" :class="{ 'automation-chip--on': isEnabled(account.autoAskFlower) }">
+                <i></i>自动求花 {{ isEnabled(account.autoAskFlower) ? '已开启' : '已关闭' }}
+              </span>
+            </div>
           </td>
           <td class="table__td table__td--time">{{ formatTime(account.createdTime) }}</td>
           <td class="table__td table__td--time">{{ formatTime(account.updatedTime) }}</td>
           <td class="table__td table__td--actions">
-            <button class="table__action table__action--edit" @click="emit('edit', account)">
-              <IconEdit />
-              <span>编辑</span>
-            </button>
-            <button class="table__action table__action--delete" @click="emit('delete', account.id)">
-              <IconTrash />
-              <span>删除</span>
-            </button>
+            <div class="table__action-group">
+              <button class="table__action table__action--edit" @click="emit('edit', account)">
+                <IconEdit />
+                <span>设置</span>
+              </button>
+              <button class="table__action table__action--delete" @click="emit('delete', account.id)">
+                <IconTrash />
+                <span>删除</span>
+              </button>
+            </div>
           </td>
         </tr>
       </tbody>
@@ -483,7 +525,8 @@ const getStatusBg = (status: number) => {
 }
 
 .table__th--id { width: 64px; }
-.table__th--status { width: 96px; }
+.table__th--status { width: 180px; }
+.table__th--automation { width: 220px; }
 .table__th--time { width: 168px; }
 .table__th--actions { width: 140px; text-align: center; }
 
@@ -524,8 +567,107 @@ const getStatusBg = (status: number) => {
   font-variant-numeric: tabular-nums;
 }
 
+.table__td--status {
+  min-width: 180px;
+}
+
+.table__td--automation {
+  min-width: 220px;
+}
+
 .table__td--actions {
   text-align: center;
+}
+
+.account-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.account-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.account-status__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-status__text strong {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.account-status__text span {
+  color: var(--c-text-3);
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.automation-list,
+.account-card__automation-list {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.automation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid rgba(60,60,67,.12);
+  border-radius: 999px;
+  background: rgba(60,60,67,.05);
+  color: var(--c-text-3);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.automation-chip i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .7;
+}
+
+.automation-chip--on {
+  color: #16803d;
+  background: rgba(52,199,89,.10);
+  border-color: rgba(52,199,89,.22);
+}
+
+.account-card__automation {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.account-card__automation-label {
+  color: var(--c-text-3);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.account-card__automation-list {
+  flex: 1;
+}
+
+.table__action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* Status Tag */

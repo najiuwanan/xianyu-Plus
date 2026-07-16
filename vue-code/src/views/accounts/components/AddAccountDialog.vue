@@ -79,60 +79,67 @@ const handleSubmit = async () => {
       <div class="modal" @click.stop>
         <div class="modal-header">
           <h2 class="modal-title">{{ props.account ? '编辑账号' : '添加账号' }}</h2>
+          <button class="modal-close" type="button" aria-label="关闭" @click="handleClose">×</button>
         </div>
-        
+
         <div class="modal-body">
-          <div style="margin-bottom: 12px; font-size: 13px; color: rgba(28,28,30,.55);">账号备注</div>
-          <input 
+          <label class="field-label" for="account-note">账号备注</label>
+          <input
+            id="account-note"
             v-model="formData.accountNote"
             type="text"
             class="modal-input"
-            placeholder="账号备注"
-            style="margin-bottom: 20px;"
+            placeholder="例如：主账号、店铺一"
           />
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <div style="font-size: 14px; font-weight: 500; color: #1c1c1e;">开启自动评价</div>
-            <label class="switch-toggle" style="position: relative; display: inline-block; width: 44px; height: 24px;">
-              <input 
-                type="checkbox" 
-                v-model="formData.autoRateEnabled" 
-                :true-value="1" 
-                :false-value="0" 
-                style="opacity: 0; width: 0; height: 0;"
-              />
-              <span class="slider" :class="{ 'slider-active': formData.autoRateEnabled === 1 }" :style="{ backgroundColor: formData.autoRateEnabled === 1 ? '#34c759' : '#e5e5ea' }" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; transition: .4s; border-radius: 24px;"></span>
-              <span class="slider-thumb" :style="{ transform: formData.autoRateEnabled === 1 ? 'translateX(20px)' : 'translateX(2px)' }" style="position: absolute; height: 20px; width: 20px; left: 0; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></span>
-            </label>
-          </div>
-          <div v-if="formData.autoRateEnabled === 1" style="margin-bottom: 12px;">
-            <div style="margin-bottom: 8px; font-size: 13px; color: rgba(28,28,30,.55);">评价文案</div>
-            <textarea
-              v-model="formData.autoRateText"
-              class="modal-input"
-              style="height: 60px; resize: vertical; padding: 12px;"
-              placeholder="默认：不错的买家！"
-            ></textarea>
-          </div>
-          
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-            <div style="font-size: 14px; font-weight: 500; color: #1c1c1e;">发货后求小红花</div>
-            <label class="switch-toggle" style="position: relative; display: inline-block; width: 44px; height: 24px;">
-              <input 
-                type="checkbox" 
-                v-model="formData.autoAskFlower" 
-                :true-value="1" 
-                :false-value="0" 
-                style="opacity: 0; width: 0; height: 0;"
-              />
-              <span class="slider" :class="{ 'slider-active': formData.autoAskFlower === 1 }" :style="{ backgroundColor: formData.autoAskFlower === 1 ? '#34c759' : '#e5e5ea' }" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; transition: .4s; border-radius: 24px;"></span>
-              <span class="slider-thumb" :style="{ transform: formData.autoAskFlower === 1 ? 'translateX(20px)' : 'translateX(2px)' }" style="position: absolute; height: 20px; width: 20px; left: 0; bottom: 2px; background-color: white; transition: .4s; border-radius: 50%; box-shadow: 0 2px 4px rgba(0,0,0,0.2);"></span>
-            </label>
-          </div>
-          <div v-if="formData.autoAskFlower === 1" style="margin: -4px 0 12px; font-size: 13px; line-height: 1.5; color: rgba(28,28,30,.55);">
-            系统会定时对近 10 天内已自动发货的订单发起闲鱼小红花请求，不会向买家额外发送聊天话术。
+
+          <div class="automation-section">
+            <div class="automation-section__header">
+              <h3>自动化设置</h3>
+              <p>按账号分别保存，不会影响其他账号。</p>
+            </div>
+
+            <section class="automation-card" :class="{ 'automation-card--enabled': formData.autoRateEnabled === 1 }">
+              <div class="automation-card__row">
+                <span class="automation-card__icon automation-card__icon--rate">评</span>
+                <div class="automation-card__info">
+                  <strong>自动评价</strong>
+                  <span>订单完成后自动评价买家</span>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" v-model="formData.autoRateEnabled" :true-value="1" :false-value="0" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div v-if="formData.autoRateEnabled === 1" class="automation-card__content">
+                <label class="field-label" for="auto-rate-text">评价文案</label>
+                <textarea
+                  id="auto-rate-text"
+                  v-model="formData.autoRateText"
+                  class="modal-input modal-input--textarea"
+                  placeholder="留空则使用默认文案：不错的买家！"
+                ></textarea>
+              </div>
+            </section>
+
+            <section class="automation-card" :class="{ 'automation-card--enabled': formData.autoAskFlower === 1 }">
+              <div class="automation-card__row">
+                <span class="automation-card__icon automation-card__icon--flower">花</span>
+                <div class="automation-card__info">
+                  <strong>自动求小红花</strong>
+                  <span>自动发货后请求买家赠送小红花</span>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" v-model="formData.autoAskFlower" :true-value="1" :false-value="0" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <p v-if="formData.autoAskFlower === 1" class="automation-card__hint">
+                系统会定时处理近 10 天已自动发货的订单，不会额外向买家发送聊天消息。
+              </p>
+            </section>
           </div>
         </div>
-        
+
         <div class="modal-footer">
           <button class="modal-btn modal-btn-cancel" @click="handleClose">取消</button>
           <div class="modal-divider"></div>
@@ -158,19 +165,24 @@ const handleSubmit = async () => {
 }
 
 .modal {
-  width: 320px;
+  width: min(480px, calc(100vw - 32px));
+  max-height: min(85vh, 680px);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(30px);
   -webkit-backdrop-filter: blur(30px);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   animation: scaleIn 0.2s ease;
 }
 
 .modal-header {
-  padding: 16px;
-  text-align: center;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   border-bottom: 0.5px solid rgba(0, 0, 0, 0.1);
 }
 
@@ -182,8 +194,30 @@ const handleSubmit = async () => {
   line-height: 1.2;
 }
 
+.modal-close {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  color: rgba(28,28,30,.55);
+  background: rgba(60,60,67,.08);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+}
+
 .modal-body {
-  padding: 20px 16px;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 8px;
+  color: rgba(28,28,30,.55);
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .modal-input {
@@ -200,6 +234,14 @@ const handleSubmit = async () => {
   box-sizing: border-box;
 }
 
+.modal-input--textarea {
+  height: 76px;
+  padding: 10px 12px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
 .modal-input:hover {
   background: rgba(0, 0, 0, 0.08);
 }
@@ -210,6 +252,143 @@ const handleSubmit = async () => {
 
 .modal-input::placeholder {
   color: #999;
+}
+
+.automation-section {
+  margin-top: 24px;
+}
+
+.automation-section__header {
+  margin-bottom: 10px;
+}
+
+.automation-section__header h3 {
+  margin: 0 0 4px;
+  color: #1c1c1e;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.automation-section__header p {
+  margin: 0;
+  color: rgba(28,28,30,.55);
+  font-size: 12px;
+}
+
+.automation-card {
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid rgba(60,60,67,.10);
+  border-radius: 14px;
+  background: rgba(60,60,67,.035);
+  transition: border-color .2s ease, background .2s ease;
+}
+
+.automation-card--enabled {
+  border-color: rgba(52,199,89,.28);
+  background: rgba(52,199,89,.055);
+}
+
+.automation-card__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.automation-card__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.automation-card__icon--rate {
+  color: #5856d6;
+  background: rgba(88,86,214,.12);
+}
+
+.automation-card__icon--flower {
+  color: #e87911;
+  background: rgba(255,149,0,.14);
+}
+
+.automation-card__info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.automation-card__info strong {
+  color: #1c1c1e;
+  font-size: 14px;
+}
+
+.automation-card__info span,
+.automation-card__hint {
+  color: rgba(28,28,30,.55);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.automation-card__content {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(60,60,67,.10);
+}
+
+.automation-card__hint {
+  margin: 10px 0 0 42px;
+}
+
+.switch-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.switch-toggle input {
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 24px;
+  background: #e5e5ea;
+  cursor: pointer;
+  transition: background .2s ease;
+}
+
+.slider::after {
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,.2);
+  content: '';
+  transition: transform .2s ease;
+}
+
+.switch-toggle input:checked + .slider {
+  background: #34c759;
+}
+
+.switch-toggle input:checked + .slider::after {
+  transform: translateX(20px);
 }
 
 .modal-footer {
