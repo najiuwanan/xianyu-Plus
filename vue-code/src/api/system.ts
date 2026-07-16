@@ -39,3 +39,12 @@ export function checkUpdate() {
     method: 'get'
   })
 }
+
+/** 获取模型列表 */
+export function fetchModels(data: { apiKey: string; baseUrl: string }) {
+  return request<{ models: string[] }>({
+    url: '/system/fetchModels',
+    method: 'post',
+    data
+  })
+}
