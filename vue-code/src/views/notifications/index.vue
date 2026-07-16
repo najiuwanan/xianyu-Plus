@@ -100,8 +100,12 @@
               <input type="checkbox" v-model="formConfig.notifyAutoDelivery" /> 自动发货成功通知
             </label>
             <div class="template-config" v-if="formConfig.notifyAutoDelivery">
-              <label>自定义正文模板 (可用变量: {orderId}, {goodsName}, {buyerName}, {content})</label>
-              <textarea v-model="formConfig.templates.AUTO_DELIVERY.content" placeholder="不填则使用系统默认模板..." rows="3"></textarea>
+              <div class="template-config__header">
+                <label>自定义正文模板</label>
+                <button type="button" @click="restoreTemplate('AUTO_DELIVERY')">恢复示例</button>
+              </div>
+              <p class="template-variables">可用变量：{orderId}、{goodsName}、{buyerName}、{content}</p>
+              <textarea v-model="formConfig.templates.AUTO_DELIVERY.content" rows="5"></textarea>
             </div>
           </div>
           
@@ -110,8 +114,12 @@
               <input type="checkbox" v-model="formConfig.notifyAccountOffline" /> 账号异常/掉线通知
             </label>
             <div class="template-config" v-if="formConfig.notifyAccountOffline">
-              <label>自定义正文模板 (可用变量: {reason}, {accountId}, {accountNote})</label>
-              <textarea v-model="formConfig.templates.ACCOUNT_OFFLINE.content" placeholder="不填则使用系统默认模板..." rows="2"></textarea>
+              <div class="template-config__header">
+                <label>自定义正文模板</label>
+                <button type="button" @click="restoreTemplate('ACCOUNT_OFFLINE')">恢复示例</button>
+              </div>
+              <p class="template-variables">可用变量：{reason}、{accountId}、{accountNote}</p>
+              <textarea v-model="formConfig.templates.ACCOUNT_OFFLINE.content" rows="4"></textarea>
             </div>
           </div>
           
@@ -120,8 +128,12 @@
               <input type="checkbox" v-model="formConfig.notifyNewMessage" /> 收到新消息需人工介入
             </label>
             <div class="template-config" v-if="formConfig.notifyNewMessage">
-              <label>自定义正文模板 (可用变量: {goodsName}, {buyerName}, {msgContent}, {reason})</label>
-              <textarea v-model="formConfig.templates.NEW_MESSAGE.content" placeholder="不填则使用系统默认模板..." rows="3"></textarea>
+              <div class="template-config__header">
+                <label>自定义正文模板</label>
+                <button type="button" @click="restoreTemplate('NEW_MESSAGE')">恢复示例</button>
+              </div>
+              <p class="template-variables">可用变量：{goodsName}、{buyerName}、{msgContent}、{reason}</p>
+              <textarea v-model="formConfig.templates.NEW_MESSAGE.content" rows="5"></textarea>
             </div>
           </div>
         </div>
@@ -264,16 +276,28 @@ const EMAIL_SMTP_SSL_KEY = 'email_smtp_ssl'
 const EMAIL_WS_DISCONNECT_NOTIFY_KEY = 'email_notify_ws_disconnect_enabled'
 const EMAIL_COOKIE_EXPIRE_NOTIFY_KEY = 'email_notify_cookie_expire_enabled'
 
+const templateExamples = {
+  AUTO_DELIVERY: '订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}\n发货内容：\n{content}',
+  ACCOUNT_OFFLINE: '账号：{accountNote}（ID：{accountId}）\n原因：{reason}',
+  NEW_MESSAGE: '商品：{goodsName}\n买家：{buyerName}\n买家消息：\n{msgContent}\n原因：{reason}'
+} as const
+
+type NotificationEventType = keyof typeof templateExamples
+
 const createDefaultFormConfig = () => ({
   notifyAutoDelivery: true,
   notifyAccountOffline: true,
   notifyNewMessage: true,
   templates: {
-    AUTO_DELIVERY: { content: '' },
-    ACCOUNT_OFFLINE: { content: '' },
-    NEW_MESSAGE: { content: '' }
+    AUTO_DELIVERY: { content: templateExamples.AUTO_DELIVERY },
+    ACCOUNT_OFFLINE: { content: templateExamples.ACCOUNT_OFFLINE },
+    NEW_MESSAGE: { content: templateExamples.NEW_MESSAGE }
   }
 })
+
+const restoreTemplate = (eventType: NotificationEventType) => {
+  formConfig.value.templates[eventType].content = templateExamples[eventType]
+}
 
 const normalizeFormConfig = (config: unknown) => {
   const defaults = createDefaultFormConfig()
@@ -288,6 +312,11 @@ const normalizeFormConfig = (config: unknown) => {
       NEW_MESSAGE: { ...defaults.templates.NEW_MESSAGE, ...templates.NEW_MESSAGE }
     }
   }
+  ;(Object.keys(templateExamples) as NotificationEventType[]).forEach((eventType) => {
+    if (typeof normalized.templates[eventType].content !== 'string' || !normalized.templates[eventType].content.trim()) {
+      normalized.templates[eventType].content = templateExamples[eventType]
+    }
+  })
   if (!normalized.webhook && normalized.url) {
     normalized.webhook = normalized.url
   }
@@ -668,8 +697,10 @@ input:checked + .slider:before {
   background: white;
   padding: 30px;
   border-radius: 8px;
-  width: 400px;
+  width: 760px;
   max-width: 90%;
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
 }
 .modal-content h2 {
   margin-top: 0;
@@ -703,6 +734,15 @@ input:checked + .slider:before {
   justify-content: flex-end;
   gap: 12px;
   margin-top: 24px;
+}
+.modal-content:not(.email-modal) .modal-actions {
+  position: sticky;
+  bottom: -30px;
+  z-index: 1;
+  margin: 20px -30px -30px;
+  padding: 16px 30px;
+  border-top: 1px solid #e5e7eb;
+  background: white;
 }
 .btn-cancel, .btn-save {
   padding: 8px 16px;
@@ -766,6 +806,34 @@ input:checked + .slider:before {
   font-size: 12px;
   color: var(--text-secondary);
   margin-bottom: 6px;
+}
+.template-config__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.template-config__header label {
+  margin-bottom: 0;
+}
+.template-config__header button {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border: 1px solid #93c5fd;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #2563eb;
+  font-size: 12px;
+  cursor: pointer;
+}
+.template-config__header button:hover {
+  background: #dbeafe;
+}
+.template-variables {
+  margin: 8px 0;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.5;
 }
 .template-config textarea {
   width: 100%;
@@ -883,6 +951,15 @@ input:checked + .slider:before {
   cursor: not-allowed;
 }
 @media (max-width: 520px) {
+  .modal-content {
+    padding: 20px;
+    max-width: calc(100% - 24px);
+  }
+  .modal-content:not(.email-modal) .modal-actions {
+    bottom: -20px;
+    margin: 20px -20px -20px;
+    padding: 14px 20px;
+  }
   .form-row {
     grid-template-columns: 1fr;
     gap: 0;
