@@ -19,7 +19,8 @@ const operationTypes = [
   { label: 'Token刷新', value: 'TOKEN_REFRESH' },
   { label: 'Cookie更新', value: 'COOKIE_UPDATE' },
   { label: '商品同步', value: 'GOODS_SYNC' },
-  { label: '消息同步', value: 'MESSAGE_SYNC' }
+  { label: '消息同步', value: 'MESSAGE_SYNC' },
+  { label: '通知发送', value: 'NOTIFICATION' }
 ]
 
 const operationModules = [
@@ -28,7 +29,8 @@ const operationModules = [
   { label: '消息', value: 'MESSAGE' },
   { label: '订单', value: 'ORDER' },
   { label: '商品', value: 'GOODS' },
-  { label: '系统', value: 'SYSTEM' }
+  { label: '系统', value: 'SYSTEM' },
+  { label: '通知', value: 'NOTIFICATION' }
 ]
 
 const operationStatuses = [
@@ -116,7 +118,8 @@ export function useOperationLog() {
       'TOKEN_REFRESH': 'token-refresh',
       'COOKIE_UPDATE': 'cookie-update',
       'GOODS_SYNC': 'goods-sync',
-      'MESSAGE_SYNC': 'msg-sync'
+      'MESSAGE_SYNC': 'msg-sync',
+      'NOTIFICATION': 'notification'
     }
     return map[type] || 'default'
   }

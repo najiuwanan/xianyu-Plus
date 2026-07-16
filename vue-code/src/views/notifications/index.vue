@@ -58,6 +58,19 @@
           <input v-model="formConfig.webhook" type="text" placeholder="https://..." />
         </div>
 
+        <template v-if="['dingtalk', 'feishu'].includes(editingChannel.type)">
+          <div class="form-group">
+            <label>签名密钥（可选）</label>
+            <input v-model="formConfig.secret" type="password" autocomplete="new-password" placeholder="机器人开启“加签/签名校验”时填写" />
+            <p class="form-hint">未开启签名校验可留空。密钥只保存到本项目的通知渠道配置中。</p>
+          </div>
+          <div class="form-group">
+            <label>安全关键词（可选）</label>
+            <input v-model="formConfig.keyword" type="text" placeholder="机器人开启关键词校验时填写，例如 XianYuPlus" />
+            <p class="form-hint">填写后会自动附加到钉钉或飞书通知正文开头。</p>
+          </div>
+        </template>
+
         <!-- Bark -->
         <template v-if="editingChannel.type === 'bark'">
           <div class="form-group">
@@ -158,8 +171,7 @@ const normalizeFormConfig = (config: unknown) => {
   const defaults = createDefaultFormConfig()
   const source = config && typeof config === 'object' ? config as Record<string, any> : {}
   const templates = source.templates && typeof source.templates === 'object' ? source.templates : {}
-
-  return {
+  const normalized: Record<string, any> = {
     ...defaults,
     ...source,
     templates: {
@@ -168,6 +180,10 @@ const normalizeFormConfig = (config: unknown) => {
       NEW_MESSAGE: { ...defaults.templates.NEW_MESSAGE, ...templates.NEW_MESSAGE }
     }
   }
+  if (!normalized.webhook && normalized.url) {
+    normalized.webhook = normalized.url
+  }
+  return normalized
 }
 
 const loadChannels = async () => {
@@ -483,6 +499,12 @@ input:checked + .slider:before {
   border: 1px solid #d1d5db;
   border-radius: 4px;
   box-sizing: border-box;
+}
+.form-hint {
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.5;
 }
 .modal-actions {
   display: flex;

@@ -660,6 +660,7 @@
 .ol__log-type--cookie-update { color: var(--d-warning); background: rgba(255, 149, 0, 0.1); }
 .ol__log-type--goods-sync { color: var(--d-text-tertiary); background: rgba(255,255,255,0.38); }
 .ol__log-type--msg-sync { color: var(--d-text-tertiary); background: rgba(255,255,255,0.38); }
+.ol__log-type--notification { color: #8b5cf6; background: rgba(139, 92, 246, 0.1); }
 .ol__log-type--default { color: var(--d-text-secondary); background: rgba(255,255,255,0.38); }
 
 /* --- Log Status Badge --- */

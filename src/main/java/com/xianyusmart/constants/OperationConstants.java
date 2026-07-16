@@ -34,6 +34,8 @@ public class OperationConstants {
         public static final String SYNC = "SYNC";
         /** 验证操作 */
         public static final String VERIFY = "VERIFY";
+        /** 通知发送 */
+        public static final String NOTIFICATION = "NOTIFICATION";
     }
     
     /**
@@ -60,6 +62,8 @@ public class OperationConstants {
         public static final String QR_LOGIN = "QR_LOGIN";
         /** 心跳模块 */
         public static final String HEARTBEAT = "HEARTBEAT";
+        /** 通知模块 */
+        public static final String NOTIFICATION = "NOTIFICATION";
     }
     
     /**
@@ -92,5 +96,7 @@ public class OperationConstants {
         public static final String TOKEN = "TOKEN";
         /** WebSocket连接 */
         public static final String WEBSOCKET = "WEBSOCKET";
+        /** 通知渠道 */
+        public static final String NOTIFICATION_CHANNEL = "NOTIFICATION_CHANNEL";
     }
 }
