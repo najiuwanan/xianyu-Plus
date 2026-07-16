@@ -172,7 +172,6 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                 
                 // --- 触发多渠道通知 ---
                 try {
-                    String title = "需要人工介入回复";
                     String goodsName = "未知商品";
                     XianyuGoodsInfo goods = goodsInfoMapper.selectOne(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<XianyuGoodsInfo>().eq(XianyuGoodsInfo::getXyGoodId, xyGoodsId));
                     if (goods != null) {
@@ -181,9 +180,12 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                     String buyerName = record.getBuyerUserName() != null ? record.getBuyerUserName() : "买家";
                     String msgContent = record.getBuyerMessage() != null ? record.getBuyerMessage() : "未知内容";
                     
-                    String notifContent = String.format("商品：%s\n买家：%s\n买家消息：\n%s\n原因：AI无法回答或未匹配到关键词，请尽快手动回复！", 
-                                          goodsName, buyerName, msgContent);
-                    notificationChannelService.dispatchMessage("NEW_MESSAGE", accountId, title, notifContent);
+                    java.util.Map<String, Object> params = new java.util.HashMap<>();
+                    params.put("goodsName", goodsName);
+                    params.put("buyerName", buyerName);
+                    params.put("msgContent", msgContent);
+                    params.put("reason", "AI无法回答或未匹配到关键词，请尽快手动回复！");
+                    notificationChannelService.dispatchMessage("NEW_MESSAGE", accountId, params);
                 } catch (Exception e) {
                     log.error("触发人工介入多渠道通知失败", e);
                 }

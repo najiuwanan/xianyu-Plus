@@ -510,15 +510,17 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 
                 // --- 触发多渠道通知 ---
                 try {
-                    String title = "自动发货成功";
                     String goodsName = "未知商品";
                     XianyuGoodsInfo goods = goodsInfoMapper.selectOne(new LambdaQueryWrapper<XianyuGoodsInfo>().eq(XianyuGoodsInfo::getXyGoodId, xyGoodsId));
                     if (goods != null) {
                         goodsName = goods.getTitle() != null ? goods.getTitle() : goodsName;
                     }
-                    String notifContent = String.format("订单号：%s\n商品：%s\n买家：%s\n发货内容：\n%s", 
-                                          orderId, goodsName, buyerUserName, allContent.toString());
-                    notificationChannelService.dispatchMessage("AUTO_DELIVERY", accountId, title, notifContent);
+                    java.util.Map<String, Object> params = new java.util.HashMap<>();
+                    params.put("orderId", orderId);
+                    params.put("goodsName", goodsName);
+                    params.put("buyerName", buyerUserName);
+                    params.put("content", allContent.toString());
+                    notificationChannelService.dispatchMessage("AUTO_DELIVERY", accountId, params);
                 } catch (Exception e) {
                     log.error("触发多渠道通知失败", e);
                 }

@@ -80,15 +80,35 @@
 
         <div class="form-divider">接收哪些通知？</div>
         <div class="checkbox-group">
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="formConfig.notifyAutoDelivery" /> 自动发货成功通知
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="formConfig.notifyAccountOffline" /> 账号异常/掉线通知
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" v-model="formConfig.notifyNewMessage" /> 收到新消息需人工介入
-          </label>
+          <div class="notify-item">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="formConfig.notifyAutoDelivery" /> 自动发货成功通知
+            </label>
+            <div class="template-config" v-if="formConfig.notifyAutoDelivery">
+              <label>自定义正文模板 (可用变量: {orderId}, {goodsName}, {buyerName}, {content})</label>
+              <textarea v-model="formConfig.templates.AUTO_DELIVERY.content" placeholder="不填则使用系统默认模板..." rows="3"></textarea>
+            </div>
+          </div>
+          
+          <div class="notify-item">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="formConfig.notifyAccountOffline" /> 账号异常/掉线通知
+            </label>
+            <div class="template-config" v-if="formConfig.notifyAccountOffline">
+              <label>自定义正文模板 (可用变量: {reason}, {accountId}, {accountNote})</label>
+              <textarea v-model="formConfig.templates.ACCOUNT_OFFLINE.content" placeholder="不填则使用系统默认模板..." rows="2"></textarea>
+            </div>
+          </div>
+          
+          <div class="notify-item">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="formConfig.notifyNewMessage" /> 收到新消息需人工介入
+            </label>
+            <div class="template-config" v-if="formConfig.notifyNewMessage">
+              <label>自定义正文模板 (可用变量: {goodsName}, {buyerName}, {msgContent}, {reason})</label>
+              <textarea v-model="formConfig.templates.NEW_MESSAGE.content" placeholder="不填则使用系统默认模板..." rows="3"></textarea>
+            </div>
+          </div>
         </div>
 
         <div class="modal-actions">
@@ -154,8 +174,24 @@ const editChannel = (ch: NotificationChannel) => {
     if (formConfig.value.notifyAutoDelivery === undefined) formConfig.value.notifyAutoDelivery = true
     if (formConfig.value.notifyAccountOffline === undefined) formConfig.value.notifyAccountOffline = true
     if (formConfig.value.notifyNewMessage === undefined) formConfig.value.notifyNewMessage = true
+    if (!formConfig.value.templates) {
+      formConfig.value.templates = {
+        AUTO_DELIVERY: { content: '' },
+        ACCOUNT_OFFLINE: { content: '' },
+        NEW_MESSAGE: { content: '' }
+      }
+    }
   } catch {
-    formConfig.value = { notifyAutoDelivery: true, notifyAccountOffline: true, notifyNewMessage: true }
+    formConfig.value = { 
+      notifyAutoDelivery: true, 
+      notifyAccountOffline: true, 
+      notifyNewMessage: true,
+      templates: {
+        AUTO_DELIVERY: { content: '' },
+        ACCOUNT_OFFLINE: { content: '' },
+        NEW_MESSAGE: { content: '' }
+      }
+    }
   }
   showModal.value = true
 }
@@ -485,14 +521,40 @@ input:checked + .slider:before {
 .checkbox-label {
   display: flex;
   align-items: center;
+  gap: 8px;
   font-size: 14px;
-  color: #4b5563;
+  color: var(--text-color);
   cursor: pointer;
 }
 .checkbox-label input[type="checkbox"] {
-  margin-right: 8px;
-  width: 16px;
-  height: 16px;
   cursor: pointer;
+}
+.notify-item {
+  margin-bottom: 12px;
+}
+.template-config {
+  margin-top: 8px;
+  margin-left: 24px;
+  background-color: var(--bg-color-light);
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px dashed var(--border-color);
+}
+.template-config label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+.template-config textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
 }
 </style>

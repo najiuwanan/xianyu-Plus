@@ -29,16 +29,50 @@ public class NotificationChannelServiceImpl extends ServiceImpl<SysNotificationC
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    private String getDefaultTitleTemplate(String eventType) {
+        switch (eventType) {
+            case "AUTO_DELIVERY": return "自动发货成功";
+            case "ACCOUNT_OFFLINE": return "账号掉线或异常";
+            case "NEW_MESSAGE": return "需要人工介入回复";
+            default: return "系统通知";
+        }
+    }
+
+    private String getDefaultContentTemplate(String eventType) {
+        switch (eventType) {
+            case "AUTO_DELIVERY": 
+                return "订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}\n发货内容：\n{content}";
+            case "ACCOUNT_OFFLINE": 
+                return "原因：{reason}";
+            case "NEW_MESSAGE": 
+                return "商品：{goodsName}\n买家：{buyerName}\n买家消息：\n{msgContent}\n原因：{reason}";
+            default: 
+                return "{content}";
+        }
+    }
+
+    private String renderTemplate(String template, java.util.Map<String, Object> params) {
+        if (template == null || params == null) return template;
+        String result = template;
+        for (java.util.Map.Entry<String, Object> entry : params.entrySet()) {
+            String key = "{" + entry.getKey() + "}";
+            String value = entry.getValue() != null ? entry.getValue().toString() : "";
+            result = result.replace(key, value);
+        }
+        return result;
+    }
+
     @Override
-    public void dispatchMessage(String eventType, Long accountId, String title, String content) {
-        String finalTitle = title;
+    public void dispatchMessage(String eventType, Long accountId, java.util.Map<String, Object> params) {
+        if (params == null) params = new java.util.HashMap<>();
+        
         if (accountId != null) {
             XianyuAccount account = accountMapper.selectById(accountId);
+            params.put("accountId", accountId);
             if (account != null) {
-                String remark = account.getAccountNote() != null ? account.getAccountNote() : "";
-                finalTitle = String.format("[%s] 账号: %d (%s)", title, accountId, remark);
+                params.put("accountNote", account.getAccountNote() != null ? account.getAccountNote() : "");
             } else {
-                finalTitle = String.format("[%s] 账号: %d", title, accountId);
+                params.put("accountNote", "");
             }
         }
 
@@ -58,7 +92,28 @@ public class NotificationChannelServiceImpl extends ServiceImpl<SysNotificationC
                 }
 
                 if (shouldNotify) {
-                    sendNotification(channel.getType(), config, finalTitle, content);
+                    String titleTemplate = getDefaultTitleTemplate(eventType);
+                    String contentTemplate = getDefaultContentTemplate(eventType);
+                    
+                    JsonNode templatesNode = config.path("templates").path(eventType);
+                    if (!templatesNode.isMissingNode() && templatesNode.isObject()) {
+                        if (templatesNode.has("title") && !templatesNode.get("title").asText().trim().isEmpty()) {
+                            titleTemplate = templatesNode.get("title").asText();
+                        }
+                        if (templatesNode.has("content") && !templatesNode.get("content").asText().trim().isEmpty()) {
+                            contentTemplate = templatesNode.get("content").asText();
+                        }
+                    }
+
+                    if (accountId != null && templatesNode.isMissingNode()) {
+                        String note = (String) params.get("accountNote");
+                        titleTemplate = String.format("[%s] 账号: %d (%s)", titleTemplate, accountId, note);
+                    }
+
+                    String finalTitle = renderTemplate(titleTemplate, params);
+                    String finalContent = renderTemplate(contentTemplate, params);
+
+                    sendNotification(channel.getType(), config, finalTitle, finalContent);
                 }
             } catch (Exception e) {
                 log.error("Failed to send notification via {}: {}", channel.getName(), e.getMessage());

@@ -1014,10 +1014,10 @@ public class WebSocketServiceImpl implements WebSocketService {
             
             // --- 触发多渠道通知 ---
             try {
-                String title = "账号异常掉线";
-                String content = String.format("账号：%d 在 %s 掉线！\n原因：WebSocket连接断开且无法重连（可能是Cookie过期或被风控）。\n建议：请立即前往后台重新扫码登录，以免影响自动发货！", 
-                    accountId, new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date()));
-                notificationChannelService.dispatchMessage("ACCOUNT_OFFLINE", accountId, title, content);
+                java.util.Map<String, Object> params = new java.util.HashMap<>();
+                String timeStr = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
+                params.put("reason", String.format("账号在 %s 掉线！WebSocket连接断开且无法重连（可能是Cookie过期或被风控）。建议立即前往后台重新扫码登录！", timeStr));
+                notificationChannelService.dispatchMessage("ACCOUNT_OFFLINE", accountId, params);
             } catch (Exception ex) {
                 log.error("触发账号掉线多渠道通知失败", ex);
             }
