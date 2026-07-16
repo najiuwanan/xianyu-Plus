@@ -166,10 +166,17 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             // 6. 执行回复策略
             ReplyStrategy.ReplyResult replyResult = strategy.execute(messageList);
             
+            boolean requiresManualIntervention = false;
+            String interventionReason = "AI无法回答或未匹配到关键词，请尽快手动回复！";
+            
             if (!replyResult.isSuccess() || replyResult.getItems() == null || replyResult.getItems().isEmpty()) {
-                log.warn("【账号{}】回复策略未生成有效内容", accountId);
-                updateRecordState(record.getId(), -1, null);
-                
+                requiresManualIntervention = true;
+            } else if (buyerMessage.contains("人工") || buyerMessage.contains("客服") || buyerMessage.contains("真人") || buyerMessage.contains("老板") || buyerMessage.contains("在吗")) {
+                requiresManualIntervention = true;
+                interventionReason = "买家消息包含呼叫人工关键词，请查阅处理！(系统已尝试自动回复)";
+            }
+            
+            if (requiresManualIntervention) {
                 // --- 触发多渠道通知 ---
                 try {
                     String title = "需要人工介入回复";
@@ -181,14 +188,18 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                     String buyerName = record.getBuyerUserName() != null ? record.getBuyerUserName() : "买家";
                     String msgContent = record.getBuyerMessage() != null ? record.getBuyerMessage() : "未知内容";
                     
-                    String notifContent = String.format("商品：%s\n买家：%s\n买家消息：\n%s\n原因：AI无法回答或未匹配到关键词，请尽快手动回复！", 
-                                          goodsName, buyerName, msgContent);
+                    String notifContent = String.format("商品：%s\n买家：%s\n买家消息：\n%s\n原因：%s", 
+                                          goodsName, buyerName, msgContent, interventionReason);
                     notificationChannelService.dispatchMessage("NEW_MESSAGE", accountId, title, notifContent);
                 } catch (Exception e) {
                     log.error("触发人工介入多渠道通知失败", e);
                 }
                 
-                return;
+                if (!replyResult.isSuccess() || replyResult.getItems() == null || replyResult.getItems().isEmpty()) {
+                    log.warn("【账号{}】回复策略未生成有效内容", accountId);
+                    updateRecordState(record.getId(), -1, null);
+                    return;
+                }
             }
             
             if (replyResult.getMatchedKeyword() != null) {
