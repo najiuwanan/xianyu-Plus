@@ -199,7 +199,8 @@ public class SystemController {
             if (url.endsWith("/")) {
                 url = url.substring(0, url.length() - 1);
             }
-            if (!url.endsWith("/v1")) {
+            // 兼容 Google Gemini 的 OpenAI 兼容接口，不强制加 /v1
+            if (!url.endsWith("/v1") && !url.endsWith("/openai")) {
                 url += "/v1";
             }
             url += "/models";
