@@ -14,6 +14,9 @@ import com.xianyusmart.controller.dto.ManualAddAccountReqDTO;
 import com.xianyusmart.controller.dto.UpdateAccountReqDTO;
 import com.xianyusmart.controller.dto.UpdateAccountRespDTO;
 import com.xianyusmart.service.AccountService;
+import com.xianyusmart.service.AutoReplyDelayService;
+import com.xianyusmart.service.DeliveryTaskService;
+import com.xianyusmart.service.WebSocketService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +36,15 @@ public class AccountController {
     
     @Autowired
     private AccountService accountService;
+
+    @Autowired
+    private WebSocketService webSocketService;
+
+    @Autowired
+    private DeliveryTaskService deliveryTaskService;
+
+    @Autowired
+    private AutoReplyDelayService autoReplyDelayService;
 
     /**
      * 获取账号列表
@@ -189,6 +201,56 @@ public class AccountController {
             log.error("更新账号失败", e);
             return ResultObject.failed("更新账号失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 临时下线或恢复账号。禁用时立即关闭实时连接并暂停尚未完成的自动发货任务。
+     */
+    @PostMapping("/setEnabled")
+    public ResultObject<String> setAccountEnabled(@RequestBody AccountEnabledReqDTO reqDTO) {
+        if (reqDTO.getAccountId() == null || reqDTO.getEnabled() == null) {
+            return ResultObject.failed("账号ID和启用状态不能为空");
+        }
+
+        try {
+            XianyuAccount account = accountMapper.selectById(reqDTO.getAccountId());
+            if (account == null) {
+                return ResultObject.failed("账号不存在");
+            }
+
+            if (reqDTO.getEnabled()) {
+                if (!Integer.valueOf(0).equals(account.getStatus())) {
+                    return ResultObject.failed("只有已禁用的账号可以通过此操作启用");
+                }
+                account.setStatus(1);
+                accountMapper.updateById(account);
+
+                boolean shouldReconnect = !Integer.valueOf(0).equals(account.getAutoConnectOnStartup());
+                boolean connected = shouldReconnect && webSocketService.startWebSocket(account.getId());
+                return ResultObject.success(connected
+                        ? "账号已启用，实时连接已恢复"
+                        : "账号已启用，请在连接管理中确认实时连接状态");
+            }
+
+            if (!Integer.valueOf(1).equals(account.getStatus())) {
+                return ResultObject.failed("当前账号不是正常状态，无法直接禁用");
+            }
+            account.setStatus(0);
+            accountMapper.updateById(account);
+            deliveryTaskService.pauseAccountTasks(account.getId());
+            autoReplyDelayService.cancelAccountTasks(account.getId());
+            webSocketService.stopWebSocket(account.getId());
+            return ResultObject.success("账号已禁用：实时连接与自动化任务已暂停");
+        } catch (Exception e) {
+            log.error("切换账号启用状态失败: accountId={}", reqDTO.getAccountId(), e);
+            return ResultObject.failed("切换账号状态失败: " + e.getMessage());
+        }
+    }
+
+    @lombok.Data
+    public static class AccountEnabledReqDTO {
+        private Long accountId;
+        private Boolean enabled;
     }
 
     /**

@@ -3,6 +3,7 @@ package com.xianyusmart.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xianyusmart.config.rag.DynamicAIChatClientManager;
+import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.entity.XianyuGoodsAutoReplyRecord;
 import com.xianyusmart.entity.XianyuGoodsConfig;
 import com.xianyusmart.entity.XianyuChatMessage;
@@ -10,6 +11,7 @@ import com.xianyusmart.entity.XianyuGoodsInfo;
 import com.xianyusmart.entity.bo.AutoReplyTriggerContext;
 import com.xianyusmart.event.chatMessageEvent.ChatMessageData;
 import com.xianyusmart.mapper.XianyuGoodsAutoReplyRecordMapper;
+import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.mapper.XianyuChatMessageMapper;
@@ -37,6 +39,9 @@ public class AutoReplyServiceImpl implements AutoReplyService {
     
     @Autowired
     private XianyuGoodsAutoReplyRecordMapper autoReplyRecordMapper;
+
+    @Autowired
+    private XianyuAccountMapper accountMapper;
     
     @Autowired
     private XianyuGoodsInfoMapper goodsInfoMapper;
@@ -93,6 +98,15 @@ public class AutoReplyServiceImpl implements AutoReplyService {
         String xyGoodsId = lastMessage.getXyGoodsId();
         String sId = lastMessage.getSId();
         String pnmId = lastMessage.getPnmId();
+
+        XianyuAccount account = accountId == null ? null : accountMapper.selectById(accountId);
+        if (account == null || !Integer.valueOf(1).equals(account.getStatus())) {
+            log.info("【账号{}】已禁用或不可用，跳过自动回复: sId={}", accountId, sId);
+            if (existingRecordId != null) {
+                autoReplyRecordMapper.cancelById(existingRecordId);
+            }
+            return;
+        }
         
         String buyerMessage = messageList.stream()
                 .map(ChatMessageData::getMsgContent)

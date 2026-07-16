@@ -2,8 +2,10 @@ package com.xianyusmart.service.reply;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.entity.XianyuGoodsAutoReplyRecord;
 import com.xianyusmart.event.chatMessageEvent.ChatMessageData;
+import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.xianyusmart.mapper.XianyuGoodsAutoReplyRecordMapper;
 import com.xianyusmart.service.AutoReplyDelayService;
 import com.xianyusmart.service.AutoReplyService;
@@ -61,6 +63,9 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
 
     @Autowired
     private XianyuGoodsAutoReplyRecordMapper autoReplyRecordMapper;
+
+    @Autowired
+    private XianyuAccountMapper accountMapper;
 
     @Autowired
     @Qualifier("taskExecutor")
@@ -127,6 +132,10 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
         
         Long accountId = messageData.getXianyuAccountId();
         String sId = messageData.getSId();
+        if (!isAccountActive(accountId)) {
+            log.info("【账号{}】已禁用或不可用，跳过自动回复延时任务: sId={}", accountId, sId);
+            return;
+        }
         String taskKey = buildTaskKey(accountId, sId);
         
         // 防线1：消息到来时立即检查人工接管
@@ -170,6 +179,25 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
             future.cancel(false);
         }
         autoReplyRecordMapper.cancelPendingBySession(accountId, sId);
+    }
+
+    @Override
+    public void cancelAccountTasks(Long accountId) {
+        if (accountId == null) {
+            return;
+        }
+        String prefix = accountId + "_";
+        for (String taskKey : new ArrayList<>(pendingTasks.keySet())) {
+            if (!taskKey.startsWith(prefix)) {
+                continue;
+            }
+            ScheduledFuture<?> future = pendingTasks.remove(taskKey);
+            if (future != null && !future.isDone()) {
+                future.cancel(false);
+            }
+            pendingMessages.remove(taskKey);
+        }
+        autoReplyRecordMapper.cancelPendingByAccount(accountId);
     }
     
     @Override
@@ -276,6 +304,11 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
         Long accountId = lastMessage.getXianyuAccountId();
         String sId = lastMessage.getSId();
         try {
+            if (!isAccountActive(accountId)) {
+                log.info("【账号{}】已禁用或不可用，取消自动回复: sId={}", accountId, sId);
+                autoReplyRecordMapper.cancelById(recordId);
+                return;
+            }
             if (takeoverManager.isTakenOver(accountId, sId)) {
                 autoReplyRecordMapper.cancelById(recordId);
                 return;
@@ -289,5 +322,13 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
             log.error("【账号{}】执行持久化延时回复异常: sId={}", accountId, sId, e);
             autoReplyRecordMapper.updateStateAndContent(recordId, -1, null);
         }
+    }
+
+    private boolean isAccountActive(Long accountId) {
+        if (accountId == null) {
+            return false;
+        }
+        XianyuAccount account = accountMapper.selectById(accountId);
+        return account != null && Integer.valueOf(1).equals(account.getStatus());
     }
 }

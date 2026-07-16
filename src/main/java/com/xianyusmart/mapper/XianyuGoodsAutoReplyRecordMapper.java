@@ -61,6 +61,11 @@ public interface XianyuGoodsAutoReplyRecordMapper {
             "WHERE xianyu_account_id = #{accountId} AND s_id = #{sId} AND state = 0")
     int cancelPendingBySession(@Param("accountId") Long accountId, @Param("sId") String sId);
 
+    /** 账号临时下线时，取消该账号全部尚未完成的自动回复。 */
+    @Update("UPDATE xianyu_goods_auto_reply_record SET state = -2, lease_owner = NULL, lease_expire_time = NULL " +
+            "WHERE xianyu_account_id = #{accountId} AND state IN (0, 2)")
+    int cancelPendingByAccount(@Param("accountId") Long accountId);
+
     @Update("UPDATE xianyu_goods_auto_reply_record SET state = -2, lease_owner = NULL, lease_expire_time = NULL WHERE id = #{id} AND state IN (0, 2)")
     int cancelById(@Param("id") Long id);
 

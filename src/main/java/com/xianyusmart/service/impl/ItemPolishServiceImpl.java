@@ -117,7 +117,7 @@ public class ItemPolishServiceImpl implements ItemPolishService {
 
     @Override
     public Map<String, Object> startManualRun(Long accountId) {
-        validateAccount(accountId);
+        ensureAccountActive(accountId);
         getOrCreateConfig(accountId);
         boolean started = startRun(accountId, MANUAL_TRIGGER, false);
         Map<String, Object> result = new HashMap<>();
@@ -138,6 +138,10 @@ public class ItemPolishServiceImpl implements ItemPolishService {
             try {
                 Long accountId = config.getXianyuAccountId();
                 if (accountId == null || today.equals(config.getLastScheduledDate())) {
+                    continue;
+                }
+                XianyuAccount account = accountMapper.selectById(accountId);
+                if (account == null || !Integer.valueOf(1).equals(account.getStatus())) {
                     continue;
                 }
                 LocalTime scheduledTime = LocalTime.parse(normalizeScheduleTime(config.getScheduleTime()), TIME_FORMATTER);
@@ -335,6 +339,14 @@ public class ItemPolishServiceImpl implements ItemPolishService {
         XianyuAccount account = accountMapper.selectById(accountId);
         if (account == null) {
             throw new IllegalArgumentException("账号不存在");
+        }
+        return account;
+    }
+
+    private XianyuAccount ensureAccountActive(Long accountId) {
+        XianyuAccount account = validateAccount(accountId);
+        if (!Integer.valueOf(1).equals(account.getStatus())) {
+            throw new IllegalStateException("账号已禁用或不可用，请先在账号管理中启用账号");
         }
         return account;
     }

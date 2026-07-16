@@ -18,6 +18,7 @@ interface Props {
 interface Emits {
   (e: 'edit', account: Account): void
   (e: 'delete', id: number): void
+  (e: 'toggleEnabled', account: Account): void
 }
 
 defineProps<Props>()
@@ -38,6 +39,7 @@ onUnmounted(() => {
 })
 
 const getStatusColor = (status: number) => {
+  if (status === 0) return '#8e8e93'
   const info = getAccountStatusText(status)
   switch (info.type) {
     case 'success': return '#34c759'
@@ -48,6 +50,7 @@ const getStatusColor = (status: number) => {
 }
 
 const getStatusBg = (status: number) => {
+  if (status === 0) return 'rgba(120,120,128,.12)'
   const info = getAccountStatusText(status)
   switch (info.type) {
     case 'success': return 'rgba(52, 199, 89, 0.1)'
@@ -58,6 +61,7 @@ const getStatusBg = (status: number) => {
 }
 
 const getStatusRing = (status: number) => {
+  if (status === 0) return '0 0 0 4px rgba(120,120,128,.12)'
   const info = getAccountStatusText(status)
   switch (info.type) {
     case 'success': return '0 0 0 4px rgba(52,199,89,.10)'
@@ -69,6 +73,7 @@ const getStatusRing = (status: number) => {
 
 const getStatusDescription = (status: number) => {
   if (status === 1) return '账号状态正常'
+  if (status === 0) return '实时连接与自动化已暂停'
   if (status === -2) return '请前往连接管理完成验证'
   if (status === -1) return '请检查账号连接状态'
   return '请检查账号连接状态'
@@ -135,6 +140,14 @@ const isEnabled = (value?: number) => value === 1
       </div>
 
       <div class="account-card__footer">
+        <button
+          v-if="account.status === 1 || account.status === 0"
+          class="account-card__btn account-card__btn--toggle"
+          :class="account.status === 0 ? 'account-card__btn--enable' : 'account-card__btn--disable'"
+          @click="emit('toggleEnabled', account)"
+        >
+          <span>{{ account.status === 0 ? '启用' : '禁用' }}</span>
+        </button>
         <button class="account-card__btn account-card__btn--edit" @click="emit('edit', account)">
           <IconEdit />
           <span>编辑</span>
@@ -196,6 +209,14 @@ const isEnabled = (value?: number) => value === 1
           <td class="table__td table__td--time">{{ formatTime(account.updatedTime) }}</td>
           <td class="table__td table__td--actions">
             <div class="table__action-group">
+              <button
+                v-if="account.status === 1 || account.status === 0"
+                class="table__action table__action--toggle"
+                :class="account.status === 0 ? 'table__action--enable' : 'table__action--disable'"
+                @click="emit('toggleEnabled', account)"
+              >
+                <span>{{ account.status === 0 ? '启用' : '禁用' }}</span>
+              </button>
               <button class="table__action table__action--edit" @click="emit('edit', account)">
                 <IconEdit />
                 <span>设置</span>
@@ -468,6 +489,23 @@ const isEnabled = (value?: number) => value === 1
   transform: scale(0.97);
 }
 
+.account-card__btn--toggle {
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+}
+
+.account-card__btn--disable {
+  color: #b26a00;
+  background: rgba(255,159,10,.14);
+  border-color: rgba(255,159,10,.28);
+}
+
+.account-card__btn--enable {
+  color: #168a3c;
+  background: rgba(48,209,88,.14);
+  border-color: rgba(48,209,88,.28);
+}
+
 .account-card__btn--delete {
   color: var(--c-danger);
   background: rgba(255,69,58,.15);
@@ -714,6 +752,23 @@ const isEnabled = (value?: number) => value === 1
   color: var(--c-accent);
   border-color: rgba(10,132,255,.25);
   background: rgba(10,132,255,.12);
+}
+
+.table__action--disable {
+  color: #b26a00;
+  border-color: rgba(255,159,10,.30);
+  background: rgba(255,159,10,.12);
+}
+
+.table__action--enable {
+  color: #168a3c;
+  border-color: rgba(48,209,88,.30);
+  background: rgba(48,209,88,.12);
+}
+
+@media (hover: hover) {
+  .table__action--disable:hover { background: rgba(255,159,10,.20); }
+  .table__action--enable:hover { background: rgba(48,209,88,.20); }
 }
 
 @media (hover: hover) {

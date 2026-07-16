@@ -172,6 +172,19 @@ public interface XianyuGoodsOrderMapper {
     @Update("UPDATE xianyu_goods_order SET delivery_status = 'PENDING', next_retry_time = NOW(3), " +
             "lease_owner = NULL, lease_expire_time = NULL WHERE id = #{id} AND state <> 1 AND delivery_status IN ('FAILED', 'RETRY_WAIT', 'SKIPPED')")
     int requeueTask(@Param("id") Long id);
+
+    @Update("UPDATE xianyu_goods_order SET delivery_status = 'SKIPPED', next_retry_time = NULL, " +
+            "lease_owner = NULL, lease_expire_time = NULL, last_error_code = 'ACCOUNT_DISABLED', " +
+            "last_error_message = '账号已禁用，自动发货已暂停' " +
+            "WHERE xianyu_account_id = #{accountId} AND state <> 1 " +
+            "AND delivery_status IN ('PENDING', 'RETRY_WAIT', 'PROCESSING')")
+    int pauseTasksByAccount(@Param("accountId") Long accountId);
+
+    @Update("UPDATE xianyu_goods_order SET delivery_status = 'SKIPPED', next_retry_time = NULL, " +
+            "lease_owner = NULL, lease_expire_time = NULL, last_error_code = 'ACCOUNT_DISABLED', " +
+            "last_error_message = '账号已禁用，自动发货已暂停' " +
+            "WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId}")
+    int pauseClaimedTask(@Param("id") Long id, @Param("workerId") String workerId);
     
     @Update("UPDATE xianyu_goods_order SET confirm_state = 1 WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId}")
     int updateConfirmState(@Param("accountId") Long accountId, @Param("orderId") String orderId);

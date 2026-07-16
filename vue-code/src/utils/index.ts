@@ -51,6 +51,7 @@ export function getGoodsStatusText(status: number): { text: string; type: string
 export function getAccountStatusText(status: number): { text: string; type: string } {
   const statusMap: Record<number, { text: string; type: string }> = {
     1: { text: '正常', type: 'success' },
+    0: { text: '已禁用', type: 'info' },
     '-1': { text: '状态异常', type: 'warning' },
     '-2': { text: '需要验证', type: 'warning' }
   }

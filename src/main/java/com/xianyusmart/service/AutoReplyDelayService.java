@@ -32,6 +32,13 @@ public interface AutoReplyDelayService {
      * @param sId 会话ID
      */
     void cancelDelayTask(Long accountId, String sId);
+
+    /**
+     * 取消账号的全部延时自动回复任务，用于账号临时下线。
+     *
+     * @param accountId 账号ID
+     */
+    void cancelAccountTasks(Long accountId);
     
     /**
      * 获取当前待执行的延时任务数量

@@ -20,4 +20,10 @@ public interface DeliveryTaskService {
     boolean renewLease(Long taskId, String workerId);
 
     void requeue(Long taskId);
+
+    /** 暂停账号尚未完成的自动发货任务，重新启用后会在下一次订单轮询中自动恢复。 */
+    void pauseAccountTasks(Long accountId);
+
+    /** 暂停当前刚被工作线程领取、但尚未开始执行的任务。 */
+    void pauseClaimedTask(Long taskId, String workerId);
 }

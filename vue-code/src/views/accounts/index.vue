@@ -21,7 +21,8 @@ const {
   showManualAddDialog,
   showQRLoginDialog,
   editAccount,
-  deleteAccount
+  deleteAccount,
+  toggleAccountEnabled
 } = useAccountManager();
 
 loadAccounts();
@@ -63,6 +64,7 @@ loadAccounts();
           :loading="loading"
           @edit="editAccount"
           @delete="deleteAccount"
+          @toggle-enabled="toggleAccountEnabled"
         />
       </div>
     </section>

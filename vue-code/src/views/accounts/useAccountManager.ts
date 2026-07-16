@@ -1,6 +1,6 @@
 import { ref, reactive } from 'vue'
-import { getAccountList, deleteAccount as deleteAccountApi } from '@/api/account'
-import { showSuccess, showError } from '@/utils'
+import { getAccountList, deleteAccount as deleteAccountApi, setAccountEnabled } from '@/api/account'
+import { showSuccess, showError, showConfirm } from '@/utils'
 import type { Account } from '@/types'
 
 export function useAccountManager() {
@@ -67,6 +67,32 @@ export function useAccountManager() {
     dialogs.deleteConfirm = true;
   };
 
+  const toggleAccountEnabled = async (account: Account) => {
+    if (account.status !== 1 && account.status !== 0) {
+      showError('该账号当前需要先处理连接或验证问题，不能直接切换状态')
+      return
+    }
+    const enabled = account.status === 0
+    try {
+      await showConfirm(
+        enabled
+          ? `确定启用“${account.accountNote || account.unb}”吗？系统会尝试恢复实时连接。`
+          : `确定禁用“${account.accountNote || account.unb}”吗？实时连接、自动回复、自动发货和定时自动化都会暂停。`,
+        enabled ? '启用账号' : '禁用账号'
+      )
+      const response = await setAccountEnabled({ accountId: account.id, enabled })
+      if (response.code !== 0 && response.code !== 200) {
+        throw new Error(response.msg || '切换账号状态失败')
+      }
+      showSuccess(response.data || (enabled ? '账号已启用' : '账号已禁用'))
+      await loadAccounts()
+    } catch (error: any) {
+      if (error !== 'cancel' && !error?.messageShown) {
+        showError('切换账号状态失败: ' + (error.message || '未知错误'))
+      }
+    }
+  }
+
   // 确认删除账号
   const confirmDelete = async () => {
     if (!deleteAccountId.value) return;
@@ -100,6 +126,7 @@ export function useAccountManager() {
     showQRLoginDialog,
     editAccount,
     deleteAccount,
+    toggleAccountEnabled,
     confirmDelete
   }
 }

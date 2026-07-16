@@ -183,6 +183,16 @@ public class AccountServiceImpl implements AccountService {
         try {
             log.info("根据账号ID获取Cookie: accountId={}", accountId);
 
+            XianyuAccount account = accountMapper.selectById(accountId);
+            if (account == null) {
+                log.warn("账号不存在: accountId={}", accountId);
+                return null;
+            }
+            if (Integer.valueOf(0).equals(account.getStatus())) {
+                log.info("账号已禁用，不提供Cookie给自动任务: accountId={}", accountId);
+                return null;
+            }
+
             // 查询最新的有效Cookie
             LambdaQueryWrapper<XianyuCookie> cookieQuery = new LambdaQueryWrapper<>();
             cookieQuery.eq(XianyuCookie::getXianyuAccountId, accountId)

@@ -20,6 +20,7 @@ import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import org.springframework.scheduling.TaskScheduler;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import java.time.Duration;
 
 @Slf4j
@@ -74,7 +75,8 @@ public class DeliveryTaskScheduler {
 
     @Scheduled(fixedDelay = 25000, initialDelay = 60000)
     public void discoverOrdersFromApi() {
-        List<XianyuAccount> accounts = accountMapper.selectList(null);
+        List<XianyuAccount> accounts = accountMapper.selectList(new LambdaQueryWrapper<XianyuAccount>()
+                .eq(XianyuAccount::getStatus, 1));
         if (accounts == null) {
             return;
         }
@@ -91,6 +93,12 @@ public class DeliveryTaskScheduler {
     }
 
     private void executeTask(XianyuGoodsOrder task) {
+        XianyuAccount account = accountMapper.selectById(task.getXianyuAccountId());
+        if (account == null || !Integer.valueOf(1).equals(account.getStatus())) {
+            deliveryTaskService.pauseClaimedTask(task.getId(), workerId);
+            log.info("【账号{}】已禁用或不可用，跳过自动发货任务 taskId={}", task.getXianyuAccountId(), task.getId());
+            return;
+        }
         long renewalSeconds = Math.max(10, leaseSeconds / 2L);
         ScheduledFuture<?> renewal = taskScheduler.scheduleAtFixedRate(
                 () -> {

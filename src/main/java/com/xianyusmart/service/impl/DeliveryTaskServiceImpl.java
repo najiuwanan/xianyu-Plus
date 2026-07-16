@@ -112,4 +112,18 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
     public void requeue(Long taskId) {
         orderMapper.requeueTask(taskId);
     }
+
+    @Override
+    public void pauseAccountTasks(Long accountId) {
+        if (accountId != null) {
+            orderMapper.pauseTasksByAccount(accountId);
+        }
+    }
+
+    @Override
+    public void pauseClaimedTask(Long taskId, String workerId) {
+        if (taskId != null && workerId != null) {
+            orderMapper.pauseClaimedTask(taskId, workerId);
+        }
+    }
 }

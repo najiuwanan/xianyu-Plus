@@ -38,7 +38,7 @@ public class XianyuAccount {
     private String deviceId;
     
     /**
-     * 账号状态 1:正常 -1:需要手机号验证
+     * 账号状态：1-正常，0-手动禁用，-1/-2-需要处理连接或验证。
      */
     private Integer status;
 
