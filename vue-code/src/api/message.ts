@@ -40,6 +40,8 @@ export interface ChatSession {
   lastMessageTime?: string | number;
   lastContentType?: number;
   takeoverEndTime?: string;
+  unreadCount?: number;
+  buyerTags?: string;
 }
 
 // 获取消息列表
@@ -81,6 +83,30 @@ export function getChatSessions(xianyuAccountId: number, limit = 80) {
     url: '/msg/sessions',
     method: 'POST',
     data: { xianyuAccountId, limit }
+  });
+}
+
+export function markChatSessionRead(data: { xianyuAccountId: number; sid: string }) {
+  return request<string>({
+    url: '/msg/session/read',
+    method: 'POST',
+    data
+  });
+}
+
+export function addChatBuyerTag(data: { xianyuAccountId: number; buyerUserId: string; tagName: string }) {
+  return request<string>({
+    url: '/msg/buyer-tags/add',
+    method: 'POST',
+    data
+  });
+}
+
+export function removeChatBuyerTag(data: { xianyuAccountId: number; buyerUserId: string; tagName: string }) {
+  return request<string>({
+    url: '/msg/buyer-tags/remove',
+    method: 'POST',
+    data
   });
 }
 

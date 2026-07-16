@@ -16,4 +16,7 @@ public class ChatSessionDTO {
     private Long lastMessageTime;
     private Integer lastContentType;
     private LocalDateTime takeoverEndTime;
+    private Integer unreadCount;
+    /** 逗号分隔的买家自定义标签，前端展示时拆分。 */
+    private String buyerTags;
 }

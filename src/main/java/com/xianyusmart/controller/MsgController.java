@@ -7,6 +7,8 @@ import com.xianyusmart.controller.dto.MsgListRespDTO;
 import com.xianyusmart.controller.dto.ChatSessionDTO;
 import com.xianyusmart.controller.dto.ChatSessionReqDTO;
 import com.xianyusmart.controller.dto.ChatTakeoverReqDTO;
+import com.xianyusmart.controller.dto.ChatSessionReadReqDTO;
+import com.xianyusmart.controller.dto.ChatBuyerTagReqDTO;
 import com.xianyusmart.service.ChatMessageService;
 import com.xianyusmart.service.reply.HumanTakeoverManager;
 import lombok.extern.slf4j.Slf4j;
@@ -67,6 +69,21 @@ public class MsgController {
     @PostMapping("/sessions")
     public ResultObject<java.util.List<ChatSessionDTO>> getSessions(@RequestBody ChatSessionReqDTO reqDTO) {
         return chatMessageService.getSessionList(reqDTO);
+    }
+
+    @PostMapping("/session/read")
+    public ResultObject<String> markSessionRead(@RequestBody ChatSessionReadReqDTO reqDTO) {
+        return chatMessageService.markSessionRead(reqDTO);
+    }
+
+    @PostMapping("/buyer-tags/add")
+    public ResultObject<String> addBuyerTag(@RequestBody ChatBuyerTagReqDTO reqDTO) {
+        return chatMessageService.addBuyerTag(reqDTO);
+    }
+
+    @PostMapping("/buyer-tags/remove")
+    public ResultObject<String> removeBuyerTag(@RequestBody ChatBuyerTagReqDTO reqDTO) {
+        return chatMessageService.removeBuyerTag(reqDTO);
     }
 
     /** 手动切换会话接管状态；结束接管后将再次允许该商品的自动回复策略处理新消息。 */

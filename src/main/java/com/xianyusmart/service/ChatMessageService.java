@@ -7,6 +7,8 @@ import com.xianyusmart.controller.dto.MsgListReqDTO;
 import com.xianyusmart.controller.dto.MsgListRespDTO;
 import com.xianyusmart.controller.dto.ChatSessionDTO;
 import com.xianyusmart.controller.dto.ChatSessionReqDTO;
+import com.xianyusmart.controller.dto.ChatSessionReadReqDTO;
+import com.xianyusmart.controller.dto.ChatBuyerTagReqDTO;
 import java.util.List;
 
 /**
@@ -53,4 +55,13 @@ public interface ChatMessageService {
 
     /** 查询账号最近活跃会话，供在线客服使用。 */
     ResultObject<List<ChatSessionDTO>> getSessionList(ChatSessionReqDTO reqDTO);
+
+    /** 将一个在线客服会话标记为已读。 */
+    ResultObject<String> markSessionRead(ChatSessionReadReqDTO reqDTO);
+
+    /** 为买家新增一个自定义标签。 */
+    ResultObject<String> addBuyerTag(ChatBuyerTagReqDTO reqDTO);
+
+    /** 删除买家的一个自定义标签。 */
+    ResultObject<String> removeBuyerTag(ChatBuyerTagReqDTO reqDTO);
 }

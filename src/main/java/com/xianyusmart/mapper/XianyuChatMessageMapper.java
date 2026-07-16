@@ -28,6 +28,20 @@ public interface XianyuChatMessageMapper {
             ") ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(XianyuChatMessage message);
+
+    @Select("SELECT COALESCE(MAX(id), 0) FROM xianyu_chat_message " +
+            "WHERE xianyu_account_id = #{accountId} AND s_id = #{sid}")
+    long findLatestMessageIdBySession(@Param("accountId") Long accountId, @Param("sid") String sid);
+
+    @Insert("INSERT INTO xianyu_chat_session_read " +
+            "(xianyu_account_id, s_id, last_read_message_id, last_read_time) " +
+            "VALUES (#{accountId}, #{sid}, #{lastReadMessageId}, NOW(3)) " +
+            "ON DUPLICATE KEY UPDATE " +
+            "last_read_message_id = GREATEST(last_read_message_id, VALUES(last_read_message_id)), " +
+            "last_read_time = NOW(3)")
+    int markSessionRead(@Param("accountId") Long accountId,
+                        @Param("sid") String sid,
+                        @Param("lastReadMessageId") long lastReadMessageId);
     
     /**
      * 根据pnm_id查询（防止重复）
@@ -144,8 +158,19 @@ public interface XianyuChatMessageMapper {
             "COALESCE(NULLIF(b.sender_user_id, ''), NULLIF(m.sender_user_id, '')) AS buyer_user_id, " +
             "m.xy_goods_id AS xy_goods_id, m.msg_content AS last_message, " +
             "m.message_time AS last_message_time, m.content_type AS last_content_type, " +
-            "h.end_time AS takeover_end_time " +
+            "h.end_time AS takeover_end_time, " +
+            "COALESCE((SELECT COUNT(1) FROM xianyu_chat_message u " +
+            "WHERE u.xianyu_account_id = m.xianyu_account_id AND u.s_id = m.s_id " +
+            "AND u.id > COALESCE(r.last_read_message_id, 0) " +
+            "AND u.sender_user_id IS NOT NULL AND u.sender_user_id != '' " +
+            "AND u.sender_user_id != #{sellerUserId}), 0) AS unread_count, " +
+            "(SELECT GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ',') " +
+            "FROM xianyu_chat_buyer_tag t WHERE t.xianyu_account_id = m.xianyu_account_id " +
+            "AND t.buyer_user_id = COALESCE(NULLIF(b.sender_user_id, ''), NULLIF(m.sender_user_id, ''))) " +
+            "AS buyer_tags " +
             "FROM xianyu_chat_message m " +
+            "LEFT JOIN xianyu_chat_session_read r " +
+            "ON r.xianyu_account_id = m.xianyu_account_id AND r.s_id = m.s_id " +
             "LEFT JOIN xianyu_human_intervention_record h " +
             "ON h.xianyu_account_id = m.xianyu_account_id AND h.s_id = m.s_id AND h.end_time > NOW(3) " +
             "LEFT JOIN xianyu_chat_message b ON b.id = (" +

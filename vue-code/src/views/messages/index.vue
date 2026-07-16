@@ -4,6 +4,9 @@ import { getAccountList } from '@/api/account'
 import {
   getChatSessions,
   getContextMessages,
+  markChatSessionRead,
+  addChatBuyerTag,
+  removeChatBuyerTag,
   sendMessage as sendMessageApi,
   updateChatTakeover,
   type ChatMessage,
@@ -25,6 +28,9 @@ const sessions = ref<ChatSession[]>([])
 const selectedSession = ref<ChatSession | null>(null)
 const messages = ref<ChatMessage[]>([])
 const searchText = ref('')
+const sessionFilter = ref<'ALL' | 'UNREAD' | 'TAKEOVER'>('ALL')
+const tagFilter = ref('')
+const tagDraft = ref('')
 const draft = ref('')
 const imageUrls = ref('')
 const showImageUploader = ref(false)
@@ -32,6 +38,7 @@ const loadingSessions = ref(false)
 const loadingMessages = ref(false)
 const sending = ref(false)
 const updatingTakeover = ref(false)
+const updatingTag = ref(false)
 const messageListRef = ref<HTMLElement | null>(null)
 const takeoverMinutes = ref(10)
 const setHeaderContent = inject<(content: any) => void>('setHeaderContent')
@@ -40,17 +47,116 @@ const selectedAccount = computed(() =>
   accounts.value.find(account => Number(account.id) === selectedAccountId.value) || null
 )
 
+const getSessionTags = (session?: ChatSession | null) => (session?.buyerTags || '')
+  .split(',')
+  .map(tag => tag.trim())
+  .filter(Boolean)
+
+const allTags = computed(() => [...new Set(sessions.value.flatMap(getSessionTags))].sort((a, b) => a.localeCompare(b, 'zh-CN')))
+
+const unreadTotal = computed(() => sessions.value.reduce((total, session) => total + Number(session.unreadCount || 0), 0))
+
+const selectedSessionTags = computed(() => getSessionTags(selectedSession.value))
+
 const filteredSessions = computed(() => {
   const keyword = searchText.value.trim().toLowerCase()
-  if (!keyword) return sessions.value
-  return sessions.value.filter(session =>
-    [session.buyerUserName, session.buyerUserId, session.lastMessage, session.xyGoodsId]
+  return sessions.value.filter(session => {
+    const matchesKeyword = !keyword || [session.buyerUserName, session.buyerUserId, session.lastMessage, session.xyGoodsId]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()
       .includes(keyword)
-  )
+    const matchesFilter = sessionFilter.value === 'ALL'
+      || (sessionFilter.value === 'UNREAD' && Number(session.unreadCount || 0) > 0)
+      || (sessionFilter.value === 'TAKEOVER' && Boolean(session.takeoverEndTime && new Date(session.takeoverEndTime.replace(' ', 'T')).getTime() > Date.now()))
+    const matchesTag = !tagFilter.value || getSessionTags(session).includes(tagFilter.value)
+    return matchesKeyword && matchesFilter && matchesTag
+  })
 })
+
+const updateLocalReadState = (sid: string) => {
+  sessions.value = sessions.value.map(session => session.sid === sid
+    ? { ...session, unreadCount: 0 }
+    : session)
+  if (selectedSession.value?.sid === sid) {
+    selectedSession.value = { ...selectedSession.value, unreadCount: 0 }
+  }
+}
+
+const markSelectedSessionRead = async () => {
+  const session = selectedSession.value
+  if (!selectedAccountId.value || !session?.sid || !Number(session.unreadCount || 0)) return
+  try {
+    const response = await markChatSessionRead({
+      xianyuAccountId: selectedAccountId.value,
+      sid: session.sid
+    })
+    ensureSuccess(response)
+    updateLocalReadState(session.sid)
+  } catch (error) {
+    console.warn('标记客服会话已读失败', error)
+  }
+}
+
+const applyLocalBuyerTag = (buyerId: string, tagName: string, shouldAdd: boolean) => {
+  sessions.value = sessions.value.map(session => {
+    if (session.buyerUserId !== buyerId) return session
+    const tags = new Set(getSessionTags(session))
+    if (shouldAdd) tags.add(tagName)
+    else tags.delete(tagName)
+    return { ...session, buyerTags: [...tags].sort((a, b) => a.localeCompare(b, 'zh-CN')).join(',') }
+  })
+  if (selectedSession.value?.buyerUserId === buyerId) {
+    selectedSession.value = sessions.value.find(session => session.sid === selectedSession.value?.sid) || selectedSession.value
+  }
+}
+
+const addBuyerTag = async () => {
+  const buyerId = buyerUserId.value
+  const tagName = tagDraft.value.trim()
+  if (!selectedAccountId.value || !buyerId || !tagName || updatingTag.value) return
+  if (tagName.includes(',')) {
+    showError('标签不能包含英文逗号')
+    return
+  }
+  updatingTag.value = true
+  try {
+    const response = await addChatBuyerTag({
+      xianyuAccountId: selectedAccountId.value,
+      buyerUserId: buyerId,
+      tagName
+    })
+    ensureSuccess(response)
+    applyLocalBuyerTag(buyerId, tagName, true)
+    tagDraft.value = ''
+    showSuccess('买家标签已添加')
+  } catch (error: any) {
+    showError(error.message || '添加标签失败')
+  } finally {
+    updatingTag.value = false
+  }
+}
+
+const removeBuyerTag = async (tagName: string) => {
+  const buyerId = buyerUserId.value
+  if (!selectedAccountId.value || !buyerId || updatingTag.value) return
+  updatingTag.value = true
+  try {
+    const response = await removeChatBuyerTag({
+      xianyuAccountId: selectedAccountId.value,
+      buyerUserId: buyerId,
+      tagName
+    })
+    ensureSuccess(response)
+    applyLocalBuyerTag(buyerId, tagName, false)
+    if (tagFilter.value === tagName && !allTags.value.includes(tagName)) tagFilter.value = ''
+    showSuccess('买家标签已删除')
+  } catch (error: any) {
+    showError(error.message || '删除标签失败')
+  } finally {
+    updatingTag.value = false
+  }
+}
 
 const hasActiveTakeover = computed(() => {
   const value = selectedSession.value?.takeoverEndTime
@@ -163,6 +269,7 @@ const loadMessages = async (silent = false) => {
     const changed = JSON.stringify(nextMessages) !== JSON.stringify(messages.value)
     messages.value = nextMessages
     if (changed) scrollToBottom()
+    await markSelectedSessionRead()
   } catch (error: any) {
     if (!silent) showError(error.message || '加载聊天记录失败')
   } finally {
@@ -173,11 +280,16 @@ const loadMessages = async (silent = false) => {
 const selectAccount = async () => {
   selectedSession.value = null
   messages.value = []
+  tagFilter.value = ''
+  sessionFilter.value = 'ALL'
   await loadSessions()
 }
 
 const selectSession = async (session: ChatSession) => {
-  if (selectedSession.value?.sid === session.sid) return
+  if (selectedSession.value?.sid === session.sid) {
+    await markSelectedSessionRead()
+    return
+  }
   selectedSession.value = session
   messages.value = []
   await loadMessages()
@@ -298,6 +410,7 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <div class="customer-service__toolbar">
+        <span v-if="unreadTotal > 0" class="customer-service__unread">{{ unreadTotal }} 条未读</span>
         <select v-model="selectedAccountId" class="customer-service__select" @change="selectAccount">
           <option v-for="account in accounts" :key="account.id" :value="Number(account.id)">
             {{ account.accountNote || account.unb }}
@@ -314,9 +427,22 @@ onBeforeUnmount(() => {
         <div class="session-panel__search">
           <input v-model="searchText" type="search" placeholder="搜索买家、商品或消息">
         </div>
+        <div class="session-panel__filters">
+          <button :class="{ 'is-active': sessionFilter === 'ALL' }" @click="sessionFilter = 'ALL'">全部</button>
+          <button :class="{ 'is-active': sessionFilter === 'UNREAD' }" @click="sessionFilter = 'UNREAD'">
+            未读<span v-if="unreadTotal > 0">{{ unreadTotal }}</span>
+          </button>
+          <button :class="{ 'is-active': sessionFilter === 'TAKEOVER' }" @click="sessionFilter = 'TAKEOVER'">人工接管</button>
+        </div>
+        <div v-if="allTags.length" class="session-panel__tag-filter">
+          <select v-model="tagFilter" aria-label="按买家标签筛选">
+            <option value="">全部标签</option>
+            <option v-for="tag in allTags" :key="tag" :value="tag">{{ tag }}</option>
+          </select>
+        </div>
         <div class="session-panel__meta">
           <span>会话</span>
-          <span>{{ filteredSessions.length }}</span>
+          <span>{{ filteredSessions.length }} / {{ sessions.length }}</span>
         </div>
         <div class="session-panel__list">
           <button
@@ -330,10 +456,16 @@ onBeforeUnmount(() => {
             <div class="session-item__body">
               <div class="session-item__top">
                 <strong>{{ session.buyerUserName || '未知买家' }}</strong>
-                <time>{{ formatTime(session.lastMessageTime) }}</time>
+                <span class="session-item__right">
+                  <time>{{ formatTime(session.lastMessageTime) }}</time>
+                  <b v-if="Number(session.unreadCount || 0) > 0" class="session-item__unread">{{ session.unreadCount }}</b>
+                </span>
               </div>
               <p>{{ session.lastMessage || '暂无文字消息' }}</p>
-              <span v-if="session.takeoverEndTime" class="session-item__tag">人工中</span>
+              <div v-if="session.takeoverEndTime || getSessionTags(session).length" class="session-item__tags">
+                <span v-if="session.takeoverEndTime" class="session-item__tag session-item__tag--manual">人工中</span>
+                <span v-for="tag in getSessionTags(session)" :key="tag" class="session-item__tag">{{ tag }}</span>
+              </div>
             </div>
           </button>
           <div v-if="!loadingSessions && !filteredSessions.length" class="session-panel__empty">暂无会话消息</div>
@@ -420,6 +552,21 @@ onBeforeUnmount(() => {
               <div><dt>当前账号</dt><dd>{{ selectedAccount?.accountNote || selectedAccount?.unb || '-' }}</dd></div>
             </dl>
           </section>
+          <section class="detail-panel__tags">
+            <h3>买家标签</h3>
+            <p>标签仅用于 XianYuPlus 内部筛选，不会发送给买家。</p>
+            <div class="detail-panel__tag-list">
+              <span v-for="tag in selectedSessionTags" :key="tag" class="detail-panel__tag">
+                {{ tag }}
+                <button type="button" :disabled="updatingTag" :aria-label="`删除标签 ${tag}`" @click="removeBuyerTag(tag)">×</button>
+              </span>
+              <span v-if="!selectedSessionTags.length" class="detail-panel__tag-empty">暂未设置标签</span>
+            </div>
+            <form class="detail-panel__tag-form" @submit.prevent="addBuyerTag">
+              <input v-model="tagDraft" maxlength="20" placeholder="例如：老客户、待跟进" :disabled="!buyerUserId || updatingTag">
+              <button type="submit" :disabled="!tagDraft.trim() || !buyerUserId || updatingTag">{{ updatingTag ? '处理中' : '添加' }}</button>
+            </form>
+          </section>
           <section class="detail-panel__takeover">
             <h3>人工接管</h3>
             <p>{{ hasActiveTakeover ? `该会话已暂停 AI 回复，${formatTakeoverEnd(selectedSession.takeoverEndTime)} 后自动恢复。` : '接管后，该会话的新消息不会触发 AI 或关键词自动回复。' }}</p>
@@ -454,6 +601,7 @@ h1, h2, h3, p, dl { margin:0; }
 h1 { font-size:24px; line-height:1.2; }
 .customer-service__title-wrap p { margin-top:4px; color:rgba(28,28,30,.56); font-size:12px; }
 .customer-service__toolbar { gap:9px; }
+.customer-service__unread { display:inline-flex; align-items:center; height:28px; padding:0 9px; border-radius:999px; color:#b42318; background:#fef3f2; font-size:12px; font-weight:700; white-space:nowrap; }
 .customer-service__select, .detail-panel select { height:36px; border:1px solid rgba(60,60,67,.18); border-radius:9px; padding:0 10px; background:#fff; color:#1c1c1e; }
 .customer-service__workspace { min-height:0; flex:1; display:grid; grid-template-columns:280px minmax(360px, 1fr) 260px; overflow:hidden; background:rgba(255,255,255,.9); border:1px solid rgba(60,60,67,.12); border-radius:16px; box-shadow:0 7px 28px rgba(0,0,0,.05); }
 .session-panel, .detail-panel { background:rgba(248,249,251,.75); min-width:0; }
@@ -461,6 +609,12 @@ h1 { font-size:24px; line-height:1.2; }
 .session-panel__search { padding:14px 13px 9px; }
 .session-panel__search input { width:100%; height:36px; box-sizing:border-box; border:1px solid rgba(60,60,67,.14); border-radius:9px; background:#fff; padding:0 10px; outline:none; font:inherit; font-size:13px; }
 .session-panel__search input:focus { border-color:rgba(10,132,255,.65); }
+.session-panel__filters { display:flex; gap:6px; padding:0 13px 9px; overflow-x:auto; }
+.session-panel__filters button { flex:0 0 auto; border:0; border-radius:999px; padding:5px 8px; color:rgba(28,28,30,.58); background:rgba(60,60,67,.08); cursor:pointer; font:inherit; font-size:11px; }
+.session-panel__filters button.is-active { color:#075fae; background:rgba(10,132,255,.14); font-weight:700; }
+.session-panel__filters button span { display:inline-grid; min-width:14px; height:14px; margin-left:3px; place-items:center; border-radius:999px; color:#fff; background:#ff3b30; font-size:9px; }
+.session-panel__tag-filter { padding:0 13px 9px; }
+.session-panel__tag-filter select { width:100%; height:31px; border:1px solid rgba(60,60,67,.13); border-radius:8px; padding:0 8px; color:rgba(28,28,30,.72); background:#fff; font:inherit; font-size:12px; }
 .session-panel__meta { display:flex; justify-content:space-between; padding:0 16px 10px; color:rgba(28,28,30,.48); font-size:12px; }
 .session-panel__list { flex:1; overflow-y:auto; }
 .session-item { display:flex; width:100%; gap:10px; padding:12px 13px; text-align:left; border:0; border-top:1px solid rgba(60,60,67,.06); background:transparent; cursor:pointer; color:inherit; font:inherit; }
@@ -470,9 +624,13 @@ h1 { font-size:24px; line-height:1.2; }
 .session-item__body { min-width:0; flex:1; }
 .session-item__top { display:flex; justify-content:space-between; gap:8px; align-items:center; }
 .session-item__top strong { font-size:13px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
-.session-item__top time { flex-shrink:0; color:rgba(28,28,30,.45); font-size:11px; }
+.session-item__right { display:flex; align-items:center; gap:5px; flex-shrink:0; }
+.session-item__top time { color:rgba(28,28,30,.45); font-size:11px; }
+.session-item__unread { display:grid; min-width:17px; height:17px; padding:0 3px; place-items:center; border-radius:999px; color:#fff; background:#ff3b30; font-size:10px; line-height:1; }
 .session-item p { overflow:hidden; margin-top:4px; color:rgba(28,28,30,.56); font-size:12px; text-overflow:ellipsis; white-space:nowrap; }
-.session-item__tag { display:inline-block; margin-top:5px; padding:1px 6px; border-radius:999px; color:#b55f00; background:rgba(255,149,0,.14); font-size:10px; }
+.session-item__tags { display:flex; gap:4px; margin-top:5px; overflow:hidden; white-space:nowrap; }
+.session-item__tag { display:inline-block; max-width:92px; overflow:hidden; padding:1px 6px; border-radius:999px; color:#52606d; background:rgba(60,60,67,.1); font-size:10px; text-overflow:ellipsis; }
+.session-item__tag--manual { color:#b55f00; background:rgba(255,149,0,.14); }
 .session-panel__empty, .chat-panel__placeholder, .detail-panel__empty { padding:32px 16px; color:rgba(28,28,30,.45); font-size:13px; text-align:center; }
 .chat-panel { min-width:0; display:flex; flex-direction:column; background:linear-gradient(180deg, #fff 0%, #f7f9fc 100%); }
 .chat-panel__header { display:flex; min-height:66px; padding:0 20px; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid rgba(60,60,67,.1); }
@@ -517,6 +675,17 @@ h1 { font-size:24px; line-height:1.2; }
 .detail-panel dl div { display:grid; gap:3px; }
 .detail-panel dt { color:rgba(28,28,30,.48); font-size:11px; }
 .detail-panel dd { overflow:hidden; margin:0; color:#263b50; font-size:12px; text-overflow:ellipsis; word-break:break-all; }
+.detail-panel__tags p { color:rgba(28,28,30,.58); font-size:12px; line-height:1.55; }
+.detail-panel__tag-list { display:flex; min-height:24px; flex-wrap:wrap; gap:6px; margin-top:12px; }
+.detail-panel__tag { display:inline-flex; align-items:center; gap:4px; max-width:100%; padding:4px 7px; border-radius:999px; color:#075fae; background:rgba(10,132,255,.12); font-size:11px; }
+.detail-panel__tag button { width:15px; height:15px; padding:0; border:0; border-radius:50%; color:#075fae; background:rgba(10,132,255,.16); cursor:pointer; font-size:13px; line-height:1; }
+.detail-panel__tag button:disabled { cursor:not-allowed; opacity:.5; }
+.detail-panel__tag-empty { color:rgba(28,28,30,.43); font-size:12px; }
+.detail-panel__tag-form { display:flex; gap:6px; margin-top:12px; }
+.detail-panel__tag-form input { min-width:0; flex:1; height:32px; box-sizing:border-box; border:1px solid rgba(60,60,67,.16); border-radius:8px; padding:0 8px; outline:none; font:inherit; font-size:12px; }
+.detail-panel__tag-form input:focus { border-color:rgba(10,132,255,.65); }
+.detail-panel__tag-form button { flex:0 0 auto; border:0; border-radius:8px; padding:0 9px; color:#fff; background:#0a84ff; cursor:pointer; font:inherit; font-size:12px; }
+.detail-panel__tag-form button:disabled { cursor:not-allowed; opacity:.45; }
 .detail-panel__takeover p { color:rgba(28,28,30,.58); font-size:12px; line-height:1.6; }
 .detail-panel__duration { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:15px; font-size:12px; }
 .detail-panel__duration select { height:32px; font-size:12px; }

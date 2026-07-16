@@ -11,13 +11,18 @@ import com.xianyusmart.controller.dto.MsgListReqDTO;
 import com.xianyusmart.controller.dto.MsgListRespDTO;
 import com.xianyusmart.controller.dto.ChatSessionDTO;
 import com.xianyusmart.controller.dto.ChatSessionReqDTO;
+import com.xianyusmart.controller.dto.ChatSessionReadReqDTO;
+import com.xianyusmart.controller.dto.ChatBuyerTagReqDTO;
+import com.xianyusmart.entity.XianyuChatBuyerTag;
 import com.xianyusmart.service.ChatMessageService;
+import com.xianyusmart.mapper.XianyuChatBuyerTagMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.util.StringUtils;
 
 /**
  * 聊天消息服务实现
@@ -34,6 +39,9 @@ public class ChatMessageServiceImpl implements ChatMessageService {
     
     @Autowired
     private XianyuAccountMapper accountMapper;
+
+    @Autowired
+    private XianyuChatBuyerTagMapper buyerTagMapper;
     
     @Override
     public List<XianyuChatMessage> getMessagesByAccountId(Long accountId, int page, int pageSize) {
@@ -185,5 +193,75 @@ public class ChatMessageServiceImpl implements ChatMessageService {
             log.error("查询在线客服会话失败: accountId={}", reqDTO.getXianyuAccountId(), e);
             return ResultObject.failed("查询在线客服会话失败: " + e.getMessage());
         }
+    }
+
+    @Override
+    public ResultObject<String> markSessionRead(ChatSessionReadReqDTO reqDTO) {
+        if (reqDTO == null || reqDTO.getXianyuAccountId() == null || !StringUtils.hasText(reqDTO.getSid())) {
+            return ResultObject.validateFailed("账号和会话不能为空");
+        }
+        try {
+            long lastMessageId = chatMessageMapper.findLatestMessageIdBySession(
+                    reqDTO.getXianyuAccountId(), reqDTO.getSid());
+            chatMessageMapper.markSessionRead(reqDTO.getXianyuAccountId(), reqDTO.getSid(), lastMessageId);
+            return ResultObject.success("已标记为已读");
+        } catch (Exception e) {
+            log.error("标记客服会话已读失败: accountId={}, sid={}",
+                    reqDTO.getXianyuAccountId(), reqDTO.getSid(), e);
+            return ResultObject.failed("标记已读失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public ResultObject<String> addBuyerTag(ChatBuyerTagReqDTO reqDTO) {
+        String validationError = validateBuyerTagRequest(reqDTO);
+        if (validationError != null) {
+            return ResultObject.validateFailed(validationError);
+        }
+        try {
+            XianyuChatBuyerTag tag = new XianyuChatBuyerTag();
+            tag.setXianyuAccountId(reqDTO.getXianyuAccountId());
+            tag.setBuyerUserId(reqDTO.getBuyerUserId().trim());
+            tag.setTagName(reqDTO.getTagName().trim());
+            buyerTagMapper.insert(tag);
+            return ResultObject.success("买家标签已添加");
+        } catch (Exception e) {
+            log.error("添加买家标签失败: accountId={}, buyerUserId={}",
+                    reqDTO.getXianyuAccountId(), reqDTO.getBuyerUserId(), e);
+            return ResultObject.failed("添加标签失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public ResultObject<String> removeBuyerTag(ChatBuyerTagReqDTO reqDTO) {
+        String validationError = validateBuyerTagRequest(reqDTO);
+        if (validationError != null) {
+            return ResultObject.validateFailed(validationError);
+        }
+        try {
+            buyerTagMapper.delete(reqDTO.getXianyuAccountId(), reqDTO.getBuyerUserId().trim(), reqDTO.getTagName().trim());
+            return ResultObject.success("买家标签已删除");
+        } catch (Exception e) {
+            log.error("删除买家标签失败: accountId={}, buyerUserId={}",
+                    reqDTO.getXianyuAccountId(), reqDTO.getBuyerUserId(), e);
+            return ResultObject.failed("删除标签失败: " + e.getMessage());
+        }
+    }
+
+    private String validateBuyerTagRequest(ChatBuyerTagReqDTO reqDTO) {
+        if (reqDTO == null || reqDTO.getXianyuAccountId() == null || !StringUtils.hasText(reqDTO.getBuyerUserId())) {
+            return "账号和买家不能为空";
+        }
+        if (!StringUtils.hasText(reqDTO.getTagName())) {
+            return "标签不能为空";
+        }
+        String tag = reqDTO.getTagName().trim();
+        if (tag.length() > 20) {
+            return "标签最多 20 个字符";
+        }
+        if (tag.contains(",")) {
+            return "标签不能包含英文逗号";
+        }
+        return null;
     }
 }
