@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="15" fill="#FFC107"/>
+  <rect x="8" y="8" width="48" height="48" rx="11" fill="#FFD54F"/>
+  <text x="32" y="43" text-anchor="middle" font-family="Microsoft YaHei, PingFang SC, Noto Sans CJK SC, sans-serif" font-size="32" font-weight="800" fill="#1F2329">闲</text>
+  <circle cx="49" cy="15" r="4" fill="#FFFFFF" opacity=".92"/>
+</svg>
