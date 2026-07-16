@@ -57,6 +57,12 @@ const router = createRouter({
       meta: { title: '消息管理', icon: '💬' }
     },
     {
+      path: '/notifications',
+      name: 'notifications',
+      component: () => import('@/views/notifications/index.vue'),
+      meta: { title: '通知渠道', icon: '🔔' }
+    },
+    {
       path: '/auto-delivery',
       name: 'auto-delivery',
       component: () => import('@/views/auto-delivery/index.vue'),

@@ -65,6 +65,7 @@ const pageTitleMap: Record<string, string> = {
   '/goods': '商品管理',
   '/orders': '发货记录',
   '/messages': '消息管理',
+  '/notifications': '通知渠道',
   '/auto-delivery': '自动发货',
 
   '/auto-reply': '自动回复',

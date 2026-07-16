@@ -35,6 +35,11 @@ const onSelect = (index: string) => {
       <span>消息管理</span>
     </router-link>
 
+    <router-link to="/notifications" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/notifications')">
+      <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+      <span>通知渠道</span>
+    </router-link>
+
     <div class="nav-menu-divider"><span class="nav-menu-divider-text">自动化</span></div>
 
     <router-link to="/kami-config" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/kami-config')">
