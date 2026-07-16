@@ -67,7 +67,7 @@ const saveConfig = async () => {
       scheduleTime: scheduleTime.value
     })
     if (response.code !== 0 && response.code !== 200) throw new Error(response.msg || '保存失败')
-    showSuccess(enabled.value ? `已开启每天 ${scheduleTime.value} 自动擦亮` : '自动擦亮已关闭')
+    showSuccess(enabled.value ? `已开启每天 ${scheduleTime.value} 自动同步并一键擦亮` : '每日自动同步并擦亮已关闭')
     await loadOverview(true)
   } catch (error: any) {
     showError(`保存失败：${error.message || '请检查执行时间'}`)
@@ -82,7 +82,7 @@ const runNow = async () => {
   try {
     const response = await runItemPolish(selectedAccountId.value)
     if (response.code !== 0 && response.code !== 200) throw new Error(response.msg || '启动失败')
-    showInfo(response.data?.message || '擦亮任务已开始')
+    showInfo(response.data?.message || '一键擦亮任务已开始，将先同步商品')
     await loadOverview(true)
     window.setTimeout(() => loadOverview(true), 2500)
   } catch (error: any) {
@@ -103,8 +103,8 @@ onMounted(loadAccounts)
   <div class="polish-page">
     <header class="polish-page__header">
       <div>
-        <h1>自动擦亮</h1>
-        <p>每天定时擦亮已同步的在售商品，保持商品曝光；每件商品会间隔随机时间执行。</p>
+        <h1>一键擦亮</h1>
+        <p>每次先同步账号全部在售商品，再依次擦亮，避免新上架商品遗漏；每件商品会间隔随机时间执行。</p>
       </div>
       <div class="polish-page__actions">
         <select v-model="selectedAccountId" class="polish-select" @change="handleAccountChange">
@@ -114,7 +114,7 @@ onMounted(loadAccounts)
         </select>
         <button class="btn btn--secondary" :disabled="loading" @click="loadOverview()">刷新</button>
         <button class="btn btn--primary" :disabled="!selectedAccountId || starting || overview?.running" @click="runNow">
-          {{ overview?.running ? '正在擦亮…' : starting ? '启动中…' : '立即擦亮' }}
+          {{ overview?.running ? '正在同步并擦亮…' : starting ? '启动中…' : '一键擦亮' }}
         </button>
       </div>
     </header>
@@ -136,7 +136,7 @@ onMounted(loadAccounts)
         <div class="form-row">
           <label for="polish-time">每天执行时间</label>
           <input id="polish-time" v-model="scheduleTime" class="time-input" type="time" :disabled="!enabled">
-          <span class="form-hint">只处理本地已同步且仍为“在售”的商品；每件间隔 1–3 秒。</span>
+          <span class="form-hint">每天到点会先同步该账号全部在售商品，再按 1–3 秒随机间隔逐件擦亮。</span>
         </div>
         <div class="config-actions">
           <button class="btn btn--primary" :disabled="saving" @click="saveConfig">{{ saving ? '保存中…' : '保存设置' }}</button>
@@ -147,7 +147,7 @@ onMounted(loadAccounts)
         <div class="summary-card">
           <span>可擦亮商品</span>
           <strong>{{ overview?.onSaleCount ?? 0 }}</strong>
-          <small>本地已同步的在售商品</small>
+          <small>最近同步后的在售商品</small>
         </div>
         <div class="summary-card summary-card--success">
           <span>上次成功</span>
@@ -178,18 +178,18 @@ onMounted(loadAccounts)
               <tr v-for="record in overview.records" :key="record.id">
                 <td>{{ formatTime(record.createTime) }}</td>
                 <td><strong>{{ record.goodsTitle || '未命名商品' }}</strong><small>ID: {{ record.xyGoodsId }}</small></td>
-                <td>{{ record.triggerType === 'SCHEDULED' ? '定时' : '手动' }}</td>
+                <td>{{ record.triggerType === 'SCHEDULED' ? '每日一键' : '手动一键' }}</td>
                 <td><span class="result-tag" :class="record.success === 1 ? 'result-tag--success' : 'result-tag--danger'">{{ record.success === 1 ? '成功' : '失败' }}</span></td>
                 <td class="record-message">{{ record.message || '-' }}</td>
               </tr>
             </tbody>
           </table>
-          <div v-else class="empty-history">暂无执行记录。可先点击“立即擦亮”验证账号是否可用。</div>
+          <div v-else class="empty-history">暂无执行记录。可先点击“一键擦亮”验证账号是否可用。</div>
         </div>
       </div>
     </section>
 
-    <div v-else class="empty-state">请先添加闲鱼账号，再配置自动擦亮。</div>
+    <div v-else class="empty-state">请先添加闲鱼账号，再配置每日同步并一键擦亮。</div>
   </div>
 </template>
 

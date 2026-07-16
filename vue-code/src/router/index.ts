@@ -72,7 +72,7 @@ const router = createRouter({
       path: '/item-polish',
       name: 'item-polish',
       component: () => import('@/views/item-polish/index.vue'),
-      meta: { title: '自动擦亮', icon: '✨' }
+      meta: { title: '一键擦亮', icon: '✨' }
     },
     {
       path: '/order-automation',

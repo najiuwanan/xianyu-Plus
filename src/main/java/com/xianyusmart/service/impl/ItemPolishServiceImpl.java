@@ -1,6 +1,9 @@
 package com.xianyusmart.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.xianyusmart.common.ResultObject;
+import com.xianyusmart.controller.dto.AllItemsReqDTO;
+import com.xianyusmart.controller.dto.RefreshItemsRespDTO;
 import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.entity.XianyuGoodsInfo;
 import com.xianyusmart.entity.XianyuItemPolishConfig;
@@ -10,6 +13,7 @@ import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.mapper.XianyuItemPolishConfigMapper;
 import com.xianyusmart.mapper.XianyuItemPolishRecordMapper;
 import com.xianyusmart.service.AccountService;
+import com.xianyusmart.service.ItemService;
 import com.xianyusmart.service.ItemPolishService;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +55,7 @@ public class ItemPolishServiceImpl implements ItemPolishService {
     private final XianyuItemPolishConfigMapper configMapper;
     private final XianyuItemPolishRecordMapper recordMapper;
     private final AccountService accountService;
+    private final ItemService itemService;
     private final XianyuApiCallUtils xianyuApiCallUtils;
     private final Executor taskExecutor;
     private final Set<Long> runningAccountIds = ConcurrentHashMap.newKeySet();
@@ -60,6 +65,7 @@ public class ItemPolishServiceImpl implements ItemPolishService {
                                  XianyuItemPolishConfigMapper configMapper,
                                  XianyuItemPolishRecordMapper recordMapper,
                                  AccountService accountService,
+                                 ItemService itemService,
                                  XianyuApiCallUtils xianyuApiCallUtils,
                                  @Qualifier("taskExecutor") Executor taskExecutor) {
         this.accountMapper = accountMapper;
@@ -67,6 +73,7 @@ public class ItemPolishServiceImpl implements ItemPolishService {
         this.configMapper = configMapper;
         this.recordMapper = recordMapper;
         this.accountService = accountService;
+        this.itemService = itemService;
         this.xianyuApiCallUtils = xianyuApiCallUtils;
         this.taskExecutor = taskExecutor;
     }
@@ -115,7 +122,7 @@ public class ItemPolishServiceImpl implements ItemPolishService {
         boolean started = startRun(accountId, MANUAL_TRIGGER, false);
         Map<String, Object> result = new HashMap<>();
         result.put("started", started);
-        result.put("message", started ? "擦亮任务已开始，结果会实时写入执行记录" : "该账号正在擦亮，请等待当前任务完成");
+        result.put("message", started ? "一键擦亮任务已开始，将先同步在售商品再依次擦亮" : "该账号正在同步或擦亮，请等待当前任务完成");
         return result;
     }
 
@@ -179,13 +186,25 @@ public class ItemPolishServiceImpl implements ItemPolishService {
                 throw new IllegalStateException("账号没有可用 Cookie，请先在连接管理中更新凭证");
             }
 
+            int syncedOnSaleCount = synchronizeOnSaleItems(accountId);
+            if (syncedOnSaleCount == 0) {
+                summary = "商品同步完成：当前没有在售商品，无需擦亮";
+                log.info("【一键擦亮】账号 {} 商品同步完成，当前没有在售商品", accountId);
+                return;
+            }
+
             List<XianyuGoodsInfo> items = goodsInfoMapper.selectList(
                     new LambdaQueryWrapper<XianyuGoodsInfo>()
                             .eq(XianyuGoodsInfo::getXianyuAccountId, accountId)
                             .eq(XianyuGoodsInfo::getStatus, 0)
                             .orderByAsc(XianyuGoodsInfo::getId));
             total = items.size();
-            log.info("【自动擦亮】账号 {} 开始执行，触发方式={}, 在售商品={}", accountId, triggerType, total);
+            if (total == 0) {
+                summary = "商品同步完成：发现 " + syncedOnSaleCount + " 件在售商品，但本地没有可擦亮商品";
+                log.warn("【一键擦亮】账号 {} 同步到 {} 件在售商品，但本地没有可擦亮商品", accountId, syncedOnSaleCount);
+                return;
+            }
+            log.info("【一键擦亮】账号 {} 商品同步完成，开始执行，触发方式={}, 在售商品={}", accountId, triggerType, total);
 
             for (int index = 0; index < items.size(); index++) {
                 XianyuGoodsInfo item = items.get(index);
@@ -203,8 +222,7 @@ public class ItemPolishServiceImpl implements ItemPolishService {
                     sleepBetweenItems();
                 }
             }
-            summary = total == 0 ? "没有本地已同步的在售商品需要擦亮"
-                    : "执行完成：共 " + total + " 件，成功 " + success + " 件，失败 " + failed + " 件";
+            summary = "同步后执行完成：共 " + total + " 件，成功 " + success + " 件，失败 " + failed + " 件";
         } catch (Exception e) {
             failed = Math.max(1, failed);
             summary = "执行异常：" + messageOf(e);
@@ -213,6 +231,30 @@ public class ItemPolishServiceImpl implements ItemPolishService {
             updateRunSummary(accountId, total, success, failed, summary == null ? "任务结束" : summary);
             runningAccountIds.remove(accountId);
         }
+    }
+
+    /**
+     * 每次擦亮前从闲鱼拉取账号的全部在售商品，避免新上架或下架的商品继续使用旧的本地列表。
+     * 同步异常时直接中止本次任务，宁可不擦亮，也不对过期列表执行操作。
+     */
+    private int synchronizeOnSaleItems(Long accountId) {
+        AllItemsReqDTO request = new AllItemsReqDTO();
+        request.setXianyuAccountId(accountId);
+        ResultObject<RefreshItemsRespDTO> result = itemService.refreshItems(request);
+        if (result == null || result.getCode() == null || result.getCode() != 200) {
+            String message = result == null ? "未收到同步结果" : messageOf(result.getMsg());
+            throw new IllegalStateException("商品同步失败，已取消本次擦亮：" + message);
+        }
+        RefreshItemsRespDTO data = result.getData();
+        if (data == null) {
+            throw new IllegalStateException("商品同步失败，已取消本次擦亮：未返回商品数据");
+        }
+
+        int totalCount = data.getTotalCount() == null ? 0 : Math.max(data.getTotalCount(), 0);
+        if (!Boolean.TRUE.equals(data.getSuccess()) && totalCount > 0) {
+            throw new IllegalStateException("商品同步失败，已取消本次擦亮：" + messageOf(data.getMessage()));
+        }
+        return totalCount;
     }
 
     /** 返回 null 表示成功，其余为失败原因。 */
