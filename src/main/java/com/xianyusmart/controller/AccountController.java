@@ -174,6 +174,9 @@ public class AccountController {
             if (reqDTO.getAutoAskFlowerText() != null) {
                 account.setAutoAskFlowerText(reqDTO.getAutoAskFlowerText());
             }
+            if (reqDTO.getAutoConnectOnStartup() != null) {
+                account.setAutoConnectOnStartup(reqDTO.getAutoConnectOnStartup() == 0 ? 0 : 1);
+            }
             
             accountMapper.updateById(account);
             

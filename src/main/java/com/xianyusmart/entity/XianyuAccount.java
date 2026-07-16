@@ -62,6 +62,9 @@ public class XianyuAccount {
      */
     private String autoAskFlowerText;
 
+    /** 服务器或容器启动后是否自动恢复该账号的实时连接。 */
+    private Integer autoConnectOnStartup;
+
     
     /**
      * 创建时间（SQLite存储为TEXT）

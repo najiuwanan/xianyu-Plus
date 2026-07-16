@@ -18,6 +18,7 @@ export interface Account {
   autoRateText?: string
   autoAskFlower?: number
   autoAskFlowerText?: string
+  autoConnectOnStartup?: number
 }
 
 // 商品类型

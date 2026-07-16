@@ -13,4 +13,5 @@ public class UpdateAccountReqDTO {
     private String autoRateText;     // 自动评价默认文案
     private Integer autoAskFlower;        // 是否自动索要鲜花
     private String autoAskFlowerText;     // 自动索要鲜花文案
+    private Integer autoConnectOnStartup; // 启动后自动恢复实时连接：1-开启，0-关闭
 }

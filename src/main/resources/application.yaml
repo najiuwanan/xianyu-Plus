@@ -19,6 +19,14 @@ app:
     initial-delay-ms: ${RED_FLOWER_INITIAL_DELAY_MS:90000}
     lookback-days: ${RED_FLOWER_LOOKBACK_DAYS:10}
     batch-size: ${RED_FLOWER_BATCH_SIZE:50}
+  websocket:
+    auto-reconnect-on-startup: ${WEBSOCKET_AUTO_RECONNECT_ON_STARTUP:true}
+    startup-reconnect-delay-ms: ${WEBSOCKET_STARTUP_RECONNECT_DELAY_MS:10000}
+    startup-reconnect-attempts: ${WEBSOCKET_STARTUP_RECONNECT_ATTEMPTS:8}
+    startup-reconnect-interval-ms: ${WEBSOCKET_STARTUP_RECONNECT_INTERVAL_MS:30000}
+  item-polish:
+    scan-delay-ms: ${ITEM_POLISH_SCAN_DELAY_MS:30000}
+    initial-delay-ms: ${ITEM_POLISH_INITIAL_DELAY_MS:90000}
   security:
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:12400}
     trust-proxy: ${TRUST_PROXY:false}

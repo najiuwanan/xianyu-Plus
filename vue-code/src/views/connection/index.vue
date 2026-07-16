@@ -61,6 +61,11 @@ const selectedAccountName = computed(() => {
   return acc?.accountNote || acc?.unb || ''
 })
 
+const selectedAccountAutoConnect = computed(() => {
+  if (!selectedAccountId.value) return 1
+  return accounts.value.find(a => Number(a.id) === selectedAccountId.value)?.autoConnectOnStartup ?? 1
+})
+
 // Handle account select
 const handleSelectAccount = (account: any) => {
   const id = Number(account.id)
@@ -114,6 +119,7 @@ onUnmounted(() => {
           <ConnectionDetail
             :account-id="selectedAccountId"
             :account-name="selectedAccountName"
+            :auto-connect-on-startup="selectedAccountAutoConnect"
           />
         </div>
       </div>

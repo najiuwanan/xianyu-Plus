@@ -3,6 +3,7 @@ import { ref, watch, computed, onBeforeUnmount } from 'vue'
 import { showConfirm } from '@/utils/confirm'
 import { toast } from '@/utils/toast'
 import { getConnectionStatus, startConnection, stopConnection } from '@/api/websocket'
+import { updateAccount } from '@/api/account'
 import { queryOperationLogs, type OperationLog } from '@/api/operation-log'
 import { showSuccess, showError, showInfo } from '@/utils'
 import CredentialModal from './CredentialModal.vue'
@@ -36,6 +37,7 @@ interface ConnectionStatus {
 interface Props {
   accountId: number | null
   accountName?: string
+  autoConnectOnStartup?: number
 }
 
 const props = defineProps<Props>()
@@ -50,6 +52,31 @@ const showQRUpdateDialog = ref(false)
 const showCaptchaGuideDialog = ref(false)
 const captchaUrl = ref('')
 const showCredentialDialog = ref(false)
+const autoConnectOnStartup = ref(props.autoConnectOnStartup !== 0)
+
+watch(() => props.autoConnectOnStartup, (value) => {
+  autoConnectOnStartup.value = value !== 0
+})
+
+const handleAutoConnectChange = async () => {
+  if (!props.accountId) return
+  const previousValue = !autoConnectOnStartup.value
+  try {
+    const response = await updateAccount({
+      id: props.accountId,
+      autoConnectOnStartup: autoConnectOnStartup.value ? 1 : 0
+    })
+    if (response.code !== 0 && response.code !== 200) {
+      throw new Error(response.msg || '保存失败')
+    }
+    showSuccess(autoConnectOnStartup.value
+      ? '已开启：服务器重启后会自动恢复该账号连接'
+      : '已关闭：服务器重启后不会自动连接该账号')
+  } catch (error: any) {
+    autoConnectOnStartup.value = previousValue
+    showError(`保存开机连接设置失败：${error.message || '未知错误'}`)
+  }
+}
 
 const loadConnectionStatus = async (silent = false) => {
   if (!props.accountId) return
@@ -290,6 +317,20 @@ onBeforeUnmount(() => {
             </button>
           </div>
 
+          <div class="status-card" :class="autoConnectOnStartup ? 'status-card--success' : 'status-card--neutral'">
+            <div class="status-card__icon">
+              <component :is="autoConnectOnStartup ? IconCheck : IconAlert" />
+            </div>
+            <div class="status-card__content">
+              <span class="status-card__title">开机自动连接</span>
+              <span class="status-card__desc">{{ autoConnectOnStartup ? '启动后自动恢复并重试' : '本账号不自动恢复' }}</span>
+            </div>
+            <label class="startup-toggle" title="服务器或容器启动后自动恢复实时连接">
+              <input v-model="autoConnectOnStartup" type="checkbox" :disabled="statusLoading" @change="handleAutoConnectChange">
+              <span></span>
+            </label>
+          </div>
+
           <div class="status-card" :class="connectionStatus.autoDeliveryOn ? 'status-card--success' : 'status-card--danger'">
             <div class="status-card__icon">
               <component :is="connectionStatus.autoDeliveryOn ? IconCheck : IconAlert" />
@@ -383,6 +424,49 @@ onBeforeUnmount(() => {
   --c-r-md: 12px;
   --c-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
+
+.status-card--neutral {
+  border-color: rgba(142, 142, 147, .25);
+  background: rgba(142, 142, 147, .08);
+}
+
+.startup-toggle {
+  width: 42px;
+  height: 24px;
+  position: relative;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.startup-toggle input {
+  position: absolute;
+  opacity: 0;
+}
+
+.startup-toggle span {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: #d1d1d6;
+  transition: .2s ease;
+}
+
+.startup-toggle span::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 3px;
+  top: 3px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,.28);
+  transition: .2s ease;
+}
+
+.startup-toggle input:checked + span { background: #30D158; }
+.startup-toggle input:checked + span::after { transform: translateX(18px); }
+.startup-toggle input:disabled + span { opacity: .55; cursor: not-allowed; }
 
 .detail-panel {
   height: 100%;

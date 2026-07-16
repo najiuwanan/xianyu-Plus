@@ -35,6 +35,12 @@ public class WebSocketStartupRecovery {
     @Value("${app.websocket.startup-reconnect-delay-ms:10000}")
     private long startupReconnectDelayMs;
 
+    @Value("${app.websocket.startup-reconnect-attempts:8}")
+    private int startupReconnectAttempts;
+
+    @Value("${app.websocket.startup-reconnect-interval-ms:30000}")
+    private long startupReconnectIntervalMs;
+
     public WebSocketStartupRecovery(XianyuAccountMapper accountMapper,
                                     AccountService accountService,
                                     WebSocketService webSocketService,
@@ -52,16 +58,20 @@ public class WebSocketStartupRecovery {
             return;
         }
         long delayMs = Math.max(0, startupReconnectDelayMs);
-        taskScheduler.schedule(this::restoreConnections, Instant.now().plusMillis(delayMs));
-        log.info("【实时连接恢复】将在 {} 秒后检查并恢复账号连接", delayMs / 1000D);
+        taskScheduler.schedule(() -> restoreConnections(1), Instant.now().plusMillis(delayMs));
+        log.info("【实时连接恢复】将在 {} 秒后检查并恢复账号连接，最多尝试 {} 次",
+                delayMs / 1000D, Math.max(1, startupReconnectAttempts));
     }
 
-    void restoreConnections() {
+    void restoreConnections(int attempt) {
+        int maxAttempts = Math.max(1, startupReconnectAttempts);
+        boolean hasPendingConnection = false;
         List<XianyuAccount> accounts = accountMapper.selectList(new QueryWrapper<XianyuAccount>()
                 .eq("status", 1));
         for (XianyuAccount account : accounts) {
             Long accountId = account.getId();
-            if (accountId == null || webSocketService.isConnected(accountId)) {
+            if (accountId == null || Integer.valueOf(0).equals(account.getAutoConnectOnStartup())
+                    || webSocketService.isConnected(accountId)) {
                 continue;
             }
             if (!StringUtils.hasText(accountService.getCookieByAccountId(accountId))) {
@@ -73,11 +83,22 @@ public class WebSocketStartupRecovery {
                 if (started) {
                     log.info("【实时连接恢复】账号 {} 已恢复连接", accountId);
                 } else {
-                    log.warn("【实时连接恢复】账号 {} 未能自动恢复，请在连接管理中重新连接", accountId);
+                    hasPendingConnection = true;
+                    log.warn("【实时连接恢复】账号 {} 第 {}/{} 次恢复未成功", accountId, attempt, maxAttempts);
                 }
             } catch (Exception e) {
-                log.warn("【实时连接恢复】账号 {} 恢复失败，请在连接管理中重新连接：{}", accountId, e.getMessage());
+                hasPendingConnection = true;
+                log.warn("【实时连接恢复】账号 {} 第 {}/{} 次恢复失败：{}",
+                        accountId, attempt, maxAttempts, e.getMessage());
             }
+        }
+        if (hasPendingConnection && attempt < maxAttempts) {
+            long intervalMs = Math.max(5_000, startupReconnectIntervalMs);
+            taskScheduler.schedule(() -> restoreConnections(attempt + 1), Instant.now().plusMillis(intervalMs));
+            log.info("【实时连接恢复】仍有账号未连接，将在 {} 秒后进行第 {} 次尝试",
+                    intervalMs / 1000D, attempt + 1);
+        } else if (hasPendingConnection) {
+            log.warn("【实时连接恢复】已完成 {} 次自动尝试，仍未恢复的账号请检查 Cookie 或完成验证", maxAttempts);
         }
     }
 }
