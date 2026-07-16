@@ -48,3 +48,21 @@ export function fetchModels(data: { apiKey: string; baseUrl: string }) {
     data
   })
 }
+
+/** 测试 AI 连接 */
+export function testAi(data: { apiKey: string; baseUrl: string; model: string }) {
+  return request<string>({
+    url: '/system/testAi',
+    method: 'post',
+    data
+  })
+}
+
+/** 测试 Embedding 连接 */
+export function testEmbedding(data: { apiKey: string; baseUrl: string; model: string }) {
+  return request<string>({
+    url: '/system/testEmbedding',
+    method: 'post',
+    data
+  })
+}

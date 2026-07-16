@@ -7,6 +7,7 @@ import com.xianyusmart.controller.dto.ChangePasswordReqDTO;
 import com.xianyusmart.controller.dto.CurrentUserRespDTO;
 import com.xianyusmart.controller.dto.FetchModelsReqDTO;
 import com.xianyusmart.controller.dto.FetchModelsRespDTO;
+import com.xianyusmart.controller.dto.TestAiReqDTO;
 import com.xianyusmart.controller.dto.VersionInfoRespDTO;
 import com.xianyusmart.entity.SysUser;
 import com.xianyusmart.exception.BusinessException;
@@ -243,6 +244,106 @@ public class SystemController {
         } catch (Exception e) {
             log.error("获取模型异常", e);
             return ResultObject.failed("获取模型异常：" + e.getMessage());
+        }
+    }
+
+    @PostMapping("/testAi")
+    public ResultObject<String> testAi(@RequestBody TestAiReqDTO reqDTO) {
+        try {
+            if (reqDTO.getApiKey() == null || reqDTO.getApiKey().trim().isEmpty()) {
+                return ResultObject.validateFailed("API Key不能为空");
+            }
+            if (reqDTO.getBaseUrl() == null || reqDTO.getBaseUrl().trim().isEmpty()) {
+                return ResultObject.validateFailed("Base URL不能为空");
+            }
+            if (reqDTO.getModel() == null || reqDTO.getModel().trim().isEmpty()) {
+                return ResultObject.validateFailed("模型不能为空");
+            }
+
+            String url = reqDTO.getBaseUrl().trim();
+            if (url.endsWith("/")) {
+                url = url.substring(0, url.length() - 1);
+            }
+            if (!url.endsWith("/v1") && !url.endsWith("/openai")) {
+                url += "/v1";
+            }
+            url += "/chat/completions";
+
+            String requestBody = "{\"model\":\"" + reqDTO.getModel().trim() + "\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}";
+
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(30))
+                    .header("Authorization", "Bearer " + reqDTO.getApiKey().trim())
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                return ResultObject.success("连接成功");
+            } else {
+                log.warn("AI测试连接失败, url: {}, status: {}, body: {}", url, response.statusCode(), response.body());
+                return ResultObject.failed("连接失败，状态码：" + response.statusCode());
+            }
+        } catch (Exception e) {
+            log.error("AI测试连接异常", e);
+            return ResultObject.failed("测试连接异常：" + e.getMessage());
+        }
+    }
+
+    @PostMapping("/testEmbedding")
+    public ResultObject<String> testEmbedding(@RequestBody TestAiReqDTO reqDTO) {
+        try {
+            if (reqDTO.getApiKey() == null || reqDTO.getApiKey().trim().isEmpty()) {
+                return ResultObject.validateFailed("API Key不能为空");
+            }
+            if (reqDTO.getBaseUrl() == null || reqDTO.getBaseUrl().trim().isEmpty()) {
+                return ResultObject.validateFailed("Base URL不能为空");
+            }
+            if (reqDTO.getModel() == null || reqDTO.getModel().trim().isEmpty()) {
+                return ResultObject.validateFailed("模型不能为空");
+            }
+
+            String url = reqDTO.getBaseUrl().trim();
+            if (url.endsWith("/")) {
+                url = url.substring(0, url.length() - 1);
+            }
+            if (!url.endsWith("/v1") && !url.endsWith("/openai")) {
+                url += "/v1";
+            }
+            url += "/embeddings";
+
+            String requestBody = "{\"model\":\"" + reqDTO.getModel().trim() + "\",\"input\":\"Hello\"}";
+
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(Duration.ofSeconds(10))
+                    .build();
+
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofSeconds(30))
+                    .header("Authorization", "Bearer " + reqDTO.getApiKey().trim())
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .build();
+
+            HttpResponse<String> response = client.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                return ResultObject.success("连接成功");
+            } else {
+                log.warn("Embedding测试连接失败, url: {}, status: {}, body: {}", url, response.statusCode(), response.body());
+                return ResultObject.failed("连接失败，状态码：" + response.statusCode());
+            }
+        } catch (Exception e) {
+            log.error("Embedding测试连接异常", e);
+            return ResultObject.failed("测试连接异常：" + e.getMessage());
         }
     }
 }

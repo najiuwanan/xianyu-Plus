@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
-import { getCurrentUser, changePassword, fetchModels } from '@/api/system'
+import { getCurrentUser, changePassword, fetchModels, testAi, testEmbedding } from '@/api/system'
 import { logout } from '@/api/auth'
 import { getSetting, saveSetting, testEmail } from '@/api/setting'
 import { getAIStatus } from '@/api/ai'
@@ -126,6 +126,73 @@ async function handleFetchModels(type: 'chat' | 'embedding') {
     }
   }
 }
+
+const testingChat = ref(false)
+const testingEmbedding = ref(false)
+const showChatDropdown = ref(false)
+const showEmbeddingDropdown = ref(false)
+
+function hideChatDropdownDelay() {
+  setTimeout(() => { showChatDropdown.value = false }, 200)
+}
+function hideEmbeddingDropdownDelay() {
+  setTimeout(() => { showEmbeddingDropdown.value = false }, 200)
+}
+function selectChatModel(m: string) {
+  aiModel.value = m
+  showChatDropdown.value = false
+}
+function selectEmbeddingModel(m: string) {
+  embeddingModel.value = m
+  showEmbeddingDropdown.value = false
+}
+
+async function handleTestChat() {
+  const apiKey = aiApiKey.value.trim()
+  const baseUrl = aiBaseUrl.value.trim()
+  const model = aiModel.value.trim()
+  if (!apiKey || !baseUrl || !model) {
+    toast.warning('请先填写完整 API Key、Base URL 和 模型名称')
+    return
+  }
+  testingChat.value = true
+  try {
+    const res = await testAi({ apiKey, baseUrl, model })
+    if (res.code === 200) {
+      toast.success('🎉 对话模型测试成功！连接正常')
+    } else {
+      toast.error(res.msg || '连接失败')
+    }
+  } catch (e: any) {
+    toast.error('请求异常: ' + (e.message || '未知错误'))
+  } finally {
+    testingChat.value = false
+  }
+}
+
+async function handleTestEmbedding() {
+  const apiKey = embeddingApiKey.value.trim() || aiApiKey.value.trim()
+  const baseUrl = embeddingBaseUrl.value.trim() || aiBaseUrl.value.trim()
+  const model = embeddingModel.value.trim()
+  if (!apiKey || !baseUrl || !model) {
+    toast.warning('请先填写完整 Embedding 配置')
+    return
+  }
+  testingEmbedding.value = true
+  try {
+    const res = await testEmbedding({ apiKey, baseUrl, model })
+    if (res.code === 200) {
+      toast.success('🎉 Embedding 测试成功！连接正常')
+    } else {
+      toast.error(res.msg || '连接失败')
+    }
+  } catch (e: any) {
+    toast.error('请求异常: ' + (e.message || '未知错误'))
+  } finally {
+    testingEmbedding.value = false
+  }
+}
+
 
 // 邮箱通知配置
 const EMAIL_SMTP_HOST_KEY = 'email_smtp_host'
@@ -986,20 +1053,39 @@ function handleBackupMenuEnter() {
                   {{ fetchingModels ? '获取中...' : '一键获取模型' }}
                 </button>
               </label>
-              <input
-                v-model="aiModel"
-                type="text"
-                class="settings__input"
-                placeholder="AI 对话模型"
-                :disabled="aiApiKeySaving"
-                list="chat-models"
-              />
-              <datalist id="chat-models">
-                <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
-              </datalist>
+              <div style="position: relative; width: 100%;">
+                <input
+                  v-model="aiModel"
+                  type="text"
+                  class="settings__input"
+                  placeholder="AI 对话模型"
+                  :disabled="aiApiKeySaving"
+                  @focus="showChatDropdown = true"
+                  @blur="hideChatDropdownDelay"
+                />
+                <div v-show="showChatDropdown && availableModels.length > 0" style="position: absolute; top: 100%; left: 0; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #dcdfe6; border-radius: 4px; box-shadow: 0 2px 12px 0 rgba(0,0,0,.1); z-index: 1000; margin-top: 4px; padding: 6px 0;">
+                  <div 
+                    v-for="m in availableModels" 
+                    :key="m" 
+                    @mousedown="selectChatModel(m)" 
+                    style="padding: 8px 15px; cursor: pointer; color: #333; font-size: 14px; transition: background 0.2s;"
+                    onmouseover="this.style.backgroundColor='#f5f7fa'"
+                    onmouseout="this.style.backgroundColor='transparent'"
+                  >
+                    {{ m }}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="settings__actions">
+              <button
+                class="settings__btn settings__btn--secondary"
+                :disabled="aiApiKeySaving || testingChat"
+                @click="handleTestChat"
+              >
+                {{ testingChat ? '测试中...' : '测试连接' }}
+              </button>
               <button
                 class="settings__btn settings__btn--secondary"
                 :disabled="aiApiKeySaving"
@@ -1076,20 +1162,39 @@ function handleBackupMenuEnter() {
                   {{ fetchingEmbeddingModels ? '获取中...' : '一键获取模型' }}
                 </button>
               </label>
-              <input
-                v-model="embeddingModel"
-                type="text"
-                class="settings__input"
-                placeholder="Embedding 模型名称，如 text-embedding-v3"
-                :disabled="embeddingSaving"
-                list="embedding-models"
-              />
-              <datalist id="embedding-models">
-                <option v-for="m in availableEmbeddingModels" :key="m" :value="m">{{ m }}</option>
-              </datalist>
+              <div style="position: relative; width: 100%;">
+                <input
+                  v-model="embeddingModel"
+                  type="text"
+                  class="settings__input"
+                  placeholder="Embedding 模型名称，如 text-embedding-v3"
+                  :disabled="embeddingSaving"
+                  @focus="showEmbeddingDropdown = true"
+                  @blur="hideEmbeddingDropdownDelay"
+                />
+                <div v-show="showEmbeddingDropdown && availableEmbeddingModels.length > 0" style="position: absolute; top: 100%; left: 0; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #dcdfe6; border-radius: 4px; box-shadow: 0 2px 12px 0 rgba(0,0,0,.1); z-index: 1000; margin-top: 4px; padding: 6px 0;">
+                  <div 
+                    v-for="m in availableEmbeddingModels" 
+                    :key="m" 
+                    @mousedown="selectEmbeddingModel(m)" 
+                    style="padding: 8px 15px; cursor: pointer; color: #333; font-size: 14px; transition: background 0.2s;"
+                    onmouseover="this.style.backgroundColor='#f5f7fa'"
+                    onmouseout="this.style.backgroundColor='transparent'"
+                  >
+                    {{ m }}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="settings__actions">
+              <button
+                class="settings__btn settings__btn--secondary"
+                :disabled="embeddingSaving || testingEmbedding"
+                @click="handleTestEmbedding"
+              >
+                {{ testingEmbedding ? '测试中...' : '测试连接' }}
+              </button>
               <button
                 class="settings__btn settings__btn--secondary"
                 :disabled="embeddingSaving"
