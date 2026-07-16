@@ -67,6 +67,7 @@ public class OrderAutomationService {
         String normalizedAction = action == null ? "" : action.trim().toUpperCase(Locale.ROOT);
         return switch (normalizedAction) {
             case "RATE" -> retryRate(accountId, orderId);
+            case "RATE_CHECK" -> checkAndRate(accountId, orderId);
             case "RED_FLOWER" -> retryRedFlower(accountId, orderId);
             default -> new OrderAutomationRetryRespDTO(false, action, "不支持的重试类型");
         };
@@ -82,6 +83,25 @@ public class OrderAutomationService {
         boolean success = rateService.rateBuyer(accountId, orderId, feedback);
         return new OrderAutomationRetryRespDTO(success, "RATE",
                 success ? "自动评价重试成功" : "自动评价重试失败，失败原因已更新");
+    }
+
+    /**
+     * 只在闲鱼已将订单放入待评价列表后提交评价，供待执行订单即时检查使用。
+     */
+    private OrderAutomationRetryRespDTO checkAndRate(Long accountId, String orderId) {
+        XianyuAccount account = accountMapper.selectById(accountId);
+        if (account == null) {
+            return new OrderAutomationRetryRespDTO(false, "RATE_CHECK", "账号不存在，无法检查自动评价");
+        }
+        RateService.PendingRateOrderCheck check = rateService.checkOrderReadyForRate(accountId, orderId);
+        if (!check.ready()) {
+            return new OrderAutomationRetryRespDTO(false, "RATE_CHECK", check.message());
+        }
+        String feedback = StringUtils.hasText(account.getAutoRateText())
+                ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
+        boolean success = rateService.rateBuyer(accountId, orderId, feedback);
+        return new OrderAutomationRetryRespDTO(success, "RATE_CHECK",
+                success ? "订单已进入待评价列表，自动评价成功" : "订单已进入待评价列表，但评价失败，失败原因已更新");
     }
 
     private OrderAutomationRetryRespDTO retryRedFlower(Long accountId, String orderId) {

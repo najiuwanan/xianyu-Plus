@@ -16,7 +16,7 @@ public class OrderAutomationRetryReqDTO {
     @NotBlank(message = "订单号不能为空")
     private String orderId;
 
-    /** RATE 或 RED_FLOWER */
+    /** RATE、RATE_CHECK 或 RED_FLOWER */
     @NotBlank(message = "重试类型不能为空")
     private String action;
 }

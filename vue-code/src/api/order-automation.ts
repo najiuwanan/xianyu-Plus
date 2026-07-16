@@ -1,7 +1,7 @@
 import { request } from '@/utils/request'
 
 export type AutomationFilterStatus = 'ALL' | 'SUCCESS' | 'FAILED' | 'PENDING'
-export type AutomationAction = 'RATE' | 'RED_FLOWER'
+export type AutomationAction = 'RATE' | 'RATE_CHECK' | 'RED_FLOWER'
 
 export interface OrderAutomationRecord {
   accountId: number

@@ -66,7 +66,7 @@ public class RateTaskScheduler {
                     : "不错的买家！";
 
             for (Map<String, Object> item : pendingList) {
-                String tradeId = extractTradeId(item);
+                String tradeId = rateService.extractTradeId(item);
                 if (tradeId != null) {
                     // 执行评价
                     rateService.rateBuyer(accountId, tradeId, feedbackText);
@@ -79,22 +79,4 @@ public class RateTaskScheduler {
         }
     }
 
-    /**
-     * 闲鱼待评价列表在不同页面版本中可能使用不同的订单号字段。
-     * 不能只读取 bizOrderId，否则接口返回成功却会被静默跳过。
-     */
-    private String extractTradeId(Map<String, Object> item) {
-        for (String key : List.of("bizOrderId", "tradeId", "orderId", "id")) {
-            Object value = item.get(key);
-            if (value == null) {
-                continue;
-            }
-            String tradeId = String.valueOf(value).trim();
-            if (!tradeId.isEmpty() && !"null".equalsIgnoreCase(tradeId)) {
-                return tradeId;
-            }
-        }
-        log.warn("【自动评价任务】待评价订单缺少订单号，已跳过。字段：{}", item.keySet());
-        return null;
-    }
 }

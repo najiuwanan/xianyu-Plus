@@ -124,7 +124,7 @@ onMounted(loadAccounts)
         <div class="card-title-row">
           <div>
             <h2>执行设置</h2>
-            <p>账号：{{ selectedAccountName }}</p>
+            <p>每天按设定时间完成“同步商品 → 一键擦亮”。</p>
           </div>
           <label class="switch-row">
             <input v-model="enabled" type="checkbox">
@@ -133,11 +133,19 @@ onMounted(loadAccounts)
           </label>
         </div>
 
-        <div class="form-row">
-          <label for="polish-time">每天执行时间</label>
-          <input id="polish-time" v-model="scheduleTime" class="time-input" type="time" :disabled="!enabled">
-          <span class="form-hint">每天到点会先同步该账号全部在售商品，再按 1–3 秒随机间隔逐件擦亮。</span>
+        <div class="polish-settings-grid">
+          <div class="setting-field">
+            <span class="setting-label">当前账号</span>
+            <strong>{{ selectedAccountName }}</strong>
+            <small>仅影响当前选择的闲鱼账号</small>
+          </div>
+          <div class="setting-field">
+            <label class="setting-label" for="polish-time">每日执行时间</label>
+            <input id="polish-time" v-model="scheduleTime" class="time-input" type="time" :disabled="!enabled">
+            <small>开启后每天自动执行一次</small>
+          </div>
         </div>
+        <div class="form-hint"><strong>执行流程：</strong>先同步全部在售商品，再按 1–3 秒随机间隔逐件擦亮。</div>
         <div class="config-actions">
           <button class="btn btn--primary" :disabled="saving" @click="saveConfig">{{ saving ? '保存中…' : '保存设置' }}</button>
         </div>
@@ -216,8 +224,14 @@ h2 { font-size: 17px; }
 .switch-thumb { display:block; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:.2s; }
 .switch-row input:checked + .switch-track { background: #30d158; }
 .switch-row input:checked + .switch-track .switch-thumb { transform: translateX(18px); }
-.form-row { display: grid; grid-template-columns: 120px 150px 1fr; gap: 14px; align-items: center; margin-top: 23px; }
-.form-row label { font-weight: 600; font-size: 14px; }
+.polish-settings-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; margin-top:20px; }
+.setting-field { min-height:88px; display:flex; flex-direction:column; justify-content:center; gap:7px; padding:15px 16px; border:1px solid rgba(60,60,67,.12); border-radius:11px; background:rgba(248,249,251,.82); }
+.setting-field strong { font-size:16px; color:#1c1c1e; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.setting-label { color:rgba(28,28,30,.6); font-size:13px; font-weight:600; }
+.setting-field .time-input { width:150px; }
+.setting-field small { font-size:12px; }
+.form-hint { display:block; margin-top:14px; line-height:1.55; padding:10px 12px; border-radius:9px; background:rgba(255,193,7,.1); color:rgba(91,64,0,.75); }
+.form-hint strong { color:#6c4b00; }
 .time-input:disabled { color: rgba(28,28,30,.35); background: #f4f5f7; }
 .config-actions { justify-content: flex-end; margin-top: 22px; }
 .polish-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
@@ -241,7 +255,7 @@ h2 { font-size: 17px; }
   .polish-page__header { display: block; }
   .polish-page__actions { margin-top: 16px; }
   .polish-select { flex: 1; }
-  .form-row { grid-template-columns: 1fr; gap: 8px; }
+  .polish-settings-grid { grid-template-columns:1fr; gap:10px; }
   .form-hint { line-height: 1.5; }
   .polish-summary { grid-template-columns: 1fr; gap: 10px; }
   .polish-card { padding: 17px; }

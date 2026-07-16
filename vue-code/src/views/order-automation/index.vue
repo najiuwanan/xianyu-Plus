@@ -104,7 +104,7 @@ const retry = async (record: OrderAutomationRecord, action: AutomationAction) =>
   }
 }
 
-const canRetry = (enabled: number, status: number) => enabled === 1 && status === 2
+const canCheckRate = (enabled: number, status: number) => enabled === 1 && status !== 1
 
 const isRetrying = (record: OrderAutomationRecord, action: AutomationAction) =>
   retryingKey.value === `${record.accountId}:${record.orderId}:${action}`
@@ -214,7 +214,7 @@ onMounted(async () => {
     </div>
 
     <div class="hint">
-      小红花只会在确认发货成功后处理，失败后会在下次重试时间自动再试；买家确认收货后，自动评价最迟会在下一轮扫描（默认约 2 分钟）中处理。
+      小红花只会在确认发货成功后处理，失败后会在下次重试时间自动再试；自动评价会先确认订单已进入闲鱼待评价列表，随后立即提交。待执行订单也可手动检查一次。
     </div>
 
     <div class="table-card">
@@ -262,15 +262,18 @@ onMounted(async () => {
               </td>
               <td>
                 <div class="actions">
-                  <button v-if="canRetry(record.rateEnabled, record.rateStatus)" class="retry-button"
-                    :disabled="isRetrying(record, 'RATE')" @click="retry(record, 'RATE')">
-                    {{ isRetrying(record, 'RATE') ? '重试中…' : '重试评价' }}
+                  <button v-if="canCheckRate(record.rateEnabled, record.rateStatus)" class="retry-button"
+                    :disabled="isRetrying(record, record.rateStatus === 2 ? 'RATE' : 'RATE_CHECK')"
+                    @click="retry(record, record.rateStatus === 2 ? 'RATE' : 'RATE_CHECK')">
+                    {{ isRetrying(record, record.rateStatus === 2 ? 'RATE' : 'RATE_CHECK')
+                      ? record.rateStatus === 2 ? '重试中…' : '检查中…'
+                      : record.rateStatus === 2 ? '重试评价' : '检查并评价' }}
                   </button>
                   <button v-if="canRetryRedFlower(record)" class="retry-button"
                     :disabled="isRetrying(record, 'RED_FLOWER')" @click="retry(record, 'RED_FLOWER')">
                     {{ isRetrying(record, 'RED_FLOWER') ? '重试中…' : '重试小红花' }}
                   </button>
-                  <span v-if="!canRetry(record.rateEnabled, record.rateStatus) && !canRetryRedFlower(record)" class="muted">无需操作</span>
+                  <span v-if="!canCheckRate(record.rateEnabled, record.rateStatus) && !canRetryRedFlower(record)" class="muted">无需操作</span>
                 </div>
               </td>
             </tr>
