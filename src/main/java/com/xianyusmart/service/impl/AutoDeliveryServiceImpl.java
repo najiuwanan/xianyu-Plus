@@ -3,21 +3,22 @@ package com.xianyusmart.service.impl;
 import com.xianyusmart.entity.XianyuGoodsAutoDeliveryConfig;
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.entity.XianyuGoodsAutoReplyRecord;
-import com.xianyusmart.mapper.OrderMapper;
+import com.xianyusmart.entity.XianyuGoodsConfig;
+import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.xianyusmart.mapper.XianyuGoodsAutoDeliveryConfigMapper;
-import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.xianyusmart.mapper.XianyuGoodsAutoReplyRecordMapper;
+import com.xianyusmart.service.AutoDeliveryService;
 import com.xianyusmart.service.EmailNotifyService;
 import com.xianyusmart.service.KamiConfigService;
+import com.xianyusmart.service.OrderService;
 import com.xianyusmart.service.NotificationChannelService;
+import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.entity.XianyuGoodsInfo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.xianyusmart.service.OrderService;
 import com.xianyusmart.service.WebSocketService;
-import com.xianyusmart.service.XianyuAccountService;
 import com.xianyusmart.service.delivery.DeliveryContext;
 import com.xianyusmart.service.delivery.DeliveryStrategyResolver;
 import com.xianyusmart.service.delivery.OrderDetailFetcher;
@@ -47,6 +48,12 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
     
     @Autowired
     private XianyuGoodsConfigMapper goodsConfigMapper;
+
+    @Autowired
+    private NotificationChannelService notificationChannelService;
+
+    @Autowired
+    private XianyuGoodsInfoMapper goodsInfoMapper;
     
     @Autowired
     private XianyuGoodsAutoDeliveryConfigMapper autoDeliveryConfigMapper;
@@ -78,15 +85,6 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
     @Autowired
     private DeliveryStrategyResolver deliveryStrategyResolver;
-
-    @Autowired
-    private NotificationChannelService notificationChannelService;
-
-    @Autowired
-    private XianyuAccountService xianyuAccountService;
-
-    @Autowired
-    private XianyuGoodsInfoMapper goodsInfoMapper;
 
     @Autowired
     private KamiConfigService kamiConfigService;
