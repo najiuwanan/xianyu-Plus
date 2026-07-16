@@ -60,22 +60,48 @@ public class RedFlowerService {
         if (accountId == null) {
             return;
         }
-        String cookie = accountService.getCookieByAccountId(accountId);
-        if (cookie == null || cookie.isBlank()) {
-            log.warn("【账号{}】求小红花跳过：Cookie 不可用", accountId);
-            return;
-        }
 
         List<XianyuGoodsOrder> orders = automationRecordMapper.findRedFlowerCandidates(
                 accountId, lookbackDays, batchSize);
+        if (orders.isEmpty()) {
+            return;
+        }
+
+        String cookie = accountService.getCookieByAccountId(accountId);
+        if (cookie == null || cookie.isBlank()) {
+            String error = "Cookie 不可用，请重新登录该闲鱼账号后重试";
+            for (XianyuGoodsOrder order : orders) {
+                automationRecordMapper.markRedFlowerFailure(accountId, order.getOrderId(), error);
+            }
+            log.warn("【账号{}】求小红花失败：Cookie 不可用", accountId);
+            return;
+        }
+
         for (XianyuGoodsOrder order : orders) {
             requestRedFlower(accountId, order.getOrderId(), cookie);
         }
     }
 
-    private void requestRedFlower(Long accountId, String orderId, String cookie) {
+    /**
+     * 在执行中心中对单笔订单立即补发小红花请求。
+     */
+    public boolean retryRedFlower(Long accountId, String orderId) {
+        if (accountId == null || orderId == null || orderId.isBlank()) {
+            return false;
+        }
+        String cookie = accountService.getCookieByAccountId(accountId);
+        if (cookie == null || cookie.isBlank()) {
+            automationRecordMapper.markRedFlowerFailure(accountId, orderId,
+                    "Cookie 不可用，请重新登录该闲鱼账号后重试");
+            log.warn("【账号{}】手动重试小红花失败：Cookie 不可用，orderId={}", accountId, orderId);
+            return false;
+        }
+        return requestRedFlower(accountId, orderId, cookie);
+    }
+
+    private boolean requestRedFlower(Long accountId, String orderId, String cookie) {
         if (orderId == null || orderId.isBlank()) {
-            return;
+            return false;
         }
 
         Map<String, Object> payload = new HashMap<>();
@@ -95,12 +121,13 @@ public class RedFlowerService {
         if (result.isSuccess()) {
             automationRecordMapper.markRedFlowerSuccess(accountId, orderId);
             log.info("【账号{}】订单求小红花成功：orderId={}", accountId, orderId);
-            return;
+            return true;
         }
 
         String error = truncate(result.getErrorMessage());
         automationRecordMapper.markRedFlowerFailure(accountId, orderId, error);
         log.warn("【账号{}】订单求小红花失败：orderId={}, reason={}", accountId, orderId, error);
+        return false;
     }
 
     private String truncate(String message) {

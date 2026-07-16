@@ -1,9 +1,13 @@
 package com.xianyusmart.mapper;
 
+import com.xianyusmart.controller.dto.OrderAutomationRecordDTO;
+import com.xianyusmart.controller.dto.OrderAutomationSummaryDTO;
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Result;
+import org.apache.ibatis.annotations.Results;
 import org.apache.ibatis.annotations.Select;
 
 import java.util.List;
@@ -13,6 +17,120 @@ import java.util.List;
  */
 @Mapper
 public interface OrderAutomationRecordMapper {
+
+    @Select("<script>" +
+            "SELECT o.xianyu_account_id AS account_id, a.account_note AS account_name, " +
+            "o.order_id, o.buyer_user_name, o.goods_title, o.create_time AS order_create_time, " +
+            "a.auto_rate_enabled AS rate_enabled, COALESCE(r.rate_status, 0) AS rate_status, " +
+            "r.rate_time, r.rate_error, a.auto_ask_flower AS red_flower_enabled, " +
+            "COALESCE(r.red_flower_status, 0) AS red_flower_status, r.red_flower_time, " +
+            "r.red_flower_error, COALESCE(r.red_flower_attempt_count, 0) AS red_flower_attempt_count, " +
+            "r.red_flower_next_retry_time " +
+            "FROM xianyu_goods_order o " +
+            "INNER JOIN xianyu_account a ON a.id = o.xianyu_account_id " +
+            "LEFT JOIN xianyu_order_automation_record r " +
+            "ON r.xianyu_account_id = o.xianyu_account_id AND r.order_id = o.order_id " +
+            "WHERE o.state = 1 AND o.order_id IS NOT NULL AND o.order_id &lt;&gt; '' " +
+            "AND (a.auto_rate_enabled = 1 OR a.auto_ask_flower = 1) " +
+            "<if test='accountId != null'>AND o.xianyu_account_id = #{accountId} </if>" +
+            "<if test=\"status == 'SUCCESS'\">" +
+            "AND (a.auto_rate_enabled = 0 OR COALESCE(r.rate_status, 0) = 1) " +
+            "AND (a.auto_ask_flower = 0 OR COALESCE(r.red_flower_status, 0) = 1) " +
+            "</if>" +
+            "<if test=\"status == 'FAILED'\">" +
+            "AND ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 2) " +
+            "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 2)) " +
+            "</if>" +
+            "<if test=\"status == 'PENDING'\">" +
+            "AND NOT ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 2) " +
+            "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 2)) " +
+            "AND ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) &lt;&gt; 1) " +
+            "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) &lt;&gt; 1)) " +
+            "</if>" +
+            "ORDER BY COALESCE(r.update_time, o.create_time) DESC, o.id DESC " +
+            "LIMIT #{limit} OFFSET #{offset}" +
+            "</script>")
+    @Results(id = "automationRecordResult", value = {
+            @Result(property = "accountId", column = "account_id"),
+            @Result(property = "accountName", column = "account_name"),
+            @Result(property = "orderId", column = "order_id"),
+            @Result(property = "buyerUserName", column = "buyer_user_name"),
+            @Result(property = "goodsTitle", column = "goods_title"),
+            @Result(property = "orderCreateTime", column = "order_create_time"),
+            @Result(property = "rateEnabled", column = "rate_enabled"),
+            @Result(property = "rateStatus", column = "rate_status"),
+            @Result(property = "rateTime", column = "rate_time"),
+            @Result(property = "rateError", column = "rate_error"),
+            @Result(property = "redFlowerEnabled", column = "red_flower_enabled"),
+            @Result(property = "redFlowerStatus", column = "red_flower_status"),
+            @Result(property = "redFlowerTime", column = "red_flower_time"),
+            @Result(property = "redFlowerError", column = "red_flower_error"),
+            @Result(property = "redFlowerAttemptCount", column = "red_flower_attempt_count"),
+            @Result(property = "redFlowerNextRetryTime", column = "red_flower_next_retry_time")
+    })
+    List<OrderAutomationRecordDTO> findExecutionRecords(@Param("accountId") Long accountId,
+                                                          @Param("status") String status,
+                                                          @Param("limit") int limit,
+                                                          @Param("offset") int offset);
+
+    @Select("<script>" +
+            "SELECT COUNT(1) FROM xianyu_goods_order o " +
+            "INNER JOIN xianyu_account a ON a.id = o.xianyu_account_id " +
+            "LEFT JOIN xianyu_order_automation_record r " +
+            "ON r.xianyu_account_id = o.xianyu_account_id AND r.order_id = o.order_id " +
+            "WHERE o.state = 1 AND o.order_id IS NOT NULL AND o.order_id &lt;&gt; '' " +
+            "AND (a.auto_rate_enabled = 1 OR a.auto_ask_flower = 1) " +
+            "<if test='accountId != null'>AND o.xianyu_account_id = #{accountId} </if>" +
+            "<if test=\"status == 'SUCCESS'\">" +
+            "AND (a.auto_rate_enabled = 0 OR COALESCE(r.rate_status, 0) = 1) " +
+            "AND (a.auto_ask_flower = 0 OR COALESCE(r.red_flower_status, 0) = 1) " +
+            "</if>" +
+            "<if test=\"status == 'FAILED'\">" +
+            "AND ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 2) " +
+            "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 2)) " +
+            "</if>" +
+            "<if test=\"status == 'PENDING'\">" +
+            "AND NOT ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 2) " +
+            "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 2)) " +
+            "AND ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) &lt;&gt; 1) " +
+            "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) &lt;&gt; 1)) " +
+            "</if>" +
+            "</script>")
+    long countExecutionRecords(@Param("accountId") Long accountId, @Param("status") String status);
+
+    @Select("<script>" +
+            "SELECT COUNT(1) AS total, " +
+            "COALESCE(SUM(CASE WHEN (a.auto_rate_enabled = 0 OR COALESCE(r.rate_status, 0) = 1) " +
+            "AND (a.auto_ask_flower = 0 OR COALESCE(r.red_flower_status, 0) = 1) THEN 1 ELSE 0 END), 0) AS completed, " +
+            "COALESCE(SUM(CASE WHEN (a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 2) " +
+            "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 2) THEN 1 ELSE 0 END), 0) AS failed, " +
+            "COALESCE(SUM(CASE WHEN NOT ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 2) " +
+            "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 2)) " +
+            "AND ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) &lt;&gt; 1) " +
+            "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) &lt;&gt; 1)) THEN 1 ELSE 0 END), 0) AS pending, " +
+            "COALESCE(SUM(CASE WHEN a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 1 THEN 1 ELSE 0 END), 0) AS rate_success, " +
+            "COALESCE(SUM(CASE WHEN a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 1 THEN 1 ELSE 0 END), 0) AS red_flower_success " +
+            "FROM xianyu_goods_order o " +
+            "INNER JOIN xianyu_account a ON a.id = o.xianyu_account_id " +
+            "LEFT JOIN xianyu_order_automation_record r " +
+            "ON r.xianyu_account_id = o.xianyu_account_id AND r.order_id = o.order_id " +
+            "WHERE o.state = 1 AND o.order_id IS NOT NULL AND o.order_id &lt;&gt; '' " +
+            "AND (a.auto_rate_enabled = 1 OR a.auto_ask_flower = 1) " +
+            "<if test='accountId != null'>AND o.xianyu_account_id = #{accountId}</if>" +
+            "</script>")
+    @Results(id = "automationSummaryResult", value = {
+            @Result(property = "total", column = "total"),
+            @Result(property = "completed", column = "completed"),
+            @Result(property = "failed", column = "failed"),
+            @Result(property = "pending", column = "pending"),
+            @Result(property = "rateSuccess", column = "rate_success"),
+            @Result(property = "redFlowerSuccess", column = "red_flower_success")
+    })
+    OrderAutomationSummaryDTO summarizeExecutionRecords(@Param("accountId") Long accountId);
+
+    @Select("SELECT COUNT(1) FROM xianyu_goods_order " +
+            "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId} AND state = 1")
+    int countSuccessfulDeliveryOrder(@Param("accountId") Long accountId, @Param("orderId") String orderId);
 
     @Select("SELECT o.order_id AS orderId FROM xianyu_goods_order o " +
             "LEFT JOIN xianyu_order_automation_record r " +

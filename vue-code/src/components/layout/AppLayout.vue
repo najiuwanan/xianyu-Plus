@@ -66,6 +66,7 @@ const pageTitleMap: Record<string, string> = {
   '/messages': '消息管理',
   '/notifications': '通知渠道',
   '/auto-delivery': '自动发货',
+  '/order-automation': '自动化执行中心',
 
   '/auto-reply': '自动回复',
   '/operation-log': '操作日志',
@@ -80,6 +81,7 @@ const pageIconMap: Record<string, any> = {
   '/orders': markRaw(IconTruck),
   '/messages': markRaw(IconMessage),
   '/auto-delivery': markRaw(IconRobot),
+  '/order-automation': markRaw(IconLog),
 
   '/auto-reply': markRaw(IconChat),
   '/operation-log': markRaw(IconLog),
@@ -146,7 +148,7 @@ onUnmounted(() => {
         <component v-if="currentPageIcon" :is="currentPageIcon" class="header-page-icon" />
         <div class="mobile-page-title">{{ currentPageTitle }}</div>
       </div>
-      <div v-if="headerContent && (route.path === '/goods' || route.path === '/messages' || route.path === '/auto-delivery' || route.path === '/kami-config' || route.path === '/orders' || route.path === '/auto-reply' || route.path === '/operation-log')" class="header-content-slot">
+      <div v-if="headerContent && (route.path === '/goods' || route.path === '/messages' || route.path === '/auto-delivery' || route.path === '/order-automation' || route.path === '/kami-config' || route.path === '/orders' || route.path === '/auto-reply' || route.path === '/operation-log')" class="header-content-slot">
         <component :is="headerContent" />
       </div>
     </div>
@@ -160,7 +162,7 @@ onUnmounted(() => {
         <component v-if="currentPageIcon" :is="currentPageIcon" class="header-page-icon" />
         <div class="tablet-page-title">{{ currentPageTitle }}</div>
       </div>
-      <div v-if="headerContent && (route.path === '/goods' || route.path === '/messages' || route.path === '/auto-delivery' || route.path === '/kami-config' || route.path === '/orders' || route.path === '/auto-reply' || route.path === '/operation-log')" class="header-content-slot">
+      <div v-if="headerContent && (route.path === '/goods' || route.path === '/messages' || route.path === '/auto-delivery' || route.path === '/order-automation' || route.path === '/kami-config' || route.path === '/orders' || route.path === '/auto-reply' || route.path === '/operation-log')" class="header-content-slot">
         <component :is="headerContent" />
       </div>
     </div>

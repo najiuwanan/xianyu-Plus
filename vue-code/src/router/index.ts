@@ -69,6 +69,12 @@ const router = createRouter({
       meta: { title: '自动发货', icon: '🤖' }
     },
     {
+      path: '/order-automation',
+      name: 'order-automation',
+      component: () => import('@/views/order-automation/index.vue'),
+      meta: { title: '自动化执行中心', icon: '✨' }
+    },
+    {
       path: '/pending-orders',
       name: 'pending-orders',
       component: () => import('@/views/pending-orders/index.vue'),
