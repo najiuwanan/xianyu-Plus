@@ -113,6 +113,10 @@ public class OrderTimelineService {
         }
         if (Integer.valueOf(1).equals(automation.getRateStatus())) {
             add(events, "RATE", "自动评价成功", "已完成买家评价", "SUCCESS", format(automation.getRateTime()), false, null);
+        } else if (Integer.valueOf(3).equals(automation.getRateStatus())) {
+            add(events, "RATE", "自动评价无需处理",
+                    firstNonBlank(automation.getRateError(), "该订单当前无需评价"),
+                    "SKIPPED", format(automation.getRateTime()), false, null);
         } else if (Integer.valueOf(2).equals(automation.getRateStatus())) {
             add(events, "RATE", "自动评价失败",
                     firstNonBlank(automation.getRateError(), "请到异常中心查看失败原因"),

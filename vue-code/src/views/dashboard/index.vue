@@ -63,15 +63,8 @@ const todoRows = computed(() => [
   { label: '未读买家消息', detail: '买家消息等待人工查看与回复', count: Number(stats.unreadMessageCount || 0), action: '去处理', path: '/messages', tone: stats.unreadMessageCount ? 'danger' : 'success', icon: IconMessage },
   { label: '等待自动发货', detail: '已付款订单将由自动化任务持续处理', count: Number(stats.pendingTaskCount || 0), action: '查看订单', path: '/orders', tone: stats.pendingTaskCount ? 'warning' : 'success', icon: IconTruck },
   { label: '需要人工核对', detail: '请确认无法自动完成的订单或任务', count: Number(stats.reviewRequiredCount || 0), action: '去核对', path: '/exception-center', tone: stats.reviewRequiredCount ? 'warning' : 'success', icon: IconClipboard },
-  { label: '自动化异常', detail: '发货、评价、小红花与擦亮失败记录', count: Number(automationExceptionCount.value || 0), action: '看原因', path: '/exception-center', tone: automationExceptionCount.value ? 'danger' : 'success', icon: IconAlert },
+  { label: '自动化异常', detail: '发货、评价、小红花与擦亮失败记录', count: Number(automationExceptionCount.value || 0), action: '看原因', path: '/exception-center', tone: automationExceptionCount.value ? 'warning' : 'success', icon: IconAlert },
   { label: '卡券库存预警', detail: '库存不足可能影响后续自动发货', count: Number(stats.lowStockConfigCount || 0), action: '去补充', path: '/kami-config', tone: stats.lowStockConfigCount ? 'warning' : 'success', icon: IconPackage }
-])
-
-const automationRows = computed(() => [
-  { label: '自动发货', value: Number(stats.pendingTaskCount || 0), emptyText: '暂无待发货订单', activeText: '笔订单待处理', path: '/orders', tone: stats.pendingTaskCount ? 'warning' : 'success' },
-  { label: '人工核对', value: Number(stats.reviewRequiredCount || 0), emptyText: '暂无待核对任务', activeText: '项需要核对', path: '/exception-center', tone: stats.reviewRequiredCount ? 'warning' : 'success' },
-  { label: '异常处理', value: Number(automationExceptionCount.value || 0), emptyText: '自动化运行正常', activeText: '项异常待处理', path: '/exception-center', tone: automationExceptionCount.value ? 'warning' : 'success' },
-  { label: '卡券库存', value: Number(stats.lowStockConfigCount || 0), emptyText: '库存状态正常', activeText: '项库存预警', path: '/kami-config', tone: stats.lowStockConfigCount ? 'warning' : 'success' }
 ])
 
 const money = (value: number) => Number(value || 0).toLocaleString('zh-CN', {
@@ -134,7 +127,7 @@ onMounted(loadStatistics)
         <div><span>未读客服消息</span><strong>{{ stats.unreadMessageCount }}</strong><small>买家尚未人工查看的消息</small></div>
       </article>
       <article class="metric-card">
-        <span class="metric-card__icon metric-card__icon--red"><IconAlert /></span>
+        <span class="metric-card__icon metric-card__icon--amber"><IconAlert /></span>
         <div><span>待处理异常</span><strong>{{ todoCount }}</strong><small>待办、异常、库存与账号状态</small></div>
       </article>
     </section>
@@ -156,22 +149,6 @@ onMounted(loadStatistics)
         </div>
       </section>
 
-      <section class="dashboard-panel dashboard-panel--automation">
-        <div class="panel-heading"><div><h2>自动化健康状态</h2><p>根据当前待办与异常任务实时汇总</p></div></div>
-        <div class="automation-list">
-          <button v-for="item in automationRows" :key="item.label" class="automation-row" type="button" @click="go(item.path)">
-            <span class="automation-row__name">{{ item.label }}</span>
-            <span class="automation-row__detail" :class="`automation-row__detail--${item.tone}`">{{ item.value ? `${item.value} ${item.activeText}` : item.emptyText }}</span>
-            <span class="automation-row__badge" :class="`automation-row__badge--${item.tone}`">{{ item.value ? '关注' : '正常' }}</span>
-            <span class="automation-row__arrow">›</span>
-          </button>
-        </div>
-        <div class="account-health-summary">
-          <span class="status-dot" :class="accountIssueCount ? 'status-dot--danger' : 'status-dot--success'"></span>
-          {{ accountIssueCount ? `${accountIssueCount} 个账号连接或凭证异常` : `${healthyAccountCount} 个账号连接状态正常` }}
-          <button @click="go('/connection')">查看账号</button>
-        </div>
-      </section>
     </section>
 
     <div class="dashboard-columns">

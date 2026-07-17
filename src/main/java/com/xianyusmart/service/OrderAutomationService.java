@@ -2,6 +2,7 @@ package com.xianyusmart.service;
 
 import com.xianyusmart.controller.dto.OrderAutomationQueryReqDTO;
 import com.xianyusmart.controller.dto.OrderAutomationRecordDTO;
+import com.xianyusmart.controller.dto.OrderAutomationRecordDTO;
 import com.xianyusmart.controller.dto.OrderAutomationRetryRespDTO;
 import com.xianyusmart.controller.dto.OrderAutomationSummaryDTO;
 import com.xianyusmart.entity.XianyuAccount;
@@ -44,6 +45,7 @@ public class OrderAutomationService {
         int pageSize = request.getPageSize() == null || request.getPageSize() < 1
                 ? DEFAULT_PAGE_SIZE : Math.min(request.getPageSize(), MAX_PAGE_SIZE);
         String status = normalizeStatus(request.getStatus());
+        automationRecordMapper.resolveTerminalRateFailures(request.getAccountId());
 
         List<OrderAutomationRecordDTO> records = automationRecordMapper.findExecutionRecords(
                 request.getAccountId(), status, pageSize, (page - 1) * pageSize);
@@ -87,6 +89,9 @@ public class OrderAutomationService {
         String feedback = StringUtils.hasText(account.getAutoRateText())
                 ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
         boolean success = rateService.rateBuyer(accountId, orderId, feedback);
+        if (success && isRateSkipped(accountId, orderId)) {
+            return new OrderAutomationRetryRespDTO(true, "RATE", "当前订单无需评价，已从待处理事项移除");
+        }
         return new OrderAutomationRetryRespDTO(success, "RATE",
                 success ? "自动评价重试成功" : "自动评价重试失败，失败原因已更新");
     }
@@ -103,6 +108,9 @@ public class OrderAutomationService {
         String feedback = StringUtils.hasText(account.getAutoRateText())
                 ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
         boolean success = rateService.rateBuyer(accountId, orderId, feedback);
+        if (success && isRateSkipped(accountId, orderId)) {
+            return new OrderAutomationRetryRespDTO(true, "RATE_CHECK", "当前订单无需评价，已从待处理事项移除");
+        }
         if (!check.ready()) {
             return new OrderAutomationRetryRespDTO(success, "RATE_CHECK",
                     success ? "待评价列表未返回该订单，但已通过闲鱼评价接口提交成功"
@@ -131,5 +139,10 @@ public class OrderAutomationService {
             case "SUCCESS", "FAILED", "PENDING" -> normalized;
             default -> "ALL";
         };
+    }
+
+    private boolean isRateSkipped(Long accountId, String orderId) {
+        OrderAutomationRecordDTO state = automationRecordMapper.findTimelineState(accountId, orderId);
+        return state != null && Integer.valueOf(3).equals(state.getRateStatus());
     }
 }

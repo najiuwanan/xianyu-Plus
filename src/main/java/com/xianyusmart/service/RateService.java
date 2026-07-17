@@ -81,6 +81,14 @@ public class RateService {
             return true;
         }
 
+        if (isRateNotActionable(result)) {
+            String reason = normalizeError(result.getErrorMessage(), "当前订单无需评价");
+            automationRecordMapper.markRateSkipped(accountId, tradeId,
+                    reason.substring(0, Math.min(reason.length(), 500)));
+            log.info("【自动评价】账号{}订单{}无需评价：{}", accountId, tradeId, reason);
+            return true;
+        }
+
         recordFailure(accountId, tradeId, result.getErrorMessage());
         log.warn("【自动评价】账号{}订单{}评价失败: {}", accountId, tradeId, result.getErrorMessage());
         return false;
@@ -314,6 +322,14 @@ public class RateService {
                 .toLowerCase(Locale.ROOT);
         return detail.contains("已评价") || detail.contains("重复评价")
                 || detail.contains("already_rate") || detail.contains("already rate");
+    }
+
+    private boolean isRateNotActionable(XianyuApiCallUtils.ApiCallResult result) {
+        String detail = (String.valueOf(result.getErrorMessage()) + " " + String.valueOf(result.getResponse()))
+                .toLowerCase(Locale.ROOT);
+        return detail.contains("当前订单不能评价") || detail.contains("当前订单不可评价")
+                || detail.contains("订单不能评价") || detail.contains("订单不可评价")
+                || detail.contains("不支持评价") || detail.contains("无评价资格");
     }
 
     private void recordFailure(Long accountId, String tradeId, String error) {

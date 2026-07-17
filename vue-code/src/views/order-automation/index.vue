@@ -104,7 +104,7 @@ const retry = async (record: OrderAutomationRecord, action: AutomationAction) =>
   }
 }
 
-const canCheckRate = (enabled: number, status: number) => enabled === 1 && status !== 1
+const canCheckRate = (enabled: number, status: number) => enabled === 1 && status !== 1 && status !== 3
 
 const isRetrying = (record: OrderAutomationRecord, action: AutomationAction) =>
   retryingKey.value === `${record.accountId}:${record.orderId}:${action}`
@@ -113,6 +113,7 @@ const statusText = (enabled: number, status: number) => {
   if (enabled !== 1) return '未开启'
   if (status === 1) return '成功'
   if (status === 2) return '失败'
+  if (status === 3) return '无需评价'
   return '待执行'
 }
 
@@ -120,6 +121,7 @@ const statusClass = (enabled: number, status: number) => {
   if (enabled !== 1) return 'status--disabled'
   if (status === 1) return 'status--success'
   if (status === 2) return 'status--failed'
+  if (status === 3) return 'status--skipped'
   return 'status--pending'
 }
 
@@ -247,7 +249,8 @@ onMounted(async () => {
                   {{ statusText(record.rateEnabled, record.rateStatus) }}
                 </span>
                 <p v-if="record.rateTime" class="cell-time">{{ formatTime(record.rateTime) }}</p>
-                <p v-if="record.rateError" class="error-text" :title="record.rateError">{{ record.rateError }}</p>
+                <p v-if="record.rateError && record.rateStatus === 3" class="cell-time" :title="record.rateError">{{ record.rateError }}</p>
+                <p v-else-if="record.rateError" class="error-text" :title="record.rateError">{{ record.rateError }}</p>
               </td>
               <td>
                 <span class="status" :class="redFlowerStatusClass(record)">
@@ -326,6 +329,7 @@ tbody tr:last-child td { border-bottom:0; }
 .status { display:inline-flex; align-items:center; border-radius:999px; font-size:12px; font-weight:600; padding:4px 9px; }
 .status--success { color:#067647; background:#ecfdf3; }
 .status--failed { color:#b42318; background:#fef3f2; }
+.status--skipped { color:#475467; background:#f2f4f7; }
 .status--pending { color:#b54708; background:#fffaeb; }
 .status--waiting { color:#475467; background:#f2f4f7; }
 .status--disabled { color:#667085; background:#f2f4f7; }
