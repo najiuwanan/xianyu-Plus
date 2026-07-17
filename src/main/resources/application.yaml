@@ -2,9 +2,6 @@ server:
   port: 12400
 
 app:
-  version: 1.0.0
-  update:
-    release-api: ${UPDATE_RELEASE_API:}
   executor:
     core-size: ${EXECUTOR_CORE_SIZE:4}
     max-size: ${EXECUTOR_MAX_SIZE:8}

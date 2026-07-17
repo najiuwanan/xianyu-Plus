@@ -17,29 +17,6 @@ export function changePassword(data: { oldPassword: string; newPassword: string;
   })
 }
 
-/** 获取当前版本号 */
-export function getVersion() {
-  return request<string>({
-    url: '/system/version',
-    method: 'get'
-  })
-}
-
-/** 检查更新 */
-export function checkUpdate() {
-  return request<{
-    currentVersion: string
-    latestVersion: string
-    hasUpdate: boolean
-    updateContent: string
-    publishedAt: string
-    downloadUrl: string
-  }>({
-    url: '/system/checkUpdate',
-    method: 'get'
-  })
-}
-
 /** 获取模型列表 */
 export function fetchModels(data: { apiKey: string; baseUrl: string }) {
   return request<{ models: string[] }>({

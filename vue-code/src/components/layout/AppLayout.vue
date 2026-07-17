@@ -2,17 +2,10 @@
 import { computed, onMounted, onUnmounted, provide, ref, shallowRef } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import NavMenu from './NavMenu.vue'
-import UpdateDialog from './UpdateDialog.vue'
 import UserMenu from './UserMenu.vue'
-import { checkUpdate } from '@/api/system'
 
 const route = useRoute()
 
-declare const __APP_VERSION__: string
-
-const currentVersion = ref(__APP_VERSION__ || '1.0.0')
-const hasNewVersion = ref(false)
-const updateDialog = ref<InstanceType<typeof UpdateDialog> | null>(null)
 const headerContent = shallowRef<any>(null)
 const isMobile = ref(false)
 const isTablet = ref(false)
@@ -47,17 +40,6 @@ const setHeaderContent = (content: any) => {
 
 provide('setHeaderContent', setHeaderContent)
 
-const loadVersion = async () => {
-  try {
-    const updateRes = await checkUpdate()
-    hasNewVersion.value = updateRes.data?.hasUpdate === true
-  } catch {
-    // 版本检查失败不影响页面使用。
-  }
-}
-
-const openUpdateDialog = () => updateDialog.value?.open()
-
 const checkScreenSize = () => {
   const width = window.innerWidth
   isMobile.value = width < 768
@@ -77,7 +59,6 @@ const closeDrawer = () => {
 onMounted(() => {
   checkScreenSize()
   window.addEventListener('resize', checkScreenSize)
-  loadVersion()
 })
 
 onUnmounted(() => {
@@ -89,18 +70,14 @@ onUnmounted(() => {
   <div class="app-layout">
     <div v-if="isDesktop" class="layout-container">
       <aside class="sidebar">
-        <button class="brand" type="button" title="查看版本信息" @click="openUpdateDialog">
+        <div class="brand">
           <span class="brand__mark" aria-hidden="true">XP</span>
           <span class="brand__copy">
             <strong>XianYuPlus</strong>
-            <small>智能经营助手 <i v-if="hasNewVersion" class="brand__update-dot"></i></small>
+            <small>智能经营助手</small>
           </span>
-        </button>
+        </div>
         <NavMenu />
-        <button class="sidebar__collapse" type="button" title="当前版本" @click="openUpdateDialog">
-          <span>‹</span>
-          <small>v{{ currentVersion }}</small>
-        </button>
       </aside>
 
       <section class="workspace">
@@ -135,18 +112,16 @@ onUnmounted(() => {
       <div v-if="(isMobile || isTablet) && drawerVisible" class="drawer-overlay" @click="closeDrawer">
         <aside class="drawer-menu" @click.stop>
           <div class="drawer-header">
-            <button class="brand brand--drawer" type="button" @click="openUpdateDialog">
+            <div class="brand brand--drawer">
               <span class="brand__mark" aria-hidden="true">XP</span>
               <span class="brand__copy"><strong>XianYuPlus</strong><small>智能经营助手</small></span>
-            </button>
+            </div>
             <button class="drawer-close-btn" type="button" aria-label="关闭导航菜单" @click="closeDrawer">×</button>
           </div>
           <div class="drawer-content"><NavMenu @select="closeDrawer" /></div>
         </aside>
       </div>
     </transition>
-
-    <UpdateDialog ref="updateDialog" />
   </div>
 </template>
 
@@ -157,16 +132,11 @@ onUnmounted(() => {
 .workspace { flex: 1; flex-direction: column; overflow: hidden; }
 
 .sidebar { width: 236px; flex: 0 0 236px; display: flex; flex-direction: column; overflow: hidden; background: var(--xy-surface); border-right: 1px solid var(--xy-border); }
-.brand { width: 100%; display: flex; align-items: center; gap: 11px; padding: 24px 22px 18px; border: 0; border-bottom: 1px solid var(--xy-border-soft); background: transparent; color: var(--xy-ink); text-align: left; cursor: pointer; }
+.brand { width: 100%; display: flex; align-items: center; gap: 11px; padding: 24px 22px 18px; border: 0; border-bottom: 1px solid var(--xy-border-soft); background: transparent; color: var(--xy-ink); text-align: left; }
 .brand__mark { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 10px; background: var(--xy-amber); color: #172d4f; font-size: 16px; font-weight: 800; letter-spacing: -1.5px; }
 .brand__copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
 .brand__copy strong { color: #182d4f; font-size: 18px; letter-spacing: -0.5px; line-height: 22px; }
 .brand__copy small { color: var(--xy-muted); font-size: 11px; line-height: 16px; }
-.brand__update-dot { width: 6px; height: 6px; display: inline-block; margin-left: 4px; border-radius: 50%; background: var(--xy-danger); vertical-align: middle; }
-.sidebar__collapse { display: flex; align-items: center; gap: 8px; margin: auto 16px 16px; padding: 9px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--xy-muted); cursor: pointer; text-align: left; }
-.sidebar__collapse:hover { background: var(--xy-amber-soft); color: var(--xy-ink); }
-.sidebar__collapse span { font-size: 25px; line-height: 14px; }
-.sidebar__collapse small { font-size: 11px; }
 
 .workspace-header { height: 70px; display: flex; flex: 0 0 70px; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--xy-border-soft); background: rgba(255, 255, 255, .88); }
 .workspace-header__actions { display: flex; align-items: center; gap: 14px; }

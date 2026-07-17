@@ -70,7 +70,7 @@ const todoRows = computed(() => [
 const automationRows = computed(() => [
   { label: '自动发货', value: Number(stats.pendingTaskCount || 0), emptyText: '暂无待发货订单', activeText: '笔订单待处理', path: '/orders', tone: stats.pendingTaskCount ? 'warning' : 'success' },
   { label: '人工核对', value: Number(stats.reviewRequiredCount || 0), emptyText: '暂无待核对任务', activeText: '项需要核对', path: '/exception-center', tone: stats.reviewRequiredCount ? 'warning' : 'success' },
-  { label: '异常处理', value: Number(automationExceptionCount.value || 0), emptyText: '自动化运行正常', activeText: '项异常待处理', path: '/exception-center', tone: automationExceptionCount.value ? 'danger' : 'success' },
+  { label: '异常处理', value: Number(automationExceptionCount.value || 0), emptyText: '自动化运行正常', activeText: '项异常待处理', path: '/exception-center', tone: automationExceptionCount.value ? 'warning' : 'success' },
   { label: '卡券库存', value: Number(stats.lowStockConfigCount || 0), emptyText: '库存状态正常', activeText: '项库存预警', path: '/kami-config', tone: stats.lowStockConfigCount ? 'warning' : 'success' }
 ])
 
