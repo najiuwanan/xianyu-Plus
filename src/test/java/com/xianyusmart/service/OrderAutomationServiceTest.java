@@ -33,8 +33,8 @@ class OrderAutomationServiceTest {
     private RedFlowerService redFlowerService;
 
     @Test
-    void retriesRatingOnlyForAnAutomaticallyDeliveredOrder() {
-        when(automationRecordMapper.countSuccessfulDeliveryOrder(8L, "trade-8")).thenReturn(1);
+    void retriesRatingForAnOrderInAutomationManagementRange() {
+        when(automationRecordMapper.countManagedAutomationOrder(8L, "trade-8")).thenReturn(1);
         XianyuAccount account = new XianyuAccount();
         account.setAutoRateText("感谢惠顾！");
         when(accountMapper.selectById(8L)).thenReturn(account);
@@ -48,19 +48,20 @@ class OrderAutomationServiceTest {
     }
 
     @Test
-    void rejectsManualRetryWhenOrderWasNotAutomaticallyDelivered() {
-        when(automationRecordMapper.countSuccessfulDeliveryOrder(8L, "trade-8")).thenReturn(0);
+    void rejectsRatingRetryWhenOrderIsOutsideAutomationManagementRange() {
+        when(automationRecordMapper.countManagedAutomationOrder(8L, "trade-8")).thenReturn(0);
 
-        OrderAutomationRetryRespDTO result = service().retry(8L, "trade-8", "RED_FLOWER");
+        OrderAutomationRetryRespDTO result = service().retry(8L, "trade-8", "RATE");
 
         assertFalse(result.isSuccess());
+        assertEquals("订单不在近三个月的可自动化范围内，无法评价", result.getMessage());
         verify(redFlowerService, never()).retryRedFlower(any(), any());
         verify(rateService, never()).rateBuyer(any(), any(), any());
     }
 
     @Test
     void attemptsRatingWhenPendingListDoesNotContainAnOrder() {
-        when(automationRecordMapper.countSuccessfulDeliveryOrder(8L, "trade-8")).thenReturn(1);
+        when(automationRecordMapper.countManagedAutomationOrder(8L, "trade-8")).thenReturn(1);
         XianyuAccount account = new XianyuAccount();
         account.setAutoRateText("感谢惠顾！");
         when(accountMapper.selectById(8L)).thenReturn(account);
@@ -96,7 +97,6 @@ class OrderAutomationServiceTest {
 
     @Test
     void doesNotRetryRedFlowerBeforeShipmentIsConfirmed() {
-        when(automationRecordMapper.countSuccessfulDeliveryOrder(8L, "trade-8")).thenReturn(1);
         when(automationRecordMapper.countConfirmedShipmentOrder(8L, "trade-8")).thenReturn(0);
 
         OrderAutomationRetryRespDTO result = service().retry(8L, "trade-8", "RED_FLOWER");
