@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { getGoodsStatusText, formatPrice } from '@/utils'
 import type { GoodsItemWithConfig } from '@/api/goods'
 
@@ -14,6 +14,7 @@ import IconSparkle from '@/components/icons/IconSparkle.vue'
 interface Props {
   goodsList: GoodsItemWithConfig[]
   loading?: boolean
+  selectedGoodsIds?: string[]
 }
 
 interface Emits {
@@ -23,10 +24,17 @@ interface Emits {
   (e: 'toggleAutoReply', item: GoodsItemWithConfig, value: boolean): void
   (e: 'configAutoDelivery', item: GoodsItemWithConfig): void
   (e: 'delete', xyGoodId: string, title: string): void
+  (e: 'toggleSelect', xyGoodId: string, selected: boolean): void
+  (e: 'toggleSelectPage', selected: boolean): void
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+
+const selectedGoodsSet = computed(() => new Set(props.selectedGoodsIds || []))
+const allPageSelected = computed(() => props.goodsList.length > 0
+  && props.goodsList.every(item => selectedGoodsSet.value.has(item.item.xyGoodId)))
+const isGoodsSelected = (xyGoodId: string) => selectedGoodsSet.value.has(xyGoodId)
 
 const isMobile = ref(false)
 const checkScreenSize = () => {
@@ -78,6 +86,15 @@ const handleImgError = (e: Event) => {
       class="goods-card"
       @click="emit('view', item.item.xyGoodId)"
     >
+      <label class="goods-card__select" @click.stop>
+        <input
+          class="goods-select-checkbox"
+          type="checkbox"
+          :checked="isGoodsSelected(item.item.xyGoodId)"
+          @change="emit('toggleSelect', item.item.xyGoodId, ($event.target as HTMLInputElement).checked)"
+        />
+        <span>选择</span>
+      </label>
       <!-- 图片区域（含悬浮标题） -->
       <div class="goods-card__image-wrap">
         <img
@@ -148,6 +165,15 @@ const handleImgError = (e: Event) => {
     <table class="table" v-if="goodsList.length > 0">
       <thead class="table__head">
         <tr>
+          <th class="table__th table__th--select">
+            <input
+              class="goods-select-checkbox"
+              type="checkbox"
+              :checked="allPageSelected"
+              aria-label="全选本页商品"
+              @change="emit('toggleSelectPage', ($event.target as HTMLInputElement).checked)"
+            />
+          </th>
           <th class="table__th table__th--image">图片</th>
           <th class="table__th">商品标题</th>
           <th class="table__th table__th--price">价格</th>
@@ -160,6 +186,15 @@ const handleImgError = (e: Event) => {
       </thead>
       <tbody class="table__body">
         <tr v-for="item in goodsList" :key="item.item.xyGoodId" class="table__tr">
+          <td class="table__td table__td--select">
+            <input
+              class="goods-select-checkbox"
+              type="checkbox"
+              :checked="isGoodsSelected(item.item.xyGoodId)"
+              :aria-label="`选择商品 ${item.item.title}`"
+              @change="emit('toggleSelect', item.item.xyGoodId, ($event.target as HTMLInputElement).checked)"
+            />
+          </td>
           <td class="table__td table__td--image">
             <div class="goods-thumb">
               <img
@@ -271,6 +306,7 @@ const handleImgError = (e: Event) => {
 }
 
 .goods-card {
+  position: relative;
   background: var(--c-surface);
   border: 1px solid var(--c-border);
   border-radius: var(--c-r-md);
@@ -291,6 +327,30 @@ const handleImgError = (e: Event) => {
 
 .goods-card:active {
   transform: scale(0.98);
+}
+
+.goods-card__select {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 7px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.42);
+  border-radius: 14px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.goods-select-checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--c-accent);
+  cursor: pointer;
 }
 
 .goods-card__image-wrap {
@@ -527,6 +587,7 @@ const handleImgError = (e: Event) => {
   user-select: none;
 }
 
+.table__th--select { width: 38px; padding-right: 4px; text-align: center; }
 .table__th--image { width: 64px; }
 .table__th--price { width: 100px; text-align: right; }
 .table__th--sku { width: 70px; text-align: center; }
@@ -556,6 +617,12 @@ const handleImgError = (e: Event) => {
   background: transparent;
   transition: background var(--c-ease);
   line-height: 1.5;
+}
+
+.table__td--select {
+  width: 38px;
+  padding-right: 4px;
+  text-align: center;
 }
 
 /* Thumbnail */

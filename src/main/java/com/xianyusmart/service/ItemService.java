@@ -72,4 +72,7 @@ public interface ItemService {
      * @return 更新结果
      */
     ResultObject<?> updateRagAutoReplyConfig(UpdateRagAutoReplyConfigReqDTO reqDTO);
+
+    /** 批量更新商品自动化开关，并可将默认发货来源关联到指定卡券。 */
+    ResultObject<BatchUpdateGoodsConfigRespDTO> batchUpdateGoodsConfig(BatchUpdateGoodsConfigReqDTO reqDTO);
 }

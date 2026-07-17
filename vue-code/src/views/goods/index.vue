@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref, computed, inject, defineComponent, h } from 'vue'
+import { onMounted, ref, reactive, computed, inject, defineComponent, h } from 'vue'
 import { useGoodsManager } from './useGoodsManager'
+import { getKamiConfigs } from '@/api/kami-config'
+import type { KamiConfig } from '@/api/kami-config'
 import './goods.css'
 import '@/styles/header-selectors.css'
 
@@ -27,6 +29,9 @@ const {
   pageSize,
   total,
   totalPages,
+  selectedGoodsIds,
+  selectedGoodsCount,
+  batchUpdating,
   dialogs,
   selectedGoodsId,
   deleteTarget,
@@ -34,6 +39,10 @@ const {
   loadGoods,
   handleRefresh,
   handleAccountChange,
+  toggleGoodsSelection,
+  togglePageSelection,
+  clearGoodsSelection,
+  updateSelectedGoodsConfig,
   handleStatusFilter,
   handlePageChange,
   viewDetail,
@@ -193,6 +202,72 @@ const getPageButtons = () => {
   }
   return buttons
 }
+
+const batchDialogVisible = ref(false)
+const loadingKamiConfigs = ref(false)
+const kamiConfigs = ref<KamiConfig[]>([])
+const batchForm = reactive({
+  xianyuAutoDeliveryOn: '' as '' | '1' | '0',
+  xianyuAutoReplyOn: '' as '' | '1' | '0',
+  kamiConfigId: '' as '' | number
+})
+
+const availableKamiConfigs = computed(() => kamiConfigs.value.filter((config) =>
+  config.xianyuAccountId == null || config.xianyuAccountId === selectedAccountId.value
+))
+
+const sourceTypeText = (config: KamiConfig) => {
+  if (config.sourceType === 3) return '固定内容'
+  if (config.sourceType === 2) return 'API'
+  return '本地卡密'
+}
+
+const resetBatchForm = () => {
+  batchForm.xianyuAutoDeliveryOn = ''
+  batchForm.xianyuAutoReplyOn = ''
+  batchForm.kamiConfigId = ''
+}
+
+const openBatchDialog = async () => {
+  if (selectedGoodsCount.value === 0) return
+  resetBatchForm()
+  batchDialogVisible.value = true
+  loadingKamiConfigs.value = true
+  try {
+    const response = await getKamiConfigs()
+    if (response.code === 0 || response.code === 200) {
+      kamiConfigs.value = response.data || []
+    }
+  } finally {
+    loadingKamiConfigs.value = false
+  }
+}
+
+const handleBatchKamiChange = () => {
+  if (batchForm.kamiConfigId !== '') {
+    batchForm.xianyuAutoDeliveryOn = '1'
+  }
+}
+
+const submitBatchUpdate = async () => {
+  const hasOperation = batchForm.xianyuAutoDeliveryOn !== ''
+    || batchForm.xianyuAutoReplyOn !== ''
+    || batchForm.kamiConfigId !== ''
+  if (!hasOperation) return
+
+  const updated = await updateSelectedGoodsConfig({
+    xianyuAutoDeliveryOn: batchForm.xianyuAutoDeliveryOn === ''
+      ? undefined
+      : Number(batchForm.xianyuAutoDeliveryOn),
+    xianyuAutoReplyOn: batchForm.xianyuAutoReplyOn === ''
+      ? undefined
+      : Number(batchForm.xianyuAutoReplyOn),
+    kamiConfigId: batchForm.kamiConfigId === '' ? undefined : Number(batchForm.kamiConfigId)
+  })
+  if (updated) {
+    batchDialogVisible.value = false
+  }
+}
 </script>
 
 <template>
@@ -269,6 +344,14 @@ const getPageButtons = () => {
       </div>
     </div>
 
+    <div v-if="selectedGoodsCount > 0" class="goods__batch-toolbar">
+      <span>已选择 {{ selectedGoodsCount }} 个商品</span>
+      <div class="goods__batch-actions">
+        <button class="btn btn--secondary" @click="clearGoodsSelection">取消选择</button>
+        <button class="btn btn--primary" @click="openBatchDialog">批量配置</button>
+      </div>
+    </div>
+
     <!-- Content Card -->
     <div class="goods__content">
       <!-- Pull Refresh Indicator (Mobile Only) -->
@@ -303,12 +386,15 @@ const getPageButtons = () => {
         <GoodsTable
           :goods-list="goodsList"
           :loading="loading"
+          :selected-goods-ids="selectedGoodsIds"
           @view="viewDetail"
           @sync="syncSingleGoods"
           @toggle-auto-delivery="toggleAutoDelivery"
           @toggle-auto-reply="toggleAutoReply"
           @config-auto-delivery="configAutoDelivery"
           @delete="confirmDelete"
+          @toggle-select="toggleGoodsSelection"
+          @toggle-select-page="togglePageSelection"
         />
       </div>
 
@@ -376,6 +462,63 @@ const getPageButtons = () => {
               @click="executeDelete"
             >
               删除
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="overlay-fade">
+      <div v-if="batchDialogVisible" class="goods__dialog-overlay" @click.self="batchDialogVisible = false">
+        <div class="goods__dialog goods__batch-dialog">
+          <div class="goods__dialog-header goods__batch-dialog-header">
+            <h3 class="goods__dialog-title">批量配置商品</h3>
+            <p>将对已选择的 {{ selectedGoodsCount }} 个商品生效</p>
+          </div>
+          <div class="goods__batch-dialog-body">
+            <label class="goods__batch-field">
+              <span>自动发货</span>
+              <select v-model="batchForm.xianyuAutoDeliveryOn">
+                <option value="">保持不变</option>
+                <option value="1">开启</option>
+                <option value="0">关闭</option>
+              </select>
+            </label>
+            <label class="goods__batch-field">
+              <span>AI 自动回复</span>
+              <select v-model="batchForm.xianyuAutoReplyOn">
+                <option value="">保持不变</option>
+                <option value="1">开启</option>
+                <option value="0">关闭</option>
+              </select>
+            </label>
+            <label class="goods__batch-field">
+              <span>默认发货来源</span>
+              <select
+                v-model="batchForm.kamiConfigId"
+                :disabled="loadingKamiConfigs"
+                @change="handleBatchKamiChange"
+              >
+                <option value="">保持现有来源</option>
+                <option v-for="config in availableKamiConfigs" :key="config.id" :value="config.id">
+                  {{ config.aliasName }}（{{ sourceTypeText(config) }}）
+                </option>
+              </select>
+            </label>
+            <p v-if="loadingKamiConfigs" class="goods__batch-hint">正在读取卡券管理中的发货来源…</p>
+            <p v-else-if="availableKamiConfigs.length === 0" class="goods__batch-hint">暂无可用卡券。可先到“卡券管理”新建本地库存、API 或固定内容来源。</p>
+            <p v-if="batchForm.kamiConfigId !== ''" class="goods__batch-warning">
+              关联后会启用自动发货，并仅替换默认发货来源；已有的多规格发货规则保持不变。
+            </p>
+          </div>
+          <div class="goods__dialog-footer">
+            <button class="goods__dialog-btn goods__dialog-btn--cancel" :disabled="batchUpdating" @click="batchDialogVisible = false">取消</button>
+            <button
+              class="goods__dialog-btn goods__dialog-btn--confirm"
+              :disabled="batchUpdating || (batchForm.xianyuAutoDeliveryOn === '' && batchForm.xianyuAutoReplyOn === '' && batchForm.kamiConfigId === '')"
+              @click="submitBatchUpdate"
+            >
+              {{ batchUpdating ? '保存中…' : '确认配置' }}
             </button>
           </div>
         </div>

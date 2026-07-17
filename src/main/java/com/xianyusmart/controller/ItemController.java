@@ -11,6 +11,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.validation.Valid;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -136,6 +138,23 @@ public class ItemController {
         } catch (Exception e) {
             log.error("更新商品自动回复状态失败", e);
             return ResultObject.failed("更新商品自动回复状态失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 商品批量配置：开关自动发货、自动回复，或将默认发货来源关联至指定卡券。
+     */
+    @PostMapping("/batchUpdateConfig")
+    public ResultObject<BatchUpdateGoodsConfigRespDTO> batchUpdateConfig(
+            @Valid @RequestBody BatchUpdateGoodsConfigReqDTO reqDTO) {
+        try {
+            log.info("批量更新商品配置: accountId={}, goodsCount={}, delivery={}, reply={}, kamiConfigId={}",
+                    reqDTO.getXianyuAccountId(), reqDTO.getXyGoodsIds().size(),
+                    reqDTO.getXianyuAutoDeliveryOn(), reqDTO.getXianyuAutoReplyOn(), reqDTO.getKamiConfigId());
+            return itemService.batchUpdateGoodsConfig(reqDTO);
+        } catch (Exception e) {
+            log.error("批量更新商品配置失败", e);
+            return ResultObject.failed("批量更新商品配置失败: " + e.getMessage());
         }
     }
     

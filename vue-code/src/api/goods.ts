@@ -251,3 +251,26 @@ export function checkSyncing(accountId: number) {
     method: 'GET'
   });
 }
+
+/** 商品批量自动化配置。字段未传入时保持原设置不变。 */
+export interface BatchUpdateGoodsConfigReq {
+  xianyuAccountId: number;
+  xyGoodsIds: string[];
+  xianyuAutoDeliveryOn?: number;
+  xianyuAutoReplyOn?: number;
+  kamiConfigId?: number;
+}
+
+export interface BatchUpdateGoodsConfigResponse {
+  selectedCount: number;
+  updatedCount: number;
+  message: string;
+}
+
+export function batchUpdateGoodsConfig(data: BatchUpdateGoodsConfigReq) {
+  return request<BatchUpdateGoodsConfigResponse>({
+    url: '/items/batchUpdateConfig',
+    method: 'POST',
+    data
+  });
+}

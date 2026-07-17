@@ -6,6 +6,11 @@ import com.xianyusmart.controller.dto.*;
 import com.xianyusmart.entity.XianyuGoodsInfo;
 import com.xianyusmart.entity.XianyuGoodsSku;
 import com.xianyusmart.entity.XianyuGoodsSkuProperty;
+import com.xianyusmart.entity.XianyuGoodsAutoDeliveryConfig;
+import com.xianyusmart.entity.XianyuGoodsConfig;
+import com.xianyusmart.entity.XianyuKamiConfig;
+import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
+import com.xianyusmart.mapper.XianyuKamiConfigMapper;
 import com.xianyusmart.service.ItemService;
 import com.xianyusmart.utils.XianyuApiUtils;
 import com.xianyusmart.utils.XianyuSignUtils;
@@ -13,6 +18,8 @@ import com.xianyusmart.utils.ItemDetailUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import java.util.*;
 
@@ -45,6 +52,12 @@ public class ItemServiceImpl implements ItemService {
 
     @Autowired
     private com.xianyusmart.mapper.XianyuGoodsAutoDeliveryConfigMapper autoDeliveryConfigMapper;
+
+    @Autowired
+    private XianyuGoodsInfoMapper goodsInfoMapper;
+
+    @Autowired
+    private XianyuKamiConfigMapper kamiConfigMapper;
 
     /**
      * 获取指定页的商品信息（内部方法）
@@ -1106,5 +1119,163 @@ public class ItemServiceImpl implements ItemService {
             log.error("更新自动回复配置失败", e);
             return ResultObject.failed("更新自动回复配置失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 批量配置只修改用户明确选择的字段。关联卡券时仅覆盖商品的默认发货来源，
+     * 不动已有的多规格发货规则，以免误伤已配置的 SKU。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ResultObject<BatchUpdateGoodsConfigRespDTO> batchUpdateGoodsConfig(BatchUpdateGoodsConfigReqDTO reqDTO) {
+        try {
+            String validationError = validateBatchUpdateRequest(reqDTO);
+            if (validationError != null) {
+                return ResultObject.failed(validationError);
+            }
+
+            LinkedHashSet<String> goodsIds = reqDTO.getXyGoodsIds().stream()
+                    .filter(Objects::nonNull)
+                    .map(String::trim)
+                    .filter(value -> !value.isBlank())
+                    .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
+            if (goodsIds.isEmpty()) {
+                return ResultObject.failed("请至少选择一个有效商品");
+            }
+
+            XianyuKamiConfig kamiConfig = null;
+            if (reqDTO.getKamiConfigId() != null) {
+                kamiConfig = kamiConfigMapper.selectById(reqDTO.getKamiConfigId());
+                if (kamiConfig == null) {
+                    return ResultObject.failed("选择的卡券不存在或已删除");
+                }
+                if (kamiConfig.getXianyuAccountId() != null
+                        && !reqDTO.getXianyuAccountId().equals(kamiConfig.getXianyuAccountId())) {
+                    return ResultObject.failed("该卡券不属于当前账号，不能关联");
+                }
+            }
+
+            List<XianyuGoodsInfo> goodsList = goodsInfoMapper.selectList(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<XianyuGoodsInfo>()
+                            .eq(XianyuGoodsInfo::getXianyuAccountId, reqDTO.getXianyuAccountId())
+                            .in(XianyuGoodsInfo::getXyGoodId, goodsIds));
+            if (goodsList.size() != goodsIds.size()) {
+                return ResultObject.failed("部分商品不存在、已删除或不属于当前账号，请刷新后重试");
+            }
+
+            for (XianyuGoodsInfo goods : goodsList) {
+                XianyuGoodsConfig config = ensureGoodsConfig(goods);
+                if (reqDTO.getXianyuAutoDeliveryOn() != null) {
+                    config.setXianyuAutoDeliveryOn(reqDTO.getXianyuAutoDeliveryOn());
+                }
+                if (reqDTO.getXianyuAutoReplyOn() != null) {
+                    config.setXianyuAutoReplyOn(reqDTO.getXianyuAutoReplyOn());
+                }
+                if (kamiConfig != null) {
+                    // 关联卡券意味着该商品需要实际参与自动发货，优先于同次提交的关闭开关。
+                    config.setXianyuAutoDeliveryOn(1);
+                }
+                config.setUpdateTime(nowText());
+                autoDeliveryService.saveOrUpdateGoodsConfig(config);
+
+                if (kamiConfig != null) {
+                    bindDefaultKamiConfig(goods, kamiConfig.getId());
+                }
+            }
+
+            BatchUpdateGoodsConfigRespDTO response = new BatchUpdateGoodsConfigRespDTO();
+            response.setSelectedCount(goodsIds.size());
+            response.setUpdatedCount(goodsList.size());
+            response.setMessage(buildBatchUpdateMessage(goodsList.size(), reqDTO, kamiConfig));
+            return ResultObject.success(response, response.getMessage());
+        } catch (Exception e) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            log.error("批量更新商品配置失败: accountId={}", reqDTO == null ? null : reqDTO.getXianyuAccountId(), e);
+            return ResultObject.failed("批量更新商品配置失败: " + e.getMessage());
+        }
+    }
+
+    private String validateBatchUpdateRequest(BatchUpdateGoodsConfigReqDTO reqDTO) {
+        if (reqDTO == null || reqDTO.getXianyuAccountId() == null) {
+            return "账号不能为空";
+        }
+        if (reqDTO.getXyGoodsIds() == null || reqDTO.getXyGoodsIds().isEmpty()) {
+            return "请至少选择一个商品";
+        }
+        if (!isSwitchValue(reqDTO.getXianyuAutoDeliveryOn()) || !isSwitchValue(reqDTO.getXianyuAutoReplyOn())) {
+            return "自动化开关只能选择开启、关闭或保持不变";
+        }
+        if (reqDTO.getXianyuAutoDeliveryOn() == null
+                && reqDTO.getXianyuAutoReplyOn() == null
+                && reqDTO.getKamiConfigId() == null) {
+            return "请至少选择一项要批量修改的配置";
+        }
+        return null;
+    }
+
+    private boolean isSwitchValue(Integer value) {
+        return value == null || Integer.valueOf(0).equals(value) || Integer.valueOf(1).equals(value);
+    }
+
+    private XianyuGoodsConfig ensureGoodsConfig(XianyuGoodsInfo goods) {
+        XianyuGoodsConfig config = autoDeliveryService.getGoodsConfig(goods.getXianyuAccountId(), goods.getXyGoodId());
+        if (config != null) {
+            return config;
+        }
+        config = new XianyuGoodsConfig();
+        config.setXianyuAccountId(goods.getXianyuAccountId());
+        config.setXianyuGoodsId(goods.getId());
+        config.setXyGoodsId(goods.getXyGoodId());
+        config.setXianyuAutoDeliveryOn(0);
+        config.setXianyuAutoReplyOn(0);
+        config.setXianyuAutoReplyContextOn(1);
+        config.setXianyuKeywordReplyOn(0);
+        config.setHumanInterventionOn(0);
+        config.setHumanInterventionMinutes(10);
+        config.setCreateTime(nowText());
+        config.setUpdateTime(config.getCreateTime());
+        return config;
+    }
+
+    private void bindDefaultKamiConfig(XianyuGoodsInfo goods, Long kamiConfigId) {
+        XianyuGoodsAutoDeliveryConfig deliveryConfig = autoDeliveryConfigMapper
+                .findByAccountIdAndGoodsIdNoSku(goods.getXianyuAccountId(), goods.getXyGoodId());
+        if (deliveryConfig == null) {
+            deliveryConfig = new XianyuGoodsAutoDeliveryConfig();
+            deliveryConfig.setXianyuAccountId(goods.getXianyuAccountId());
+            deliveryConfig.setXianyuGoodsId(goods.getId());
+            deliveryConfig.setXyGoodsId(goods.getXyGoodId());
+            deliveryConfig.setDeliveryMode(2);
+            deliveryConfig.setKamiConfigIds(String.valueOf(kamiConfigId));
+            deliveryConfig.setKamiDeliveryTemplate("{kmKey}");
+            deliveryConfig.setAutoConfirmShipment(0);
+            autoDeliveryConfigMapper.insert(deliveryConfig);
+            return;
+        }
+        deliveryConfig.setXianyuGoodsId(goods.getId());
+        deliveryConfig.setDeliveryMode(2);
+        deliveryConfig.setKamiConfigIds(String.valueOf(kamiConfigId));
+        if (deliveryConfig.getKamiDeliveryTemplate() == null || deliveryConfig.getKamiDeliveryTemplate().isBlank()) {
+            deliveryConfig.setKamiDeliveryTemplate("{kmKey}");
+        }
+        autoDeliveryConfigMapper.updateById(deliveryConfig);
+    }
+
+    private String buildBatchUpdateMessage(int count, BatchUpdateGoodsConfigReqDTO reqDTO, XianyuKamiConfig kamiConfig) {
+        List<String> actions = new ArrayList<>();
+        if (reqDTO.getXianyuAutoDeliveryOn() != null) {
+            actions.add(reqDTO.getXianyuAutoDeliveryOn() == 1 ? "开启自动发货" : "关闭自动发货");
+        }
+        if (reqDTO.getXianyuAutoReplyOn() != null) {
+            actions.add(reqDTO.getXianyuAutoReplyOn() == 1 ? "开启自动回复" : "关闭自动回复");
+        }
+        if (kamiConfig != null) {
+            actions.add("关联卡券「" + kamiConfig.getAliasName() + "」并开启自动发货");
+        }
+        return "已为 " + count + " 个商品" + String.join("、", actions);
+    }
+
+    private String nowText() {
+        return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date());
     }
 }

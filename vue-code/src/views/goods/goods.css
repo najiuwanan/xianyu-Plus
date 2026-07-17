@@ -258,6 +258,27 @@
   margin-left: auto;
 }
 
+.goods__batch-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--d-space-3);
+  margin-bottom: var(--d-space-3);
+  padding: 10px 12px 10px 14px;
+  color: #075fbc;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(10,132,255,0.10);
+  border: 1px solid rgba(10,132,255,0.18);
+  border-radius: var(--d-radius-md);
+}
+
+.goods__batch-actions {
+  display: flex;
+  gap: var(--d-space-2);
+  flex-shrink: 0;
+}
+
 /* --- Content Card --- */
 .goods__content {
   flex: 1;
@@ -495,6 +516,69 @@
   overflow: hidden;
 }
 
+.goods__batch-dialog {
+  max-width: 540px;
+}
+
+.goods__batch-dialog-header {
+  padding-bottom: var(--d-space-3);
+}
+
+.goods__batch-dialog-header p {
+  margin: 6px 0 0;
+  color: var(--d-text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.goods__batch-dialog-body {
+  display: grid;
+  gap: 14px;
+  padding: 0 var(--d-space-5) var(--d-space-4);
+}
+
+.goods__batch-field {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  color: var(--d-text-primary);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.goods__batch-field select {
+  width: 100%;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  color: var(--d-text-primary);
+  background: rgba(255,255,255,0.68);
+  border: 1px solid var(--d-border-strong);
+  border-radius: 9px;
+  outline: none;
+}
+
+.goods__batch-field select:focus {
+  border-color: rgba(10,132,255,0.5);
+  box-shadow: 0 0 0 3px rgba(10,132,255,0.14);
+}
+
+.goods__batch-hint,
+.goods__batch-warning {
+  margin: -2px 0 0 116px;
+  color: var(--d-text-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.goods__batch-warning {
+  padding: 9px 10px;
+  color: #8a5b00;
+  background: rgba(255,159,10,0.12);
+  border-radius: 8px;
+}
+
 .goods__dialog-header {
   padding: var(--d-space-5) var(--d-space-5) var(--d-space-2);
   text-align: center;
@@ -550,6 +634,17 @@
 .goods__dialog-btn--danger {
   color: var(--d-danger);
   font-weight: 600;
+}
+
+.goods__dialog-btn--confirm {
+  color: var(--d-accent);
+  font-weight: 650;
+}
+
+.goods__dialog-btn:disabled {
+  color: var(--d-text-tertiary);
+  cursor: not-allowed;
+  background: rgba(0,0,0,0.02);
 }
 
 @media (hover: hover) {
@@ -626,6 +721,31 @@
 
   .goods__header { display: none; }
   .goods__title-row { display: none !important; }
+
+  .goods__batch-toolbar {
+    margin-bottom: var(--d-space-2);
+    padding: 8px 10px;
+  }
+
+  .goods__batch-toolbar .btn {
+    height: 32px;
+    padding: 0 10px;
+  }
+
+  .goods__batch-dialog-body {
+    padding-left: var(--d-space-4);
+    padding-right: var(--d-space-4);
+  }
+
+  .goods__batch-field {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .goods__batch-hint,
+  .goods__batch-warning {
+    margin-left: 0;
+  }
 
   .goods__filter-bar { margin-bottom: var(--d-space-3); }
 

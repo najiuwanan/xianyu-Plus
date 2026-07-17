@@ -10,12 +10,13 @@ import {
   deleteItem,
   syncSingleItem,
   getSyncProgress,
-  checkSyncing
+  checkSyncing,
+  batchUpdateGoodsConfig
 } from '@/api/goods'
 import { showSuccess, showError, showInfo, showConfirm } from '@/utils'
 import { getGoodsStatusText, formatPrice, formatTime } from '@/utils'
 import type { Account } from '@/types'
-import type { GoodsItemWithConfig, SyncProgressResponse } from '@/api/goods'
+import type { BatchUpdateGoodsConfigReq, GoodsItemWithConfig, SyncProgressResponse } from '@/api/goods'
 
 export function useGoodsManager() {
   const router = useRouter()
@@ -29,6 +30,8 @@ export function useGoodsManager() {
   const currentPage = ref(1)
   const pageSize = ref(20)
   const total = ref(0)
+  const selectedGoodsIds = ref<string[]>([])
+  const batchUpdating = ref(false)
 
   const dialogs = reactive({
     detail: false,
@@ -92,6 +95,7 @@ export function useGoodsManager() {
     const acc = accounts.value.find(a => a.id === selectedAccountId.value)
     return acc?.accountNote || acc?.unb || ''
   })
+  const selectedGoodsCount = computed(() => selectedGoodsIds.value.length)
 
   // 加载账号列表
   const loadAccounts = async () => {
@@ -171,7 +175,63 @@ export function useGoodsManager() {
   // 账号变更
   const handleAccountChange = () => {
     currentPage.value = 1
+    clearGoodsSelection()
     loadGoods()
+  }
+
+  const toggleGoodsSelection = (xyGoodsId: string, selected: boolean) => {
+    const ids = new Set(selectedGoodsIds.value)
+    if (selected) {
+      ids.add(xyGoodsId)
+    } else {
+      ids.delete(xyGoodsId)
+    }
+    selectedGoodsIds.value = Array.from(ids)
+  }
+
+  const togglePageSelection = (selected: boolean) => {
+    const ids = new Set(selectedGoodsIds.value)
+    goodsList.value.forEach((goods) => {
+      if (selected) {
+        ids.add(goods.item.xyGoodId)
+      } else {
+        ids.delete(goods.item.xyGoodId)
+      }
+    })
+    selectedGoodsIds.value = Array.from(ids)
+  }
+
+  const clearGoodsSelection = () => {
+    selectedGoodsIds.value = []
+  }
+
+  const updateSelectedGoodsConfig = async (options: Omit<BatchUpdateGoodsConfigReq, 'xianyuAccountId' | 'xyGoodsIds'>) => {
+    if (!selectedAccountId.value || selectedGoodsIds.value.length === 0) {
+      showInfo('请先选择要批量配置的商品')
+      return false
+    }
+
+    batchUpdating.value = true
+    try {
+      const response = await batchUpdateGoodsConfig({
+        xianyuAccountId: selectedAccountId.value,
+        xyGoodsIds: selectedGoodsIds.value,
+        ...options
+      })
+      if (response.code !== 0 && response.code !== 200) {
+        throw new Error(response.msg || '批量配置失败')
+      }
+      showSuccess(response.data?.message || '批量配置成功')
+      clearGoodsSelection()
+      await loadGoods()
+      return true
+    } catch (error: any) {
+      console.error('批量配置商品失败:', error)
+      showError(error?.message || '批量配置失败，请稍后重试')
+      return false
+    } finally {
+      batchUpdating.value = false
+    }
   }
 
   // 状态筛选
@@ -306,6 +366,9 @@ export function useGoodsManager() {
     total,
     totalPages,
     accountName,
+    selectedGoodsIds,
+    selectedGoodsCount,
+    batchUpdating,
     dialogs,
     selectedGoodsId,
     selectedGoods,
@@ -314,6 +377,10 @@ export function useGoodsManager() {
     loadGoods,
     handleRefresh,
     handleAccountChange,
+    toggleGoodsSelection,
+    togglePageSelection,
+    clearGoodsSelection,
+    updateSelectedGoodsConfig,
     handleStatusFilter,
     handlePageChange,
     viewDetail,
