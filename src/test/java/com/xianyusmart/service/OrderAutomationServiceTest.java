@@ -38,12 +38,14 @@ class OrderAutomationServiceTest {
         XianyuAccount account = new XianyuAccount();
         account.setAutoRateText("感谢惠顾！");
         when(accountMapper.selectById(8L)).thenReturn(account);
+        when(rateService.checkOrderReadyForRate(8L, "trade-8"))
+                .thenReturn(new RateService.PendingRateOrderCheck(true, "订单已进入闲鱼待评价列表"));
         when(rateService.rateBuyer(8L, "trade-8", "感谢惠顾！")).thenReturn(true);
 
         OrderAutomationRetryRespDTO result = service().retry(8L, "trade-8", "RATE");
 
         assertTrue(result.isSuccess());
-        assertEquals("RATE", result.getAction());
+        assertEquals("RATE_CHECK", result.getAction());
         verify(rateService).rateBuyer(8L, "trade-8", "感谢惠顾！");
     }
 
@@ -60,7 +62,7 @@ class OrderAutomationServiceTest {
     }
 
     @Test
-    void doesNotRateWhenPendingListDoesNotContainAnOrder() {
+    void marksOrderWaitingWhenPendingListDoesNotContainAnOrder() {
         when(automationRecordMapper.countManagedAutomationOrder(8L, "trade-8")).thenReturn(1);
         XianyuAccount account = new XianyuAccount();
         account.setAutoRateText("感谢惠顾！");
@@ -69,8 +71,9 @@ class OrderAutomationServiceTest {
                 .thenReturn(new RateService.PendingRateOrderCheck(false, "待评价列表未找到订单"));
         OrderAutomationRetryRespDTO result = service().retry(8L, "trade-8", "RATE_CHECK");
 
-        assertFalse(result.isSuccess());
+        assertTrue(result.isSuccess());
         verify(rateService, never()).rateBuyer(any(), any(), any());
+        verify(automationRecordMapper).markRateWaiting(8L, "trade-8", "订单暂未进入闲鱼待评价列表，等待买家确认收货后再评价");
     }
 
     @Test

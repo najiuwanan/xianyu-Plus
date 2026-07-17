@@ -68,6 +68,17 @@ export interface OrderAutomationAvailableActions {
   redFlowerReason?: string
 }
 
+export interface OrderAutomationBatchResponse {
+  action: 'CHECK' | 'RATE'
+  accountCount: number
+  checkedCount: number
+  readyCount: number
+  ratedCount: number
+  waitingCount: number
+  failedCount: number
+  message: string
+}
+
 export function queryOrderAutomation(data: QueryOrderAutomationRequest) {
   return request<QueryOrderAutomationResponse>({
     url: '/order-automation/query',
@@ -87,6 +98,14 @@ export function retryOrderAutomation(data: RetryOrderAutomationRequest) {
 export function getOrderAutomationAvailableActions(data: { accountId: number; orderId: string }) {
   return request<OrderAutomationAvailableActions>({
     url: '/order-automation/actions',
+    method: 'POST',
+    data
+  })
+}
+
+export function batchRateOrders(data: { accountId?: number; action: 'CHECK' | 'RATE' }) {
+  return request<OrderAutomationBatchResponse>({
+    url: '/order-automation/batch-rate',
     method: 'POST',
     data
   })

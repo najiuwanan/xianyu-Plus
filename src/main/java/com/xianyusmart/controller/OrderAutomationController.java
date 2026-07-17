@@ -3,6 +3,8 @@ package com.xianyusmart.controller;
 import com.xianyusmart.common.ResultObject;
 import com.xianyusmart.controller.dto.OrderAutomationActionQueryReqDTO;
 import com.xianyusmart.controller.dto.OrderAutomationAvailableActionsDTO;
+import com.xianyusmart.controller.dto.OrderAutomationBatchReqDTO;
+import com.xianyusmart.controller.dto.OrderAutomationBatchRespDTO;
 import com.xianyusmart.controller.dto.OrderAutomationQueryReqDTO;
 import com.xianyusmart.controller.dto.OrderAutomationRetryReqDTO;
 import com.xianyusmart.controller.dto.OrderAutomationRetryRespDTO;
@@ -46,6 +48,17 @@ public class OrderAutomationController {
         log.warn("自动化执行中心手动重试失败：accountId={}, orderId={}, action={}, reason={}",
                 request.getAccountId(), request.getOrderId(), request.getAction(), result.getMessage());
         return ResultObject.failed(result.getMessage());
+    }
+
+    /** 批量检查待评价资格，或对已进入待评价列表的订单批量评价。 */
+    @PostMapping("/batch-rate")
+    public ResultObject<OrderAutomationBatchRespDTO> batchRate(
+            @RequestBody(required = false) OrderAutomationBatchReqDTO request) {
+        OrderAutomationBatchReqDTO body = request == null ? new OrderAutomationBatchReqDTO() : request;
+        OrderAutomationBatchRespDTO result = orderAutomationService.batchRate(body.getAccountId(), body.getAction());
+        return result.getAccountCount() > 0
+                ? ResultObject.success(result, result.getMessage())
+                : ResultObject.failed(result.getMessage());
     }
 
     /**

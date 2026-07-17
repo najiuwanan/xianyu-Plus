@@ -41,6 +41,9 @@ public interface OrderAutomationRecordMapper {
             "OR COALESCE(rate_error, '') LIKE '%订单不可评价%' " +
             "OR COALESCE(rate_error, '') LIKE '%不支持评价%' " +
             "OR COALESCE(rate_error, '') LIKE '%无评价资格%')";
+    String RATE_WAITING_CONDITION = "(COALESCE(rate_error, '') LIKE '%未完成的交易不允许评价%' " +
+            "OR COALESCE(rate_error, '') LIKE '%未完成交易%' " +
+            "OR COALESCE(rate_error, '') LIKE '%交易未完成%')";
     String RATE_TERMINAL_CONDITION = RATE_ALREADY_RATED_CONDITION + " OR " + RATE_NOT_ACTIONABLE_CONDITION;
 
     @Select("<script>" +
@@ -254,6 +257,20 @@ public interface OrderAutomationRecordMapper {
                                                     @Param("lookbackDays") int lookbackDays,
                                                     @Param("limit") int limit);
 
+    /** 批量检查/评价使用的本地候选订单；只处理近三个月的正常交易。 */
+    @Select("SELECT o.order_id FROM xianyu_goods_order o " +
+            "INNER JOIN xianyu_account a ON a.id = o.xianyu_account_id " +
+            "LEFT JOIN xianyu_order_automation_record r " +
+            "ON r.xianyu_account_id = o.xianyu_account_id AND r.order_id = o.order_id " +
+            "WHERE o.xianyu_account_id = #{accountId} " +
+            "AND a.auto_rate_enabled = 1 " +
+            "AND o.order_id IS NOT NULL AND o.order_id <> '' " +
+            RECENT_MANAGED_ORDER_CONDITION +
+            "AND (r.rate_status IS NULL OR r.rate_status NOT IN (1, 3)) " +
+            "ORDER BY " + ORDER_TIME_SQL + " DESC, o.id DESC LIMIT #{limit}")
+    List<String> findRateCandidateOrderIds(@Param("accountId") Long accountId,
+                                           @Param("limit") int limit);
+
     @Insert("INSERT INTO xianyu_order_automation_record " +
             "(xianyu_account_id, order_id, red_flower_status, red_flower_time, red_flower_error, " +
             "red_flower_attempt_count, red_flower_next_retry_time) " +
@@ -286,6 +303,14 @@ public interface OrderAutomationRecordMapper {
     int markRateSkipped(@Param("accountId") Long accountId, @Param("orderId") String orderId,
                         @Param("reason") String reason);
 
+    /** 订单尚未进入待评价列表时，保持等待状态而不是记录为异常。 */
+    @Insert("INSERT INTO xianyu_order_automation_record " +
+            "(xianyu_account_id, order_id, rate_status, rate_time, rate_error) " +
+            "VALUES (#{accountId}, #{orderId}, 4, NULL, #{reason}) " +
+            "ON DUPLICATE KEY UPDATE rate_status = 4, rate_time = NULL, rate_error = #{reason}")
+    int markRateWaiting(@Param("accountId") Long accountId, @Param("orderId") String orderId,
+                        @Param("reason") String reason);
+
     @Insert("INSERT INTO xianyu_order_automation_record " +
             "(xianyu_account_id, order_id, rate_status, rate_error) " +
             "VALUES (#{accountId}, #{orderId}, 2, #{errorMessage}) " +
@@ -302,4 +327,14 @@ public interface OrderAutomationRecordMapper {
             "<if test='accountId != null'>AND xianyu_account_id = #{accountId}</if>" +
             "</script>")
     int resolveTerminalRateFailures(@Param("accountId") Long accountId);
+
+    /** 将旧版本对未完成订单的误判，归为等待买家确认收货。 */
+    @Update("<script>" +
+            "UPDATE xianyu_order_automation_record " +
+            "SET rate_status = 4, rate_time = NULL, " +
+            "rate_error = '订单暂未完成，等待买家确认收货后再评价' " +
+            "WHERE rate_status = 2 AND " + RATE_WAITING_CONDITION + " " +
+            "<if test='accountId != null'>AND xianyu_account_id = #{accountId}</if>" +
+            "</script>")
+    int resolveWaitingRateFailures(@Param("accountId") Long accountId);
 }

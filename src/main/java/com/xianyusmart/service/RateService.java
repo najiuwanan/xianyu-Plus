@@ -81,6 +81,13 @@ public class RateService {
             return true;
         }
 
+        if (isWaitingForCompletion(result)) {
+            String reason = "订单暂未完成，等待买家确认收货后再评价";
+            automationRecordMapper.markRateWaiting(accountId, tradeId, reason);
+            log.info("【自动评价】账号{}订单{}暂未完成，保留等待评价状态", accountId, tradeId);
+            return true;
+        }
+
         if (isRateNotActionable(result)) {
             String reason = normalizeError(result.getErrorMessage(), "当前订单无需评价");
             automationRecordMapper.markRateSkipped(accountId, tradeId,
@@ -98,8 +105,13 @@ public class RateService {
      * 获取全部待评价订单。单次最多处理 500 条，避免异常账号长时间占用调度线程。
      */
     public List<Map<String, Object>> getPendingRateList(Long accountId) {
+        return scanPendingRateList(accountId).items();
+    }
+
+    /** 获取待评价订单并保留接口失败状态，供人工批量操作使用。 */
+    public PendingRateListScan scanPendingRateList(Long accountId) {
         if (accountId == null) {
-            return List.of();
+            return PendingRateListScan.failed("账号不能为空");
         }
 
         List<Map<String, Object>> orders = new ArrayList<>();
@@ -107,14 +119,14 @@ public class RateService {
             RatePage page = fetchPendingRatePage(accountId, pageNumber);
             if (!page.success()) {
                 log.warn("【自动评价】账号{}获取待评价订单中止：{}", accountId, page.errorMessage());
-                break;
+                return PendingRateListScan.failed(page.errorMessage());
             }
             orders.addAll(page.items());
             if (page.items().size() < PAGE_SIZE || orders.size() >= page.totalCount()) {
                 break;
             }
         }
-        return orders;
+        return PendingRateListScan.success(orders);
     }
 
     /**
@@ -333,6 +345,13 @@ public class RateService {
                 || detail.contains("不支持评价") || detail.contains("无评价资格");
     }
 
+    private boolean isWaitingForCompletion(XianyuApiCallUtils.ApiCallResult result) {
+        String detail = (String.valueOf(result.getErrorMessage()) + " " + String.valueOf(result.getResponse()))
+                .toLowerCase(Locale.ROOT);
+        return detail.contains("未完成的交易不允许评价") || detail.contains("未完成交易")
+                || detail.contains("交易未完成");
+    }
+
     private void recordFailure(Long accountId, String tradeId, String error) {
         String safeError = error == null || error.isBlank() ? "评价接口调用失败" : error;
         String reason = safeError.substring(0, Math.min(safeError.length(), 500));
@@ -347,6 +366,16 @@ public class RateService {
     }
 
     public record PendingRateOrderCheck(boolean ready, String message) {
+    }
+
+    public record PendingRateListScan(boolean success, List<Map<String, Object>> items, String message) {
+        private static PendingRateListScan success(List<Map<String, Object>> items) {
+            return new PendingRateListScan(true, items, "查询成功");
+        }
+
+        private static PendingRateListScan failed(String message) {
+            return new PendingRateListScan(false, List.of(), message);
+        }
     }
 
     private record RatePage(List<Map<String, Object>> items, int totalCount, String errorMessage) {

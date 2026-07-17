@@ -54,6 +54,7 @@ public class ExceptionCenterService {
     public Map<String, Object> query(ExceptionCenterQueryReqDTO request) {
         String type = normalizeType(request.getType());
         Long accountId = request.getAccountId();
+        automationRecordMapper.resolveWaitingRateFailures(accountId);
         automationRecordMapper.resolveTerminalRateFailures(accountId);
         polishRecordMapper.resolveOffShelfFailures(accountId);
         List<ExceptionCenterRecordDTO> allRecords = new ArrayList<>();
