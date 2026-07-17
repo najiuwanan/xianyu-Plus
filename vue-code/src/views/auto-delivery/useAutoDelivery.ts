@@ -96,6 +96,7 @@ export function useAutoDelivery() {
   )
 
   const isApiKamiSelected = computed(() => selectedKamiConfig.value?.sourceType === 2)
+  const isFixedKamiSelected = computed(() => selectedKamiConfig.value?.sourceType === 3)
 
   const hasMultipleSku = computed(() => skuList.value.length > 1)
 
@@ -777,6 +778,7 @@ export function useAutoDelivery() {
     kamiConfigOptions,
     selectedKamiConfigId,
     isApiKamiSelected,
+    isFixedKamiSelected,
 
     loadAccounts,
     loadGoods,

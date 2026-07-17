@@ -4,6 +4,10 @@ import com.xianyusmart.common.ResultObject;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xianyusmart.controller.dto.*;
+import com.xianyusmart.entity.XianyuAccount;
+import com.xianyusmart.entity.XianyuGoodsAutoDeliveryConfig;
+import com.xianyusmart.entity.XianyuGoodsConfig;
+import com.xianyusmart.entity.XianyuGoodsInfo;
 import com.xianyusmart.entity.XianyuKamiConfig;
 import com.xianyusmart.entity.XianyuKamiItem;
 import com.xianyusmart.entity.XianyuKamiUsageRecord;
@@ -12,6 +16,10 @@ import com.xianyusmart.exception.BusinessException;
 import com.xianyusmart.mapper.XianyuKamiConfigMapper;
 import com.xianyusmart.mapper.XianyuKamiItemMapper;
 import com.xianyusmart.mapper.XianyuKamiUsageRecordMapper;
+import com.xianyusmart.mapper.XianyuAccountMapper;
+import com.xianyusmart.mapper.XianyuGoodsAutoDeliveryConfigMapper;
+import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
+import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.service.EmailNotifyService;
 import com.xianyusmart.service.KamiConfigService;
 import com.xianyusmart.service.ApiKamiDeliveryService;
@@ -23,7 +31,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -45,6 +58,18 @@ public class KamiConfigServiceImpl implements KamiConfigService {
 
     @Autowired
     private ApiKamiDeliveryService apiKamiDeliveryService;
+
+    @Autowired
+    private XianyuGoodsInfoMapper goodsInfoMapper;
+
+    @Autowired
+    private XianyuAccountMapper accountMapper;
+
+    @Autowired
+    private XianyuGoodsAutoDeliveryConfigMapper autoDeliveryConfigMapper;
+
+    @Autowired
+    private XianyuGoodsConfigMapper goodsConfigMapper;
 
     private final ConcurrentHashMap<Long, Long> stockOutEmailSentTime = new ConcurrentHashMap<>();
 
@@ -71,10 +96,13 @@ public class KamiConfigServiceImpl implements KamiConfigService {
                 config.setAliasName(reqDTO.getAliasName());
             }
             if (reqDTO.getSourceType() != null) {
-                if (reqDTO.getSourceType() != 1 && reqDTO.getSourceType() != 2) {
+                if (reqDTO.getSourceType() != 1 && reqDTO.getSourceType() != 2 && reqDTO.getSourceType() != 3) {
                     return ResultObject.failed("卡券来源类型不正确");
                 }
                 config.setSourceType(reqDTO.getSourceType());
+            }
+            if (reqDTO.getFixedContent() != null) {
+                config.setFixedContent(reqDTO.getFixedContent());
             }
             if (reqDTO.getApiUrl() != null) {
                 config.setApiUrl(reqDTO.getApiUrl());
@@ -117,6 +145,8 @@ public class KamiConfigServiceImpl implements KamiConfigService {
                 apiConfig.setApiTimeoutSeconds(config.getApiTimeoutSeconds());
                 // 复用测试入口的校验逻辑；不会实际请求外部接口。
                 validateApiConfig(apiConfig);
+            } else if (Integer.valueOf(3).equals(config.getSourceType())) {
+                validateFixedContent(config.getFixedContent());
             }
             if (reqDTO.getId() != null) {
                 kamiConfigMapper.updateById(config);
@@ -162,6 +192,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
     @Transactional
     public ResultObject<Void> deleteConfig(Long id) {
         try {
+            detachConfigFromRelatedGoods(id);
             List<XianyuKamiItem> items = kamiItemMapper.findByConfigId(id);
             for (XianyuKamiItem item : items) {
                 kamiItemMapper.deleteById(item.getId());
@@ -181,6 +212,9 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             XianyuKamiConfig config = kamiConfigMapper.selectById(reqDTO.getKamiConfigId());
             if (config == null) {
                 return ResultObject.failed("卡密配置不存在");
+            }
+            if (!Integer.valueOf(1).equals(config.getSourceType())) {
+                return ResultObject.failed("只有“本地库存卡密”类型可以添加单条卡密");
             }
             XianyuKamiItem item = new XianyuKamiItem();
             item.setKamiConfigId(reqDTO.getKamiConfigId());
@@ -210,6 +244,9 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             XianyuKamiConfig config = kamiConfigMapper.selectById(reqDTO.getKamiConfigId());
             if (config == null) {
                 return ResultObject.failed("卡密配置不存在");
+            }
+            if (!Integer.valueOf(1).equals(config.getSourceType())) {
+                return ResultObject.failed("只有“本地库存卡密”类型可以批量导入");
             }
             String[] lines = reqDTO.getKamiContents().split("\\r?\\n");
             int baseOrder = kamiItemMapper.countByConfigId(reqDTO.getKamiConfigId());
@@ -467,6 +504,191 @@ public class KamiConfigServiceImpl implements KamiConfigService {
         }
     }
 
+    @Override
+    public ResultObject<List<KamiRelatedGoodsDTO>> getRelatedGoods(Long kamiConfigId) {
+        try {
+            if (kamiConfigId == null || kamiConfigMapper.selectById(kamiConfigId) == null) {
+                return ResultObject.failed("卡券库不存在");
+            }
+
+            Map<Long, XianyuAccount> accounts = accountMapper.selectList(null).stream()
+                    .collect(Collectors.toMap(XianyuAccount::getId, account -> account, (left, right) -> left));
+            List<XianyuGoodsAutoDeliveryConfig> relatedConfigs = autoDeliveryConfigMapper.findDefaultByKamiConfigId(kamiConfigId);
+            Set<String> relatedKeys = relatedConfigs.stream()
+                    .map(config -> goodsKey(config.getXianyuAccountId(), config.getXyGoodsId()))
+                    .collect(Collectors.toSet());
+            Map<String, XianyuGoodsAutoDeliveryConfig> defaultConfigs = new HashMap<>();
+            for (XianyuGoodsInfo goods : goodsInfoMapper.selectList(null)) {
+                XianyuGoodsAutoDeliveryConfig deliveryConfig = autoDeliveryConfigMapper
+                        .findByAccountIdAndGoodsIdNoSku(goods.getXianyuAccountId(), goods.getXyGoodId());
+                if (deliveryConfig != null) {
+                    defaultConfigs.put(goodsKey(goods.getXianyuAccountId(), goods.getXyGoodId()), deliveryConfig);
+                }
+            }
+
+            List<KamiRelatedGoodsDTO> result = new ArrayList<>();
+            for (XianyuGoodsInfo goods : goodsInfoMapper.selectList(null)) {
+                String key = goodsKey(goods.getXianyuAccountId(), goods.getXyGoodId());
+                XianyuAccount account = accounts.get(goods.getXianyuAccountId());
+                KamiRelatedGoodsDTO dto = new KamiRelatedGoodsDTO();
+                dto.setXianyuAccountId(goods.getXianyuAccountId());
+                dto.setXianyuGoodsId(goods.getId());
+                dto.setXyGoodsId(goods.getXyGoodId());
+                dto.setAccountNote(account == null || account.getAccountNote() == null || account.getAccountNote().isBlank()
+                        ? (account == null ? "未知账号" : account.getUnb()) : account.getAccountNote());
+                dto.setGoodsTitle(goods.getTitle());
+                dto.setCoverPic(goods.getCoverPic());
+                dto.setSoldPrice(goods.getSoldPrice());
+                dto.setStatus(goods.getStatus());
+                dto.setAssociated(relatedKeys.contains(key));
+                dto.setWillReplace(!relatedKeys.contains(key) && defaultConfigs.containsKey(key));
+                result.add(dto);
+            }
+            result.sort(Comparator
+                    .comparing((KamiRelatedGoodsDTO item) -> !Boolean.TRUE.equals(item.getAssociated()))
+                    .thenComparing(item -> item.getAccountNote() == null ? "" : item.getAccountNote())
+                    .thenComparing(item -> item.getGoodsTitle() == null ? "" : item.getGoodsTitle()));
+            return ResultObject.success(result);
+        } catch (Exception e) {
+            log.error("查询卡券库关联商品失败: configId={}", kamiConfigId, e);
+            return ResultObject.failed("查询关联商品失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public ResultObject<Integer> saveRelatedGoods(KamiRelatedGoodsSaveReqDTO reqDTO) {
+        try {
+            if (reqDTO == null || reqDTO.getKamiConfigId() == null) {
+                return ResultObject.failed("请选择要关联的卡券库");
+            }
+            XianyuKamiConfig kamiConfig = kamiConfigMapper.selectById(reqDTO.getKamiConfigId());
+            if (kamiConfig == null) {
+                return ResultObject.failed("卡券库不存在");
+            }
+
+            Map<String, XianyuGoodsInfo> goodsByKey = goodsInfoMapper.selectList(null).stream()
+                    .collect(Collectors.toMap(goods -> goodsKey(goods.getXianyuAccountId(), goods.getXyGoodId()),
+                            goods -> goods, (left, right) -> left));
+            Set<String> desiredKeys = new LinkedHashSet<>();
+            for (KamiRelatedGoodsDTO dto : reqDTO.getGoods() == null ? List.<KamiRelatedGoodsDTO>of() : reqDTO.getGoods()) {
+                if (dto.getXianyuAccountId() == null || dto.getXyGoodsId() == null || dto.getXyGoodsId().isBlank()) {
+                    return ResultObject.failed("关联商品信息不完整");
+                }
+                String key = goodsKey(dto.getXianyuAccountId(), dto.getXyGoodsId());
+                if (!goodsByKey.containsKey(key)) {
+                    return ResultObject.failed("商品不存在或已被删除：" + dto.getXyGoodsId());
+                }
+                desiredKeys.add(key);
+            }
+
+            List<XianyuGoodsAutoDeliveryConfig> existingLinks = autoDeliveryConfigMapper
+                    .findDefaultByKamiConfigId(reqDTO.getKamiConfigId());
+            for (XianyuGoodsAutoDeliveryConfig linkedConfig : existingLinks) {
+                String key = goodsKey(linkedConfig.getXianyuAccountId(), linkedConfig.getXyGoodsId());
+                if (!desiredKeys.contains(key)) {
+                    unlinkKamiConfig(linkedConfig, reqDTO.getKamiConfigId());
+                }
+            }
+
+            for (String key : desiredKeys) {
+                XianyuGoodsInfo goods = goodsByKey.get(key);
+                bindKamiConfig(goods, reqDTO.getKamiConfigId());
+            }
+            return ResultObject.success(desiredKeys.size(), "已关联 " + desiredKeys.size() + " 个商品");
+        } catch (Exception e) {
+            log.error("保存卡券库关联商品失败", e);
+            return ResultObject.failed("保存关联商品失败: " + e.getMessage());
+        }
+    }
+
+    private void bindKamiConfig(XianyuGoodsInfo goods, Long kamiConfigId) {
+        XianyuGoodsAutoDeliveryConfig deliveryConfig = autoDeliveryConfigMapper
+                .findByAccountIdAndGoodsIdNoSku(goods.getXianyuAccountId(), goods.getXyGoodId());
+        if (deliveryConfig == null) {
+            deliveryConfig = new XianyuGoodsAutoDeliveryConfig();
+            deliveryConfig.setXianyuAccountId(goods.getXianyuAccountId());
+            deliveryConfig.setXianyuGoodsId(goods.getId());
+            deliveryConfig.setXyGoodsId(goods.getXyGoodId());
+            deliveryConfig.setDeliveryMode(2);
+            deliveryConfig.setKamiConfigIds(String.valueOf(kamiConfigId));
+            deliveryConfig.setKamiDeliveryTemplate("{kmKey}");
+            deliveryConfig.setAutoConfirmShipment(0);
+            autoDeliveryConfigMapper.insert(deliveryConfig);
+        } else {
+            deliveryConfig.setXianyuGoodsId(goods.getId());
+            deliveryConfig.setDeliveryMode(2);
+            deliveryConfig.setKamiConfigIds(String.valueOf(kamiConfigId));
+            if (deliveryConfig.getKamiDeliveryTemplate() == null || deliveryConfig.getKamiDeliveryTemplate().isBlank()) {
+                deliveryConfig.setKamiDeliveryTemplate("{kmKey}");
+            }
+            autoDeliveryConfigMapper.updateById(deliveryConfig);
+        }
+        enableAutoDelivery(goods);
+    }
+
+    private void detachConfigFromRelatedGoods(Long kamiConfigId) {
+        for (XianyuGoodsAutoDeliveryConfig linkedConfig : autoDeliveryConfigMapper.findDefaultByKamiConfigId(kamiConfigId)) {
+            unlinkKamiConfig(linkedConfig, kamiConfigId);
+        }
+    }
+
+    private void unlinkKamiConfig(XianyuGoodsAutoDeliveryConfig deliveryConfig, Long kamiConfigId) {
+        String remainingConfigIds = removeConfigId(deliveryConfig.getKamiConfigIds(), kamiConfigId);
+        deliveryConfig.setKamiConfigIds(remainingConfigIds);
+        if (remainingConfigIds.isBlank()) {
+            // 保留原有文本和其他设置，但关闭自动发货，避免商品继续引用已解绑的卡券库。
+            deliveryConfig.setDeliveryMode(1);
+        }
+        autoDeliveryConfigMapper.updateById(deliveryConfig);
+        if (remainingConfigIds.isBlank() && !hasUsableDeliveryConfig(
+                deliveryConfig.getXianyuAccountId(), deliveryConfig.getXyGoodsId())) {
+            XianyuGoodsConfig goodsConfig = goodsConfigMapper.selectByAccountAndGoodsId(
+                    deliveryConfig.getXianyuAccountId(), deliveryConfig.getXyGoodsId());
+            if (goodsConfig != null) {
+                goodsConfig.setXianyuAutoDeliveryOn(0);
+                goodsConfigMapper.update(goodsConfig);
+            }
+        }
+    }
+
+    private boolean hasUsableDeliveryConfig(Long accountId, String xyGoodsId) {
+        return autoDeliveryConfigMapper.findByAccountIdAndGoodsId(accountId, xyGoodsId).stream().anyMatch(config ->
+                (Integer.valueOf(1).equals(config.getDeliveryMode())
+                        && config.getAutoDeliveryContent() != null && !config.getAutoDeliveryContent().isBlank())
+                        || (Integer.valueOf(2).equals(config.getDeliveryMode())
+                        && config.getKamiConfigIds() != null && !config.getKamiConfigIds().isBlank()));
+    }
+
+    private void enableAutoDelivery(XianyuGoodsInfo goods) {
+        XianyuGoodsConfig goodsConfig = goodsConfigMapper.selectByAccountAndGoodsId(
+                goods.getXianyuAccountId(), goods.getXyGoodId());
+        if (goodsConfig == null) {
+            goodsConfig = new XianyuGoodsConfig();
+            goodsConfig.setXianyuAccountId(goods.getXianyuAccountId());
+            goodsConfig.setXianyuGoodsId(goods.getId());
+            goodsConfig.setXyGoodsId(goods.getXyGoodId());
+            goodsConfig.setXianyuAutoDeliveryOn(1);
+            goodsConfigMapper.insert(goodsConfig);
+        } else if (!Integer.valueOf(1).equals(goodsConfig.getXianyuAutoDeliveryOn())) {
+            goodsConfig.setXianyuAutoDeliveryOn(1);
+            goodsConfigMapper.update(goodsConfig);
+        }
+    }
+
+    private String removeConfigId(String configIds, Long kamiConfigId) {
+        if (configIds == null || configIds.isBlank()) return "";
+        return Arrays.stream(configIds.split(","))
+                .map(String::trim)
+                .filter(value -> !value.isBlank() && !value.equals(String.valueOf(kamiConfigId)))
+                .distinct()
+                .collect(Collectors.joining(","));
+    }
+
+    private String goodsKey(Long accountId, String xyGoodsId) {
+        return String.valueOf(accountId) + ":" + (xyGoodsId == null ? "" : xyGoodsId.trim());
+    }
+
     private void refreshConfigCounts(Long kamiConfigId) {
         int total = kamiItemMapper.countByConfigId(kamiConfigId);
         int used = kamiItemMapper.countUsed(kamiConfigId);
@@ -484,6 +706,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
         dto.setXianyuAccountId(config.getXianyuAccountId());
         dto.setAliasName(config.getAliasName());
         dto.setSourceType(config.getSourceType() == null ? 1 : config.getSourceType());
+        dto.setFixedContent(config.getFixedContent());
         dto.setApiUrl(config.getApiUrl());
         dto.setApiMethod(config.getApiMethod());
         dto.setApiHeaders(config.getApiHeaders());
@@ -498,6 +721,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
         dto.setUsedCount(config.getUsedCount());
         int unused = kamiItemMapper.countUnused(config.getId());
         dto.setAvailableCount(unused);
+        dto.setRelatedGoodsCount(autoDeliveryConfigMapper.findDefaultByKamiConfigId(config.getId()).size());
         dto.setCreateTime(config.getCreateTime());
         dto.setUpdateTime(config.getUpdateTime());
         return dto;
@@ -525,6 +749,15 @@ public class KamiConfigServiceImpl implements KamiConfigService {
         }
         validateJsonObject(config.getApiHeaders(), "请求头");
         validateJsonData(config.getApiRequestTemplate(), "请求参数");
+    }
+
+    private void validateFixedContent(String fixedContent) {
+        if (fixedContent == null || fixedContent.trim().isEmpty()) {
+            throw new BusinessException(400, "请填写固定发货内容");
+        }
+        if (fixedContent.trim().length() > 200) {
+            throw new BusinessException(400, "固定发货内容不能超过 200 个字符（闲鱼虚拟发货限制）");
+        }
     }
 
     private void validateJsonObject(String value, String fieldName) {

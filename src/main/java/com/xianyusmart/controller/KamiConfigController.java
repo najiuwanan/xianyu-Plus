@@ -69,6 +69,26 @@ public class KamiConfigController {
         }
     }
 
+    @PostMapping("/related-goods/list")
+    public ResultObject<List<KamiRelatedGoodsDTO>> getRelatedGoods(@RequestParam("kamiConfigId") Long kamiConfigId) {
+        try {
+            return kamiConfigService.getRelatedGoods(kamiConfigId);
+        } catch (Exception e) {
+            log.error("查询卡券库关联商品失败", e);
+            return ResultObject.failed("查询关联商品失败: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/related-goods/save")
+    public ResultObject<Integer> saveRelatedGoods(@RequestBody KamiRelatedGoodsSaveReqDTO reqDTO) {
+        try {
+            return kamiConfigService.saveRelatedGoods(reqDTO);
+        } catch (Exception e) {
+            log.error("保存卡券库关联商品失败", e);
+            return ResultObject.failed("保存关联商品失败: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/item/add")
     public ResultObject<KamiItemRespDTO> addKamiItem(@Valid @RequestBody KamiItemReqDTO reqDTO) {
         try {

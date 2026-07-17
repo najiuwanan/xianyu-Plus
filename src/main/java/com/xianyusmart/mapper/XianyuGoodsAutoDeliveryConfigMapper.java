@@ -47,6 +47,13 @@ public interface XianyuGoodsAutoDeliveryConfigMapper extends BaseMapper<XianyuGo
             "WHERE xianyu_account_id = #{xianyuAccountId} " +
             "ORDER BY create_time DESC")
     List<XianyuGoodsAutoDeliveryConfig> findByAccountId(@Param("xianyuAccountId") Long xianyuAccountId);
+
+    @Select("SELECT id, xianyu_account_id, xianyu_goods_id, xy_goods_id, delivery_mode, sku_id, sku_name, auto_delivery_content, kami_config_ids, kami_delivery_template, auto_delivery_image_url, auto_confirm_shipment, rag_delay_seconds, " +
+            "DATE_FORMAT(create_time, '%Y-%m-%d %H:%i:%s') as create_time, " +
+            "DATE_FORMAT(update_time, '%Y-%m-%d %H:%i:%s') as update_time " +
+            "FROM xianyu_goods_auto_delivery_config " +
+            "WHERE sku_id IS NULL AND FIND_IN_SET(#{kamiConfigId}, kami_config_ids) > 0")
+    List<XianyuGoodsAutoDeliveryConfig> findDefaultByKamiConfigId(@Param("kamiConfigId") Long kamiConfigId);
     
     @Delete("DELETE FROM xianyu_goods_auto_delivery_config WHERE xianyu_account_id = #{xianyuAccountId}")
     int deleteByAccountId(@Param("xianyuAccountId") Long xianyuAccountId);

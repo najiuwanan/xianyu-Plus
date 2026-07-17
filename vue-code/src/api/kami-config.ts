@@ -4,8 +4,10 @@ export interface KamiConfig {
   id: number;
   xianyuAccountId?: number | null;
   aliasName: string;
-  /** 1=本地库存，2=外部 API */
+  /** 1=本地库存，2=外部 API，3=固定内容 */
   sourceType?: number;
+  fixedContent?: string;
+  relatedGoodsCount?: number;
   apiUrl?: string;
   apiMethod?: 'GET' | 'POST' | string;
   apiHeaders?: string;
@@ -39,6 +41,7 @@ export interface SaveKamiConfigReq {
   xianyuAccountId?: number | null;
   aliasName?: string;
   sourceType?: number;
+  fixedContent?: string;
   apiUrl?: string;
   apiMethod?: 'GET' | 'POST';
   apiHeaders?: string;
@@ -106,6 +109,35 @@ export interface KamiApiTestResult {
 export function testKamiApi(data: KamiApiTestReq) {
   return request<KamiApiTestResult>({
     url: '/kami-config/test-api',
+    method: 'POST',
+    data
+  });
+}
+
+export interface KamiRelatedGoods {
+  xianyuAccountId: number;
+  xianyuGoodsId: number;
+  xyGoodsId: string;
+  accountNote?: string;
+  goodsTitle?: string;
+  coverPic?: string;
+  soldPrice?: string;
+  status?: number;
+  associated?: boolean;
+  willReplace?: boolean;
+}
+
+export function getKamiRelatedGoods(kamiConfigId: number) {
+  return request<KamiRelatedGoods[]>({
+    url: '/kami-config/related-goods/list',
+    method: 'POST',
+    params: { kamiConfigId }
+  });
+}
+
+export function saveKamiRelatedGoods(data: { kamiConfigId: number; goods: KamiRelatedGoods[] }) {
+  return request<number>({
+    url: '/kami-config/related-goods/save',
     method: 'POST',
     data
   });

@@ -16,8 +16,11 @@ public class XianyuKamiConfig {
 
     private String aliasName;
 
-    /** 1本地库存卡券，2外部 API 卡券。 */
+    /** 1本地库存卡券，2外部 API 卡券，3固定内容。 */
     private Integer sourceType = 1;
+
+    /** 固定内容来源的发货文本，例如网盘链接、教程说明等。 */
+    private String fixedContent;
 
     /** 外部 API 卡券配置，仅 sourceType=2 时使用。 */
     private String apiUrl;

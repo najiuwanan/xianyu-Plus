@@ -71,6 +71,7 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
         String[] configIdArr = kamiConfigIds.split(",");
         for (String configIdStr : configIdArr) {
             boolean apiSource = false;
+            boolean fixedContentSource = false;
             try {
                 Long configId = Long.parseLong(configIdStr.trim());
                 XianyuKamiConfig config = kamiConfigService.getConfig(configId);
@@ -79,6 +80,7 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
                     continue;
                 }
                 apiSource = Integer.valueOf(2).equals(config.getSourceType());
+                fixedContentSource = Integer.valueOf(3).equals(config.getSourceType());
                 if (apiSource) {
                     String apiContent = apiKamiDeliveryService.acquire(config, DeliveryContext.builder()
                             .accountId(accountId)
@@ -91,6 +93,12 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
                             .build());
                     return applyTemplate(kamiDeliveryTemplate, apiContent);
                 }
+                if (fixedContentSource) {
+                    if (config.getFixedContent() == null || config.getFixedContent().isBlank()) {
+                        throw new BusinessException(400, "固定内容卡券库尚未填写发货内容");
+                    }
+                    return applyTemplate(kamiDeliveryTemplate, config.getFixedContent().trim());
+                }
                 return kamiConfigService.reserveKami(configId, orderId, quantity).stream()
                         .map(XianyuKamiItem::getKamiContent)
                         .map(kamiContent -> applyTemplate(kamiDeliveryTemplate, kamiContent))
@@ -99,7 +107,7 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
             } catch (NumberFormatException e) {
                 log.warn("【账号{}】卡密配置ID格式错误: {}", accountId, configIdStr);
             } catch (BusinessException e) {
-                if (apiSource) {
+                if (apiSource || fixedContentSource) {
                     throw e;
                 }
                 log.warn("【账号{}】卡密配置无法满足订单: configId={}, orderId={}, reason={}",

@@ -44,4 +44,8 @@ public interface KamiConfigService {
     ResultObject<List<KamiItemRespDTO>> exportKamiItems(KamiExportReqDTO reqDTO);
 
     ResultObject<KamiApiTestRespDTO> testApiConfig(KamiApiTestReqDTO reqDTO);
+
+    ResultObject<List<KamiRelatedGoodsDTO>> getRelatedGoods(Long kamiConfigId);
+
+    ResultObject<Integer> saveRelatedGoods(KamiRelatedGoodsSaveReqDTO reqDTO);
 }

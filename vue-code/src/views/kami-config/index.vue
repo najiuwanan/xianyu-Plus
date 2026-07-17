@@ -13,8 +13,11 @@ import {
   resetKamiItem,
   exportKamiItems,
   testKamiApi,
+  getKamiRelatedGoods,
+  saveKamiRelatedGoods,
   type KamiConfig,
-  type KamiItem
+  type KamiItem,
+  type KamiRelatedGoods
 } from '@/api/kami-config'
 
 const kamiConfigs = ref<KamiConfig[]>([])
@@ -43,6 +46,7 @@ const apiTesting = ref(false)
 const apiTestResult = ref('')
 const apiForm = ref({
   sourceType: 2,
+  fixedContent: '',
   apiUrl: '',
   apiMethod: 'POST' as 'GET' | 'POST',
   apiHeaders: '',
@@ -50,6 +54,13 @@ const apiForm = ref({
   apiResultPath: '',
   apiTimeoutSeconds: 10
 })
+
+const showRelatedGoodsDialog = ref(false)
+const relatedGoods = ref<KamiRelatedGoods[]>([])
+const relatedGoodsLoading = ref(false)
+const relatedGoodsSaving = ref(false)
+const relatedGoodsKeyword = ref('')
+const selectedRelatedGoodsKeys = ref<string[]>([])
 
 const showImportDialog = ref(false)
 const importContent = ref('')
@@ -89,6 +100,35 @@ const selectedConfig = computed(() => {
 })
 
 const isApiSource = computed(() => selectedConfig.value?.sourceType === 2)
+const isFixedSource = computed(() => selectedConfig.value?.sourceType === 3)
+const isLocalSource = computed(() => selectedConfig.value?.sourceType !== 2 && selectedConfig.value?.sourceType !== 3)
+
+const sourceLabel = (sourceType?: number) => {
+  if (sourceType === 2) return '外部 API'
+  if (sourceType === 3) return '固定内容'
+  return '本地库存'
+}
+
+const relatedGoodsKey = (goods: Pick<KamiRelatedGoods, 'xianyuAccountId' | 'xyGoodsId'>) =>
+  `${goods.xianyuAccountId}:${goods.xyGoodsId}`
+
+const filteredRelatedGoods = computed(() => {
+  const keyword = relatedGoodsKeyword.value.trim().toLowerCase()
+  if (!keyword) return relatedGoods.value
+  return relatedGoods.value.filter(goods =>
+    [goods.goodsTitle, goods.xyGoodsId, goods.accountNote].some(value => value?.toLowerCase().includes(keyword))
+  )
+})
+
+const selectedRelatedGoods = computed(() => {
+  const selected = new Set(selectedRelatedGoodsKeys.value)
+  return relatedGoods.value.filter(goods => selected.has(relatedGoodsKey(goods)))
+})
+
+const contentPreview = (content?: string) => {
+  const normalized = (content || '').replace(/\s+/g, ' ').trim()
+  return normalized.length > 48 ? `${normalized.slice(0, 48)}…` : normalized || '尚未配置内容'
+}
 
 const loadKamiConfigs = async () => {
   configLoading.value = true
@@ -98,7 +138,7 @@ const loadKamiConfigs = async () => {
       kamiConfigs.value = res.data || []
       if (kamiConfigs.value.length > 0 && !selectedConfigId.value && !isMobile.value) {
         selectedConfigId.value = kamiConfigs.value[0]!.id
-        if (kamiConfigs.value[0]!.sourceType !== 2) loadKamiItems()
+        if (kamiConfigs.value[0]!.sourceType === 1 || !kamiConfigs.value[0]!.sourceType) loadKamiItems()
       } else if (kamiConfigs.value.length === 0) {
         selectedConfigId.value = null
         kamiItems.value = []
@@ -112,7 +152,7 @@ const loadKamiConfigs = async () => {
 }
 
 const loadKamiItems = async () => {
-  if (!selectedConfigId.value || selectedConfig.value?.sourceType === 2) {
+  if (!selectedConfigId.value || !isLocalSource.value) {
     kamiItems.value = []
     return
   }
@@ -137,7 +177,7 @@ const selectConfig = (config: KamiConfig) => {
   selectedConfigId.value = config.id
   filterStatus.value = undefined
   filterKeyword.value = ''
-  if (config.sourceType === 2) {
+  if (config.sourceType !== 1) {
     kamiItems.value = []
   } else {
     loadKamiItems()
@@ -147,11 +187,12 @@ const selectConfig = (config: KamiConfig) => {
 const handleCreate = async () => {
   createLoading.value = true
   try {
-    const createApiSource = createForm.value.sourceType === 2
+    const requestedSource = createForm.value.sourceType
+    const deferredSource = requestedSource !== 1
     const res = await saveKamiConfig({
       aliasName: createForm.value.aliasName || '未命名',
-      // 外部 API 的必填项在下一步弹窗填写，创建时先建立空的本地库再切换来源。
-      sourceType: createApiSource ? 1 : createForm.value.sourceType
+      // 固定内容和外部 API 都需在下一步填写必填配置，因此先建立空的本地库。
+      sourceType: deferredSource ? 1 : createForm.value.sourceType
     })
     if (res.code === 200) {
       toast.success('创建成功')
@@ -164,8 +205,17 @@ const handleCreate = async () => {
       await loadKamiConfigs()
       if (res.data?.id) {
         selectedConfigId.value = res.data.id
-        if (createApiSource) {
-          apiForm.value.sourceType = 2
+        if (deferredSource) {
+          apiForm.value = {
+            sourceType: requestedSource,
+            fixedContent: '',
+            apiUrl: '',
+            apiMethod: 'POST',
+            apiHeaders: '',
+            apiRequestTemplate: '{\n  "orderId": "{{orderId}}",\n  "goodsId": "{{goodsId}}",\n  "quantity": "{{quantity}}"\n}',
+            apiResultPath: '',
+            apiTimeoutSeconds: 10
+          }
           showApiDialog.value = true
         } else {
           loadKamiItems()
@@ -186,6 +236,7 @@ const openApiDialog = () => {
   const config = selectedConfig.value
   apiForm.value = {
     sourceType: config.sourceType || 1,
+    fixedContent: config.fixedContent || '',
     apiUrl: config.apiUrl || '',
     apiMethod: (config.apiMethod === 'GET' ? 'GET' : 'POST'),
     apiHeaders: config.apiHeaders || '',
@@ -229,6 +280,9 @@ const handleSaveApi = async () => {
       id: selectedConfig.value.id,
       aliasName: selectedConfig.value.aliasName,
       sourceType: apiForm.value.sourceType,
+      ...(apiForm.value.sourceType === 3 ? {
+        fixedContent: apiForm.value.fixedContent
+      } : {}),
       ...(apiForm.value.sourceType === 2 ? {
         apiUrl: apiForm.value.apiUrl,
         apiMethod: apiForm.value.apiMethod,
@@ -239,11 +293,11 @@ const handleSaveApi = async () => {
       } : {})
     })
     if (res.code === 200) {
-      toast.success(apiForm.value.sourceType === 2 ? '外部 API 卡券配置已保存' : '已切换为本地库存卡券')
+      toast.success(`${sourceLabel(apiForm.value.sourceType)}卡券配置已保存`)
       showApiDialog.value = false
       kamiItems.value = []
       await loadKamiConfigs()
-      if (apiForm.value.sourceType !== 2) loadKamiItems()
+      if (apiForm.value.sourceType === 1) loadKamiItems()
     } else {
       toast.error(res.msg || '保存失败')
     }
@@ -251,6 +305,55 @@ const handleSaveApi = async () => {
     toast.error('保存失败')
   } finally {
     apiSaving.value = false
+  }
+}
+
+const openRelatedGoodsDialog = async () => {
+  if (!selectedConfig.value) return
+  showRelatedGoodsDialog.value = true
+  relatedGoodsLoading.value = true
+  relatedGoodsKeyword.value = ''
+  try {
+    const res = await getKamiRelatedGoods(selectedConfig.value.id)
+    if (res.code === 200) {
+      relatedGoods.value = res.data || []
+      selectedRelatedGoodsKeys.value = relatedGoods.value
+        .filter(goods => goods.associated)
+        .map(goods => relatedGoodsKey(goods))
+    } else {
+      toast.error(res.msg || '加载关联商品失败')
+    }
+  } catch (e) {
+    toast.error('加载关联商品失败')
+  } finally {
+    relatedGoodsLoading.value = false
+  }
+}
+
+const removeRelatedGoods = (goods: KamiRelatedGoods) => {
+  const key = relatedGoodsKey(goods)
+  selectedRelatedGoodsKeys.value = selectedRelatedGoodsKeys.value.filter(item => item !== key)
+}
+
+const handleSaveRelatedGoods = async () => {
+  if (!selectedConfig.value) return
+  relatedGoodsSaving.value = true
+  try {
+    const res = await saveKamiRelatedGoods({
+      kamiConfigId: selectedConfig.value.id,
+      goods: selectedRelatedGoods.value
+    })
+    if (res.code === 200) {
+      toast.success(res.msg || '关联商品已保存')
+      showRelatedGoodsDialog.value = false
+      await loadKamiConfigs()
+    } else {
+      toast.error(res.msg || '保存关联商品失败')
+    }
+  } catch (e) {
+    toast.error('保存关联商品失败')
+  } finally {
+    relatedGoodsSaving.value = false
   }
 }
 
@@ -488,12 +591,17 @@ onUnmounted(() => {
                 <span class="tag tag--info">外部 API</span>
                 <span class="config-card__stat">按订单实时取卡</span>
               </template>
+              <template v-else-if="config.sourceType === 3">
+                <span class="tag tag--fixed">固定内容</span>
+                <span class="config-card__stat">{{ contentPreview(config.fixedContent) }}</span>
+              </template>
               <template v-else>
                 <span class="config-card__stat">总量 {{ config.totalCount }}</span>
                 <span class="config-card__stat used">已用 {{ config.usedCount }}</span>
                 <span class="config-card__stat avail">可用 {{ config.availableCount }}</span>
               </template>
-              <span v-if="config.sourceType !== 2 && config.alertEnabled === 1" class="tag tag--warning" style="margin-left: 4px;">预警</span>
+              <span v-if="config.sourceType === 1 && config.alertEnabled === 1" class="tag tag--warning" style="margin-left: 4px;">预警</span>
+              <span class="config-card__stat">关联 {{ config.relatedGoodsCount || 0 }} 商品</span>
             </div>
             <button
               class="config-card__del btn-danger btn-text btn-sm"
@@ -513,8 +621,9 @@ onUnmounted(() => {
             <span class="kami-mobile__config-name">{{ selectedConfig?.aliasName || `卡券库#${selectedConfigId}` }}</span>
           </div>
           <div class="kami-mobile__detail-actions">
-            <button class="btn-default btn-sm" @click="openApiDialog">{{ isApiSource ? 'API 配置' : '来源配置' }}</button>
-            <template v-if="!isApiSource">
+            <button class="btn-default btn-sm" @click="openRelatedGoodsDialog">关联商品 {{ selectedConfig?.relatedGoodsCount || 0 }}</button>
+            <button class="btn-default btn-sm" @click="openApiDialog">来源配置</button>
+            <template v-if="isLocalSource">
               <button class="btn-default btn-sm" @click="showAddDialog = true">添加</button>
               <button class="btn-primary btn-sm" @click="showImportDialog = true">批量导入</button>
               <button class="btn-success btn-sm" @click="openExportDialog">导出</button>
@@ -529,7 +638,13 @@ onUnmounted(() => {
           <button class="btn-primary btn-sm" @click="openApiDialog">查看 / 修改 API 配置</button>
         </div>
 
-        <div v-if="!isApiSource" class="kami-mobile__filters">
+        <div v-else-if="isFixedSource" class="api-source-panel api-source-panel--fixed">
+          <strong>固定内容发货</strong>
+          <p>{{ selectedConfig?.fixedContent || '尚未配置固定发货内容' }}</p>
+          <button class="btn-primary btn-sm" @click="openApiDialog">查看 / 修改固定内容</button>
+        </div>
+
+        <div v-if="isLocalSource" class="kami-mobile__filters">
           <select
             v-model="filterStatus"
             class="native-select"
@@ -550,7 +665,7 @@ onUnmounted(() => {
           <button class="btn-default" @click="handleFilterChange">搜索</button>
         </div>
 
-        <div v-if="!isApiSource" class="kami-mobile__items">
+        <div v-if="isLocalSource" class="kami-mobile__items">
           <div v-if="itemsLoading" class="kami-page__empty">加载中...</div>
           <div v-else-if="kamiItems.length === 0" class="kami-page__empty">暂无卡券</div>
           <div
@@ -605,12 +720,17 @@ onUnmounted(() => {
                 <span class="tag tag--info">外部 API</span>
                 <span class="config-card__stat">按订单实时取卡</span>
               </template>
+              <template v-else-if="config.sourceType === 3">
+                <span class="tag tag--fixed">固定内容</span>
+                <span class="config-card__stat">{{ contentPreview(config.fixedContent) }}</span>
+              </template>
               <template v-else>
                 <span class="config-card__stat">总量 {{ config.totalCount }}</span>
                 <span class="config-card__stat used">已用 {{ config.usedCount }}</span>
                 <span class="config-card__stat avail">可用 {{ config.availableCount }}</span>
               </template>
-              <span v-if="config.sourceType !== 2 && config.alertEnabled === 1" class="tag tag--warning" style="margin-left: 4px;">预警</span>
+              <span v-if="config.sourceType === 1 && config.alertEnabled === 1" class="tag tag--warning" style="margin-left: 4px;">预警</span>
+              <span class="config-card__stat">关联 {{ config.relatedGoodsCount || 0 }} 商品</span>
             </div>
             <button
               class="config-card__del btn-danger btn-text btn-sm"
@@ -625,8 +745,9 @@ onUnmounted(() => {
             <div class="kami-detail__header">
               <h2>{{ selectedConfig.aliasName || `卡券库#${selectedConfig.id}` }}</h2>
               <div class="kami-detail__actions">
-                <button class="btn-default" @click="openApiDialog">{{ isApiSource ? 'API 配置' : '来源配置' }}</button>
-                <template v-if="!isApiSource">
+                <button class="btn-default" @click="openRelatedGoodsDialog">关联商品 {{ selectedConfig.relatedGoodsCount || 0 }}</button>
+                <button class="btn-default" @click="openApiDialog">来源配置</button>
+                <template v-if="isLocalSource">
                   <button class="btn-default" @click="showAddDialog = true">添加卡券</button>
                   <button class="btn-primary" @click="showImportDialog = true">批量导入</button>
                   <button class="btn-success" @click="openExportDialog">导出</button>
@@ -641,7 +762,13 @@ onUnmounted(() => {
               <button class="btn-primary" @click="openApiDialog">查看 / 修改 API 配置</button>
             </div>
 
-            <div v-if="!isApiSource" class="kami-detail__filters">
+            <div v-else-if="isFixedSource" class="api-source-panel api-source-panel--fixed">
+              <strong>固定内容发货</strong>
+              <p>{{ selectedConfig.fixedContent || '尚未配置固定发货内容' }}</p>
+              <button class="btn-primary" @click="openApiDialog">查看 / 修改固定内容</button>
+            </div>
+
+            <div v-if="isLocalSource" class="kami-detail__filters">
               <select
                 v-model="filterStatus"
                 class="native-select"
@@ -662,7 +789,7 @@ onUnmounted(() => {
               <button class="btn-default" @click="handleFilterChange">搜索</button>
             </div>
 
-            <div v-if="!isApiSource" class="kami-detail__table">
+            <div v-if="isLocalSource" class="kami-detail__table">
               <div v-if="itemsLoading" class="kami-page__empty">加载中...</div>
               <template v-else>
                 <div v-if="kamiItems.length === 0" class="kami-page__empty">暂无卡券</div>
@@ -730,9 +857,13 @@ onUnmounted(() => {
                   <label class="form-radio" :class="{ 'is-active': createForm.sourceType === 2 }">
                     <input type="radio" :value="2" v-model="createForm.sourceType" />外部 API 自动取卡
                   </label>
+                  <label class="form-radio" :class="{ 'is-active': createForm.sourceType === 3 }">
+                    <input type="radio" :value="3" v-model="createForm.sourceType" />固定内容发货
+                  </label>
                 </div>
               </div>
               <p v-if="createForm.sourceType === 2" class="form-hint">创建后可在该卡券库中继续填写 API 地址、请求参数和返回内容路径。</p>
+              <p v-else-if="createForm.sourceType === 3" class="form-hint">创建后填写一次网盘链接、教程或说明；每笔订单都会发送同样的内容，不扣库存。</p>
             </div>
             <div class="modal-footer">
               <button class="btn btn-secondary" @click="showCreateDialog = false">取消</button>
@@ -799,6 +930,9 @@ onUnmounted(() => {
                   <label class="form-radio" :class="{ 'is-active': apiForm.sourceType === 2 }">
                     <input type="radio" :value="2" v-model="apiForm.sourceType" />外部 API 自动取卡
                   </label>
+                  <label class="form-radio" :class="{ 'is-active': apiForm.sourceType === 3 }">
+                    <input type="radio" :value="3" v-model="apiForm.sourceType" />固定内容发货
+                  </label>
                 </div>
               </div>
 
@@ -837,12 +971,78 @@ onUnmounted(() => {
                 <div v-if="apiTestResult" class="api-config-form__test-result">{{ apiTestResult }}</div>
               </template>
 
+              <template v-else-if="apiForm.sourceType === 3">
+                <p class="form-hint api-config-form__intro">适合网盘链接、教程、提取码说明等内容。保存一次后，每笔已关联商品的订单都会发送同样内容，不需要设置库存数量。</p>
+                <div class="form-row">
+                  <label class="form-label">固定发货内容</label>
+                  <textarea v-model="apiForm.fixedContent" class="form-textarea" :rows="7" maxlength="200" placeholder="例如：网盘链接：https://...&#10;提取码：1234&#10;如有问题请联系我。"></textarea>
+                  <p class="form-hint">最多 200 个字符，受闲鱼虚拟发货内容限制。</p>
+                </div>
+              </template>
+
               <p v-else class="form-hint">切回本地库存后，商品仍使用这套卡券库中已导入的卡密。原有 API 配置会保留，但不会再请求接口。</p>
             </div>
             <div class="modal-footer">
               <button class="btn btn-secondary" @click="showApiDialog = false">取消</button>
               <button v-if="apiForm.sourceType === 2" class="btn btn-secondary" :disabled="apiTesting" @click="handleTestApi">{{ apiTesting ? '测试中…' : '测试接口' }}</button>
               <button class="btn btn-primary" :class="{ 'is-loading': apiSaving }" :disabled="apiSaving" @click="handleSaveApi">保存配置</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- 关联商品 -->
+      <Transition name="modal">
+        <div v-if="showRelatedGoodsDialog" class="modal-overlay" @click.self="showRelatedGoodsDialog = false">
+          <div class="modal-container modal-container--wide">
+            <div class="modal-header">
+              <div>
+                <h2 class="modal-title">关联商品</h2>
+                <p class="form-hint">关联后会自动开启商品的自动发货，并使用当前卡券库作为发货来源。</p>
+              </div>
+              <button class="modal-close" @click="showRelatedGoodsDialog = false">×</button>
+            </div>
+            <div class="modal-body related-goods">
+              <div class="related-goods__warning">若商品原本有其他自动发货配置，保存关联后会由「{{ selectedConfig?.aliasName || '当前卡券库' }}」接管；取消关联则会关闭该商品由本卡券库提供的自动发货。</div>
+              <div class="related-goods__grid">
+                <section class="related-goods__column">
+                  <div class="related-goods__column-head">
+                    <strong>可选商品</strong>
+                    <span>{{ filteredRelatedGoods.length }} 个</span>
+                  </div>
+                  <input v-model="relatedGoodsKeyword" class="form-input related-goods__search" placeholder="搜索商品名、商品 ID 或账号备注" />
+                  <div v-if="relatedGoodsLoading" class="related-goods__empty">加载中…</div>
+                  <div v-else-if="filteredRelatedGoods.length === 0" class="related-goods__empty">没有匹配的商品</div>
+                  <label v-else v-for="goods in filteredRelatedGoods" :key="relatedGoodsKey(goods)" class="related-goods__item">
+                    <input v-model="selectedRelatedGoodsKeys" type="checkbox" :value="relatedGoodsKey(goods)" />
+                    <img v-if="goods.coverPic" :src="goods.coverPic" class="related-goods__cover" alt="" />
+                    <span v-else class="related-goods__cover related-goods__cover--empty">商品</span>
+                    <span class="related-goods__info">
+                      <strong>{{ goods.goodsTitle || `商品 ${goods.xyGoodsId}` }}</strong>
+                      <small>{{ goods.accountNote || '未知账号' }} · ID: {{ goods.xyGoodsId }}<template v-if="goods.soldPrice"> · ¥{{ goods.soldPrice }}</template></small>
+                      <em v-if="goods.willReplace && !goods.associated">已有发货配置，关联后将接管</em>
+                    </span>
+                  </label>
+                </section>
+                <section class="related-goods__column related-goods__column--selected">
+                  <div class="related-goods__column-head">
+                    <strong>已关联商品</strong>
+                    <span>{{ selectedRelatedGoods.length }} 个</span>
+                  </div>
+                  <div v-if="selectedRelatedGoods.length === 0" class="related-goods__empty">请在左侧勾选商品</div>
+                  <div v-else v-for="goods in selectedRelatedGoods" :key="relatedGoodsKey(goods)" class="related-goods__selected-item">
+                    <span>
+                      <strong>{{ goods.goodsTitle || `商品 ${goods.xyGoodsId}` }}</strong>
+                      <small>{{ goods.accountNote || '未知账号' }} · ID: {{ goods.xyGoodsId }}</small>
+                    </span>
+                    <button class="btn-danger btn-text btn-sm" @click="removeRelatedGoods(goods)">移除</button>
+                  </div>
+                </section>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" @click="showRelatedGoodsDialog = false">取消</button>
+              <button class="btn btn-primary" :class="{ 'is-loading': relatedGoodsSaving }" :disabled="relatedGoodsSaving || relatedGoodsLoading" @click="handleSaveRelatedGoods">保存关联（{{ selectedRelatedGoods.length }} 个商品）</button>
             </div>
           </div>
         </div>
@@ -1316,6 +1516,10 @@ onUnmounted(() => {
   max-width: 720px;
 }
 
+.modal-container--wide {
+  max-width: 980px;
+}
+
 .api-source-panel {
   margin: 12px 0;
   padding: 18px;
@@ -1330,6 +1534,10 @@ onUnmounted(() => {
   font-size: 13px;
   line-height: 1.6;
   color: rgba(28,28,30,.66);
+}
+.api-source-panel--fixed {
+  border-color: rgba(175,82,222,.22);
+  background: rgba(175,82,222,.07);
 }
 .api-config-form .form-row {
   align-items: flex-start;
@@ -1353,6 +1561,80 @@ onUnmounted(() => {
   padding: 10px 12px;
   font-size: 12px;
 }
+
+.related-goods__warning {
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: rgba(255,159,10,.10);
+  color: #8d5d00;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.related-goods__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 410px;
+  border: 1px solid rgba(60,60,67,.12);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.related-goods__column {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255,255,255,.35);
+}
+
+.related-goods__column + .related-goods__column {
+  border-left: 1px solid rgba(60,60,67,.12);
+}
+
+.related-goods__column--selected { background: rgba(48,209,88,.035); }
+.related-goods__column-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px 8px;
+  color: #1c1c1e;
+  font-size: 13px;
+}
+.related-goods__column-head span { color: #30a857; font-size: 12px; }
+.related-goods__search { margin: 0 12px 10px; width: calc(100% - 24px); flex: none; }
+.related-goods__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(60,60,67,.08);
+  cursor: pointer;
+}
+.related-goods__item:hover { background: rgba(10,132,255,.045); }
+.related-goods__item input { flex: none; margin: 0; }
+.related-goods__cover {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(60,60,67,.08);
+}
+.related-goods__cover--empty { display: inline-flex; align-items: center; justify-content: center; color: rgba(28,28,30,.45); font-size: 10px; }
+.related-goods__info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.related-goods__info strong, .related-goods__selected-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #1c1c1e; }
+.related-goods__info small, .related-goods__selected-item small { color: rgba(28,28,30,.52); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.related-goods__info em { color: #e58600; font-size: 11px; font-style: normal; }
+.related-goods__selected-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px solid rgba(60,60,67,.08);
+}
+.related-goods__selected-item > span { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.related-goods__empty { display: flex; flex: 1; min-height: 100px; align-items: center; justify-content: center; color: rgba(28,28,30,.45); font-size: 13px; padding: 16px; text-align: center; }
 
 .modal-header {
   display: flex;
@@ -1695,4 +1977,12 @@ onUnmounted(() => {
   box-sizing: border-box;
 }
 .native-input:focus { border-color: #0A84FF; }
+
+@media (max-width: 700px) {
+  .modal-overlay { padding: 10px; }
+  .modal-container--wide { max-height: 92vh; }
+  .related-goods__grid { grid-template-columns: 1fr; min-height: 0; }
+  .related-goods__column { max-height: 34vh; overflow-y: auto; }
+  .related-goods__column + .related-goods__column { border-left: none; border-top: 1px solid rgba(60,60,67,.12); }
+}
 </style>

@@ -14,8 +14,10 @@ public class KamiConfigReqDTO {
 
     private String aliasName;
 
-    /** 1本地库存卡券，2外部 API 卡券。 */
+    /** 1本地库存卡券，2外部 API 卡券，3固定内容。 */
     private Integer sourceType;
+
+    private String fixedContent;
 
     private String apiUrl;
 
