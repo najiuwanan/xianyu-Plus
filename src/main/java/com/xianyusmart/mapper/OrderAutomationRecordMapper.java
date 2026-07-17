@@ -191,19 +191,22 @@ public interface OrderAutomationRecordMapper {
     int countManagedAutomationOrder(@Param("accountId") Long accountId, @Param("orderId") String orderId);
 
     /**
-     * 小红花只能在卖家已确认发货后请求，避免在尚未确认发货的订单上提前触发。
+     * 小红花只能在卖家已确认发货后请求。历史同步订单不会伪造自动发货成功状态，
+     * 因此这里以确认发货和非退款交易状态为准。
      */
-    @Select("SELECT COUNT(1) FROM xianyu_goods_order " +
-            "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId} " +
-            "AND state = 1 AND confirm_state = 1")
+    @Select("SELECT COUNT(1) FROM xianyu_goods_order o " +
+            "WHERE o.xianyu_account_id = #{accountId} AND o.order_id = #{orderId} " +
+            "AND o.confirm_state = 1 " +
+            RECENT_MANAGED_ORDER_CONDITION)
     int countConfirmedShipmentOrder(@Param("accountId") Long accountId, @Param("orderId") String orderId);
 
     @Select("SELECT o.order_id AS orderId FROM xianyu_goods_order o " +
             "LEFT JOIN xianyu_order_automation_record r " +
             "ON r.xianyu_account_id = o.xianyu_account_id AND r.order_id = o.order_id " +
             "WHERE o.xianyu_account_id = #{accountId} " +
-            "AND o.state = 1 AND o.confirm_state = 1 AND o.order_id IS NOT NULL AND o.order_id <> '' " +
-            "AND o.create_time >= DATE_SUB(NOW(3), INTERVAL #{lookbackDays} DAY) " +
+            "AND o.confirm_state = 1 AND o.order_id IS NOT NULL AND o.order_id <> '' " +
+            RECENT_MANAGED_ORDER_CONDITION +
+            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL #{lookbackDays} DAY) " +
             "AND (r.red_flower_status IS NULL OR r.red_flower_status <> 1) " +
             "AND (r.red_flower_next_retry_time IS NULL OR r.red_flower_next_retry_time <= NOW(3)) " +
             "ORDER BY o.create_time ASC LIMIT #{limit}")

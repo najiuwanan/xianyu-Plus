@@ -131,8 +131,10 @@ public class PendingOrderPollService {
                             snapshot.getGoodsTitle(),
                             snapshot.getOrderCreateTime(),
                             snapshot.getPaySuccessTime(),
+                            snapshot.getConsignTime(),
                             snapshot.getTotalPrice(),
                             snapshot.getBuyNum(),
+                            snapshot.getConfirmState(),
                             snapshot.getTradeStatus(),
                             snapshot.getTradeStatusText()
                     );
@@ -235,10 +237,11 @@ public class PendingOrderPollService {
         String forcedText = stringValue(order.get("_xianyuPlusTradeStatusText"));
         applyTradeStatus(record, commonData, forcedStatus, forcedText);
 
-        // 历史订单可能是手工发货或退款订单。明确标为跳过，防止被任务调度器领取。
+        // 历史同步绝不进入自动发货队列；但闲鱼已发货/交易成功订单应补齐确认发货状态，
+        // 让小红花和执行中心能与订单管理使用同一份交易状态。
         record.setPnmId("history_" + record.getOrderId());
         record.setState(0);
-        record.setConfirmState(0);
+        record.setConfirmState(isShipmentConfirmed(record) ? 1 : 0);
         record.setDeliveryStatus(DeliveryStatus.SKIPPED.name());
         record.setDeliveryChannel("HISTORY_SYNC");
         return record;
@@ -364,10 +367,26 @@ public class PendingOrderPollService {
 
         String createTime = (String) commonData.get("createTime");
         String payTime = (String) commonData.get("paySuccessTime");
+        String consignTime = stringValue(commonData.get("consignTime"));
         if (createTime != null) record.setOrderCreateTime(createTime);
         if (payTime != null) record.setPaySuccessTime(payTime);
+        if (consignTime != null && !consignTime.isBlank()) record.setConsignTime(consignTime);
 
         return record;
+    }
+
+    /**
+     * “确认发货”是小红花的前置条件。历史同步不会臆造状态：只有闲鱼明确返回已发货、交易成功，
+     * 或给出发货时间时才补齐该标记；退款/关闭订单始终不参与自动化。
+     */
+    private boolean isShipmentConfirmed(XianyuGoodsOrder record) {
+        String tradeStatus = record.getTradeStatus();
+        if ("REFUNDING".equals(tradeStatus) || "REFUNDED".equals(tradeStatus) || "CLOSED".equals(tradeStatus)) {
+            return false;
+        }
+        return "SHIPPED".equals(tradeStatus)
+                || "COMPLETED".equals(tradeStatus)
+                || (record.getConsignTime() != null && !record.getConsignTime().isBlank());
     }
 
     @SuppressWarnings("unchecked")

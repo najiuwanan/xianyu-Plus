@@ -353,8 +353,10 @@ public interface XianyuGoodsOrderMapper {
             "goods_title = COALESCE(#{goodsTitle}, goods_title), " +
             "order_create_time = COALESCE(#{orderCreateTime}, order_create_time), " +
             "pay_success_time = COALESCE(#{paySuccessTime}, pay_success_time), " +
+            "consign_time = COALESCE(#{consignTime}, consign_time), " +
             "total_price = COALESCE(#{totalPrice}, total_price), " +
             "buy_num = COALESCE(#{buyNum}, buy_num), " +
+            "confirm_state = CASE WHEN #{confirmState} = 1 THEN 1 ELSE confirm_state END, " +
             "trade_status = #{tradeStatus}, trade_status_text = #{tradeStatusText} " +
             "WHERE id = #{id}")
     int updateTradeSnapshot(@Param("id") Long id,
@@ -364,8 +366,10 @@ public interface XianyuGoodsOrderMapper {
                             @Param("goodsTitle") String goodsTitle,
                             @Param("orderCreateTime") String orderCreateTime,
                             @Param("paySuccessTime") String paySuccessTime,
+                            @Param("consignTime") String consignTime,
                             @Param("totalPrice") String totalPrice,
                             @Param("buyNum") Integer buyNum,
+                            @Param("confirmState") Integer confirmState,
                             @Param("tradeStatus") String tradeStatus,
                             @Param("tradeStatusText") String tradeStatusText);
 
