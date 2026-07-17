@@ -28,8 +28,6 @@ public interface OrderService {
 
     String consignDummyDelivery(Long accountId, String orderId, String tradeText, List<String> imageUrls);
 
-    String consignDummyDeliveryWithConfig(Long accountId, String xyGoodsId, String orderId);
-
     /**
      * 获取订单详情
      *

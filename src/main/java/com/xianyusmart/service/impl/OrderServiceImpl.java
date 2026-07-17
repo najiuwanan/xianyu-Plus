@@ -8,30 +8,14 @@ import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.xianyusmart.entity.XianyuGoodsAutoDeliveryConfig;
 import com.xianyusmart.entity.XianyuGoodsOrder;
-import com.xianyusmart.exception.BusinessException;
-import com.xianyusmart.mapper.XianyuGoodsAutoDeliveryConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.xianyusmart.service.AccountService;
-import com.xianyusmart.service.KamiConfigService;
 import com.xianyusmart.service.OrderService;
-import com.xianyusmart.service.delivery.DeliveryContext;
-import com.xianyusmart.service.delivery.DeliveryStrategyResolver;
-import com.xianyusmart.service.delivery.OrderDetailFetcher;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
-import java.net.http.HttpClient;
-import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import com.xianyusmart.service.AccountService;
 
 /**
  * 订单服务实现
@@ -49,18 +33,6 @@ public class OrderServiceImpl implements OrderService {
     @Autowired
     private XianyuGoodsOrderMapper orderMapper;
 
-    @Autowired
-    private XianyuGoodsAutoDeliveryConfigMapper autoDeliveryConfigMapper;
-
-    @Autowired
-    private DeliveryStrategyResolver deliveryStrategyResolver;
-
-    @Autowired
-    private KamiConfigService kamiConfigService;
-
-    @Autowired
-    private OrderDetailFetcher orderDetailFetcher;
-    
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -550,102 +522,4 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
-    @Override
-    public String consignDummyDeliveryWithConfig(Long accountId, String xyGoodsId, String orderId) {
-        log.info("【账号{}】带配置凭证发货: xyGoodsId={}, orderId={}", accountId, xyGoodsId, orderId);
-
-        XianyuGoodsOrder existingOrder = orderMapper.selectByAccountIdAndOrderId(accountId, orderId);
-        String orderSkuId = null;
-        OrderDetailFetcher.OrderDetailInfo orderDetail = orderDetailFetcher.fetch(accountId, xyGoodsId, orderId);
-        if (orderDetail != null) {
-            orderSkuId = orderDetail.skuId;
-        }
-
-        XianyuGoodsAutoDeliveryConfig deliveryConfig = orderSkuId == null || orderSkuId.isBlank()
-                ? null
-                : autoDeliveryConfigMapper.findByAccountIdAndGoodsIdAndSkuId(accountId, xyGoodsId, orderSkuId);
-        if (deliveryConfig == null) {
-            deliveryConfig = autoDeliveryConfigMapper.findByAccountIdAndGoodsIdNoSku(accountId, xyGoodsId);
-        }
-
-        if (deliveryConfig == null) {
-            log.warn("【账号{}】商品无发货配置，请先配置自动发货: xyGoodsId={}", accountId, xyGoodsId);
-            throw new BusinessException(89282,"商品无发货配置，请先配置自动发货");
-        }
-
-        int deliveryMode = deliveryConfig.getDeliveryMode() != null ? deliveryConfig.getDeliveryMode() : 1;
-
-        // 从订单记录中获取 sId 和 buyerUserName，供卡密发货策略使用
-        String sId = null;
-        String buyerUserName = null;
-        if (existingOrder != null) {
-            sId = existingOrder.getSid();
-            buyerUserName = existingOrder.getBuyerUserName();
-        }
-        if (sId == null || sId.isEmpty()) {
-            sId = orderId; // fallback
-        }
-
-        DeliveryContext ctx = DeliveryContext.builder()
-                .accountId(accountId)
-                .xyGoodsId(xyGoodsId)
-                .orderId(orderId)
-                .sId(sId)
-                .buyerUserName(buyerUserName)
-                .quantity(existingOrder != null && existingOrder.getBuyNum() != null ? existingOrder.getBuyNum() : 1)
-                .deliveryConfig(deliveryConfig)
-                .build();
-
-        String content = deliveryStrategyResolver.resolve(deliveryMode, ctx);
-        if (content == null) {
-            String failMsg = deliveryMode == 1 ? "未配置发货内容" : (deliveryMode == 2 ? "卡密库存不足，无可用卡密" : "未知的发货模式: " + deliveryMode);
-            log.warn("【账号{}】发货内容解析失败: {}", accountId, failMsg);
-            return null;
-        }
-
-        if (deliveryMode == 2 && content.length() > 200) {
-            kamiConfigService.releaseReservation(orderId);
-            log.warn("【账号{}】卡密内容超过虚拟发货接口限制: orderId={}, contentLen={}", accountId, orderId, content.length());
-            return null;
-        }
-
-        List<String> imageUrls = new ArrayList<>();
-        String imageUrlStr = deliveryConfig.getAutoDeliveryImageUrl();
-        if (imageUrlStr != null && !imageUrlStr.trim().isEmpty()) {
-            for (String url : imageUrlStr.split(",")) {
-                String trimmed = url.trim();
-                if (!trimmed.isEmpty()) imageUrls.add(trimmed);
-            }
-        }
-
-        log.info("【账号{}】带配置凭证发货: orderId={}, deliveryMode={}, contentLen={}, imageCount={}", accountId, orderId, deliveryMode, content.length(), imageUrls.size());
-        String result = consignDummyDelivery(accountId, orderId, content, imageUrls);
-
-        if (result != null) {
-            if (deliveryMode == 2) {
-                String buyerUserId = existingOrder != null ? existingOrder.getBuyerUserId() : null;
-                kamiConfigService.commitReservation(orderId, accountId, xyGoodsId, buyerUserId, buyerUserName);
-            }
-            if (existingOrder != null) {
-                orderMapper.updateStateAndContent(existingOrder.getId(), 1, content);
-                orderMapper.updateConfirmState(accountId, orderId);
-                log.info("【账号{}】凭证发货成功，已更新订单状态: orderId={}", accountId, orderId);
-            } else {
-                XianyuGoodsOrder record = new XianyuGoodsOrder();
-                record.setXianyuAccountId(accountId);
-                record.setXyGoodsId(xyGoodsId);
-                record.setOrderId(orderId);
-                record.setPnmId("api_" + orderId);
-                record.setContent(content);
-                record.setState(1);
-                record.setConfirmState(1);
-                orderMapper.insert(record);
-                log.info("【账号{}】凭证发货成功，已新建订单记录: orderId={}", accountId, orderId);
-            }
-        } else if (deliveryMode == 2) {
-            kamiConfigService.releaseReservation(orderId);
-        }
-
-        return result;
-    }
 }

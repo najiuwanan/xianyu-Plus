@@ -261,12 +261,6 @@ public interface XianyuGoodsOrderMapper {
     @Select("SELECT COUNT(*) FROM xianyu_goods_order WHERE state = -1")
     int countDeliveryFail();
 
-    @Select("SELECT COUNT(*) FROM xianyu_goods_order")
-    int countAllOrders();
-
-    @Select("SELECT COUNT(*) FROM xianyu_goods_order WHERE date(create_time) = #{date}")
-    int countOrdersByDate(@Param("date") String date);
-
     @Select("<script>" +
             "SELECT r.*, g.title as goods_title " +
             "FROM xianyu_goods_order r " +
@@ -342,15 +336,6 @@ public interface XianyuGoodsOrderMapper {
             "</script>")
     long countByCondition(@Param("accountId") Long accountId, @Param("xyGoodsId") String xyGoodsId, @Param("orderStatus") Integer orderStatus, @Param("keyword") String keyword);
 
-    @Select("SELECT COUNT(*) FROM xianyu_goods_order WHERE state = 1 AND date(create_time) = #{date}")
-    int countDeliverySuccessByDate(@Param("date") String date);
-
-    @Select("SELECT COUNT(*) FROM xianyu_goods_order WHERE state = -1 AND date(create_time) = #{date}")
-    int countDeliveryFailByDate(@Param("date") String date);
-
-    @Select("SELECT COALESCE(SUM(CAST(total_price AS DECIMAL(12, 2))), 0) FROM xianyu_goods_order WHERE state = 1 AND confirm_state = 1")
-    double sumDeliverySuccessAmount();
-
     @Update("UPDATE xianyu_goods_order SET sku_name = #{skuName} WHERE id = #{id}")
     int updateSkuName(@Param("id") Long id, @Param("skuName") String skuName);
 
@@ -384,9 +369,4 @@ public interface XianyuGoodsOrderMapper {
                             @Param("tradeStatus") String tradeStatus,
                             @Param("tradeStatusText") String tradeStatusText);
 
-    @Select("SELECT COALESCE(SUM(CAST(total_price AS DECIMAL(12, 2))), 0) FROM xianyu_goods_order WHERE state = 1 AND confirm_state = 1 AND date(create_time) = #{date}")
-    double sumDeliverySuccessAmountByDate(@Param("date") String date);
-
-    @Select("SELECT COALESCE(SUM(CAST(total_price AS DECIMAL(12, 2))), 0) FROM xianyu_goods_order WHERE state = 1 AND confirm_state = 1 AND date(create_time) >= #{startDate} AND date(create_time) <= #{endDate}")
-    double sumDeliverySuccessAmountByDateRange(@Param("startDate") String startDate, @Param("endDate") String endDate);
 }

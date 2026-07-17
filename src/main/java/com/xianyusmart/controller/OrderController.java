@@ -184,23 +184,8 @@ public class OrderController {
         }
     }
 
-    @PostMapping("/pendingOrders")
-    public ResultObject<List<Map<String, Object>>> getPendingOrders(@RequestBody PendingOrdersReqDTO reqDTO) {
-        try {
-            if (reqDTO.getXianyuAccountId() == null) {
-                return ResultObject.failed("账号ID不能为空");
-            }
-            List<Map<String, Object>> orders = orderService.queryPendingOrders(reqDTO.getXianyuAccountId());
-            pendingOrderPollService.syncOrdersToDb(reqDTO.getXianyuAccountId(), orders);
-            return ResultObject.success(orders);
-        } catch (Exception e) {
-            log.error("查询待发货订单失败", e);
-            return ResultObject.failed("查询待发货订单失败: " + e.getMessage());
-        }
-    }
-
     @lombok.Data
-    public static class PendingOrdersReqDTO {
+    public static class SyncOrderHistoryReqDTO {
         private Long xianyuAccountId;
     }
 
@@ -209,7 +194,7 @@ public class OrderController {
      * 同步过程不会触发自动发货。
      */
     @PostMapping("/syncHistory")
-    public ResultObject<Map<String, Integer>> syncOrderHistory(@RequestBody PendingOrdersReqDTO reqDTO) {
+    public ResultObject<Map<String, Integer>> syncOrderHistory(@RequestBody SyncOrderHistoryReqDTO reqDTO) {
         if (reqDTO.getXianyuAccountId() == null) {
             return ResultObject.failed("账号ID不能为空");
         }
@@ -234,51 +219,4 @@ public class OrderController {
         }
     }
 
-    @PostMapping("/deliverPendingOrders")
-    public ResultObject<Integer> deliverPendingOrders(@RequestBody PendingOrdersReqDTO reqDTO) {
-        try {
-            if (reqDTO.getXianyuAccountId() == null) {
-                return ResultObject.failed("账号ID不能为空");
-            }
-            int count = pendingOrderPollService.deliverPendingOrders(reqDTO.getXianyuAccountId());
-            return ResultObject.success(count);
-        } catch (Exception e) {
-            log.error("自动发货失败", e);
-            return ResultObject.failed("自动发货失败: " + e.getMessage());
-        }
-    }
-
-    @PostMapping("/consignDummyDelivery")
-    public ResultObject<String> consignDummyDelivery(@RequestBody ConsignDummyReqDTO reqDTO) {
-        try {
-            log.info("凭证发货请求: xianyuAccountId={}, xyGoodsId={}, orderId={}", reqDTO.getXianyuAccountId(), reqDTO.getXyGoodsId(), reqDTO.getOrderId());
-            if (reqDTO.getXianyuAccountId() == null) {
-                return ResultObject.failed("账号ID不能为空");
-            }
-            if (reqDTO.getOrderId() == null || reqDTO.getOrderId().isEmpty()) {
-                return ResultObject.failed("订单ID不能为空");
-            }
-            if (reqDTO.getXyGoodsId() == null || reqDTO.getXyGoodsId().isEmpty()) {
-                return ResultObject.failed("商品ID不能为空");
-            }
-            String result = orderService.consignDummyDeliveryWithConfig(reqDTO.getXianyuAccountId(), reqDTO.getXyGoodsId(), reqDTO.getOrderId());
-            if (result != null) {
-                log.info("凭证发货成功: xianyuAccountId={}, orderId={}, result={}", reqDTO.getXianyuAccountId(), reqDTO.getOrderId(), result);
-                return ResultObject.success(result);
-            } else {
-                log.error("凭证发货失败: xianyuAccountId={}, orderId={}", reqDTO.getXianyuAccountId(), reqDTO.getOrderId());
-                return ResultObject.failed("凭证发货失败");
-            }
-        } catch (Exception e) {
-            log.error("凭证发货异常: xianyuAccountId={}, orderId={}", reqDTO.getXianyuAccountId(), reqDTO.getOrderId(), e);
-            return ResultObject.failed("凭证发货失败: " + e.getMessage());
-        }
-    }
-
-    @lombok.Data
-    public static class ConsignDummyReqDTO {
-        private Long xianyuAccountId;
-        private String xyGoodsId;
-        private String orderId;
-    }
 }

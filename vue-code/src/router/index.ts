@@ -87,12 +87,6 @@ const router = createRouter({
       meta: { title: '异常中心', icon: '⚠️' }
     },
     {
-      path: '/pending-orders',
-      name: 'pending-orders',
-      component: () => import('@/views/pending-orders/index.vue'),
-      meta: { title: '待发货订单', icon: '📦', hidden: true }
-    },
-    {
       path: '/kami-config',
       name: 'kami-config',
       component: () => import('@/views/kami-config/index.vue'),

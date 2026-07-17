@@ -95,22 +95,6 @@ export function manualDelivery(data: { xianyuAccountId: number; orderId: string;
   })
 }
 
-export function getPendingOrders(xianyuAccountId: number) {
-  return request<any[]>({
-    url: '/order/pendingOrders',
-    method: 'POST',
-    data: { xianyuAccountId }
-  })
-}
-
-export function deliverPendingOrders(xianyuAccountId: number) {
-  return request<number>({
-    url: '/order/deliverPendingOrders',
-    method: 'POST',
-    data: { xianyuAccountId }
-  })
-}
-
 export interface OrderHistorySyncResult {
   soldCount: number
   refundCount: number
@@ -123,13 +107,5 @@ export function syncOrderHistory(xianyuAccountId: number) {
     url: '/order/syncHistory',
     method: 'POST',
     data: { xianyuAccountId }
-  })
-}
-
-export function consignDummyDelivery(data: { xianyuAccountId: number; xyGoodsId: string; orderId: string }) {
-  return request<string>({
-    url: '/order/consignDummyDelivery',
-    method: 'POST',
-    data
   })
 }

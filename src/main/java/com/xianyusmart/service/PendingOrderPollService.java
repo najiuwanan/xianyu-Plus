@@ -40,30 +40,6 @@ public class PendingOrderPollService {
     private DeliveryTaskService deliveryTaskService;
 
     @SuppressWarnings("unchecked")
-    public int deliverPendingOrders(Long accountId) {
-        List<Map<String, Object>> pendingOrders = orderService.queryPendingOrders(accountId);
-        if (pendingOrders == null || pendingOrders.isEmpty()) {
-            return 0;
-        }
-        int queuedCount = 0;
-        for (Map<String, Object> order : pendingOrders) {
-            try {
-                Object commonDataObj = order.get("commonData");
-                if (!(commonDataObj instanceof Map)) continue;
-                Map<String, Object> commonData = (Map<String, Object>) commonDataObj;
-                String orderId = (String) commonData.get("orderId");
-                String orderStatus = (String) commonData.get("orderStatus");
-                if (orderId == null || !"待发货".equals(orderStatus)) continue;
-                XianyuGoodsOrder task = queueOrder(accountId, order);
-                if (task != null) queuedCount++;
-            } catch (Exception e) {
-                log.warn("【账号{}】处理待发货订单异常: {}", accountId, e.getMessage());
-            }
-        }
-        return queuedCount;
-    }
-
-    @SuppressWarnings("unchecked")
     public void syncOrdersToDb(Long accountId, List<Map<String, Object>> pendingOrders) {
         for (Map<String, Object> order : pendingOrders) {
             try {
@@ -284,21 +260,6 @@ public class PendingOrderPollService {
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
-    }
-
-    private XianyuGoodsOrder queueOrder(Long accountId, Map<String, Object> order) {
-        XianyuGoodsOrder record = buildOrderRecord(accountId, order);
-        if (!isAutoDeliveryEnabled(accountId, record.getXyGoodsId())) {
-            return null;
-        }
-        XianyuGoodsOrder existing = orderMapper.selectByAccountIdAndOrderId(accountId, record.getOrderId());
-        if (existing != null) {
-            if (!Integer.valueOf(1).equals(existing.getState())) {
-                deliveryTaskService.requeue(existing.getId());
-            }
-            return existing;
-        }
-        return deliveryTaskService.discover(record, DeliveryChannel.HTTP_API);
     }
 
     private boolean isAutoDeliveryEnabled(Long accountId, String xyGoodsId) {

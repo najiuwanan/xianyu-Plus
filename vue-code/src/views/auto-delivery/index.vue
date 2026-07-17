@@ -43,29 +43,17 @@ const {
   onlyOnSale,
   detailDialogVisible,
   selectedGoodsId,
-  deliveryRecords,
-  recordsLoading,
-  recordsTotal,
-  recordsPageNum,
-  recordsPageSize,
-  recordsTotalPages,
   isMobile,
   mobileView,
-  confirmDialog,
   loadAccounts,
   handleAccountChange,
   selectGoods,
   saveConfig,
   toggleAutoDelivery,
   toggleAutoConfirmShipment,
-  loadDeliveryRecords,
-  handleRecordsPageChange,
   viewGoodsDetail,
   goToAutoReply,
-  handleConfirmShipment,
-  handleTriggerDelivery,
-  handleDialogConfirm,
-  handleDialogCancel,
+  goToDeliveryRecords,
   handleSkuChange,
   handleGoodsScroll,
   goBackToGoods,
@@ -74,8 +62,6 @@ const {
   formatPrice,
   getStatusText,
   getStatusClass,
-  getRecordStatusText,
-  getRecordStatusClass,
   kamiConfigOptions,
   selectedKamiConfigId,
   isApiKamiSelected,
@@ -297,6 +283,10 @@ onMounted(() => {
             <IconChat />
             <span class="mobile-hidden">配置回复</span>
           </button>
+          <button class="btn btn--ghost btn--sm" @click="goToDeliveryRecords">
+            <IconTruck />
+            <span class="mobile-hidden">发货记录</span>
+          </button>
         </div>
 
         <!-- Desktop config header -->
@@ -321,6 +311,10 @@ onMounted(() => {
           <button class="btn btn--ghost btn--sm" @click="goToAutoReply">
             <IconChat />
             <span class="mobile-hidden">配置回复</span>
+          </button>
+          <button class="btn btn--ghost btn--sm" @click="goToDeliveryRecords">
+            <IconTruck />
+            <span class="mobile-hidden">发货记录</span>
           </button>
         </div>
 
@@ -528,38 +522,6 @@ onMounted(() => {
       :account-id="selectedAccountId"
     />
 
-    <!-- Confirm Dialog -->
-    <Transition name="overlay-fade">
-      <div
-        v-if="confirmDialog.visible"
-        class="ad__dialog-overlay"
-        @click.self="handleDialogCancel"
-      >
-        <div class="ad__dialog">
-          <div class="ad__dialog-header">
-            <h3 class="ad__dialog-title">{{ confirmDialog.title }}</h3>
-          </div>
-          <div class="ad__dialog-body">
-            <p class="ad__dialog-text" :class="{ 'ad__dialog-text--danger': confirmDialog.type === 'danger' }" style="white-space: pre-line;">{{ confirmDialog.message }}</p>
-          </div>
-          <div class="ad__dialog-footer">
-            <button
-              class="ad__dialog-btn ad__dialog-btn--cancel"
-              @click="handleDialogCancel"
-            >
-              取消
-            </button>
-            <button
-              class="ad__dialog-btn"
-              :class="confirmDialog.type === 'danger' ? 'ad__dialog-btn--danger' : 'ad__dialog-btn--primary'"
-              @click="handleDialogConfirm"
-            >
-              确定
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
 
     <!-- Custom Delivery API Hint Dialog -->
     <Transition name="overlay-fade">

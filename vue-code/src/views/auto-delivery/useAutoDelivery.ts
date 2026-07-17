@@ -12,18 +12,7 @@ import {
   type GetAutoDeliveryConfigReq,
   type GoodsSku
 } from '@/api/auto-delivery-config'
-import {
-  getAutoDeliveryRecords,
-  confirmShipment,
-  triggerAutoDelivery,
-  type AutoDeliveryRecordReq,
-  type AutoDeliveryRecordResp,
-  type ConfirmShipmentReq,
-  type TriggerAutoDeliveryReq
-} from '@/api/auto-delivery-record'
-import { showSuccess, showError, showInfo } from '@/utils'
-import { getConnectionStatus } from '@/api/websocket'
-import { toast } from '@/utils/toast'
+import { showSuccess, showInfo } from '@/utils'
 import {
   getKamiConfigs,
   type KamiConfig
@@ -52,7 +41,6 @@ export function useAutoDelivery() {
   const gotoConnection = () => router.push('/connection')
   ;(window as any).__gotoConnection = gotoConnection
 
-  const loading = ref(false)
   const saving = ref(false)
   const accounts = ref<Account[]>([])
   const selectedAccountId = ref<number | null>(null)
@@ -100,22 +88,8 @@ export function useAutoDelivery() {
 
   const hasMultipleSku = computed(() => skuList.value.length > 1)
 
-  const recordsLoading = ref(false)
-  const deliveryRecords = ref<any[]>([])
-  const recordsTotal = ref(0)
-  const recordsPageNum = ref(1)
-  const recordsPageSize = ref(20)
-
   const isMobile = ref(false)
   const mobileView = ref<'goods' | 'config'>('goods')
-
-  const confirmDialog = ref({
-    visible: false,
-    title: '',
-    message: '',
-    type: 'danger' as 'danger' | 'primary',
-    onConfirm: () => {}
-  })
 
   const apiHintUrl = computed(() => '/api/order/list')
 
@@ -171,18 +145,6 @@ export function useAutoDelivery() {
   const getStatusClass = (status: number) => {
     const map: Record<number, string> = { 0: 'on-sale', 1: 'off-shelf', 2: 'sold' }
     return map[status] || 'off-shelf'
-  }
-
-  const getRecordStatusText = (state: number) => {
-    if (state === 1) return '成功'
-    if (state === 0) return '待发货'
-    return '失败'
-  }
-
-  const getRecordStatusClass = (state: number) => {
-    if (state === 1) return 'success'
-    if (state === 0) return 'pending'
-    return 'fail'
   }
 
   const loadAccounts = async () => {
@@ -337,7 +299,6 @@ export function useAutoDelivery() {
 
   const selectGoods = async (goods: GoodsItemWithConfig) => {
     selectedGoods.value = goods
-    recordsPageNum.value = 1
 
     await loadSkuList()
 
@@ -350,7 +311,6 @@ export function useAutoDelivery() {
     }
 
     await loadConfig()
-    await loadDeliveryRecords()
     await loadKamiConfigOptions()
 
     if (isMobile.value) { mobileView.value = 'config' }
@@ -539,43 +499,6 @@ export function useAutoDelivery() {
     }
   }
 
-  const loadDeliveryRecords = async () => {
-    if (!selectedAccountId.value || !selectedGoods.value) {
-      deliveryRecords.value = []
-      recordsTotal.value = 0
-      return
-    }
-
-    recordsLoading.value = true
-    try {
-      const req: AutoDeliveryRecordReq = {
-        xianyuAccountId: selectedAccountId.value,
-        xyGoodsId: selectedGoods.value.item.xyGoodId,
-        pageNum: recordsPageNum.value,
-        pageSize: recordsPageSize.value
-      }
-
-      const response = await getAutoDeliveryRecords(req)
-      if (response.code === 0 || response.code === 200) {
-        deliveryRecords.value = response.data?.records || []
-        recordsTotal.value = response.data?.total || 0
-      } else {
-        throw new Error(response.msg || '获取记录失败')
-      }
-    } catch (error: any) {
-      console.error('加载自动发货记录失败:', error)
-      deliveryRecords.value = []
-      recordsTotal.value = 0
-    } finally {
-      recordsLoading.value = false
-    }
-  }
-
-  const handleRecordsPageChange = (page: number) => {
-    recordsPageNum.value = page
-    loadDeliveryRecords()
-  }
-
   const viewGoodsDetail = () => {
     if (!selectedGoods.value || !selectedAccountId.value) {
       showInfo('请先选择商品')
@@ -599,131 +522,19 @@ export function useAutoDelivery() {
     })
   }
 
-  const handleConfirmShipment = (record: any) => {
-    if (!selectedAccountId.value) {
-      showInfo('请先选择账号')
-      return
-    }
-    if (!record.orderId) {
-      showError('该记录没有订单ID，无法确认已发货')
-      return
-    }
-
-    confirmDialog.value = {
-      visible: true,
-      title: '确认已发货',
-      message: `确定要确认已发货吗？订单ID: ${record.orderId}`,
-      type: 'primary',
-      onConfirm: async () => {
-        try {
-          const req: ConfirmShipmentReq = {
-            xianyuAccountId: selectedAccountId.value!,
-            orderId: record.orderId
-          }
-          const response = await confirmShipment(req)
-          if (response.code === 0 || response.code === 200) {
-            showSuccess(response.data || '确认已发货成功')
-            await loadDeliveryRecords()
-          } else {
-            if (response.msg && (response.msg.includes('Token') || response.msg.includes('令牌'))) {
-              throw new Error('Cookie已过期，请重新扫码登录获取新的Cookie')
-            }
-            throw new Error(response.msg || '确认已发货失败')
-          }
-        } catch (error: any) {
-          console.error('确认已发货失败:', error)
-          if (!error.messageShown) {
-            showError(error.message || '确认已发货失败')
-          }
-        } finally {
-          confirmDialog.value.visible = false
-        }
-      }
-    }
-  }
-
-  const showWsDisconnectedTip = () => {
-    toast.warning('请先连接服务器，点击跳转到连接管理页面')
-  }
-
-  const handleTriggerDelivery = async (record: any) => {
+  const goToDeliveryRecords = () => {
     if (!selectedAccountId.value || !selectedGoods.value) {
-      showInfo('请先选择账号和商品')
+      showInfo('请先选择商品')
       return
     }
-    if (!record.orderId) {
-      showError('该记录没有订单ID，无法触发发货')
-      return
-    }
-
-    try {
-      const wsStatus = await getConnectionStatus(selectedAccountId.value)
-      if (!wsStatus.data?.connected) {
-        showWsDisconnectedTip()
-        return
+    router.push({
+      path: '/orders',
+      query: {
+        accountId: String(selectedAccountId.value),
+        goodsId: selectedGoods.value.item.xyGoodId
       }
-    } catch {
-      showWsDisconnectedTip()
-      return
-    }
-    if (configForm.value.deliveryMode === 1 && (!configForm.value.autoDeliveryContent || !configForm.value.autoDeliveryContent.trim())) {
-      showError('请配置发货内容！')
-      return
-    }
-    if (configForm.value.deliveryMode === 2 && !configForm.value.kamiConfigIds) {
-      showError('请绑定卡券库！')
-      return
-    }
-
-    if (loading.value) {
-      showInfo('正在处理中，请稍候...')
-      return
-    }
-
-    const isKamiMode = configForm.value.deliveryMode === 2
-    const dialogMessage = isKamiMode
-      ? `确认重新发货吗？\n\n⚠️ 卡密发货模式：将发送新的卡密，扣减一次卡密库存！\n订单ID: ${record.orderId}`
-      : `确认重新发货吗？订单ID: ${record.orderId}`
-
-    confirmDialog.value = {
-      visible: true,
-      title: '重新发货',
-      message: dialogMessage,
-      type: 'danger',
-      onConfirm: async () => {
-        if (loading.value) { return }
-        
-        loading.value = true
-        try {
-          const req: TriggerAutoDeliveryReq = {
-            xianyuAccountId: selectedAccountId.value!,
-            xyGoodsId: selectedGoods.value!.item.xyGoodId,
-            orderId: record.orderId
-          }
-          const response = await triggerAutoDelivery(req)
-          if (response.code === 0 || response.code === 200) {
-            showSuccess(response.data || '触发发货成功')
-            await loadDeliveryRecords()
-          } else {
-            throw new Error(response.msg || '触发发货失败')
-          }
-        } catch (error: any) {
-          console.error('触发发货失败:', error)
-          if (!error.messageShown) {
-            showError(error.message || '触发发货失败')
-          }
-        } finally {
-          loading.value = false
-          confirmDialog.value.visible = false
-        }
-      }
-    }
+    })
   }
-
-  const handleDialogConfirm = () => { confirmDialog.value.onConfirm() }
-  const handleDialogCancel = () => { confirmDialog.value.visible = false }
-
-  const recordsTotalPages = computed(() => Math.ceil(recordsTotal.value / recordsPageSize.value))
 
   const toggleOnlyOnSale = () => {
     onlyOnSale.value = !onlyOnSale.value
@@ -743,7 +554,6 @@ export function useAutoDelivery() {
   })
 
   return {
-    loading,
     saving,
     accounts,
     selectedAccountId,
@@ -762,15 +572,8 @@ export function useAutoDelivery() {
     onlyOnSale,
     detailDialogVisible,
     selectedGoodsId,
-    deliveryRecords,
-    recordsLoading,
-    recordsTotal,
-    recordsPageNum,
-    recordsPageSize,
-    recordsTotalPages,
     isMobile,
     mobileView,
-    confirmDialog,
     apiHintUrl,
     apiHintParamsJson,
     confirmShipmentUrl,
@@ -787,14 +590,9 @@ export function useAutoDelivery() {
     saveConfig,
     toggleAutoDelivery,
     toggleAutoConfirmShipment,
-    loadDeliveryRecords,
-    handleRecordsPageChange,
     viewGoodsDetail,
     goToAutoReply,
-    handleConfirmShipment,
-    handleTriggerDelivery,
-    handleDialogConfirm,
-    handleDialogCancel,
+    goToDeliveryRecords,
     handleSkuChange,
     copyApiUrl,
     copyApiParams,
@@ -807,8 +605,6 @@ export function useAutoDelivery() {
     formatPrice,
     getStatusText,
     getStatusClass,
-    getRecordStatusText,
-    getRecordStatusClass,
     checkScreenSize
   }
 }

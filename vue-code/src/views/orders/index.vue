@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, computed, inject, defineComponent, h } from 'vue'
+import { useRoute } from 'vue-router'
 import { useOrderManager } from './useOrderManager'
 import './orders.css'
 import '@/styles/header-selectors.css'
@@ -17,6 +18,7 @@ import OrderTable from './components/OrderTable.vue'
 
 const goodsPanelCollapsed = ref(false)
 const isDesktopCollapsed = computed(() => !isMobile.value && goodsPanelCollapsed.value)
+const route = useRoute()
 
 const {
   loading,
@@ -52,6 +54,19 @@ const isMobile = ref(false)
 
 const checkScreenSize = () => {
   isMobile.value = window.innerWidth < 768
+}
+
+const applyRouteFilters = () => {
+  const accountId = Number(route.query.accountId)
+  if (Number.isInteger(accountId) && accounts.value.some(account => account.id === accountId)) {
+    queryParams.xianyuAccountId = accountId
+  }
+
+  const goodsId = typeof route.query.goodsId === 'string' ? route.query.goodsId : ''
+  if (goodsId) {
+    selectedGoodsId.value = goodsId
+    queryParams.xyGoodsId = goodsId
+  }
 }
 
 // 导航栏注入
@@ -101,6 +116,7 @@ onMounted(async () => {
   window.addEventListener('resize', checkScreenSize)
   if (setHeaderContent) setHeaderContent(HeaderSelectors)
   await loadAccounts()
+  applyRouteFilters()
   if (setHeaderContent) setHeaderContent(HeaderSelectors)
   loadGoods()
   loadOrders()

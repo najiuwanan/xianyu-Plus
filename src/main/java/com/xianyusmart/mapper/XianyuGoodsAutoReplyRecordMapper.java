@@ -93,9 +93,4 @@ public interface XianyuGoodsAutoReplyRecordMapper {
     @Select("SELECT COUNT(*) FROM xianyu_goods_auto_reply_record WHERE create_time >= CURRENT_DATE - INTERVAL 1 DAY AND create_time < CURRENT_DATE")
     int countYesterdayAiReplies();
 
-    @Select("SELECT COUNT(*) FROM xianyu_goods_auto_reply_record")
-    int countAllReplies();
-
-    @Select("SELECT COUNT(*) FROM xianyu_goods_auto_reply_record WHERE date(create_time) = #{date}")
-    int countAiRepliesByDate(@Param("date") String date);
 }
