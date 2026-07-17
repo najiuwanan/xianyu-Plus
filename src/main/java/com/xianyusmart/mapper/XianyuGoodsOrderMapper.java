@@ -13,6 +13,17 @@ import java.util.List;
 public interface XianyuGoodsOrderMapper {
 
     /**
+     * 历史同步订单的创建时间以字符串保存，查询时统一转换为真实的下单/付款时间。
+     * 无法解析的旧记录才退回到本地写入时间，兼容早期数据。
+     */
+    String ORDER_TIME_SQL = "COALESCE(" +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.order_create_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.order_create_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.pay_success_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.pay_success_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
+            "r.create_time)";
+
+    /**
      * 单次查询聚合经营指标与异常待办，减少首页数据库往返。
      */
     @Select("""
@@ -63,13 +74,14 @@ public interface XianyuGoodsOrderMapper {
             "FROM xianyu_goods_order r " +
             "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id " +
             "WHERE r.xianyu_account_id = #{accountId} " +
+            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 3 MONTH) " +
             "<if test='xyGoodsId != null and xyGoodsId != \"\"'>" +
             "AND r.xy_goods_id = #{xyGoodsId} " +
             "</if>" +
             "<if test='keyword != null and keyword != \"\"'>" +
             "AND (g.title LIKE CONCAT('%', #{keyword}, '%') OR r.sku_name LIKE CONCAT('%', #{keyword}, '%') OR r.buyer_user_name LIKE CONCAT('%', #{keyword}, '%') OR r.content LIKE CONCAT('%', #{keyword}, '%')) " +
             "</if>" +
-            "ORDER BY r.create_time DESC " +
+            "ORDER BY " + ORDER_TIME_SQL + " DESC, r.id DESC " +
             "LIMIT #{limit} OFFSET #{offset}" +
             "</script>")
     @Results({
@@ -109,6 +121,7 @@ public interface XianyuGoodsOrderMapper {
             "SELECT COUNT(*) FROM xianyu_goods_order r " +
             "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id " +
             "WHERE r.xianyu_account_id = #{accountId} " +
+            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 3 MONTH) " +
             "<if test='xyGoodsId != null and xyGoodsId != \"\"'>" +
             "AND r.xy_goods_id = #{xyGoodsId} " +
             "</if>" +
@@ -212,6 +225,7 @@ public interface XianyuGoodsOrderMapper {
             "FROM xianyu_goods_order r " +
             "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id AND r.xianyu_account_id = g.xianyu_account_id " +
             "WHERE 1=1 " +
+            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 3 MONTH) " +
             "<if test='accountId != null'>" +
             "AND r.xianyu_account_id = #{accountId} " +
             "</if>" +
@@ -224,7 +238,7 @@ public interface XianyuGoodsOrderMapper {
             "<if test='keyword != null and keyword != \"\"'>" +
             "AND (g.title LIKE CONCAT('%', #{keyword}, '%') OR r.sku_name LIKE CONCAT('%', #{keyword}, '%') OR r.buyer_user_name LIKE CONCAT('%', #{keyword}, '%') OR r.content LIKE CONCAT('%', #{keyword}, '%')) " +
             "</if>" +
-            "ORDER BY r.create_time DESC " +
+            "ORDER BY " + ORDER_TIME_SQL + " DESC, r.id DESC " +
             "LIMIT #{limit} OFFSET #{offset}" +
             "</script>")
     @Results({
@@ -265,6 +279,7 @@ public interface XianyuGoodsOrderMapper {
             "SELECT COUNT(*) FROM xianyu_goods_order r " +
             "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id AND r.xianyu_account_id = g.xianyu_account_id " +
             "WHERE 1=1 " +
+            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 3 MONTH) " +
             "<if test='accountId != null'>" +
             "AND r.xianyu_account_id = #{accountId} " +
             "</if>" +

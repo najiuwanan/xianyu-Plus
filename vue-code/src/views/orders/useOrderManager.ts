@@ -192,7 +192,8 @@ export function useOrderManager() {
         throw new Error(response.msg || '同步订单失败')
       }
       const data = response.data
-      showSuccess(`已同步 ${data?.syncedCount || 0} 笔订单，其中退款订单 ${data?.refundCount || 0} 笔`)
+      const skippedText = data?.skippedCount ? `，已忽略 ${data.skippedCount} 笔三个月前订单` : ''
+      showSuccess(`已同步近三个月 ${data?.syncedCount || 0} 笔订单，其中退款订单 ${data?.refundCount || 0} 笔${skippedText}`)
       queryParams.pageNum = 1
       await loadOrders()
     } catch (error: any) {

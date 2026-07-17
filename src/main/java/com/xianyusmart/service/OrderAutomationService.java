@@ -60,14 +60,20 @@ public class OrderAutomationService {
     }
 
     public OrderAutomationRetryRespDTO retry(Long accountId, String orderId, String action) {
-        if (automationRecordMapper.countSuccessfulDeliveryOrder(accountId, orderId) <= 0) {
-            return new OrderAutomationRetryRespDTO(false, action, "未找到已自动发货的对应订单，不能执行重试");
-        }
-
         String normalizedAction = action == null ? "" : action.trim().toUpperCase(Locale.ROOT);
         return switch (normalizedAction) {
-            case "RATE" -> retryRate(accountId, orderId);
-            case "RATE_CHECK" -> checkAndRate(accountId, orderId);
+            case "RATE" -> {
+                if (automationRecordMapper.countManagedAutomationOrder(accountId, orderId) <= 0) {
+                    yield new OrderAutomationRetryRespDTO(false, action, "订单不在近三个月的可自动化范围内，无法评价");
+                }
+                yield retryRate(accountId, orderId);
+            }
+            case "RATE_CHECK" -> {
+                if (automationRecordMapper.countManagedAutomationOrder(accountId, orderId) <= 0) {
+                    yield new OrderAutomationRetryRespDTO(false, action, "订单不在近三个月的可自动化范围内，无法检查评价");
+                }
+                yield checkAndRate(accountId, orderId);
+            }
             case "RED_FLOWER" -> retryRedFlower(accountId, orderId);
             default -> new OrderAutomationRetryRespDTO(false, action, "不支持的重试类型");
         };

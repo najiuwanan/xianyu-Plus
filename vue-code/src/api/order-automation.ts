@@ -10,6 +10,8 @@ export interface OrderAutomationRecord {
   buyerUserName?: string
   goodsTitle?: string
   orderCreateTime?: string
+  tradeStatus?: string
+  tradeStatusText?: string
   confirmState?: number
   rateEnabled: number
   rateStatus: number

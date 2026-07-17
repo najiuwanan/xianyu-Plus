@@ -257,7 +257,7 @@ const getConfirmBg = (state: number) => {
           <span class="detail-tooltip">单击查询本地，双击查询闲鱼服务器</span>
         </button>
         <button
-          v-if="order.orderId"
+          v-if="canConfirmShipment(order)"
           class="order-card__action order-card__action--ship"
           :class="{ 'order-card__action--loading': order.confirming }"
           @click="emit('confirmShipment', order)"
@@ -358,7 +358,7 @@ const getConfirmBg = (state: number) => {
               <span class="detail-tooltip">单击查询本地，双击查询闲鱼服务器</span>
             </button>
             <button
-              v-if="order.orderId"
+              v-if="canConfirmShipment(order)"
               class="table__action table__action--ship"
               :class="{ 'table__action--loading': order.confirming }"
               @click="emit('confirmShipment', order)"
@@ -366,7 +366,7 @@ const getConfirmBg = (state: number) => {
               <IconTruck />
               <span>{{ order.confirming ? '处理中' : '确认发货' }}</span>
             </button>
-            <span v-if="!order.orderId" class="table__action-placeholder">-</span>
+            <span v-else class="table__action-placeholder">-</span>
           </td>
         </tr>
       </tbody>

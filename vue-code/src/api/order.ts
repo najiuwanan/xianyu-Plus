@@ -92,6 +92,7 @@ export interface OrderHistorySyncResult {
   soldCount: number
   refundCount: number
   syncedCount: number
+  skippedCount: number
 }
 
 export function syncOrderHistory(xianyuAccountId: number) {

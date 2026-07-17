@@ -163,7 +163,7 @@ onMounted(async () => {
     <header class="page-header">
       <div>
         <h1>自动化执行中心</h1>
-        <p>查看自动评价和小红花的执行状态；失败记录可立即补执行。</p>
+        <p>与订单管理共享近三个月的非退款订单；查看自动评价和小红花的执行状态，失败记录可立即补执行。</p>
       </div>
       <button class="refresh-button" :disabled="loading" @click="loadRecords">
         {{ loading ? '刷新中…' : '刷新' }}
@@ -214,7 +214,7 @@ onMounted(async () => {
     </div>
 
     <div class="hint">
-      小红花只会在确认发货成功后处理，失败后会在下次重试时间自动再试；自动评价会先确认订单已进入闲鱼待评价列表，随后立即提交。待执行订单也可手动检查一次。
+      在订单管理点击“同步订单”后，刷新本页即可看到同一批近三个月订单。小红花只会在确认发货成功后处理；自动评价会先确认订单进入闲鱼待评价列表后再提交。
     </div>
 
     <div class="table-card">
@@ -239,7 +239,8 @@ onMounted(async () => {
                 <div class="order-title">{{ record.goodsTitle || '未同步商品标题' }}</div>
                 <div class="order-meta">{{ record.accountName || `账号 ${record.accountId}` }} · {{ record.buyerUserName || '未知买家' }}</div>
                 <div class="order-id">订单号：{{ record.orderId }}</div>
-                <div class="order-time">发货记录：{{ formatTime(record.orderCreateTime) }}</div>
+                <div class="order-time">下单时间：{{ formatTime(record.orderCreateTime) }}</div>
+                <div v-if="record.tradeStatusText" class="order-time">交易状态：{{ record.tradeStatusText }}</div>
               </td>
               <td>
                 <span class="status" :class="statusClass(record.rateEnabled, record.rateStatus)">

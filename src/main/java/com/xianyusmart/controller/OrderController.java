@@ -189,14 +189,17 @@ public class OrderController {
         try {
             List<Map<String, Object>> soldOrders = orderService.querySoldOrders(reqDTO.getXianyuAccountId(), 10);
             List<Map<String, Object>> refundOrders = orderService.queryRefundOrders(reqDTO.getXianyuAccountId());
-            List<Map<String, Object>> allOrders = new ArrayList<>(soldOrders);
+            List<Map<String, Object>> recentSoldOrders = pendingOrderPollService.filterRecentHistoryOrders(soldOrders);
+            List<Map<String, Object>> recentRefundOrders = pendingOrderPollService.filterRecentHistoryOrders(refundOrders);
+            List<Map<String, Object>> allOrders = new ArrayList<>(recentSoldOrders);
             // 退款数据后写入，确保同一订单以退款状态为准。
-            allOrders.addAll(refundOrders);
+            allOrders.addAll(recentRefundOrders);
             int synced = pendingOrderPollService.syncOrderHistoryToDb(reqDTO.getXianyuAccountId(), allOrders);
             return ResultObject.success(Map.of(
-                    "soldCount", soldOrders.size(),
-                    "refundCount", refundOrders.size(),
-                    "syncedCount", synced
+                    "soldCount", recentSoldOrders.size(),
+                    "refundCount", recentRefundOrders.size(),
+                    "syncedCount", synced,
+                    "skippedCount", soldOrders.size() + refundOrders.size() - allOrders.size()
             ));
         } catch (Exception e) {
             log.error("同步订单历史失败", e);

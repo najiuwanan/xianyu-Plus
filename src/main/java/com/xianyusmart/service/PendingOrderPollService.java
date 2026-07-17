@@ -10,12 +10,22 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.ArrayList;
 
 @Slf4j
 @Service
 public class PendingOrderPollService {
+
+    private static final int HISTORY_MONTHS = 3;
+    private static final DateTimeFormatter DASHED_ORDER_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter SLASHED_ORDER_TIME = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
 
     @Autowired
     private OrderService orderService;
@@ -96,12 +106,13 @@ public class PendingOrderPollService {
      * 同步订单管理需要的交易快照。该方法只写入/更新展示数据，绝不进入自动发货队列。
      */
     public int syncOrderHistoryToDb(Long accountId, List<Map<String, Object>> orders) {
-        if (orders == null || orders.isEmpty()) {
+        List<Map<String, Object>> recentOrders = filterRecentHistoryOrders(orders);
+        if (recentOrders.isEmpty()) {
             return 0;
         }
 
         int synced = 0;
-        for (Map<String, Object> order : orders) {
+        for (Map<String, Object> order : recentOrders) {
             try {
                 XianyuGoodsOrder snapshot = buildHistoryRecord(accountId, order);
                 if (snapshot == null || snapshot.getOrderId() == null) {
@@ -132,6 +143,79 @@ public class PendingOrderPollService {
             }
         }
         return synced;
+    }
+
+    /**
+     * 订单管理只保留近三个月的交易；旧订单不会写入或参与自动化中心统计。
+     */
+    @SuppressWarnings("unchecked")
+    public List<Map<String, Object>> filterRecentHistoryOrders(List<Map<String, Object>> orders) {
+        if (orders == null || orders.isEmpty()) {
+            return List.of();
+        }
+
+        LocalDateTime cutoff = LocalDateTime.now().minusMonths(HISTORY_MONTHS);
+        List<Map<String, Object>> recentOrders = new ArrayList<>();
+        for (Map<String, Object> order : orders) {
+            Object commonDataObj = order.get("commonData");
+            if (!(commonDataObj instanceof Map)) {
+                continue;
+            }
+            Map<String, Object> commonData = (Map<String, Object>) commonDataObj;
+            LocalDateTime orderTime = parseOrderTime(commonData.get("createTime"));
+            if (orderTime == null) {
+                orderTime = parseOrderTime(commonData.get("paySuccessTime"));
+            }
+            if (orderTime != null && !orderTime.isBefore(cutoff)) {
+                recentOrders.add(order);
+            }
+        }
+        return recentOrders;
+    }
+
+    private LocalDateTime parseOrderTime(Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            long timestamp = number.longValue();
+            return LocalDateTime.ofInstant(
+                    timestamp >= 100_000_000_000L ? Instant.ofEpochMilli(timestamp) : Instant.ofEpochSecond(timestamp),
+                    ZoneId.systemDefault());
+        }
+
+        String raw = String.valueOf(value).trim();
+        if (raw.isEmpty()) {
+            return null;
+        }
+        try {
+            long timestamp = Long.parseLong(raw);
+            return LocalDateTime.ofInstant(
+                    timestamp >= 100_000_000_000L ? Instant.ofEpochMilli(timestamp) : Instant.ofEpochSecond(timestamp),
+                    ZoneId.systemDefault());
+        } catch (NumberFormatException ignored) {
+            // 非时间戳格式，继续按日期文本解析。
+        }
+        try {
+            return OffsetDateTime.parse(raw).toLocalDateTime();
+        } catch (Exception ignored) {
+            // 闲鱼通常返回普通日期时间文本。
+        }
+
+        String normalized = raw.replace('T', ' ');
+        if (normalized.length() > 19) {
+            normalized = normalized.substring(0, 19);
+        }
+        try {
+            return LocalDateTime.parse(normalized, DASHED_ORDER_TIME);
+        } catch (Exception ignored) {
+            try {
+                return LocalDateTime.parse(normalized, SLASHED_ORDER_TIME);
+            } catch (Exception ignoredAgain) {
+                log.debug("无法解析历史订单时间: {}", raw);
+                return null;
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")

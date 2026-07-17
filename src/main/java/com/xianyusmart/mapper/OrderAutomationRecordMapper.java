@@ -18,9 +18,20 @@ import java.util.List;
 @Mapper
 public interface OrderAutomationRecordMapper {
 
+    /** 与订单管理一致：按真实下单时间限制近三个月，历史退款/关闭订单不进入自动化处理。 */
+    String ORDER_TIME_SQL = "COALESCE(" +
+            "STR_TO_DATE(REPLACE(SUBSTRING(o.order_create_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(o.order_create_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(o.pay_success_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(o.pay_success_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
+            "o.create_time)";
+    String RECENT_MANAGED_ORDER_CONDITION = "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 3 MONTH) " +
+            "AND (o.trade_status IS NULL OR o.trade_status NOT IN ('REFUNDING', 'REFUNDED', 'CLOSED')) ";
+
     @Select("<script>" +
             "SELECT o.xianyu_account_id AS account_id, a.account_note AS account_name, " +
-            "o.order_id, o.buyer_user_name, o.goods_title, o.create_time AS order_create_time, o.confirm_state, " +
+            "o.order_id, o.buyer_user_name, o.goods_title, " + ORDER_TIME_SQL + " AS order_create_time, " +
+            "o.trade_status, o.trade_status_text, o.confirm_state, " +
             "a.auto_rate_enabled AS rate_enabled, COALESCE(r.rate_status, 0) AS rate_status, " +
             "r.rate_time, r.rate_error, a.auto_ask_flower AS red_flower_enabled, " +
             "COALESCE(r.red_flower_status, 0) AS red_flower_status, r.red_flower_time, " +
@@ -30,7 +41,8 @@ public interface OrderAutomationRecordMapper {
             "INNER JOIN xianyu_account a ON a.id = o.xianyu_account_id " +
             "LEFT JOIN xianyu_order_automation_record r " +
             "ON r.xianyu_account_id = o.xianyu_account_id AND r.order_id = o.order_id " +
-            "WHERE o.state = 1 AND o.order_id IS NOT NULL AND o.order_id &lt;&gt; '' " +
+            "WHERE o.order_id IS NOT NULL AND o.order_id &lt;&gt; '' " +
+            RECENT_MANAGED_ORDER_CONDITION +
             "AND (a.auto_rate_enabled = 1 OR a.auto_ask_flower = 1) " +
             "<if test='accountId != null'>AND o.xianyu_account_id = #{accountId} </if>" +
             "<if test=\"status == 'SUCCESS'\">" +
@@ -47,7 +59,7 @@ public interface OrderAutomationRecordMapper {
             "AND ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) &lt;&gt; 1) " +
             "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) &lt;&gt; 1)) " +
             "</if>" +
-            "ORDER BY COALESCE(r.update_time, o.create_time) DESC, o.id DESC " +
+            "ORDER BY COALESCE(r.update_time, " + ORDER_TIME_SQL + ") DESC, o.id DESC " +
             "LIMIT #{limit} OFFSET #{offset}" +
             "</script>")
     @Results(id = "automationRecordResult", value = {
@@ -57,6 +69,8 @@ public interface OrderAutomationRecordMapper {
             @Result(property = "buyerUserName", column = "buyer_user_name"),
             @Result(property = "goodsTitle", column = "goods_title"),
             @Result(property = "orderCreateTime", column = "order_create_time"),
+            @Result(property = "tradeStatus", column = "trade_status"),
+            @Result(property = "tradeStatusText", column = "trade_status_text"),
             @Result(property = "confirmState", column = "confirm_state"),
             @Result(property = "rateEnabled", column = "rate_enabled"),
             @Result(property = "rateStatus", column = "rate_status"),
@@ -79,7 +93,8 @@ public interface OrderAutomationRecordMapper {
             "INNER JOIN xianyu_account a ON a.id = o.xianyu_account_id " +
             "LEFT JOIN xianyu_order_automation_record r " +
             "ON r.xianyu_account_id = o.xianyu_account_id AND r.order_id = o.order_id " +
-            "WHERE o.state = 1 AND o.order_id IS NOT NULL AND o.order_id &lt;&gt; '' " +
+            "WHERE o.order_id IS NOT NULL AND o.order_id &lt;&gt; '' " +
+            RECENT_MANAGED_ORDER_CONDITION +
             "AND (a.auto_rate_enabled = 1 OR a.auto_ask_flower = 1) " +
             "<if test='accountId != null'>AND o.xianyu_account_id = #{accountId} </if>" +
             "<if test=\"status == 'SUCCESS'\">" +
@@ -115,7 +130,8 @@ public interface OrderAutomationRecordMapper {
             "INNER JOIN xianyu_account a ON a.id = o.xianyu_account_id " +
             "LEFT JOIN xianyu_order_automation_record r " +
             "ON r.xianyu_account_id = o.xianyu_account_id AND r.order_id = o.order_id " +
-            "WHERE o.state = 1 AND o.order_id IS NOT NULL AND o.order_id &lt;&gt; '' " +
+            "WHERE o.order_id IS NOT NULL AND o.order_id &lt;&gt; '' " +
+            RECENT_MANAGED_ORDER_CONDITION +
             "AND (a.auto_rate_enabled = 1 OR a.auto_ask_flower = 1) " +
             "<if test='accountId != null'>AND o.xianyu_account_id = #{accountId}</if>" +
             "</script>")
@@ -132,6 +148,12 @@ public interface OrderAutomationRecordMapper {
     @Select("SELECT COUNT(1) FROM xianyu_goods_order " +
             "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId} AND state = 1")
     int countSuccessfulDeliveryOrder(@Param("accountId") Long accountId, @Param("orderId") String orderId);
+
+    /** 已同步到订单管理、且属于近三个月非退款交易的订单，可执行自动评价检查。 */
+    @Select("SELECT COUNT(1) FROM xianyu_goods_order o " +
+            "WHERE o.xianyu_account_id = #{accountId} AND o.order_id = #{orderId} " +
+            RECENT_MANAGED_ORDER_CONDITION)
+    int countManagedAutomationOrder(@Param("accountId") Long accountId, @Param("orderId") String orderId);
 
     /**
      * 小红花只能在卖家已确认发货后请求，避免在尚未确认发货的订单上提前触发。
