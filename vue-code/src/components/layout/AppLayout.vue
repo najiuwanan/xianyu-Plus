@@ -1,64 +1,27 @@
 <script setup lang="ts">
-import { ref, shallowRef, onMounted, onUnmounted, computed, provide, markRaw } from 'vue'
-import { RouterView, useRoute } from 'vue-router'
+import { computed, onMounted, onUnmounted, provide, ref, shallowRef } from 'vue'
+import { RouterView, useRoute, useRouter } from 'vue-router'
 import NavMenu from './NavMenu.vue'
 import UpdateDialog from './UpdateDialog.vue'
-import { getVersion, checkUpdate } from '@/api/system'
-
-// 导入所有页面图标
-import IconChart from '@/components/icons/IconChart.vue'
-import IconAccount from '@/components/icons/IconAccount.vue'
-import IconWifi from '@/components/icons/IconWifi.vue'
-import IconShoppingBag from '@/components/icons/IconShoppingBag.vue'
-import IconTruck from '@/components/icons/IconTruck.vue'
-import IconMessage from '@/components/icons/IconMessage.vue'
-import IconRobot from '@/components/icons/IconRobot.vue'
-import IconChat from '@/components/icons/IconChat.vue'
-import IconLog from '@/components/icons/IconLog.vue'
-import IconShield from '@/components/icons/IconShield.vue'
+import { checkUpdate } from '@/api/system'
+import { getAuthUsername } from '@/utils/request'
 
 const route = useRoute()
+const router = useRouter()
 
 declare const __APP_VERSION__: string
 
-const currentVersion = ref(__APP_VERSION__ || '2.0.4')
+const currentVersion = ref(__APP_VERSION__ || '1.0.0')
 const hasNewVersion = ref(false)
 const updateDialog = ref<InstanceType<typeof UpdateDialog> | null>(null)
-
-const loadVersion = async () => {
-  try {
-    const updateRes = await checkUpdate()
-    hasNewVersion.value = updateRes.data?.hasUpdate === true
-  } catch {
-    // ignore
-  }
-}
-
-const openUpdateDialog = () => {
-  updateDialog.value?.open()
-}
-
-// 响应式设备类型
-const isMobile = ref(false)  // < 768px
-const isTablet = ref(false)  // 768px - 1024px
-const isDesktop = ref(false) // > 1024px
-
-// 移动端和平板端共用的抽屉状态
+const headerContent = shallowRef<any>(null)
+const isMobile = ref(false)
+const isTablet = ref(false)
+const isDesktop = ref(true)
 const drawerVisible = ref(false)
 
-// 页面特定的导航栏内容
-const headerContent = shallowRef<any>(null)
-
-// 提供给页面组件的方法来设置导航栏内容
-const setHeaderContent = (content: any) => {
-  headerContent.value = content
-}
-
-// 提供给页面组件
-provide('setHeaderContent', setHeaderContent)
-
 const pageTitleMap: Record<string, string> = {
-  '/dashboard': '仪表盘',
+  '/dashboard': '运营总览',
   '/accounts': '账号管理',
   '/connection': '连接管理',
   '/goods': '商品管理',
@@ -70,7 +33,6 @@ const pageTitleMap: Record<string, string> = {
   '/item-polish': '一键擦亮',
   '/order-automation': '自动化执行中心',
   '/exception-center': '异常中心',
-
   '/auto-reply': '自动回复',
   '/operation-log': '操作日志',
   '/runtime-log': '实时日志',
@@ -78,55 +40,36 @@ const pageTitleMap: Record<string, string> = {
   '/settings': '系统设置'
 }
 
-const pageIconMap: Record<string, any> = {
-  '/dashboard': markRaw(IconChart),
-  '/accounts': markRaw(IconAccount),
-  '/connection': markRaw(IconWifi),
-  '/goods': markRaw(IconShoppingBag),
-  '/orders': markRaw(IconTruck),
-  '/messages': markRaw(IconMessage),
-  '/auto-delivery': markRaw(IconRobot),
-  '/item-polish': markRaw(IconRobot),
-  '/order-automation': markRaw(IconLog),
-  '/exception-center': markRaw(IconLog),
+const currentPageTitle = computed(() => pageTitleMap[route.path] || 'XianYuPlus')
+const currentUserName = computed(() => getAuthUsername() || '管理员')
+const userInitial = computed(() => currentUserName.value.slice(0, 1).toUpperCase() || 'X')
 
-  '/auto-reply': markRaw(IconChat),
-  '/operation-log': markRaw(IconLog),
-  '/runtime-log': markRaw(IconLog),
-  '/system-check': markRaw(IconShield),
-  '/settings': markRaw(IconShield)
+const setHeaderContent = (content: any) => {
+  headerContent.value = content
 }
 
-const currentPageTitle = computed(() => pageTitleMap[route.path] || '闲鱼Plus')
-const currentPageIcon = computed(() => pageIconMap[route.path] || null)
+provide('setHeaderContent', setHeaderContent)
 
-// 检测屏幕尺寸并自动设置设备类型
-const checkScreenSize = () => {
-  const width = window.innerWidth
-
-  // 判断设备类型
-  if (width < 768) {
-    isMobile.value = true
-    isTablet.value = false
-    isDesktop.value = false
-    // 切换到手机模式时，关闭抽屉
-    drawerVisible.value = false
-  } else if (width < 1024) {
-    isMobile.value = false
-    isTablet.value = true
-    isDesktop.value = false
-    // 切换到平板模式时，关闭抽屉
-    drawerVisible.value = false
-  } else {
-    isMobile.value = false
-    isTablet.value = false
-    isDesktop.value = true
-    // 切换到桌面模式时，关闭抽屉
-    drawerVisible.value = false
+const loadVersion = async () => {
+  try {
+    const updateRes = await checkUpdate()
+    hasNewVersion.value = updateRes.data?.hasUpdate === true
+  } catch {
+    // 版本检查失败不影响页面使用。
   }
 }
 
-// 切换抽屉（手机端和平板端共用）
+const openUpdateDialog = () => updateDialog.value?.open()
+const openSettings = () => router.push('/settings')
+
+const checkScreenSize = () => {
+  const width = window.innerWidth
+  isMobile.value = width < 768
+  isTablet.value = width >= 768 && width < 1024
+  isDesktop.value = width >= 1024
+  if (isDesktop.value) drawerVisible.value = false
+}
+
 const toggleDrawer = () => {
   drawerVisible.value = !drawerVisible.value
 }
@@ -148,598 +91,119 @@ onUnmounted(() => {
 
 <template>
   <div class="app-layout">
-    <!-- 手机端: 顶部导航栏 -->
-    <div v-if="isMobile" class="mobile-header">
-      <button class="menu-toggle-btn" @click="toggleDrawer">
-        <span class="menu-icon">☰</span>
-      </button>
-      <div class="header-title-section">
-        <component v-if="currentPageIcon" :is="currentPageIcon" class="header-page-icon" />
-        <div class="mobile-page-title">{{ currentPageTitle }}</div>
-      </div>
-      <div v-if="headerContent && (route.path === '/goods' || route.path === '/messages' || route.path === '/auto-delivery' || route.path === '/order-automation' || route.path === '/kami-config' || route.path === '/orders' || route.path === '/auto-reply' || route.path === '/operation-log')" class="header-content-slot">
-        <component :is="headerContent" />
-      </div>
-    </div>
-
-    <!-- 平板端: 顶部导航栏（带抽屉按钮） -->
-    <div v-if="isTablet" class="tablet-header">
-      <button class="menu-toggle-btn" @click="toggleDrawer">
-        <span class="menu-icon">☰</span>
-      </button>
-      <div class="header-title-section">
-        <component v-if="currentPageIcon" :is="currentPageIcon" class="header-page-icon" />
-        <div class="tablet-page-title">{{ currentPageTitle }}</div>
-      </div>
-      <div v-if="headerContent && (route.path === '/goods' || route.path === '/messages' || route.path === '/auto-delivery' || route.path === '/order-automation' || route.path === '/kami-config' || route.path === '/orders' || route.path === '/auto-reply' || route.path === '/operation-log')" class="header-content-slot">
-        <component :is="headerContent" />
-      </div>
-    </div>
-
-    <!-- 手机端和平板端: 左侧抽屉菜单 -->
-    <transition name="drawer">
-      <div v-if="(isMobile || isTablet) && drawerVisible" class="drawer-overlay" @click="closeDrawer">
-        <div class="drawer-menu" @click.stop>
-          <div class="drawer-header">
-            <div class="logo" @click="openUpdateDialog" style="cursor: pointer">
-              <div class="logo-icon">闲</div>
-              <div class="logo-text-wrap">
-                <div class="logo-text">闲鱼Plus</div>
-                <div class="version-tag" :class="{ 'has-update': hasNewVersion }">
-                  v{{ currentVersion }}
-                  <span v-if="hasNewVersion" class="update-dot"></span>
-                </div>
-              </div>
-            </div>
-            <button class="drawer-close-btn" @click="closeDrawer">
-              <span class="close-icon">✕</span>
-            </button>
-          </div>
-          <div class="drawer-content">
-            <NavMenu @select="closeDrawer" />
-          </div>
-        </div>
-      </div>
-    </transition>
-
-    <!-- 桌面端: 固定侧边栏 -->
     <div v-if="isDesktop" class="layout-container">
       <aside class="sidebar">
-        <div class="logo" @click="openUpdateDialog" style="cursor: pointer">
-          <div class="logo-icon">闲</div>
-          <div class="logo-text-wrap">
-            <div class="logo-text">闲鱼Plus</div>
-            <div class="version-tag" :class="{ 'has-update': hasNewVersion }">
-              v{{ currentVersion }}
-              <span v-if="hasNewVersion" class="update-dot"></span>
-            </div>
-          </div>
-        </div>
+        <button class="brand" type="button" title="查看版本信息" @click="openUpdateDialog">
+          <span class="brand__mark" aria-hidden="true">XP</span>
+          <span class="brand__copy">
+            <strong>XianYuPlus</strong>
+            <small>智能经营助手 <i v-if="hasNewVersion" class="brand__update-dot"></i></small>
+          </span>
+        </button>
         <NavMenu />
+        <button class="sidebar__collapse" type="button" title="当前版本" @click="openUpdateDialog">
+          <span>‹</span>
+          <small>v{{ currentVersion }}</small>
+        </button>
       </aside>
 
-      <div class="el-container">
-        <main>
+      <section class="workspace">
+        <header class="workspace-header">
+          <div class="workspace-header__spacer"></div>
+          <div class="workspace-header__actions">
+            <span class="today-status"><span aria-hidden="true">☼</span> 今天，生意顺利</span>
+            <button class="user-menu" type="button" title="进入系统设置" @click="openSettings">
+              <span class="user-menu__avatar">{{ userInitial }}</span>
+              <span class="user-menu__name">{{ currentUserName }}</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
+            </button>
+          </div>
+        </header>
+        <main class="workspace-main">
           <RouterView />
         </main>
+      </section>
+    </div>
+
+    <template v-else>
+      <header class="compact-header">
+        <button class="menu-toggle-btn" type="button" aria-label="打开导航菜单" @click="toggleDrawer">
+          <span></span><span></span><span></span>
+        </button>
+        <strong>{{ currentPageTitle }}</strong>
+        <div v-if="headerContent" class="header-content-slot"><component :is="headerContent" /></div>
+      </header>
+      <main class="workspace-main workspace-main--compact">
+        <RouterView />
+      </main>
+    </template>
+
+    <transition name="drawer">
+      <div v-if="(isMobile || isTablet) && drawerVisible" class="drawer-overlay" @click="closeDrawer">
+        <aside class="drawer-menu" @click.stop>
+          <div class="drawer-header">
+            <button class="brand brand--drawer" type="button" @click="openUpdateDialog">
+              <span class="brand__mark" aria-hidden="true">XP</span>
+              <span class="brand__copy"><strong>XianYuPlus</strong><small>智能经营助手</small></span>
+            </button>
+            <button class="drawer-close-btn" type="button" aria-label="关闭导航菜单" @click="closeDrawer">×</button>
+          </div>
+          <div class="drawer-content"><NavMenu @select="closeDrawer" /></div>
+        </aside>
       </div>
-    </div>
-
-    <!-- 平板端: 主内容区 -->
-    <div v-if="isTablet" class="el-container">
-      <main>
-        <RouterView />
-      </main>
-    </div>
-
-    <!-- 手机端: 主内容区 -->
-    <div v-if="isMobile" class="el-container">
-      <main>
-        <RouterView />
-      </main>
-    </div>
+    </transition>
 
     <UpdateDialog ref="updateDialog" />
   </div>
 </template>
 
 <style scoped>
-.app-layout {
-  height: 100vh;
-  background: var(--bg-gradient);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-.layout-container {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  flex-direction: row;
-}
-
-.el-container {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* ========== 桌面端: 固定侧边栏 ========== */
-.sidebar {
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-  border-right: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-  transition: width 0.3s ease;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.sidebar::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
-}
-
-.logo {
-  display: flex;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: none;
-  gap: 12px;
-}
-
-.logo-icon {
-  width: 34px;
-  height: 34px;
-  background: var(--ab);
-  border: none;
-  box-shadow: 0 4px 10px rgba(255, 193, 7, 0.4);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #1F2329;
-  font-size: 20px;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.logo-text {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--apple-text);
-}
-
-.logo-text-wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.version-tag {
-  font-size: 11px;
-  color: var(--apple-text2);
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.version-tag.has-update {
-  color: var(--ab);
-}
-
-.update-dot {
-  width: 6px;
-  height: 6px;
-  background: #f56c6c;
-  border-radius: 50%;
-  display: inline-block;
-  animation: pulse-dot 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-
-
-main {
-  padding: 32px 40px;
-  overflow: auto;
-  background: transparent;
-  height: 100%;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  flex: 1;
-}
-
-main::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
-}
-
-
-/* ========== 平板端: 顶部导航栏 ========== */
-.tablet-header {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  padding: 14px 20px;
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-  border-bottom: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-  z-index: 100;
-  gap: 16px;
-  height: 64px;
-  box-sizing: border-box;
-  flex-shrink: 0;
-}
-
-.tablet-page-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--apple-text);
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: clip;
-  min-width: 0;
-}
-
-.header-title-section {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex: 1;
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.header-page-icon {
-  width: 24px;
-  height: 24px;
-  color: var(--apple-text);
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.header-content-slot {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-/* ========== 手机端: 顶部导航栏 ========== */
-.mobile-header {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  padding: 12px 16px;
-  background: var(--glass-bg);
-  -webkit-backdrop-filter: var(--glass-blur);
-  backdrop-filter: var(--glass-blur);
-  border-bottom: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
-  z-index: 100;
-  gap: 12px;
-  height: 56px;
-  box-sizing: border-box;
-  flex-shrink: 0;
-}
-
-.mobile-page-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--apple-text);
-  flex: 1;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: clip;
-  min-width: 0;
-}
-
-.header-content-slot {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.menu-toggle-btn {
-  width: 44px;
-  height: 44px;
-  background: #155eef;
-  border: 1px solid #155eef;
-  border-radius: 6px;
-  box-shadow: none;
-  color: white;
-  font-size: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  padding: 0;
-  cursor: pointer;
-}
-
-.menu-toggle-btn:hover,
-.menu-toggle-btn:active,
-.menu-toggle-btn:focus {
-  background: #004eeb;
-  border-color: #004eeb;
-  outline: none;
-}
-
-.menu-icon {
-  font-size: 22px;
-  line-height: 1;
-  display: block;
-}
-
-/* ========== 左侧抽屉菜单（手机端和平板端共用） ========== */
-.drawer-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.30);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  z-index: 1000;
-  display: flex;
-  align-items: stretch;
-}
-
-.drawer-menu {
-  width: 280px;
-  max-width: 80vw;
-  background: var(--glass-bg-float);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  border-right: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow-float);
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  overflow: hidden;
-}
-
-.drawer-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 0.5px solid var(--apple-sep);
-  flex-shrink: 0;
-  background: transparent;
-}
-
-.drawer-header .logo {
-  padding: 0;
-  flex: 1;
-}
-
-.drawer-close-btn {
-  width: 32px;
-  height: 32px;
-  background: var(--glass-bg-deep);
-  border: 1px solid var(--glass-border-in);
-  border-radius: 6px;
-  color: var(--apple-text2);
-  -webkit-backdrop-filter: var(--glass-blur-sm);
-  backdrop-filter: var(--glass-blur-sm);
-  font-size: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  padding: 0;
-  margin-left: 12px;
-  cursor: pointer;
-}
-
-.drawer-close-btn:hover,
-.drawer-close-btn:active {
-  background: var(--glass-bg);
-  border-color: var(--glass-border);
-  color: var(--apple-text);
-  outline: none;
-}
-
-.close-icon {
-  font-size: 18px;
-  line-height: 1;
-  display: block;
-}
-
-.drawer-content {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 8px 0;
-  -webkit-overflow-scrolling: touch;
-  /* 隐藏滚动条 */
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE and Edge */
-}
-
-.drawer-content::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
-}
-
-/* 抽屉动画 */
-.drawer-enter-active,
-.drawer-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.drawer-enter-active .drawer-menu,
-.drawer-leave-active .drawer-menu {
-  transition: transform 0.3s ease;
-}
-
-.drawer-enter-from,
-.drawer-leave-to {
-  opacity: 0;
-}
-
-.drawer-enter-from .drawer-menu {
-  transform: translateX(-100%);
-}
-
-.drawer-leave-to .drawer-menu {
-  transform: translateX(-100%);
-}
-
-/* ========== 响应式适配 ========== */
-/* 平板模式 (768px - 1024px) */
-@media screen and (min-width: 768px) and (max-width: 1024px) {
-  .tablet-header {
-    padding: 12px 18px;
-    height: 60px;
-  }
-
-  .tablet-page-title {
-    font-size: 17px;
-  }
-
-  .menu-toggle-btn {
-    width: 42px;
-    height: 42px;
-    font-size: 20px;
-  }
-
-  .menu-icon {
-    font-size: 20px;
-  }
-
-  main {
-    padding: 24px 28px;
-  }
-
-  .drawer-menu {
-    width: 260px;
-  }
-
-  .drawer-header {
-    padding: 14px 18px;
-  }
-
-
-}
-
-/* 手机模式 (< 768px) */
-@media (max-width: 767px) {
-  .mobile-header {
-    padding: 10px 14px;
-    height: 52px;
-  }
-
-  .mobile-page-title {
-    font-size: 16px;
-  }
-
-  .menu-toggle-btn {
-    width: 40px;
-    height: 40px;
-    font-size: 20px;
-  }
-
-  .menu-icon {
-    font-size: 20px;
-  }
-
-  main {
-    padding: 16px 20px;
-    overflow: hidden;
-  }
-
-  .drawer-menu {
-    width: 260px;
-  }
-
-  .drawer-header {
-    padding: 12px 16px;
-  }
-
-  .drawer-close-btn {
-    width: 30px;
-    height: 30px;
-    font-size: 16px;
-  }
-
-  .close-icon {
-    font-size: 16px;
-  }
-
-
-}
-
-/* 小屏手机模式 (< 480px) */
-@media (max-width: 480px) {
-  .mobile-header {
-    padding: 8px 12px;
-    height: 48px;
-  }
-
-  .mobile-page-title {
-    font-size: 15px;
-  }
-
-  .menu-toggle-btn {
-    width: 36px;
-    height: 36px;
-    font-size: 18px;
-  }
-
-  .menu-icon {
-    font-size: 18px;
-  }
-
-  main {
-    padding: 12px 16px;
-    overflow: hidden;
-  }
-
-  .drawer-menu {
-    width: 240px;
-  }
-
-  .drawer-header {
-    padding: 10px 14px;
-  }
-
-  .drawer-header .logo-icon {
-    width: 28px;
-    height: 28px;
-    font-size: 16px;
-  }
-
-  .drawer-header .logo-text {
-    font-size: 15px;
-  }
-
-  .drawer-close-btn {
-    width: 28px;
-    height: 28px;
-    font-size: 14px;
-  }
-
-  .close-icon {
-    font-size: 14px;
-  }
-
-
-}
+.app-layout { height: 100vh; overflow: hidden; background: var(--xy-page); color: var(--xy-ink); }
+.layout-container, .workspace { display: flex; min-width: 0; height: 100%; }
+.layout-container { width: 100%; }
+.workspace { flex: 1; flex-direction: column; overflow: hidden; }
+
+.sidebar { width: 236px; flex: 0 0 236px; display: flex; flex-direction: column; overflow: hidden; background: var(--xy-surface); border-right: 1px solid var(--xy-border); }
+.brand { width: 100%; display: flex; align-items: center; gap: 11px; padding: 24px 22px 18px; border: 0; border-bottom: 1px solid var(--xy-border-soft); background: transparent; color: var(--xy-ink); text-align: left; cursor: pointer; }
+.brand__mark { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 10px; background: var(--xy-amber); color: #172d4f; font-size: 16px; font-weight: 800; letter-spacing: -1.5px; }
+.brand__copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.brand__copy strong { color: #182d4f; font-size: 18px; letter-spacing: -0.5px; line-height: 22px; }
+.brand__copy small { color: var(--xy-muted); font-size: 11px; line-height: 16px; }
+.brand__update-dot { width: 6px; height: 6px; display: inline-block; margin-left: 4px; border-radius: 50%; background: var(--xy-danger); vertical-align: middle; }
+.sidebar__collapse { display: flex; align-items: center; gap: 8px; margin: auto 16px 16px; padding: 9px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--xy-muted); cursor: pointer; text-align: left; }
+.sidebar__collapse:hover { background: var(--xy-amber-soft); color: var(--xy-ink); }
+.sidebar__collapse span { font-size: 25px; line-height: 14px; }
+.sidebar__collapse small { font-size: 11px; }
+
+.workspace-header { height: 70px; display: flex; flex: 0 0 70px; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--xy-border-soft); background: rgba(255, 255, 255, .88); }
+.workspace-header__actions { display: flex; align-items: center; gap: 14px; }
+.today-status { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--xy-border); border-radius: 999px; color: #4c5d78; font-size: 13px; white-space: nowrap; }
+.today-status span { color: var(--xy-amber-deep); font-size: 18px; line-height: 14px; }
+.user-menu { display: inline-flex; align-items: center; gap: 8px; padding: 4px 0 4px 4px; border: 0; background: transparent; color: var(--xy-ink); cursor: pointer; }
+.user-menu:hover .user-menu__name { color: var(--xy-amber-deep); }
+.user-menu__avatar { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #e9c76d; border-radius: 50%; background: #fff3ce; color: #755100; font-size: 13px; font-weight: 700; }
+.user-menu__name { max-width: 120px; overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; transition: color .15s ease; }
+.user-menu svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
+.workspace-main { flex: 1; min-width: 0; overflow: auto; padding: 28px 32px 36px; background: var(--xy-page); }
+
+.compact-header { height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--xy-border); background: var(--xy-surface); }
+.compact-header strong { min-width: 0; flex: 1; overflow: hidden; color: var(--xy-ink); font-size: 17px; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-main--compact { padding: 20px; }
+.header-content-slot { display: flex; align-items: center; gap: 8px; }
+.menu-toggle-btn { width: 38px; height: 38px; display: grid; align-content: center; gap: 4px; padding: 0 10px; border: 1px solid var(--xy-border); border-radius: 8px; background: var(--xy-surface); cursor: pointer; }
+.menu-toggle-btn span { height: 2px; border-radius: 2px; background: var(--xy-ink); }
+
+.drawer-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(22, 34, 55, .36); }
+.drawer-menu { width: min(300px, 86vw); height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--xy-surface); box-shadow: 16px 0 40px rgba(20, 40, 70, .16); }
+.drawer-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--xy-border-soft); }
+.brand--drawer { flex: 1; border: 0; }
+.drawer-close-btn { width: 36px; height: 36px; display: grid; place-items: center; margin-right: 16px; border: 1px solid var(--xy-border); border-radius: 8px; background: var(--xy-surface); color: var(--xy-muted); font-size: 22px; line-height: 1; cursor: pointer; }
+.drawer-content { flex: 1; overflow: auto; padding: 8px 0 16px; }
+.drawer-enter-active, .drawer-leave-active { transition: opacity .2s ease; }
+.drawer-enter-active .drawer-menu, .drawer-leave-active .drawer-menu { transition: transform .2s ease; }
+.drawer-enter-from, .drawer-leave-to { opacity: 0; }
+.drawer-enter-from .drawer-menu, .drawer-leave-to .drawer-menu { transform: translateX(-100%); }
+
+@media (max-width: 1023px) { .workspace-main { padding: 24px; } }
+@media (max-width: 767px) { .workspace-main, .workspace-main--compact { padding: 16px; } .compact-header { height: 56px; padding: 0 14px; } .header-content-slot { max-width: 52%; overflow: hidden; } }
 </style>

@@ -14,6 +14,7 @@ const onSelect = (index: string) => {
 
 <template>
   <nav class="nav-menu">
+    <div class="nav-menu-section-title">运营中心</div>
     <router-link to="/dashboard" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/dashboard')">
       <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
       <span>仪表盘</span>
@@ -44,7 +45,7 @@ const onSelect = (index: string) => {
       <span>通知渠道</span>
     </router-link>
 
-    <div class="nav-menu-divider"><span class="nav-menu-divider-text">自动化</span></div>
+    <div class="nav-menu-divider"><span class="nav-menu-divider-text">自动化中心</span></div>
 
     <router-link to="/kami-config" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/kami-config')">
       <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
@@ -71,7 +72,7 @@ const onSelect = (index: string) => {
       <span>自动回复</span>
     </router-link>
 
-    <div class="nav-menu-divider"><span class="nav-menu-divider-text">系统</span></div>
+    <div class="nav-menu-divider"><span class="nav-menu-divider-text">系统管理</span></div>
 
     <router-link to="/operation-log" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/operation-log')">
       <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -98,56 +99,54 @@ const onSelect = (index: string) => {
   background: transparent;
   display: flex;
   flex-direction: column;
+  padding: 12px 0 4px;
+  overflow-y: auto;
 }
+
+.nav-menu-section-title,
+.nav-menu-divider-text {
+  color: #53627b;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .3px;
+}
+
+.nav-menu-section-title { margin: 0 22px 7px; }
 
 .nav-menu-item {
   display: flex;
   align-items: center;
-  margin: 1px 16px;
-  border-radius: 6px;
-  color: #667085;
-  transition: all 0.2s;
+  margin: 1px 12px;
+  border-radius: 8px;
+  color: #4f5f78;
+  transition: background .18s ease, color .18s ease;
   text-decoration: none;
-  height: 40px;
-  line-height: 40px;
-  padding: 0 12px;
+  height: 38px;
+  line-height: 38px;
+  padding: 0 11px;
   font-size: 14px;
 }
 
+.nav-menu-item :deep(svg) { width: 17px !important; height: 17px !important; margin-right: 10px !important; stroke-width: 1.8; }
+
 .nav-menu-item:hover {
-  background: #f2f4f7;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  color: #344054;
+  background: #f7f3e7;
+  color: #1f3556;
 }
 
 .nav-menu-item--active {
-  background: #FFC107 !important;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  color: #1F2329;
-  box-shadow: 0 4px 12px rgba(255, 193, 7, 0.3);
-  font-weight: 600;
+  background: #fff0c4 !important;
+  color: #1f3556;
+  font-weight: 700;
 }
 
 .nav-menu-divider {
   display: flex;
   align-items: center;
-  margin: 8px 16px 4px;
-}
-
-.nav-menu-divider::before,
-.nav-menu-divider::after {
-  content: '';
-  flex: 1;
-  height: 0.5px;
-  background: #e4e7ec;
+  margin: 18px 22px 7px;
 }
 
 .nav-menu-divider-text {
-  padding: 0 8px;
-  font-size: 12px;
-  color: #98a2b3;
-  white-space: nowrap;
+  padding: 0;
 }
 </style>
