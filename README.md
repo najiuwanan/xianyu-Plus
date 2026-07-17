@@ -167,7 +167,7 @@ Windows 环境请使用 `mvnw.cmd`。
 
 扫描下方二维码加入“闲鱼交流”群：
 
-![闲鱼交流微信群二维码](docs/images/xianyuplus-community-qr.jpg)
+<img src="docs/images/xianyuplus-community-qr.jpg" alt="闲鱼交流微信群二维码" width="250" />
 
 > 群二维码存在有效期；如失效，请通过 GitHub Issue 留言，我会补充新的二维码。
 
