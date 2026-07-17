@@ -161,6 +161,26 @@ npm run dev
 
 Windows 环境请使用 `mvnw.cmd`。
 
+## 交流与反馈
+
+部署完成后，欢迎交流使用体验、功能建议、问题反馈和可改进之处。
+
+扫描下方二维码加入“闲鱼交流”群：
+
+![闲鱼交流微信群二维码](docs/images/xianyuplus-community-qr.jpg)
+
+> 群二维码存在有效期；如失效，请通过 GitHub Issue 留言，我会补充新的二维码。
+
+## 致谢与来源说明
+
+XianYuPlus 在原始项目基础上持续迭代，并对以下项目和作者表示感谢：
+
+- **原始代码项目**：[Evvvvvvvan/XianYuSmart](https://github.com/Evvvvvvvan/XianYuSmart)，由 [Evvvvvvvan](https://github.com/Evvvvvvvan) 维护。
+- **自动评价与小红花**：功能流程与问题排查参考 [zhinianboke/xianyu-auto-reply](https://github.com/zhinianboke/xianyu-auto-reply)。
+- **商品擦亮**：功能设计参考 [GuDong2003/xianyu-auto-reply-fix](https://github.com/GuDong2003/xianyu-auto-reply-fix)。
+
+上述参考项目的署名、许可证和使用条件均以其各自仓库为准。若后续引入任何第三方源码或资源，会保留原有版权与许可证说明；如认为致谢或版权信息有遗漏，欢迎通过 Issue 联系。
+
 ## 重要说明
 
 - 闲鱼的登录、接口和平台规则可能调整，自动化功能需要关注账号状态和异常待办。
