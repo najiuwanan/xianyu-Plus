@@ -13,6 +13,11 @@ import java.util.List;
 @Mapper
 public interface XianyuItemPolishRecordMapper extends BaseMapper<XianyuItemPolishRecord> {
 
+    String OFF_SHELF_ITEM_CONDITION = "(COALESCE(message, '') LIKE '%已下架%' " +
+            "OR COALESCE(message, '') LIKE '%下架商品不支持%' " +
+            "OR (LOWER(COALESCE(message, '')) LIKE '%unsupported_item_status%' " +
+            "AND COALESCE(message, '') LIKE '%下架%'))";
+
     /** 擦亮失败记录，包含同步阶段失败时保存的任务级记录。 */
     @Select("<script>" +
             "SELECT 'POLISH' AS type, CAST(r.id AS CHAR) AS recordId, r.xianyu_account_id AS accountId, " +
@@ -33,6 +38,14 @@ public interface XianyuItemPolishRecordMapper extends BaseMapper<XianyuItemPolis
             "WHERE xianyu_account_id = #{accountId} AND xy_goods_id = #{xyGoodsId} " +
             "AND success = 0 AND resolved_at IS NULL")
     int resolveItemFailures(@Param("accountId") Long accountId, @Param("xyGoodsId") String xyGoodsId);
+
+    /** 已下架商品无需擦亮，自动关闭遗留失败记录。 */
+    @Update("<script>" +
+            "UPDATE xianyu_item_polish_record SET resolved_at = NOW(3) " +
+            "WHERE success = 0 AND resolved_at IS NULL AND " + OFF_SHELF_ITEM_CONDITION + " " +
+            "<if test='accountId != null'>AND xianyu_account_id = #{accountId}</if>" +
+            "</script>")
+    int resolveOffShelfFailures(@Param("accountId") Long accountId);
 
     @Update("UPDATE xianyu_item_polish_record SET resolved_at = NOW(3) " +
             "WHERE xianyu_account_id = #{accountId} AND xy_goods_id = '' " +

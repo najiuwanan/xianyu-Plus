@@ -55,6 +55,7 @@ public class ExceptionCenterService {
         String type = normalizeType(request.getType());
         Long accountId = request.getAccountId();
         automationRecordMapper.resolveTerminalRateFailures(accountId);
+        polishRecordMapper.resolveOffShelfFailures(accountId);
         List<ExceptionCenterRecordDTO> allRecords = new ArrayList<>();
         allRecords.addAll(orderMapper.findDeliveryExceptions(accountId, SOURCE_QUERY_LIMIT));
         allRecords.addAll(automationRecordMapper.findRateFailures(accountId, SOURCE_QUERY_LIMIT));

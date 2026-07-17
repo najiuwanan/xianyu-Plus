@@ -31,6 +31,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -224,6 +225,7 @@ public class ItemPolishServiceImpl implements ItemPolishService {
     private void executeRun(Long accountId, String triggerType) {
         int total = 0;
         int success = 0;
+        int skipped = 0;
         int failed = 0;
         String summary = null;
         try {
@@ -259,13 +261,19 @@ public class ItemPolishServiceImpl implements ItemPolishService {
             for (int index = 0; index < items.size(); index++) {
                 XianyuGoodsInfo item = items.get(index);
                 String error = polishItem(accountId, item.getXyGoodId());
-                boolean itemSuccess = error == null;
+                boolean itemSkipped = isItemNoLongerOnSale(error);
+                boolean itemSuccess = error == null || itemSkipped;
                 if (itemSuccess) {
-                    success++;
+                    if (itemSkipped) {
+                        skipped++;
+                    } else {
+                        success++;
+                    }
                 } else {
                     failed++;
                 }
-                saveRecord(accountId, item, triggerType, itemSuccess, itemSuccess ? "擦亮成功" : error);
+                saveRecord(accountId, item, triggerType, itemSuccess,
+                        itemSkipped ? "商品已下架，已跳过擦亮" : (itemSuccess ? "擦亮成功" : error));
                 if (!itemSuccess && automationRiskGuardService != null
                         && automationRiskGuardService.recordFailure(accountId, "商品擦亮", error)) {
                     summary = "已连续失败，账号自动化保护已暂停，本轮擦亮停止执行";
@@ -278,7 +286,7 @@ public class ItemPolishServiceImpl implements ItemPolishService {
                 }
             }
             if (summary == null) {
-                summary = "同步后执行完成：共 " + total + " 件，成功 " + success + " 件，失败 " + failed + " 件";
+                summary = "同步后执行完成：共 " + total + " 件，成功 " + success + " 件，跳过 " + skipped + " 件，失败 " + failed + " 件";
             }
         } catch (Exception e) {
             failed = Math.max(1, failed);
@@ -352,6 +360,16 @@ public class ItemPolishServiceImpl implements ItemPolishService {
         return "主接口：" + primaryMessage + "；备用接口：" + backupMessage;
     }
 
+    /** 平台明确返回商品下架时，无需再擦亮，也不应计为自动化失败。 */
+    private boolean isItemNoLongerOnSale(String error) {
+        if (!StringUtils.hasText(error)) {
+            return false;
+        }
+        String detail = error.toLowerCase(Locale.ROOT);
+        return detail.contains("已下架") || detail.contains("下架商品不支持")
+                || (detail.contains("unsupported_item_status") && detail.contains("下架"));
+    }
+
     private void saveRecord(Long accountId, XianyuGoodsInfo item, String triggerType,
                             boolean success, String message) {
         saveRecord(accountId, item.getXyGoodId(), item.getTitle(), triggerType, success, message);
@@ -386,12 +404,15 @@ public class ItemPolishServiceImpl implements ItemPolishService {
                             .eq(XianyuGoodsInfo::getStatus, 0)
                             .last("LIMIT 1"));
             if (item == null) {
-                saveRecord(accountId, failedRecord.getXyGoodsId(), failedRecord.getGoodsTitle(), "RETRY", false,
-                        "商品已下架或尚未同步到本地，无法重试擦亮");
+                saveRecord(accountId, failedRecord.getXyGoodsId(), failedRecord.getGoodsTitle(), "RETRY", true,
+                        "商品已下架或不在售，已跳过擦亮");
                 return;
             }
             String error = polishItem(accountId, item.getXyGoodId());
-            saveRecord(accountId, item, "RETRY", error == null, error == null ? "擦亮重试成功" : error);
+            boolean itemSkipped = isItemNoLongerOnSale(error);
+            boolean itemSuccess = error == null || itemSkipped;
+            saveRecord(accountId, item, "RETRY", itemSuccess,
+                    itemSkipped ? "商品已下架，已跳过擦亮" : (itemSuccess ? "擦亮重试成功" : error));
         } catch (Exception e) {
             String reason = "擦亮重试异常：" + messageOf(e);
             log.warn("【自动擦亮】账号 {} 商品 {} 重试失败：{}", accountId,
