@@ -833,6 +833,7 @@ onUnmounted(() => {
                   <input v-model="apiForm.apiResultPath" class="form-input" placeholder="例如 data.card；留空会自动尝试 content、card、kami" />
                   <p class="form-hint">填写接口响应中实际卡密所在字段。例：返回 {"data":{"card":"abc"}} 时填写 data.card。</p>
                 </div>
+                <p class="form-hint api-config-form__warning">测试接口会真实请求供应商。若供应商没有测试环境，请不要对正式出卡接口点击测试，避免提前出卡。</p>
                 <div v-if="apiTestResult" class="api-config-form__test-result">{{ apiTestResult }}</div>
               </template>
 
