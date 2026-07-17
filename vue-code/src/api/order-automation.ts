@@ -61,6 +61,13 @@ export interface RetryOrderAutomationResponse {
   message: string
 }
 
+export interface OrderAutomationAvailableActions {
+  rateAvailable: boolean
+  rateReason?: string
+  redFlowerAvailable: boolean
+  redFlowerReason?: string
+}
+
 export function queryOrderAutomation(data: QueryOrderAutomationRequest) {
   return request<QueryOrderAutomationResponse>({
     url: '/order-automation/query',
@@ -72,6 +79,14 @@ export function queryOrderAutomation(data: QueryOrderAutomationRequest) {
 export function retryOrderAutomation(data: RetryOrderAutomationRequest) {
   return request<RetryOrderAutomationResponse>({
     url: '/order-automation/retry',
+    method: 'POST',
+    data
+  })
+}
+
+export function getOrderAutomationAvailableActions(data: { accountId: number; orderId: string }) {
+  return request<OrderAutomationAvailableActions>({
+    url: '/order-automation/actions',
     method: 'POST',
     data
   })

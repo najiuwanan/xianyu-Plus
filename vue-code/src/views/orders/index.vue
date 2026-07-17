@@ -200,6 +200,7 @@ const executeRuleDelivery = async () => {
             @copy-sid="copySId"
             @confirm-shipment="openConfirmDialog"
             @rule-delivery="openRuleDeliveryDialog"
+            @refresh="loadOrders"
           />
         </div>
         <div v-if="totalPages > 1" class="orders__pagination">

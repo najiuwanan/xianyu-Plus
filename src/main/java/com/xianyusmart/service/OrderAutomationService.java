@@ -2,7 +2,7 @@ package com.xianyusmart.service;
 
 import com.xianyusmart.controller.dto.OrderAutomationQueryReqDTO;
 import com.xianyusmart.controller.dto.OrderAutomationRecordDTO;
-import com.xianyusmart.controller.dto.OrderAutomationRecordDTO;
+import com.xianyusmart.controller.dto.OrderAutomationAvailableActionsDTO;
 import com.xianyusmart.controller.dto.OrderAutomationRetryRespDTO;
 import com.xianyusmart.controller.dto.OrderAutomationSummaryDTO;
 import com.xianyusmart.entity.XianyuAccount;
@@ -81,6 +81,47 @@ public class OrderAutomationService {
         };
     }
 
+    /**
+     * 返回订单管理中真正可以展示的人工补偿动作。
+     * 该方法只在用户主动展开“更多操作”时调用，避免列表加载时对每笔订单请求平台。
+     */
+    public OrderAutomationAvailableActionsDTO availableActions(Long accountId, String orderId) {
+        OrderAutomationAvailableActionsDTO result = new OrderAutomationAvailableActionsDTO();
+        if (accountId == null || !StringUtils.hasText(orderId)) {
+            result.setRateReason("账号或订单号不能为空");
+            result.setRedFlowerReason("账号或订单号不能为空");
+            return result;
+        }
+
+        if (automationRecordMapper.countManagedAutomationOrder(accountId, orderId) <= 0) {
+            result.setRateReason("该订单不在近三个月的正常交易范围内");
+            result.setRedFlowerReason("该订单不在近三个月的正常交易范围内");
+            return result;
+        }
+
+        automationRecordMapper.resolveTerminalRateFailures(accountId);
+        OrderAutomationRecordDTO state = automationRecordMapper.findTimelineState(accountId, orderId);
+
+        if (state != null && (Integer.valueOf(1).equals(state.getRateStatus())
+                || Integer.valueOf(3).equals(state.getRateStatus()))) {
+            result.setRateReason("该订单已完成评价或无需评价");
+        } else {
+            RateService.PendingRateOrderCheck check = rateService.checkOrderReadyForRate(accountId, orderId);
+            result.setRateAvailable(check.ready());
+            result.setRateReason(check.message());
+        }
+
+        if (automationRecordMapper.countConfirmedShipmentOrder(accountId, orderId) <= 0) {
+            result.setRedFlowerReason("订单尚未确认发货或交易状态异常");
+        } else if (state != null && Integer.valueOf(1).equals(state.getRedFlowerStatus())) {
+            result.setRedFlowerReason("该订单已成功请求小红花");
+        } else {
+            result.setRedFlowerAvailable(true);
+            result.setRedFlowerReason("订单满足补小红花条件");
+        }
+        return result;
+    }
+
     private OrderAutomationRetryRespDTO retryRate(Long accountId, String orderId) {
         XianyuAccount account = accountMapper.selectById(accountId);
         if (account == null) {
@@ -96,25 +137,21 @@ public class OrderAutomationService {
                 success ? "自动评价重试成功" : "自动评价重试失败，失败原因已更新");
     }
 
-    /**
-     * 优先通过待评价列表确认；若列表接口未及时返回，则由评价接口进行一次最终校验。
-     */
+    /** 仅在闲鱼待评价列表明确包含该订单时才提交评价。 */
     private OrderAutomationRetryRespDTO checkAndRate(Long accountId, String orderId) {
         XianyuAccount account = accountMapper.selectById(accountId);
         if (account == null) {
             return new OrderAutomationRetryRespDTO(false, "RATE_CHECK", "账号不存在，无法检查自动评价");
         }
         RateService.PendingRateOrderCheck check = rateService.checkOrderReadyForRate(accountId, orderId);
+        if (!check.ready()) {
+            return new OrderAutomationRetryRespDTO(false, "RATE_CHECK", check.message());
+        }
         String feedback = StringUtils.hasText(account.getAutoRateText())
                 ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
         boolean success = rateService.rateBuyer(accountId, orderId, feedback);
         if (success && isRateSkipped(accountId, orderId)) {
             return new OrderAutomationRetryRespDTO(true, "RATE_CHECK", "当前订单无需评价，已从待处理事项移除");
-        }
-        if (!check.ready()) {
-            return new OrderAutomationRetryRespDTO(success, "RATE_CHECK",
-                    success ? "待评价列表未返回该订单，但已通过闲鱼评价接口提交成功"
-                            : "待评价列表未返回该订单，已尝试直接评价；若仍不可评价请稍后重试");
         }
         return new OrderAutomationRetryRespDTO(success, "RATE_CHECK",
                 success ? "订单已进入待评价列表，自动评价成功" : "订单已进入待评价列表，但评价失败，失败原因已更新");
