@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { getAccountList } from '@/api/account'
-import { deleteItemPolishRecord, getItemPolishOverview, runItemPolish, saveItemPolishConfig, type ItemPolishOverview, type ItemPolishRecord } from '@/api/item-polish'
+import { deleteItemPolishRecord, getItemPolishOverview, runItemPolish, type ItemPolishOverview, type ItemPolishRecord } from '@/api/item-polish'
 import type { Account } from '@/types'
 import { showConfirm, showError, showInfo, showSuccess } from '@/utils'
 
@@ -9,16 +9,8 @@ const accounts = ref<Account[]>([])
 const selectedAccountId = ref<number | null>(null)
 const overview = ref<ItemPolishOverview | null>(null)
 const loading = ref(false)
-const saving = ref(false)
 const starting = ref(false)
 const deletingRecordId = ref<number | null>(null)
-const enabled = ref(false)
-const scheduleTime = ref('09:00')
-
-const selectedAccountName = computed(() => {
-  const account = accounts.value.find(item => Number(item.id) === selectedAccountId.value)
-  return account?.accountNote || account?.unb || '未选择账号'
-})
 
 const formatTime = (value?: string) => {
   if (!value) return '暂无'
@@ -33,10 +25,6 @@ const loadOverview = async (silent = false) => {
     const response = await getItemPolishOverview(selectedAccountId.value)
     if (response.code !== 0 && response.code !== 200) throw new Error(response.msg || '加载失败')
     overview.value = response.data || null
-    if (overview.value?.config) {
-      enabled.value = overview.value.config.enabled === 1
-      scheduleTime.value = overview.value.config.scheduleTime || '09:00'
-    }
   } catch (error: any) {
     if (!silent) showError(`加载自动擦亮配置失败：${error.message || '未知错误'}`)
   } finally {
@@ -55,25 +43,6 @@ const loadAccounts = async () => {
     await loadOverview()
   } catch (error: any) {
     showError(`加载账号失败：${error.message || '未知错误'}`)
-  }
-}
-
-const saveConfig = async () => {
-  if (!selectedAccountId.value) return
-  saving.value = true
-  try {
-    const response = await saveItemPolishConfig({
-      accountId: selectedAccountId.value,
-      enabled: enabled.value ? 1 : 0,
-      scheduleTime: scheduleTime.value
-    })
-    if (response.code !== 0 && response.code !== 200) throw new Error(response.msg || '保存失败')
-    showSuccess(enabled.value ? `已开启每天 ${scheduleTime.value} 自动同步并一键擦亮` : '每日自动同步并擦亮已关闭')
-    await loadOverview(true)
-  } catch (error: any) {
-    showError(`保存失败：${error.message || '请检查执行时间'}`)
-  } finally {
-    saving.value = false
   }
 }
 
@@ -129,7 +98,7 @@ onMounted(loadAccounts)
     <header class="polish-page__header">
       <div>
         <h1>一键擦亮</h1>
-        <p>每次先同步账号全部在售商品，再依次擦亮，避免新上架商品遗漏；每件商品会间隔随机时间执行。</p>
+        <p>手动同步并擦亮在售商品，执行记录集中查看；每日自动擦亮可在账号管理的“设置”中配置。</p>
       </div>
       <div class="polish-page__actions">
         <select v-model="selectedAccountId" class="polish-select" @change="handleAccountChange">
@@ -145,37 +114,6 @@ onMounted(loadAccounts)
     </header>
 
     <section v-if="selectedAccountId" class="polish-layout" :class="{ 'is-loading': loading }">
-      <div class="polish-card polish-card--config">
-        <div class="card-title-row">
-          <div>
-            <h2>执行设置</h2>
-            <p>每天按设定时间完成“同步商品 → 一键擦亮”。</p>
-          </div>
-          <label class="switch-row">
-            <input v-model="enabled" type="checkbox">
-            <span class="switch-track"><span class="switch-thumb"></span></span>
-            <span>{{ enabled ? '已开启' : '已关闭' }}</span>
-          </label>
-        </div>
-
-        <div class="polish-settings-grid">
-          <div class="setting-field">
-            <span class="setting-label">当前账号</span>
-            <strong>{{ selectedAccountName }}</strong>
-            <small>仅影响当前选择的闲鱼账号</small>
-          </div>
-          <div class="setting-field">
-            <label class="setting-label" for="polish-time">每日执行时间</label>
-            <input id="polish-time" v-model="scheduleTime" class="time-input" type="time" :disabled="!enabled">
-            <small>开启后每天自动执行一次</small>
-          </div>
-        </div>
-        <div class="form-hint"><strong>执行流程：</strong>先同步全部在售商品，再按 1–3 秒随机间隔逐件擦亮。</div>
-        <div class="config-actions">
-          <button class="btn btn--primary" :disabled="saving" @click="saveConfig">{{ saving ? '保存中…' : '保存设置' }}</button>
-        </div>
-      </div>
-
       <div class="polish-summary">
         <div class="summary-card">
           <span>可擦亮商品</span>
@@ -233,14 +171,14 @@ onMounted(loadAccounts)
 
 <style scoped>
 .polish-page { padding: 28px; color: #1c1c1e; }
-.polish-page__header, .card-title-row, .polish-page__actions, .switch-row, .config-actions { display: flex; align-items: center; }
+.polish-page__header, .card-title-row, .polish-page__actions { display: flex; align-items: center; }
 .polish-page__header { justify-content: space-between; gap: 20px; margin-bottom: 22px; }
 h1, h2, p { margin: 0; }
 h1 { font-size: 25px; letter-spacing: -.4px; }
-.polish-page__header p, .card-title-row p, .form-hint, small { color: rgba(28, 28, 30, .55); font-size: 13px; }
+.polish-page__header p, .card-title-row p, small { color: rgba(28, 28, 30, .55); font-size: 13px; }
 .polish-page__header p { margin-top: 6px; }
 .polish-page__actions { gap: 10px; flex-wrap: wrap; }
-.polish-select, .time-input { height: 38px; min-width: 150px; border: 1px solid rgba(60,60,67,.18); border-radius: 9px; padding: 0 10px; background: #fff; color: #1c1c1e; }
+.polish-select { height: 38px; min-width: 150px; border: 1px solid rgba(60,60,67,.18); border-radius: 9px; padding: 0 10px; background: #fff; color: #1c1c1e; }
 .polish-layout { display: grid; grid-template-columns: 1fr; gap: 18px; transition: opacity .2s; }
 .polish-layout.is-loading { opacity: .6; pointer-events: none; }
 .polish-card, .summary-card { background: rgba(255,255,255,.9); border: 1px solid rgba(60,60,67,.12); border-radius: 14px; box-shadow: 0 5px 18px rgba(0,0,0,.04); }
@@ -248,22 +186,6 @@ h1 { font-size: 25px; letter-spacing: -.4px; }
 .card-title-row { justify-content: space-between; gap: 16px; }
 h2 { font-size: 17px; }
 .card-title-row p { margin-top: 5px; }
-.switch-row { gap: 8px; color: #355070; font-size: 14px; cursor: pointer; user-select: none; }
-.switch-row input { position: absolute; opacity: 0; }
-.switch-track { width: 42px; height: 24px; border-radius: 999px; background: #d8dde6; padding: 3px; transition: .2s; }
-.switch-thumb { display:block; width:18px; height:18px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:.2s; }
-.switch-row input:checked + .switch-track { background: #30d158; }
-.switch-row input:checked + .switch-track .switch-thumb { transform: translateX(18px); }
-.polish-settings-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px; margin-top:20px; }
-.setting-field { min-height:88px; display:flex; flex-direction:column; justify-content:center; gap:7px; padding:15px 16px; border:1px solid rgba(60,60,67,.12); border-radius:11px; background:rgba(248,249,251,.82); }
-.setting-field strong { font-size:16px; color:#1c1c1e; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.setting-label { color:rgba(28,28,30,.6); font-size:13px; font-weight:600; }
-.setting-field .time-input { width:150px; }
-.setting-field small { font-size:12px; }
-.form-hint { display:block; margin-top:14px; line-height:1.55; padding:10px 12px; border-radius:9px; background:rgba(255,193,7,.1); color:rgba(91,64,0,.75); }
-.form-hint strong { color:#6c4b00; }
-.time-input:disabled { color: rgba(28,28,30,.35); background: #f4f5f7; }
-.config-actions { justify-content: flex-end; margin-top: 22px; }
 .polish-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
 .summary-card { padding: 18px 20px; display: flex; flex-direction: column; gap: 5px; }
 .summary-card span { color: rgba(28,28,30,.6); font-size: 14px; }
@@ -289,8 +211,6 @@ h2 { font-size: 17px; }
   .polish-page__header { display: block; }
   .polish-page__actions { margin-top: 16px; }
   .polish-select { flex: 1; }
-  .polish-settings-grid { grid-template-columns:1fr; gap:10px; }
-  .form-hint { line-height: 1.5; }
   .polish-summary { grid-template-columns: 1fr; gap: 10px; }
   .polish-card { padding: 17px; }
 }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
 import { updateAccount } from '@/api/account'
+import { getItemPolishOverview, saveItemPolishConfig } from '@/api/item-polish'
 import { showSuccess, showError } from '@/utils'
 import type { Account } from '@/types'
 
@@ -23,8 +24,31 @@ const formData = ref({
   autoRateEnabled: 0,
   autoRateText: '',
   autoAskFlower: 0,
-  autoAskFlowerText: ''
+  autoAskFlowerText: '',
+  itemPolishEnabled: 0,
+  itemPolishScheduleTime: '09:00'
 })
+
+const polishConfigLoading = ref(false)
+let polishConfigRequest = 0
+
+const loadPolishConfig = async (accountId: number) => {
+  const requestId = ++polishConfigRequest
+  polishConfigLoading.value = true
+  try {
+    const response = await getItemPolishOverview(accountId, 1)
+    if (response.code !== 0 && response.code !== 200) throw new Error(response.msg || '加载失败')
+    if (requestId !== polishConfigRequest) return
+    formData.value.itemPolishEnabled = response.data?.config?.enabled === 1 ? 1 : 0
+    formData.value.itemPolishScheduleTime = response.data?.config?.scheduleTime || '09:00'
+  } catch (error: any) {
+    if (requestId === polishConfigRequest) {
+      showError(`加载自动擦亮设置失败：${error.message || '未知错误'}`)
+    }
+  } finally {
+    if (requestId === polishConfigRequest) polishConfigLoading.value = false
+  }
+}
 
 watch(() => props.account, (newAccount) => {
   if (newAccount) {
@@ -34,16 +58,23 @@ watch(() => props.account, (newAccount) => {
       autoRateEnabled: newAccount.autoRateEnabled || 0,
       autoRateText: newAccount.autoRateText || '',
       autoAskFlower: newAccount.autoAskFlower || 0,
-      autoAskFlowerText: newAccount.autoAskFlowerText || ''
+      autoAskFlowerText: newAccount.autoAskFlowerText || '',
+      itemPolishEnabled: 0,
+      itemPolishScheduleTime: '09:00'
     }
+    void loadPolishConfig(newAccount.id)
   } else {
+    polishConfigRequest += 1
+    polishConfigLoading.value = false
     formData.value = {
       id: 0,
       accountNote: '',
       autoRateEnabled: 0,
       autoRateText: '',
       autoAskFlower: 0,
-      autoAskFlowerText: ''
+      autoAskFlowerText: '',
+      itemPolishEnabled: 0,
+      itemPolishScheduleTime: '09:00'
     }
   }
 }, { immediate: true })
@@ -59,8 +90,23 @@ const handleSubmit = async () => {
   }
 
   try {
-    const response = await updateAccount(formData.value)
+    const response = await updateAccount({
+      id: formData.value.id,
+      accountNote: formData.value.accountNote,
+      autoRateEnabled: formData.value.autoRateEnabled,
+      autoRateText: formData.value.autoRateText,
+      autoAskFlower: formData.value.autoAskFlower,
+      autoAskFlowerText: formData.value.autoAskFlowerText
+    })
     if (response.code === 0 || response.code === 200) {
+      const polishResponse = await saveItemPolishConfig({
+        accountId: formData.value.id,
+        enabled: formData.value.itemPolishEnabled,
+        scheduleTime: formData.value.itemPolishScheduleTime
+      })
+      if (polishResponse.code !== 0 && polishResponse.code !== 200) {
+        throw new Error(polishResponse.msg || '自动擦亮设置保存失败')
+      }
       showSuccess('保存成功')
       handleClose()
       emit('success')
@@ -69,6 +115,7 @@ const handleSubmit = async () => {
     }
   } catch (error: any) {
     console.error('保存失败:', error)
+    showError(`保存失败：${error.message || '请稍后重试'}`)
   }
 }
 </script>
@@ -137,13 +184,33 @@ const handleSubmit = async () => {
                 系统会定时处理近 10 天已确认发货的订单，不会额外向买家发送聊天消息。
               </p>
             </section>
+
+            <section class="automation-card" :class="{ 'automation-card--enabled': formData.itemPolishEnabled === 1 }">
+              <div class="automation-card__row">
+                <span class="automation-card__icon automation-card__icon--polish">亮</span>
+                <div class="automation-card__info">
+                  <strong>每日自动擦亮</strong>
+                  <span>每天先同步在售商品，再逐件执行擦亮</span>
+                </div>
+                <label class="switch-toggle">
+                  <input type="checkbox" v-model="formData.itemPolishEnabled" :true-value="1" :false-value="0" :disabled="polishConfigLoading" />
+                  <span class="slider"></span>
+                </label>
+              </div>
+              <div v-if="formData.itemPolishEnabled === 1" class="automation-card__content automation-card__content--time">
+                <label class="field-label" for="item-polish-time">每日执行时间</label>
+                <input id="item-polish-time" v-model="formData.itemPolishScheduleTime" type="time" class="modal-input automation-time-input" :disabled="polishConfigLoading" />
+                <p class="automation-card__hint automation-card__hint--inline">执行记录与“立即擦亮”保留在一键擦亮页面。</p>
+              </div>
+              <p v-else class="automation-card__hint">关闭后不会执行每日擦亮；仍可在一键擦亮页面手动执行。</p>
+            </section>
           </div>
         </div>
 
         <div class="modal-footer">
           <button class="modal-btn modal-btn-cancel" @click="handleClose">取消</button>
           <div class="modal-divider"></div>
-          <button class="modal-btn modal-btn-primary" @click="handleSubmit">保存</button>
+          <button class="modal-btn modal-btn-primary" :disabled="polishConfigLoading" @click="handleSubmit">{{ polishConfigLoading ? '加载设置中…' : '保存' }}</button>
         </div>
       </div>
     </div>
@@ -317,6 +384,11 @@ const handleSubmit = async () => {
   background: rgba(255,149,0,.14);
 }
 
+.automation-card__icon--polish {
+  color: #b26a00;
+  background: rgba(255,190,0,.16);
+}
+
 .automation-card__info {
   min-width: 0;
   flex: 1;
@@ -343,9 +415,14 @@ const handleSubmit = async () => {
   border-top: 1px solid rgba(60,60,67,.10);
 }
 
+.automation-card__content--time { display: flex; flex-direction: column; }
+.automation-time-input { width: 150px; }
+
 .automation-card__hint {
   margin: 10px 0 0 42px;
 }
+
+.automation-card__hint--inline { margin-left: 0; }
 
 .switch-toggle {
   position: relative;
@@ -424,6 +501,8 @@ const handleSubmit = async () => {
   color: #007aff;
   font-weight: 500;
 }
+
+.modal-btn:disabled { cursor: not-allowed; opacity: .5; }
 
 .modal-divider {
   width: 0.5px;
