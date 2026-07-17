@@ -40,7 +40,7 @@ http://你的设备IP:12400
 在已安装项目的目录中执行：
 
 ```bash
-cd xianyu-Plus && chmod +x update.sh && ./update.sh
+cd ~/xianyu-Plus && ./update.sh
 ```
 
 该命令会拉取 GitHub 上的最新代码、重新构建并重启服务。更新前建议先完成数据备份。
