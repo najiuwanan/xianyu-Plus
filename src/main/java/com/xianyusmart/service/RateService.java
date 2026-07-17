@@ -320,7 +320,8 @@ public class RateService {
     private boolean isAlreadyRated(XianyuApiCallUtils.ApiCallResult result) {
         String detail = (String.valueOf(result.getErrorMessage()) + " " + String.valueOf(result.getResponse()))
                 .toLowerCase(Locale.ROOT);
-        return detail.contains("已评价") || detail.contains("重复评价")
+        return detail.contains("已评价") || detail.contains("已经评价") || detail.contains("评价过了")
+                || detail.contains("重复评价")
                 || detail.contains("already_rate") || detail.contains("already rate");
     }
 

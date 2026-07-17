@@ -30,6 +30,8 @@ public interface OrderAutomationRecordMapper {
     String RECENT_MANAGED_ORDER_CONDITION = "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 3 MONTH) " +
             "AND (o.trade_status IS NULL OR o.trade_status NOT IN ('REFUNDING', 'REFUNDED', 'CLOSED')) ";
     String RATE_ALREADY_RATED_CONDITION = "(COALESCE(rate_error, '') LIKE '%已评价%' " +
+            "OR COALESCE(rate_error, '') LIKE '%已经评价%' " +
+            "OR COALESCE(rate_error, '') LIKE '%评价过了%' " +
             "OR COALESCE(rate_error, '') LIKE '%重复评价%' " +
             "OR LOWER(COALESCE(rate_error, '')) LIKE '%already_rate%' " +
             "OR LOWER(COALESCE(rate_error, '')) LIKE '%already rate%')";
