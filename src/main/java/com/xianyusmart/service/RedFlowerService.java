@@ -32,6 +32,9 @@ public class RedFlowerService {
     @Autowired(required = false)
     private AutomationExceptionNotificationService automationExceptionNotificationService;
 
+    @Autowired(required = false)
+    private AutomationRiskGuardService automationRiskGuardService;
+
     @Value("${app.red-flower.lookback-days:10}")
     private int lookbackDays = 10;
 
@@ -56,6 +59,10 @@ public class RedFlowerService {
                 .eq(XianyuAccount::getStatus, 1)
                 .eq(XianyuAccount::getAutoAskFlower, 1));
         for (XianyuAccount account : accounts) {
+            if (automationRiskGuardService != null && automationRiskGuardService.isPaused(account.getId())) {
+                log.warn("【账号{}】自动化保护已暂停，跳过小红花任务", account.getId());
+                continue;
+            }
             processAccount(account.getId());
         }
     }
@@ -84,6 +91,10 @@ public class RedFlowerService {
 
         for (XianyuGoodsOrder order : orders) {
             requestRedFlower(accountId, order.getOrderId(), cookie);
+            if (automationRiskGuardService != null && automationRiskGuardService.isPaused(accountId)) {
+                log.warn("【账号{}】小红花任务触发自动化保护，停止本轮剩余订单", accountId);
+                break;
+            }
         }
     }
 
@@ -144,12 +155,14 @@ public class RedFlowerService {
     }
 
     private void notifyFailure(Long accountId, String reason, int affectedCount) {
-        if (automationExceptionNotificationService == null) {
-            return;
-        }
         String detail = affectedCount > 1
                 ? "本次有 " + affectedCount + " 笔订单未能请求小红花：" + reason
                 : reason;
-        automationExceptionNotificationService.notify(accountId, "小红花", detail, Map.of());
+        if (automationExceptionNotificationService != null) {
+            automationExceptionNotificationService.notify(accountId, "小红花", detail, Map.of());
+        }
+        if (automationRiskGuardService != null) {
+            automationRiskGuardService.recordFailure(accountId, "小红花", detail);
+        }
     }
 }

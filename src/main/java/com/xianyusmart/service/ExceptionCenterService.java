@@ -153,7 +153,12 @@ public class ExceptionCenterService {
         if (account == null) {
             return "账号不存在";
         }
-        return Integer.valueOf(1).equals(account.getStatus()) ? null : "账号已禁用或不可用，请先在账号管理中启用账号";
+        if (!Integer.valueOf(1).equals(account.getStatus())) {
+            return "账号已禁用或不可用，请先在账号管理中启用账号";
+        }
+        return Integer.valueOf(1).equals(account.getAutomationRiskPaused())
+                ? "账号已被自动化保护暂停，请先在账号管理中恢复自动化后再重试"
+                : null;
     }
 
     private boolean includes(String selectedType, String expectedType) {

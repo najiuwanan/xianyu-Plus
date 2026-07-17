@@ -22,7 +22,8 @@ const {
   showQRLoginDialog,
   editAccount,
   deleteAccount,
-  toggleAccountEnabled
+  toggleAccountEnabled,
+  resumeAutomation
 } = useAccountManager();
 
 loadAccounts();
@@ -65,6 +66,7 @@ loadAccounts();
           @edit="editAccount"
           @delete="deleteAccount"
           @toggle-enabled="toggleAccountEnabled"
+          @resume-automation="resumeAutomation"
         />
       </div>
     </section>

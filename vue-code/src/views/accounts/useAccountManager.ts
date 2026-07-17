@@ -1,5 +1,5 @@
 import { ref, reactive } from 'vue'
-import { getAccountList, deleteAccount as deleteAccountApi, setAccountEnabled } from '@/api/account'
+import { getAccountList, deleteAccount as deleteAccountApi, setAccountEnabled, resumeAccountAutomation } from '@/api/account'
 import { showSuccess, showError, showConfirm } from '@/utils'
 import type { Account } from '@/types'
 
@@ -93,6 +93,25 @@ export function useAccountManager() {
     }
   }
 
+  const resumeAutomation = async (account: Account) => {
+    try {
+      await showConfirm(
+        `确定恢复“${account.accountNote || account.unb}”的自动化吗？恢复后，之前因保护暂停的待发货任务会重新进入队列。`,
+        '恢复自动化'
+      )
+      const response = await resumeAccountAutomation({ accountId: account.id })
+      if (response.code !== 0 && response.code !== 200) {
+        throw new Error(response.msg || '恢复自动化失败')
+      }
+      showSuccess(response.data || '自动化已恢复')
+      await loadAccounts()
+    } catch (error: any) {
+      if (error !== 'cancel' && !error?.messageShown) {
+        showError('恢复自动化失败: ' + (error.message || '未知错误'))
+      }
+    }
+  }
+
   // 确认删除账号
   const confirmDelete = async () => {
     if (!deleteAccountId.value) return;
@@ -127,6 +146,7 @@ export function useAccountManager() {
     editAccount,
     deleteAccount,
     toggleAccountEnabled,
+    resumeAutomation,
     confirmDelete
   }
 }

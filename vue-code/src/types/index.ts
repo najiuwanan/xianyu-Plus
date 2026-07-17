@@ -19,6 +19,9 @@ export interface Account {
   autoAskFlower?: number
   autoAskFlowerText?: string
   autoConnectOnStartup?: number
+  automationRiskPaused?: number
+  automationRiskPauseReason?: string
+  automationRiskPausedAt?: string
 }
 
 // 商品类型

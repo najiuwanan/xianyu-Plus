@@ -19,6 +19,7 @@ interface Emits {
   (e: 'edit', account: Account): void
   (e: 'delete', id: number): void
   (e: 'toggleEnabled', account: Account): void
+  (e: 'resumeAutomation', account: Account): void
 }
 
 defineProps<Props>()
@@ -80,6 +81,7 @@ const getStatusDescription = (status: number) => {
 }
 
 const isEnabled = (value?: number) => value === 1
+const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
 </script>
 
 <template>
@@ -136,6 +138,10 @@ const isEnabled = (value?: number) => value === 1
           <span class="automation-chip" :class="{ 'automation-chip--on': isEnabled(account.autoAskFlower) }">
             自动求花 {{ isEnabled(account.autoAskFlower) ? '已开启' : '已关闭' }}
           </span>
+          <span v-if="isRiskPaused(account)" class="automation-chip automation-chip--risk" :title="account.automationRiskPauseReason">
+            自动化已保护暂停
+          </span>
+          <small v-if="isRiskPaused(account)" class="automation-risk-reason">{{ account.automationRiskPauseReason || '连续自动化失败，等待人工确认' }}</small>
         </div>
       </div>
 
@@ -147,6 +153,9 @@ const isEnabled = (value?: number) => value === 1
           @click="emit('toggleEnabled', account)"
         >
           <span>{{ account.status === 0 ? '启用' : '禁用' }}</span>
+        </button>
+        <button v-if="isRiskPaused(account)" class="account-card__btn account-card__btn--enable" @click="emit('resumeAutomation', account)">
+          <span>恢复自动化</span>
         </button>
         <button class="account-card__btn account-card__btn--edit" @click="emit('edit', account)">
           <IconEdit />
@@ -203,6 +212,10 @@ const isEnabled = (value?: number) => value === 1
               <span class="automation-chip" :class="{ 'automation-chip--on': isEnabled(account.autoAskFlower) }">
                 <i></i>自动求花 {{ isEnabled(account.autoAskFlower) ? '已开启' : '已关闭' }}
               </span>
+              <span v-if="isRiskPaused(account)" class="automation-chip automation-chip--risk" :title="account.automationRiskPauseReason">
+                <i></i>自动化已保护暂停
+              </span>
+              <small v-if="isRiskPaused(account)" class="automation-risk-reason">{{ account.automationRiskPauseReason || '连续自动化失败，等待人工确认' }}</small>
             </div>
           </td>
           <td class="table__td table__td--time">{{ formatTime(account.createdTime) }}</td>
@@ -216,6 +229,9 @@ const isEnabled = (value?: number) => value === 1
                 @click="emit('toggleEnabled', account)"
               >
                 <span>{{ account.status === 0 ? '启用' : '禁用' }}</span>
+              </button>
+              <button v-if="isRiskPaused(account)" class="table__action table__action--enable" @click="emit('resumeAutomation', account)">
+                <span>恢复自动化</span>
               </button>
               <button class="table__action table__action--edit" @click="emit('edit', account)">
                 <IconEdit />
@@ -566,7 +582,7 @@ const isEnabled = (value?: number) => value === 1
 .table__th--status { width: 180px; }
 .table__th--automation { width: 220px; }
 .table__th--time { width: 168px; }
-.table__th--actions { width: 140px; text-align: center; }
+.table__th--actions { width: 200px; text-align: center; }
 
 /* Table Body */
 
@@ -683,6 +699,20 @@ const isEnabled = (value?: number) => value === 1
   color: #16803d;
   background: rgba(52,199,89,.10);
   border-color: rgba(52,199,89,.22);
+}
+
+.automation-chip--risk {
+  color: #b54708;
+  background: #fffaeb;
+  border-color: #fedf89;
+}
+
+.automation-risk-reason {
+  display: block;
+  width: 100%;
+  color: #b54708;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .account-card__automation {

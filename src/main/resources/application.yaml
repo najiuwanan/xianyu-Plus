@@ -27,6 +27,11 @@ app:
   item-polish:
     scan-delay-ms: ${ITEM_POLISH_SCAN_DELAY_MS:30000}
     initial-delay-ms: ${ITEM_POLISH_INITIAL_DELAY_MS:90000}
+  automation:
+    risk:
+      # 连续失败达到阈值后暂停该账号的外发自动化；可用环境变量按部署需要调整。
+      failure-threshold: ${AUTOMATION_RISK_FAILURE_THRESHOLD:3}
+      failure-window-minutes: ${AUTOMATION_RISK_FAILURE_WINDOW_MINUTES:30}
   security:
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:12400}
     trust-proxy: ${TRUST_PROXY:false}

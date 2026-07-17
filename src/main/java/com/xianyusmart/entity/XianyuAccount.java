@@ -65,6 +65,14 @@ public class XianyuAccount {
     /** 服务器或容器启动后是否自动恢复该账号的实时连接。 */
     private Integer autoConnectOnStartup;
 
+    /** 连续自动化失败后由系统暂停；不影响账号的实时连接状态。 */
+    private Integer automationRiskPaused;
+
+    /** 本次自动化保护暂停的原因，供账号管理页面展示。 */
+    private String automationRiskPauseReason;
+
+    private java.time.LocalDateTime automationRiskPausedAt;
+
     
     /**
      * 创建时间（SQLite存储为TEXT）

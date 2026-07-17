@@ -6,6 +6,7 @@ import com.xianyusmart.enums.DeliveryStatus;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.xianyusmart.service.DeliveryTaskService;
 import com.xianyusmart.service.AutomationExceptionNotificationService;
+import com.xianyusmart.service.AutomationRiskGuardService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +26,9 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
 
     @Autowired(required = false)
     private AutomationExceptionNotificationService automationExceptionNotificationService;
+
+    @Autowired(required = false)
+    private AutomationRiskGuardService automationRiskGuardService;
 
     @Value("${app.delivery.lease-seconds:120}")
     private int leaseSeconds;
@@ -100,6 +104,9 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
             log.warn("任务租约已失效，忽略重试操作: taskId={}", taskId);
         } else if (exhausted) {
             notifyException(task, "自动发货", safeMessage);
+            if (automationRiskGuardService != null) {
+                automationRiskGuardService.recordFailure(task.getXianyuAccountId(), "自动发货", safeMessage);
+            }
         }
     }
 

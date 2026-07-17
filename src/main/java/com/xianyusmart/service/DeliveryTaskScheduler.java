@@ -10,6 +10,7 @@ import com.xianyusmart.service.impl.AutoDeliveryServiceImpl;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -38,6 +39,9 @@ public class DeliveryTaskScheduler {
     private final Executor taskExecutor;
     private final TaskScheduler taskScheduler;
     private final String workerId = buildWorkerId();
+
+    @Autowired(required = false)
+    private AutomationRiskGuardService automationRiskGuardService;
 
     @Value("${app.delivery.claim-batch-size:20}")
     private int claimBatchSize;
@@ -81,6 +85,9 @@ public class DeliveryTaskScheduler {
             return;
         }
         for (XianyuAccount account : accounts) {
+            if (automationRiskGuardService != null && automationRiskGuardService.isPaused(account.getId())) {
+                continue;
+            }
             try {
                 List<Map<String, Object>> pendingOrders = orderService.queryPendingOrders(account.getId());
                 if (pendingOrders != null && !pendingOrders.isEmpty()) {
@@ -97,6 +104,11 @@ public class DeliveryTaskScheduler {
         if (account == null || !Integer.valueOf(1).equals(account.getStatus())) {
             deliveryTaskService.pauseClaimedTask(task.getId(), workerId);
             log.info("【账号{}】已禁用或不可用，跳过自动发货任务 taskId={}", task.getXianyuAccountId(), task.getId());
+            return;
+        }
+        if (automationRiskGuardService != null && automationRiskGuardService.isPaused(task.getXianyuAccountId())) {
+            automationRiskGuardService.pauseClaimedDeliveryTask(task.getId(), workerId, task.getXianyuAccountId());
+            log.warn("【账号{}】自动化保护已暂停，跳过自动发货任务 taskId={}", task.getXianyuAccountId(), task.getId());
             return;
         }
         long renewalSeconds = Math.max(10, leaseSeconds / 2L);

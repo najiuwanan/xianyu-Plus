@@ -40,6 +40,14 @@ export function setAccountEnabled(data: { accountId: number; enabled: boolean })
   })
 }
 
+export function resumeAccountAutomation(data: { accountId: number }) {
+  return request<string>({
+    url: '/account/resumeAutomation',
+    method: 'POST',
+    data
+  })
+}
+
 // 删除账号
 export function deleteAccount(data: { id: number }) {
   return request({
@@ -59,4 +67,3 @@ export function manualAddAccount(data: { accountNote: string; cookie: string }) 
     data
   })
 }
-

@@ -34,6 +34,9 @@ public class RateService {
     @Autowired(required = false)
     private AutomationExceptionNotificationService automationExceptionNotificationService;
 
+    @Autowired(required = false)
+    private AutomationRiskGuardService automationRiskGuardService;
+
     public RateService(AccountService accountService,
                        XianyuApiCallUtils xianyuApiCallUtils,
                        OrderAutomationRecordMapper automationRecordMapper) {
@@ -320,6 +323,9 @@ public class RateService {
         if (automationExceptionNotificationService != null) {
             automationExceptionNotificationService.notify(accountId, "自动评价", reason,
                     Map.of("orderId", tradeId));
+        }
+        if (automationRiskGuardService != null) {
+            automationRiskGuardService.recordFailure(accountId, "自动评价", reason);
         }
     }
 

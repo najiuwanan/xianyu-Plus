@@ -76,6 +76,13 @@ public class SystemCheckService {
         if (active.isEmpty()) {
             return item("accounts", "账号连接", "WARN", "没有已启用账号", "请先在账号管理添加并启用账号。", "/accounts");
         }
+        long riskPaused = active.stream()
+                .filter(account -> Integer.valueOf(1).equals(account.getAutomationRiskPaused()))
+                .count();
+        if (riskPaused > 0) {
+            return item("accounts", "账号连接", "WARN", riskPaused + " 个账号已被自动化保护暂停",
+                    "实时连接仍可使用；请核对账号状态后到账号管理恢复自动化。", "/accounts");
+        }
         long connected = active.stream().filter(account -> webSocketService.isConnected(account.getId())).count();
         if (connected == active.size()) {
             return item("accounts", "账号连接", "PASS", "已连接 " + connected + " / " + active.size() + " 个启用账号", "消息、自动回复和自动发货可正常接收实时事件。", "/connection");

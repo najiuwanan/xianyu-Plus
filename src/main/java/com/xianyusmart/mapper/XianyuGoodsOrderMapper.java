@@ -217,6 +217,23 @@ public interface XianyuGoodsOrderMapper {
             "last_error_message = '账号已禁用，自动发货已暂停' " +
             "WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId}")
     int pauseClaimedTask(@Param("id") Long id, @Param("workerId") String workerId);
+
+    @Update("UPDATE xianyu_goods_order SET delivery_status = 'SKIPPED', next_retry_time = NULL, " +
+            "lease_owner = NULL, lease_expire_time = NULL, last_error_code = 'AUTOMATION_RISK_PAUSED', " +
+            "last_error_message = #{reason} WHERE xianyu_account_id = #{accountId} AND state <> 1 " +
+            "AND delivery_status IN ('PENDING', 'RETRY_WAIT', 'PROCESSING')")
+    int pauseTasksByRisk(@Param("accountId") Long accountId, @Param("reason") String reason);
+
+    @Update("UPDATE xianyu_goods_order SET delivery_status = 'SKIPPED', next_retry_time = NULL, " +
+            "lease_owner = NULL, lease_expire_time = NULL, last_error_code = 'AUTOMATION_RISK_PAUSED', " +
+            "last_error_message = #{reason} WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId}")
+    int pauseClaimedTaskByRisk(@Param("id") Long id, @Param("workerId") String workerId, @Param("reason") String reason);
+
+    @Update("UPDATE xianyu_goods_order SET delivery_status = 'PENDING', next_retry_time = NOW(3), " +
+            "lease_owner = NULL, lease_expire_time = NULL, last_error_code = NULL, last_error_message = NULL " +
+            "WHERE xianyu_account_id = #{accountId} AND state <> 1 AND delivery_status = 'SKIPPED' " +
+            "AND last_error_code = 'AUTOMATION_RISK_PAUSED'")
+    int resumeRiskPausedTasks(@Param("accountId") Long accountId);
     
     @Update("UPDATE xianyu_goods_order SET confirm_state = 1 WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId}")
     int updateConfirmState(@Param("accountId") Long accountId, @Param("orderId") String orderId);

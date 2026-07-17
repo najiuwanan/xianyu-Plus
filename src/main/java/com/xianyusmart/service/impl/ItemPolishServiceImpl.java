@@ -16,6 +16,7 @@ import com.xianyusmart.service.AccountService;
 import com.xianyusmart.service.ItemService;
 import com.xianyusmart.service.ItemPolishService;
 import com.xianyusmart.service.AutomationExceptionNotificationService;
+import com.xianyusmart.service.AutomationRiskGuardService;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +65,9 @@ public class ItemPolishServiceImpl implements ItemPolishService {
 
     @Autowired(required = false)
     private AutomationExceptionNotificationService automationExceptionNotificationService;
+
+    @Autowired(required = false)
+    private AutomationRiskGuardService automationRiskGuardService;
 
     public ItemPolishServiceImpl(XianyuAccountMapper accountMapper,
                                  XianyuGoodsInfoMapper goodsInfoMapper,
@@ -123,6 +127,7 @@ public class ItemPolishServiceImpl implements ItemPolishService {
     @Override
     public Map<String, Object> startManualRun(Long accountId) {
         ensureAccountActive(accountId);
+        ensureAutomationNotPaused(accountId);
         getOrCreateConfig(accountId);
         boolean started = startRun(accountId, MANUAL_TRIGGER, false);
         Map<String, Object> result = new HashMap<>();
@@ -134,6 +139,7 @@ public class ItemPolishServiceImpl implements ItemPolishService {
     @Override
     public Map<String, Object> retryFailedRecord(Long accountId, Long recordId) {
         ensureAccountActive(accountId);
+        ensureAutomationNotPaused(accountId);
         if (recordId == null) {
             throw new IllegalArgumentException("擦亮记录不能为空");
         }
@@ -179,6 +185,9 @@ public class ItemPolishServiceImpl implements ItemPolishService {
                 }
                 XianyuAccount account = accountMapper.selectById(accountId);
                 if (account == null || !Integer.valueOf(1).equals(account.getStatus())) {
+                    continue;
+                }
+                if (automationRiskGuardService != null && automationRiskGuardService.isPaused(accountId)) {
                     continue;
                 }
                 LocalTime scheduledTime = LocalTime.parse(normalizeScheduleTime(config.getScheduleTime()), TIME_FORMATTER);
@@ -257,18 +266,29 @@ public class ItemPolishServiceImpl implements ItemPolishService {
                     failed++;
                 }
                 saveRecord(accountId, item, triggerType, itemSuccess, itemSuccess ? "擦亮成功" : error);
+                if (!itemSuccess && automationRiskGuardService != null
+                        && automationRiskGuardService.recordFailure(accountId, "商品擦亮", error)) {
+                    summary = "已连续失败，账号自动化保护已暂停，本轮擦亮停止执行";
+                    break;
+                }
                 log.info("【自动擦亮】账号 {} 进度 {}/{}, 商品 {}, {}", accountId, index + 1, total,
                         item.getXyGoodId(), itemSuccess ? "成功" : "失败");
                 if (index < items.size() - 1) {
                     sleepBetweenItems();
                 }
             }
-            summary = "同步后执行完成：共 " + total + " 件，成功 " + success + " 件，失败 " + failed + " 件";
+            if (summary == null) {
+                summary = "同步后执行完成：共 " + total + " 件，成功 " + success + " 件，失败 " + failed + " 件";
+            }
         } catch (Exception e) {
             failed = Math.max(1, failed);
             summary = "执行异常：" + messageOf(e);
             log.error("【自动擦亮】账号 {} 执行异常", accountId, e);
             saveRunFailureRecord(accountId, triggerType, summary);
+            if (automationRiskGuardService != null
+                    && automationRiskGuardService.recordFailure(accountId, "商品擦亮", summary)) {
+                summary += "；账号自动化保护已暂停";
+            }
         } finally {
             updateRunSummary(accountId, total, success, failed, summary == null ? "任务结束" : summary);
             if (failed == 0) {
@@ -447,6 +467,12 @@ public class ItemPolishServiceImpl implements ItemPolishService {
             throw new IllegalStateException("账号已禁用或不可用，请先在账号管理中启用账号");
         }
         return account;
+    }
+
+    private void ensureAutomationNotPaused(Long accountId) {
+        if (automationRiskGuardService != null && automationRiskGuardService.isPaused(accountId)) {
+            throw new IllegalStateException("该账号已被自动化保护暂停，请先到账号管理恢复自动化后再执行擦亮");
+        }
     }
 
     private String normalizeScheduleTime(String value) {

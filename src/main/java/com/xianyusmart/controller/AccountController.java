@@ -15,6 +15,7 @@ import com.xianyusmart.controller.dto.UpdateAccountReqDTO;
 import com.xianyusmart.controller.dto.UpdateAccountRespDTO;
 import com.xianyusmart.service.AccountService;
 import com.xianyusmart.service.AutoReplyDelayService;
+import com.xianyusmart.service.AutomationRiskGuardService;
 import com.xianyusmart.service.DeliveryTaskService;
 import com.xianyusmart.service.WebSocketService;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,9 @@ public class AccountController {
 
     @Autowired
     private AutoReplyDelayService autoReplyDelayService;
+
+    @Autowired
+    private AutomationRiskGuardService automationRiskGuardService;
 
     /**
      * 获取账号列表
@@ -251,6 +255,27 @@ public class AccountController {
     public static class AccountEnabledReqDTO {
         private Long accountId;
         private Boolean enabled;
+    }
+
+    /** 风控保护暂停后由用户确认账号状态，再恢复自动化和被暂存的发货任务。 */
+    @PostMapping("/resumeAutomation")
+    public ResultObject<String> resumeAutomation(@RequestBody AccountIdReqDTO reqDTO) {
+        if (reqDTO == null || reqDTO.getAccountId() == null) {
+            return ResultObject.failed("请选择需要恢复自动化的账号");
+        }
+        try {
+            return ResultObject.success(automationRiskGuardService.resume(reqDTO.getAccountId()));
+        } catch (IllegalArgumentException e) {
+            return ResultObject.failed(e.getMessage());
+        } catch (Exception e) {
+            log.error("恢复账号自动化失败: accountId={}", reqDTO.getAccountId(), e);
+            return ResultObject.failed("恢复自动化失败: " + e.getMessage());
+        }
+    }
+
+    @lombok.Data
+    public static class AccountIdReqDTO {
+        private Long accountId;
     }
 
     /**

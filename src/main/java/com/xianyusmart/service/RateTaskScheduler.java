@@ -25,6 +25,9 @@ public class RateTaskScheduler {
     @Autowired
     private RateService rateService;
 
+    @Autowired
+    private AutomationRiskGuardService automationRiskGuardService;
+
     /**
      * 默认每两分钟扫描一次。买家确认收货后，闲鱼把订单放入待评价列表即可处理；
      * 间隔可通过 app.automation.rate-scan-delay-ms 配置调整。
@@ -45,6 +48,10 @@ public class RateTaskScheduler {
         }
 
         for (XianyuAccount account : accounts) {
+            if (automationRiskGuardService.isPaused(account.getId())) {
+                log.warn("【自动评价任务】账号 {} 已被自动化保护暂停", account.getId());
+                continue;
+            }
             processAutoRateForAccount(account);
         }
         log.info("【自动评价任务】执行完毕。");
@@ -66,6 +73,10 @@ public class RateTaskScheduler {
                     : "不错的买家！";
 
             for (Map<String, Object> item : pendingList) {
+                if (automationRiskGuardService.isPaused(accountId)) {
+                    log.warn("【自动评价任务】账号 {} 已被自动化保护暂停，停止本轮扫描", accountId);
+                    break;
+                }
                 String tradeId = rateService.extractTradeId(item);
                 if (tradeId != null) {
                     // 执行评价
