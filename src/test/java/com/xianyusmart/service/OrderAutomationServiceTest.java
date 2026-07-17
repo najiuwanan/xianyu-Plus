@@ -60,19 +60,17 @@ class OrderAutomationServiceTest {
     }
 
     @Test
-    void attemptsRatingWhenPendingListDoesNotContainAnOrder() {
+    void doesNotRateWhenPendingListDoesNotContainAnOrder() {
         when(automationRecordMapper.countManagedAutomationOrder(8L, "trade-8")).thenReturn(1);
         XianyuAccount account = new XianyuAccount();
         account.setAutoRateText("感谢惠顾！");
         when(accountMapper.selectById(8L)).thenReturn(account);
         when(rateService.checkOrderReadyForRate(8L, "trade-8"))
                 .thenReturn(new RateService.PendingRateOrderCheck(false, "待评价列表未找到订单"));
-        when(rateService.rateBuyer(8L, "trade-8", "感谢惠顾！")).thenReturn(true);
-
         OrderAutomationRetryRespDTO result = service().retry(8L, "trade-8", "RATE_CHECK");
 
-        assertTrue(result.isSuccess());
-        verify(rateService).rateBuyer(8L, "trade-8", "感谢惠顾！");
+        assertFalse(result.isSuccess());
+        verify(rateService, never()).rateBuyer(any(), any(), any());
     }
 
     @Test
