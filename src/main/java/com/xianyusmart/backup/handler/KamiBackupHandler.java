@@ -56,6 +56,13 @@ public class KamiBackupHandler implements DataBackupHandler {
                 map.put("unb", account.getUnb());
             }
             map.put("aliasName", config.getAliasName());
+            map.put("sourceType", config.getSourceType());
+            map.put("apiUrl", config.getApiUrl());
+            map.put("apiMethod", config.getApiMethod());
+            map.put("apiHeaders", config.getApiHeaders());
+            map.put("apiRequestTemplate", config.getApiRequestTemplate());
+            map.put("apiResultPath", config.getApiResultPath());
+            map.put("apiTimeoutSeconds", config.getApiTimeoutSeconds());
             map.put("alertEnabled", config.getAlertEnabled());
             map.put("alertThresholdType", config.getAlertThresholdType());
             map.put("alertThresholdValue", config.getAlertThresholdValue());
@@ -128,6 +135,13 @@ public class KamiBackupHandler implements DataBackupHandler {
                     XianyuKamiConfig config = new XianyuKamiConfig();
                     config.setXianyuAccountId(accountId);
                     config.setAliasName(aliasName);
+                    config.setSourceType(map.get("sourceType") != null ? ((Number) map.get("sourceType")).intValue() : 1);
+                    config.setApiUrl((String) map.get("apiUrl"));
+                    config.setApiMethod((String) map.get("apiMethod"));
+                    config.setApiHeaders((String) map.get("apiHeaders"));
+                    config.setApiRequestTemplate((String) map.get("apiRequestTemplate"));
+                    config.setApiResultPath((String) map.get("apiResultPath"));
+                    config.setApiTimeoutSeconds(map.get("apiTimeoutSeconds") != null ? ((Number) map.get("apiTimeoutSeconds")).intValue() : null);
                     config.setAlertEnabled(map.get("alertEnabled") != null ? ((Number) map.get("alertEnabled")).intValue() : null);
                     config.setAlertThresholdType(map.get("alertThresholdType") != null ? ((Number) map.get("alertThresholdType")).intValue() : null);
                     config.setAlertThresholdValue(map.get("alertThresholdValue") != null ? ((Number) map.get("alertThresholdValue")).intValue() : null);

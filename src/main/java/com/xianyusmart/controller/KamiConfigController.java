@@ -59,6 +59,16 @@ public class KamiConfigController {
         }
     }
 
+    @PostMapping("/test-api")
+    public ResultObject<KamiApiTestRespDTO> testApi(@RequestBody KamiApiTestReqDTO reqDTO) {
+        try {
+            return kamiConfigService.testApiConfig(reqDTO);
+        } catch (Exception e) {
+            log.error("测试外部卡券 API 失败", e);
+            return ResultObject.failed("测试外部卡券 API 失败: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/item/add")
     public ResultObject<KamiItemRespDTO> addKamiItem(@Valid @RequestBody KamiItemReqDTO reqDTO) {
         try {

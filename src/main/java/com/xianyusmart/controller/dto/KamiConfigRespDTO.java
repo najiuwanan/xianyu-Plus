@@ -13,6 +13,20 @@ public class KamiConfigRespDTO {
 
     private String aliasName;
 
+    private Integer sourceType;
+
+    private String apiUrl;
+
+    private String apiMethod;
+
+    private String apiHeaders;
+
+    private String apiRequestTemplate;
+
+    private String apiResultPath;
+
+    private Integer apiTimeoutSeconds;
+
     private Integer alertEnabled;
 
     private Integer alertThresholdType;

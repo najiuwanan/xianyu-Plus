@@ -16,6 +16,22 @@ public class XianyuKamiConfig {
 
     private String aliasName;
 
+    /** 1本地库存卡券，2外部 API 卡券。 */
+    private Integer sourceType = 1;
+
+    /** 外部 API 卡券配置，仅 sourceType=2 时使用。 */
+    private String apiUrl;
+
+    private String apiMethod;
+
+    private String apiHeaders;
+
+    private String apiRequestTemplate;
+
+    private String apiResultPath;
+
+    private Integer apiTimeoutSeconds;
+
     private Integer alertEnabled;
 
     private Integer alertThresholdType;

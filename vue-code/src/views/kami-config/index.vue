@@ -12,6 +12,7 @@ import {
   deleteKamiItem,
   resetKamiItem,
   exportKamiItems,
+  testKamiApi,
   type KamiConfig,
   type KamiItem
 } from '@/api/kami-config'
@@ -25,9 +26,30 @@ const itemsLoading = ref(false)
 
 const showCreateDialog = ref(false)
 const createForm = ref({
-  aliasName: ''
+  aliasName: '',
+  sourceType: 1,
+  apiUrl: '',
+  apiMethod: 'POST' as 'GET' | 'POST',
+  apiHeaders: '',
+  apiRequestTemplate: '{\n  "orderId": "{{orderId}}",\n  "goodsId": "{{goodsId}}",\n  "quantity": "{{quantity}}"\n}',
+  apiResultPath: '',
+  apiTimeoutSeconds: 10
 })
 const createLoading = ref(false)
+
+const showApiDialog = ref(false)
+const apiSaving = ref(false)
+const apiTesting = ref(false)
+const apiTestResult = ref('')
+const apiForm = ref({
+  sourceType: 2,
+  apiUrl: '',
+  apiMethod: 'POST' as 'GET' | 'POST',
+  apiHeaders: '',
+  apiRequestTemplate: '{\n  "orderId": "{{orderId}}",\n  "goodsId": "{{goodsId}}",\n  "quantity": "{{quantity}}"\n}',
+  apiResultPath: '',
+  apiTimeoutSeconds: 10
+})
 
 const showImportDialog = ref(false)
 const importContent = ref('')
@@ -66,6 +88,8 @@ const selectedConfig = computed(() => {
   return kamiConfigs.value.find(c => c.id === selectedConfigId.value)
 })
 
+const isApiSource = computed(() => selectedConfig.value?.sourceType === 2)
+
 const loadKamiConfigs = async () => {
   configLoading.value = true
   try {
@@ -74,7 +98,7 @@ const loadKamiConfigs = async () => {
       kamiConfigs.value = res.data || []
       if (kamiConfigs.value.length > 0 && !selectedConfigId.value && !isMobile.value) {
         selectedConfigId.value = kamiConfigs.value[0]!.id
-        loadKamiItems()
+        if (kamiConfigs.value[0]!.sourceType !== 2) loadKamiItems()
       } else if (kamiConfigs.value.length === 0) {
         selectedConfigId.value = null
         kamiItems.value = []
@@ -88,7 +112,10 @@ const loadKamiConfigs = async () => {
 }
 
 const loadKamiItems = async () => {
-  if (!selectedConfigId.value) return
+  if (!selectedConfigId.value || selectedConfig.value?.sourceType === 2) {
+    kamiItems.value = []
+    return
+  }
   itemsLoading.value = true
   try {
     const res = await queryKamiItems({
@@ -110,23 +137,39 @@ const selectConfig = (config: KamiConfig) => {
   selectedConfigId.value = config.id
   filterStatus.value = undefined
   filterKeyword.value = ''
-  loadKamiItems()
+  if (config.sourceType === 2) {
+    kamiItems.value = []
+  } else {
+    loadKamiItems()
+  }
 }
 
 const handleCreate = async () => {
   createLoading.value = true
   try {
+    const createApiSource = createForm.value.sourceType === 2
     const res = await saveKamiConfig({
-      aliasName: createForm.value.aliasName || '未命名'
+      aliasName: createForm.value.aliasName || '未命名',
+      // 外部 API 的必填项在下一步弹窗填写，创建时先建立空的本地库再切换来源。
+      sourceType: createApiSource ? 1 : createForm.value.sourceType
     })
     if (res.code === 200) {
       toast.success('创建成功')
       showCreateDialog.value = false
-      createForm.value = { aliasName: '' }
+      createForm.value = {
+        aliasName: '', sourceType: 1, apiUrl: '', apiMethod: 'POST', apiHeaders: '',
+        apiRequestTemplate: '{\n  "orderId": "{{orderId}}",\n  "goodsId": "{{goodsId}}",\n  "quantity": "{{quantity}}"\n}',
+        apiResultPath: '', apiTimeoutSeconds: 10
+      }
       await loadKamiConfigs()
       if (res.data?.id) {
         selectedConfigId.value = res.data.id
-        loadKamiItems()
+        if (createApiSource) {
+          apiForm.value.sourceType = 2
+          showApiDialog.value = true
+        } else {
+          loadKamiItems()
+        }
       }
     } else {
       toast.error(res.msg || '创建失败')
@@ -135,6 +178,79 @@ const handleCreate = async () => {
     toast.error('创建失败')
   } finally {
     createLoading.value = false
+  }
+}
+
+const openApiDialog = () => {
+  if (!selectedConfig.value) return
+  const config = selectedConfig.value
+  apiForm.value = {
+    sourceType: config.sourceType || 1,
+    apiUrl: config.apiUrl || '',
+    apiMethod: (config.apiMethod === 'GET' ? 'GET' : 'POST'),
+    apiHeaders: config.apiHeaders || '',
+    apiRequestTemplate: config.apiRequestTemplate || '{\n  "orderId": "{{orderId}}",\n  "goodsId": "{{goodsId}}",\n  "quantity": "{{quantity}}"\n}',
+    apiResultPath: config.apiResultPath || '',
+    apiTimeoutSeconds: config.apiTimeoutSeconds || 10
+  }
+  apiTestResult.value = ''
+  showApiDialog.value = true
+}
+
+const handleTestApi = async () => {
+  if (apiForm.value.sourceType !== 2) {
+    toast.warning('请先选择“外部 API 自动取卡”')
+    return
+  }
+  apiTesting.value = true
+  apiTestResult.value = ''
+  try {
+    const res = await testKamiApi(apiForm.value)
+    if (res.code === 200) {
+      apiTestResult.value = `成功（HTTP ${res.data?.statusCode || 200}）：${res.data?.content || '未返回内容'}`
+      toast.success('接口测试成功')
+    } else {
+      apiTestResult.value = `失败：${res.msg || '接口测试失败'}`
+      toast.error(res.msg || '接口测试失败')
+    }
+  } catch (e) {
+    apiTestResult.value = '失败：请求未完成，请检查接口地址和网络。'
+    toast.error('接口测试失败')
+  } finally {
+    apiTesting.value = false
+  }
+}
+
+const handleSaveApi = async () => {
+  if (!selectedConfig.value) return
+  apiSaving.value = true
+  try {
+    const res = await saveKamiConfig({
+      id: selectedConfig.value.id,
+      aliasName: selectedConfig.value.aliasName,
+      sourceType: apiForm.value.sourceType,
+      ...(apiForm.value.sourceType === 2 ? {
+        apiUrl: apiForm.value.apiUrl,
+        apiMethod: apiForm.value.apiMethod,
+        apiHeaders: apiForm.value.apiHeaders,
+        apiRequestTemplate: apiForm.value.apiRequestTemplate,
+        apiResultPath: apiForm.value.apiResultPath,
+        apiTimeoutSeconds: apiForm.value.apiTimeoutSeconds
+      } : {})
+    })
+    if (res.code === 200) {
+      toast.success(apiForm.value.sourceType === 2 ? '外部 API 卡券配置已保存' : '已切换为本地库存卡券')
+      showApiDialog.value = false
+      kamiItems.value = []
+      await loadKamiConfigs()
+      if (apiForm.value.sourceType !== 2) loadKamiItems()
+    } else {
+      toast.error(res.msg || '保存失败')
+    }
+  } catch (e) {
+    toast.error('保存失败')
+  } finally {
+    apiSaving.value = false
   }
 }
 
@@ -368,10 +484,16 @@ onUnmounted(() => {
           >
             <div class="config-card__name">{{ config.aliasName || `卡券库#${config.id}` }}</div>
             <div class="config-card__stats">
-              <span class="config-card__stat">总量 {{ config.totalCount }}</span>
-              <span class="config-card__stat used">已用 {{ config.usedCount }}</span>
-              <span class="config-card__stat avail">可用 {{ config.availableCount }}</span>
-              <span v-if="config.alertEnabled === 1" class="tag tag--warning" style="margin-left: 4px;">预警</span>
+              <template v-if="config.sourceType === 2">
+                <span class="tag tag--info">外部 API</span>
+                <span class="config-card__stat">按订单实时取卡</span>
+              </template>
+              <template v-else>
+                <span class="config-card__stat">总量 {{ config.totalCount }}</span>
+                <span class="config-card__stat used">已用 {{ config.usedCount }}</span>
+                <span class="config-card__stat avail">可用 {{ config.availableCount }}</span>
+              </template>
+              <span v-if="config.sourceType !== 2 && config.alertEnabled === 1" class="tag tag--warning" style="margin-left: 4px;">预警</span>
             </div>
             <button
               class="config-card__del btn-danger btn-text btn-sm"
@@ -391,14 +513,23 @@ onUnmounted(() => {
             <span class="kami-mobile__config-name">{{ selectedConfig?.aliasName || `卡券库#${selectedConfigId}` }}</span>
           </div>
           <div class="kami-mobile__detail-actions">
-            <button class="btn-default btn-sm" @click="showAddDialog = true">添加</button>
-            <button class="btn-primary btn-sm" @click="showImportDialog = true">批量导入</button>
-            <button class="btn-success btn-sm" @click="openExportDialog">导出</button>
-            <button class="btn-warning btn-sm" @click="openAlertDialog">预警</button>
+            <button class="btn-default btn-sm" @click="openApiDialog">{{ isApiSource ? 'API 配置' : '来源配置' }}</button>
+            <template v-if="!isApiSource">
+              <button class="btn-default btn-sm" @click="showAddDialog = true">添加</button>
+              <button class="btn-primary btn-sm" @click="showImportDialog = true">批量导入</button>
+              <button class="btn-success btn-sm" @click="openExportDialog">导出</button>
+              <button class="btn-warning btn-sm" @click="openAlertDialog">预警</button>
+            </template>
           </div>
         </header>
 
-        <div class="kami-mobile__filters">
+        <div v-if="isApiSource" class="api-source-panel">
+          <strong>外部 API 自动取卡</strong>
+          <p>买家付款后系统会按订单请求供应商接口。成功返回的卡密会缓存，重新发货时不会重复取卡。</p>
+          <button class="btn-primary btn-sm" @click="openApiDialog">查看 / 修改 API 配置</button>
+        </div>
+
+        <div v-if="!isApiSource" class="kami-mobile__filters">
           <select
             v-model="filterStatus"
             class="native-select"
@@ -419,7 +550,7 @@ onUnmounted(() => {
           <button class="btn-default" @click="handleFilterChange">搜索</button>
         </div>
 
-        <div class="kami-mobile__items">
+        <div v-if="!isApiSource" class="kami-mobile__items">
           <div v-if="itemsLoading" class="kami-page__empty">加载中...</div>
           <div v-else-if="kamiItems.length === 0" class="kami-page__empty">暂无卡券</div>
           <div
@@ -470,10 +601,16 @@ onUnmounted(() => {
           >
             <div class="config-card__name">{{ config.aliasName || `卡券库#${config.id}` }}</div>
             <div class="config-card__stats">
-              <span class="config-card__stat">总量 {{ config.totalCount }}</span>
-              <span class="config-card__stat used">已用 {{ config.usedCount }}</span>
-              <span class="config-card__stat avail">可用 {{ config.availableCount }}</span>
-              <span v-if="config.alertEnabled === 1" class="tag tag--warning" style="margin-left: 4px;">预警</span>
+              <template v-if="config.sourceType === 2">
+                <span class="tag tag--info">外部 API</span>
+                <span class="config-card__stat">按订单实时取卡</span>
+              </template>
+              <template v-else>
+                <span class="config-card__stat">总量 {{ config.totalCount }}</span>
+                <span class="config-card__stat used">已用 {{ config.usedCount }}</span>
+                <span class="config-card__stat avail">可用 {{ config.availableCount }}</span>
+              </template>
+              <span v-if="config.sourceType !== 2 && config.alertEnabled === 1" class="tag tag--warning" style="margin-left: 4px;">预警</span>
             </div>
             <button
               class="config-card__del btn-danger btn-text btn-sm"
@@ -488,14 +625,23 @@ onUnmounted(() => {
             <div class="kami-detail__header">
               <h2>{{ selectedConfig.aliasName || `卡券库#${selectedConfig.id}` }}</h2>
               <div class="kami-detail__actions">
-                <button class="btn-default" @click="showAddDialog = true">添加卡券</button>
-                <button class="btn-primary" @click="showImportDialog = true">批量导入</button>
-                <button class="btn-success" @click="openExportDialog">导出</button>
-                <button class="btn-warning" @click="openAlertDialog">预警配置</button>
+                <button class="btn-default" @click="openApiDialog">{{ isApiSource ? 'API 配置' : '来源配置' }}</button>
+                <template v-if="!isApiSource">
+                  <button class="btn-default" @click="showAddDialog = true">添加卡券</button>
+                  <button class="btn-primary" @click="showImportDialog = true">批量导入</button>
+                  <button class="btn-success" @click="openExportDialog">导出</button>
+                  <button class="btn-warning" @click="openAlertDialog">预警配置</button>
+                </template>
               </div>
             </div>
 
-            <div class="kami-detail__filters">
+            <div v-if="isApiSource" class="api-source-panel">
+              <strong>外部 API 自动取卡</strong>
+              <p>当前卡券库不保存本地卡密。每笔订单会请求一次供应商接口，接口成功内容会按订单缓存，消息重试不会重复扣卡。</p>
+              <button class="btn-primary" @click="openApiDialog">查看 / 修改 API 配置</button>
+            </div>
+
+            <div v-if="!isApiSource" class="kami-detail__filters">
               <select
                 v-model="filterStatus"
                 class="native-select"
@@ -516,7 +662,7 @@ onUnmounted(() => {
               <button class="btn-default" @click="handleFilterChange">搜索</button>
             </div>
 
-            <div class="kami-detail__table">
+            <div v-if="!isApiSource" class="kami-detail__table">
               <div v-if="itemsLoading" class="kami-page__empty">加载中...</div>
               <template v-else>
                 <div v-if="kamiItems.length === 0" class="kami-page__empty">暂无卡券</div>
@@ -575,6 +721,18 @@ onUnmounted(() => {
                 <label class="form-label">别名</label>
                 <input v-model="createForm.aliasName" class="form-input" placeholder="请输入别名" maxlength="50" />
               </div>
+              <div class="form-row">
+                <label class="form-label">卡券来源</label>
+                <div class="form-radio-group">
+                  <label class="form-radio" :class="{ 'is-active': createForm.sourceType === 1 }">
+                    <input type="radio" :value="1" v-model="createForm.sourceType" />本地库存
+                  </label>
+                  <label class="form-radio" :class="{ 'is-active': createForm.sourceType === 2 }">
+                    <input type="radio" :value="2" v-model="createForm.sourceType" />外部 API 自动取卡
+                  </label>
+                </div>
+              </div>
+              <p v-if="createForm.sourceType === 2" class="form-hint">创建后可在该卡券库中继续填写 API 地址、请求参数和返回内容路径。</p>
             </div>
             <div class="modal-footer">
               <button class="btn btn-secondary" @click="showCreateDialog = false">取消</button>
@@ -618,6 +776,72 @@ onUnmounted(() => {
             <div class="modal-footer">
               <button class="btn btn-secondary" @click="showImportDialog = false">取消</button>
               <button class="btn btn-primary" :class="{ 'is-loading': importLoading }" :disabled="importLoading" @click="handleBatchImport">导入</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- 卡券来源 / 外部 API 配置 -->
+      <Transition name="modal">
+        <div v-if="showApiDialog" class="modal-overlay" @click.self="showApiDialog = false">
+          <div class="modal-container modal-container--lg">
+            <div class="modal-header">
+              <h2 class="modal-title">卡券来源配置</h2>
+              <button class="modal-close" @click="showApiDialog = false">×</button>
+            </div>
+            <div class="modal-body api-config-form">
+              <div class="form-row">
+                <label class="form-label">卡券来源</label>
+                <div class="form-radio-group">
+                  <label class="form-radio" :class="{ 'is-active': apiForm.sourceType === 1 }">
+                    <input type="radio" :value="1" v-model="apiForm.sourceType" />本地库存卡券
+                  </label>
+                  <label class="form-radio" :class="{ 'is-active': apiForm.sourceType === 2 }">
+                    <input type="radio" :value="2" v-model="apiForm.sourceType" />外部 API 自动取卡
+                  </label>
+                </div>
+              </div>
+
+              <template v-if="apiForm.sourceType === 2">
+                <p class="form-hint api-config-form__intro">付款后系统会请求一次供应商接口；成功取到的卡密会绑定订单缓存，重新发货不会重复取卡。</p>
+                <div class="form-row">
+                  <label class="form-label">接口地址</label>
+                  <input v-model="apiForm.apiUrl" class="form-input" placeholder="https://supplier.example.com/api/card" />
+                </div>
+                <div class="form-row form-row--inline">
+                  <label class="form-label">请求方式</label>
+                  <select v-model="apiForm.apiMethod" class="native-select" style="width: 130px;">
+                    <option value="POST">POST（JSON 请求体）</option>
+                    <option value="GET">GET（URL 参数）</option>
+                  </select>
+                  <label class="form-label api-config-form__timeout">超时</label>
+                  <input v-model.number="apiForm.apiTimeoutSeconds" class="form-input form-input--num" type="number" min="3" max="30" />
+                  <span class="form-suffix">秒，3–30</span>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">请求头（可选）</label>
+                  <textarea v-model="apiForm.apiHeaders" class="form-textarea" :rows="3" placeholder='{"Authorization":"Bearer YOUR_TOKEN"}'></textarea>
+                  <p class="form-hint">必须是 JSON 对象。可放 API 密钥，例如 Authorization、X-Api-Key。</p>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">请求参数</label>
+                  <textarea v-model="apiForm.apiRequestTemplate" class="form-textarea" :rows="7" placeholder='{"orderId":"&#123;&#123;orderId&#125;&#125;","quantity":"&#123;&#123;quantity&#125;&#125;"}'></textarea>
+                  <p v-pre class="form-hint">POST 会作为 JSON 请求体发送，GET 会转为 URL 参数。可用变量：{{orderId}}、{{goodsId}}、{{buyerName}}、{{skuId}}、{{quantity}}、{{accountId}}。</p>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">返回内容路径</label>
+                  <input v-model="apiForm.apiResultPath" class="form-input" placeholder="例如 data.card；留空会自动尝试 content、card、kami" />
+                  <p class="form-hint">填写接口响应中实际卡密所在字段。例：返回 {"data":{"card":"abc"}} 时填写 data.card。</p>
+                </div>
+                <div v-if="apiTestResult" class="api-config-form__test-result">{{ apiTestResult }}</div>
+              </template>
+
+              <p v-else class="form-hint">切回本地库存后，商品仍使用这套卡券库中已导入的卡密。原有 API 配置会保留，但不会再请求接口。</p>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-secondary" @click="showApiDialog = false">取消</button>
+              <button v-if="apiForm.sourceType === 2" class="btn btn-secondary" :disabled="apiTesting" @click="handleTestApi">{{ apiTesting ? '测试中…' : '测试接口' }}</button>
+              <button class="btn btn-primary" :class="{ 'is-loading': apiSaving }" :disabled="apiSaving" @click="handleSaveApi">保存配置</button>
             </div>
           </div>
         </div>
@@ -1088,7 +1312,45 @@ onUnmounted(() => {
 }
 
 .modal-container--lg {
-  max-width: 480px;
+  max-width: 720px;
+}
+
+.api-source-panel {
+  margin: 12px 0;
+  padding: 18px;
+  border: 1px solid rgba(10,132,255,.20);
+  border-radius: 12px;
+  background: rgba(10,132,255,.06);
+  color: #1c1c1e;
+}
+.api-source-panel strong { display: block; font-size: 14px; }
+.api-source-panel p {
+  margin: 8px 0 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(28,28,30,.66);
+}
+.api-config-form .form-row {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.api-config-form .form-label { padding-top: 8px; }
+.api-config-form .form-textarea,
+.api-config-form .form-hint,
+.api-config-form .form-input:not(.form-input--num) {
+  flex: 1 1 calc(100% - 80px);
+}
+.api-config-form .form-hint { margin-left: 80px; }
+.api-config-form__intro { line-height: 1.6; }
+.api-config-form__timeout { margin-left: 16px; }
+.api-config-form__test-result {
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: #0a7b35;
+  background: rgba(48,209,88,.10);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 12px;
 }
 
 .modal-header {

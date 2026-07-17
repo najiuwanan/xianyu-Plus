@@ -4,6 +4,14 @@ export interface KamiConfig {
   id: number;
   xianyuAccountId?: number | null;
   aliasName: string;
+  /** 1=本地库存，2=外部 API */
+  sourceType?: number;
+  apiUrl?: string;
+  apiMethod?: 'GET' | 'POST' | string;
+  apiHeaders?: string;
+  apiRequestTemplate?: string;
+  apiResultPath?: string;
+  apiTimeoutSeconds?: number;
   alertEnabled?: number;
   alertThresholdType?: number;
   alertThresholdValue?: number;
@@ -30,6 +38,13 @@ export interface SaveKamiConfigReq {
   id?: number;
   xianyuAccountId?: number | null;
   aliasName?: string;
+  sourceType?: number;
+  apiUrl?: string;
+  apiMethod?: 'GET' | 'POST';
+  apiHeaders?: string;
+  apiRequestTemplate?: string;
+  apiResultPath?: string;
+  apiTimeoutSeconds?: number;
   alertEnabled?: number;
   alertThresholdType?: number;
   alertThresholdValue?: number;
@@ -70,6 +85,29 @@ export function deleteKamiConfig(id: number) {
     url: '/kami-config/delete',
     method: 'POST',
     params: { id }
+  });
+}
+
+export interface KamiApiTestReq {
+  apiUrl: string;
+  apiMethod?: 'GET' | 'POST';
+  apiHeaders?: string;
+  apiRequestTemplate?: string;
+  apiResultPath?: string;
+  apiTimeoutSeconds?: number;
+}
+
+export interface KamiApiTestResult {
+  statusCode: number;
+  content: string;
+  message: string;
+}
+
+export function testKamiApi(data: KamiApiTestReq) {
+  return request<KamiApiTestResult>({
+    url: '/kami-config/test-api',
+    method: 'POST',
+    data
   });
 }
 

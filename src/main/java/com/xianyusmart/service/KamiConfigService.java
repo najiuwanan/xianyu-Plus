@@ -42,4 +42,6 @@ public interface KamiConfigService {
     XianyuKamiConfig getConfig(Long kamiConfigId);
 
     ResultObject<List<KamiItemRespDTO>> exportKamiItems(KamiExportReqDTO reqDTO);
+
+    ResultObject<KamiApiTestRespDTO> testApiConfig(KamiApiTestReqDTO reqDTO);
 }

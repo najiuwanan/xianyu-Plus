@@ -78,6 +78,7 @@ const {
   getRecordStatusClass,
   kamiConfigOptions,
   selectedKamiConfigId,
+  isApiKamiSelected,
   apiHintUrl,
   apiHintParamsJson,
   confirmShipmentUrl,
@@ -461,9 +462,12 @@ onMounted(() => {
                     :key="opt.id"
                     :value="String(opt.id)"
                   >
-                    {{ opt.aliasName || `卡券库#${opt.id}` }}
+                    {{ opt.sourceType === 2 ? '【外部 API】' : '【本地库存】' }}{{ opt.aliasName || `卡券库#${opt.id}` }}
                   </option>
                 </select>
+                <div v-if="isApiKamiSelected" style="color: rgba(28,28,30,.62); font-size: 13px; margin-top: 8px; line-height: 1.5;">
+                  外部 API 卡券会在买家付款后按订单实时取卡；取卡成功后会缓存，重新发货不会重复向供应商取卡。
+                </div>
                 <div v-if="kamiConfigOptions.length === 0" style="color: rgba(28,28,30,.55); font-size: 13px; margin-top: 8px;">
                   暂无卡券库，请先在「卡券管理」页面创建
                 </div>

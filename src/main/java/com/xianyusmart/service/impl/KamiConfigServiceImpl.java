@@ -1,6 +1,8 @@
 package com.xianyusmart.service.impl;
 
 import com.xianyusmart.common.ResultObject;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xianyusmart.controller.dto.*;
 import com.xianyusmart.entity.XianyuKamiConfig;
 import com.xianyusmart.entity.XianyuKamiItem;
@@ -12,6 +14,7 @@ import com.xianyusmart.mapper.XianyuKamiItemMapper;
 import com.xianyusmart.mapper.XianyuKamiUsageRecordMapper;
 import com.xianyusmart.service.EmailNotifyService;
 import com.xianyusmart.service.KamiConfigService;
+import com.xianyusmart.service.ApiKamiDeliveryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -40,9 +43,13 @@ public class KamiConfigServiceImpl implements KamiConfigService {
     @Autowired
     private EmailNotifyService emailNotifyService;
 
+    @Autowired
+    private ApiKamiDeliveryService apiKamiDeliveryService;
+
     private final ConcurrentHashMap<Long, Long> stockOutEmailSentTime = new ConcurrentHashMap<>();
 
     private static final long STOCK_OUT_EMAIL_INTERVAL_MS = 10 * 60 * 1000L;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public ResultObject<KamiConfigRespDTO> createOrUpdateConfig(KamiConfigReqDTO reqDTO) {
@@ -63,6 +70,30 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             if (reqDTO.getAliasName() != null) {
                 config.setAliasName(reqDTO.getAliasName());
             }
+            if (reqDTO.getSourceType() != null) {
+                if (reqDTO.getSourceType() != 1 && reqDTO.getSourceType() != 2) {
+                    return ResultObject.failed("卡券来源类型不正确");
+                }
+                config.setSourceType(reqDTO.getSourceType());
+            }
+            if (reqDTO.getApiUrl() != null) {
+                config.setApiUrl(reqDTO.getApiUrl());
+            }
+            if (reqDTO.getApiMethod() != null) {
+                config.setApiMethod(reqDTO.getApiMethod());
+            }
+            if (reqDTO.getApiHeaders() != null) {
+                config.setApiHeaders(reqDTO.getApiHeaders());
+            }
+            if (reqDTO.getApiRequestTemplate() != null) {
+                config.setApiRequestTemplate(reqDTO.getApiRequestTemplate());
+            }
+            if (reqDTO.getApiResultPath() != null) {
+                config.setApiResultPath(reqDTO.getApiResultPath());
+            }
+            if (reqDTO.getApiTimeoutSeconds() != null) {
+                config.setApiTimeoutSeconds(reqDTO.getApiTimeoutSeconds());
+            }
             if (reqDTO.getAlertEnabled() != null) {
                 config.setAlertEnabled(reqDTO.getAlertEnabled());
             }
@@ -74,6 +105,18 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             }
             if (reqDTO.getAlertEmail() != null) {
                 config.setAlertEmail(reqDTO.getAlertEmail());
+            }
+
+            if (Integer.valueOf(2).equals(config.getSourceType())) {
+                KamiApiTestReqDTO apiConfig = new KamiApiTestReqDTO();
+                apiConfig.setApiUrl(config.getApiUrl());
+                apiConfig.setApiMethod(config.getApiMethod());
+                apiConfig.setApiHeaders(config.getApiHeaders());
+                apiConfig.setApiRequestTemplate(config.getApiRequestTemplate());
+                apiConfig.setApiResultPath(config.getApiResultPath());
+                apiConfig.setApiTimeoutSeconds(config.getApiTimeoutSeconds());
+                // 复用测试入口的校验逻辑；不会实际请求外部接口。
+                validateApiConfig(apiConfig);
             }
             if (reqDTO.getId() != null) {
                 kamiConfigMapper.updateById(config);
@@ -412,6 +455,18 @@ public class KamiConfigServiceImpl implements KamiConfigService {
         }
     }
 
+    @Override
+    public ResultObject<KamiApiTestRespDTO> testApiConfig(KamiApiTestReqDTO reqDTO) {
+        try {
+            return ResultObject.success(apiKamiDeliveryService.test(reqDTO));
+        } catch (BusinessException e) {
+            return ResultObject.failed(e.getMessage());
+        } catch (Exception e) {
+            log.error("测试外部卡券 API 失败", e);
+            return ResultObject.failed("测试外部卡券 API 失败: " + e.getMessage());
+        }
+    }
+
     private void refreshConfigCounts(Long kamiConfigId) {
         int total = kamiItemMapper.countByConfigId(kamiConfigId);
         int used = kamiItemMapper.countUsed(kamiConfigId);
@@ -428,6 +483,13 @@ public class KamiConfigServiceImpl implements KamiConfigService {
         dto.setId(config.getId());
         dto.setXianyuAccountId(config.getXianyuAccountId());
         dto.setAliasName(config.getAliasName());
+        dto.setSourceType(config.getSourceType() == null ? 1 : config.getSourceType());
+        dto.setApiUrl(config.getApiUrl());
+        dto.setApiMethod(config.getApiMethod());
+        dto.setApiHeaders(config.getApiHeaders());
+        dto.setApiRequestTemplate(config.getApiRequestTemplate());
+        dto.setApiResultPath(config.getApiResultPath());
+        dto.setApiTimeoutSeconds(config.getApiTimeoutSeconds());
         dto.setAlertEnabled(config.getAlertEnabled());
         dto.setAlertThresholdType(config.getAlertThresholdType());
         dto.setAlertThresholdValue(config.getAlertThresholdValue());
@@ -439,6 +501,57 @@ public class KamiConfigServiceImpl implements KamiConfigService {
         dto.setCreateTime(config.getCreateTime());
         dto.setUpdateTime(config.getUpdateTime());
         return dto;
+    }
+
+    private void validateApiConfig(KamiApiTestReqDTO config) {
+        if (config.getApiUrl() == null || config.getApiUrl().trim().isEmpty()) {
+            throw new BusinessException(400, "请填写外部 API 地址");
+        }
+        String method = config.getApiMethod() == null ? "POST" : config.getApiMethod().trim().toUpperCase();
+        if (!"GET".equals(method) && !"POST".equals(method)) {
+            throw new BusinessException(400, "外部 API 目前仅支持 GET 或 POST");
+        }
+        int timeout = config.getApiTimeoutSeconds() == null ? 10 : config.getApiTimeoutSeconds();
+        if (timeout < 3 || timeout > 30) {
+            throw new BusinessException(400, "接口超时时间请设置在 3 到 30 秒之间");
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(config.getApiUrl().trim());
+            if (!"http".equalsIgnoreCase(uri.getScheme()) && !"https".equalsIgnoreCase(uri.getScheme())) {
+                throw new BusinessException(400, "外部 API 地址仅支持 http 或 https");
+            }
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(400, "外部 API 地址格式不正确");
+        }
+        validateJsonObject(config.getApiHeaders(), "请求头");
+        validateJsonData(config.getApiRequestTemplate(), "请求参数");
+    }
+
+    private void validateJsonObject(String value, String fieldName) {
+        if (value == null || value.trim().isEmpty()) return;
+        try {
+            if (!objectMapper.readTree(value).isObject()) {
+                throw new BusinessException(400, fieldName + "必须是 JSON 对象");
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException(400, fieldName + " JSON 格式不正确");
+        }
+    }
+
+    private void validateJsonData(String value, String fieldName) {
+        if (value == null || value.trim().isEmpty()) return;
+        try {
+            JsonNode node = objectMapper.readTree(value);
+            if (!node.isObject() && !node.isArray()) {
+                throw new BusinessException(400, fieldName + "必须是 JSON 对象或数组");
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException(400, fieldName + " JSON 格式不正确");
+        }
     }
 
     private KamiItemRespDTO toItemRespDTO(XianyuKamiItem item) {

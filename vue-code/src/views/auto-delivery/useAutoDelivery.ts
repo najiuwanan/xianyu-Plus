@@ -91,6 +91,12 @@ export function useAutoDelivery() {
     set: (val: string) => { configForm.value.kamiConfigIds = val }
   })
 
+  const selectedKamiConfig = computed(() =>
+    kamiConfigOptions.value.find(item => String(item.id) === String(selectedKamiConfigId.value))
+  )
+
+  const isApiKamiSelected = computed(() => selectedKamiConfig.value?.sourceType === 2)
+
   const hasMultipleSku = computed(() => skuList.value.length > 1)
 
   const recordsLoading = ref(false)
@@ -770,6 +776,7 @@ export function useAutoDelivery() {
     confirmShipmentParamsJson,
     kamiConfigOptions,
     selectedKamiConfigId,
+    isApiKamiSelected,
 
     loadAccounts,
     loadGoods,
