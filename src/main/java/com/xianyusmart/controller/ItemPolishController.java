@@ -6,7 +6,9 @@ import com.xianyusmart.controller.dto.ItemPolishRunReqDTO;
 import com.xianyusmart.entity.XianyuItemPolishConfig;
 import com.xianyusmart.service.ItemPolishService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -52,6 +54,17 @@ public class ItemPolishController {
         try {
             Map<String, Object> result = itemPolishService.startManualRun(request.getAccountId());
             return ResultObject.success(result, String.valueOf(result.get("message")));
+        } catch (IllegalArgumentException e) {
+            return ResultObject.failed(e.getMessage());
+        }
+    }
+
+    /** 删除单条擦亮执行记录；异常中心以该记录为来源，因此会同步消失。 */
+    @DeleteMapping("/records/{recordId}")
+    public ResultObject<Void> deleteRecord(@PathVariable Long recordId, @RequestParam Long accountId) {
+        try {
+            itemPolishService.deleteRecord(accountId, recordId);
+            return ResultObject.success(null, "执行记录已删除");
         } catch (IllegalArgumentException e) {
             return ResultObject.failed(e.getMessage());
         }

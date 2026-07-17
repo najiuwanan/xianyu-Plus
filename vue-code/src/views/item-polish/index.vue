@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { getAccountList } from '@/api/account'
-import { getItemPolishOverview, runItemPolish, saveItemPolishConfig, type ItemPolishOverview } from '@/api/item-polish'
+import { deleteItemPolishRecord, getItemPolishOverview, runItemPolish, saveItemPolishConfig, type ItemPolishOverview, type ItemPolishRecord } from '@/api/item-polish'
 import type { Account } from '@/types'
-import { showError, showInfo, showSuccess } from '@/utils'
+import { showConfirm, showError, showInfo, showSuccess } from '@/utils'
 
 const accounts = ref<Account[]>([])
 const selectedAccountId = ref<number | null>(null)
@@ -11,6 +11,7 @@ const overview = ref<ItemPolishOverview | null>(null)
 const loading = ref(false)
 const saving = ref(false)
 const starting = ref(false)
+const deletingRecordId = ref<number | null>(null)
 const enabled = ref(false)
 const scheduleTime = ref('09:00')
 
@@ -89,6 +90,30 @@ const runNow = async () => {
     showError(`启动擦亮失败：${error.message || '未知错误'}`)
   } finally {
     starting.value = false
+  }
+}
+
+const deleteRecord = async (record: ItemPolishRecord) => {
+  if (!selectedAccountId.value || deletingRecordId.value !== null) return
+  try {
+    await showConfirm(
+      `确定删除「${record.goodsTitle || '未命名商品'}」的这条擦亮记录吗？删除后，异常中心中的对应记录也会一并移除。`,
+      '删除执行记录'
+    )
+  } catch {
+    return
+  }
+
+  deletingRecordId.value = record.id
+  try {
+    const response = await deleteItemPolishRecord(selectedAccountId.value, record.id)
+    if (response.code !== 0 && response.code !== 200) throw new Error(response.msg || '删除失败')
+    showSuccess('执行记录已删除')
+    await loadOverview(true)
+  } catch (error: any) {
+    showError(`删除执行记录失败：${error.message || '未知错误'}`)
+  } finally {
+    deletingRecordId.value = null
   }
 }
 
@@ -180,7 +205,7 @@ onMounted(loadAccounts)
         <div class="history-wrap">
           <table v-if="overview?.records.length" class="history-table">
             <thead>
-              <tr><th>时间</th><th>商品</th><th>触发方式</th><th>结果</th><th>说明</th></tr>
+              <tr><th>时间</th><th>商品</th><th>触发方式</th><th>结果</th><th>说明</th><th class="history-table__action-header">操作</th></tr>
             </thead>
             <tbody>
               <tr v-for="record in overview.records" :key="record.id">
@@ -189,6 +214,11 @@ onMounted(loadAccounts)
                 <td>{{ record.triggerType === 'SCHEDULED' ? '每日一键' : '手动一键' }}</td>
                 <td><span class="result-tag" :class="record.success === 1 ? 'result-tag--success' : 'result-tag--danger'">{{ record.success === 1 ? '成功' : '失败' }}</span></td>
                 <td class="record-message">{{ record.message || '-' }}</td>
+                <td class="history-table__action-cell">
+                  <button class="record-delete-btn" :disabled="deletingRecordId !== null" @click="deleteRecord(record)">
+                    {{ deletingRecordId === record.id ? '删除中…' : '删除' }}
+                  </button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -241,11 +271,15 @@ h2 { font-size: 17px; }
 .summary-card--success strong { color: #1e9b48; }
 .summary-card--danger strong { color: #e33f37; }
 .history-wrap { overflow-x: auto; margin-top: 17px; }
-.history-table { width: 100%; border-collapse: collapse; min-width: 760px; font-size: 13px; }
+.history-table { width: 100%; border-collapse: collapse; min-width: 840px; font-size: 13px; }
 .history-table th { text-align: left; color: rgba(28,28,30,.55); padding: 10px 12px; border-bottom: 1px solid rgba(60,60,67,.12); font-weight: 500; }
 .history-table td { padding: 12px; border-bottom: 1px solid rgba(60,60,67,.08); vertical-align: top; }
 .history-table td small { display: block; margin-top: 3px; }
 .record-message { color: rgba(28,28,30,.68); max-width: 340px; word-break: break-word; }
+.history-table__action-header, .history-table__action-cell { text-align: right !important; white-space: nowrap; }
+.record-delete-btn { border: 1px solid rgba(255, 69, 58, .34); border-radius: 7px; padding: 5px 9px; color: #c83129; background: rgba(255, 69, 58, .05); font-size: 12px; cursor: pointer; }
+.record-delete-btn:hover:not(:disabled) { background: rgba(255, 69, 58, .12); }
+.record-delete-btn:disabled { cursor: not-allowed; opacity: .55; }
 .result-tag, .running-tag { border-radius: 999px; padding: 3px 9px; font-size: 12px; white-space: nowrap; }
 .result-tag--success, .running-tag { color: #187b38; background: rgba(48,209,88,.15); }
 .result-tag--danger { color: #c83129; background: rgba(255,69,58,.13); }

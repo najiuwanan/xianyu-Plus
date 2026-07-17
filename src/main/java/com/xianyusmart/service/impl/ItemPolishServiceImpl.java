@@ -171,6 +171,19 @@ public class ItemPolishServiceImpl implements ItemPolishService {
     }
 
     @Override
+    public void deleteRecord(Long accountId, Long recordId) {
+        validateAccount(accountId);
+        if (recordId == null) {
+            throw new IllegalArgumentException("擦亮记录不能为空");
+        }
+        XianyuItemPolishRecord record = recordMapper.selectById(recordId);
+        if (record == null || !accountId.equals(record.getXianyuAccountId())) {
+            throw new IllegalArgumentException("擦亮执行记录不存在");
+        }
+        recordMapper.deleteById(recordId);
+    }
+
+    @Override
     public void runDueSchedules() {
         LocalDate today = LocalDate.now();
         LocalTime now = LocalTime.now().withSecond(0).withNano(0);
