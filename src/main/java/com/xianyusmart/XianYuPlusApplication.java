@@ -21,10 +21,9 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     OpenAiImageAutoConfiguration.class,
     OpenAiModerationAutoConfiguration.class
 })
-public class XianYuSmartApplication {
+public class XianYuPlusApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(XianYuSmartApplication.class, args);
+        SpringApplication.run(XianYuPlusApplication.class, args);
     }
-
 }

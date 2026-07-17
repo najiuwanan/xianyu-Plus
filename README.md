@@ -1,4 +1,4 @@
-# XianYuSmart（闲鱼 Plus）
+# XianYuPlus（闲鱼Plus）
 
 面向个人卖家的闲鱼虚拟商品管理与自动化助手。项目支持私有部署，可在飞牛 OS、Linux 服务器或安装了 Docker 的电脑上运行。
 

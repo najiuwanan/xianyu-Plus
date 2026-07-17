@@ -1,6 +1,6 @@
 # 数据库结构说明
 
-XianYuSmart 支持 MySQL 8.0 及以上版本，数据库结构由 Flyway 管理。
+XianYuPlus 支持 MySQL 8.0 及以上版本，数据库结构由 Flyway 管理。
 
 ## 文件位置
 

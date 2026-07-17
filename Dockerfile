@@ -42,7 +42,7 @@ RUN --mount=type=cache,target=/root/.m2/repository ./mvnw dependency:build-class
 # 阶段3: 运行时镜像
 FROM eclipse-temurin:21-jre-jammy
 
-LABEL org.opencontainers.image.title="XianYuSmart"
+LABEL org.opencontainers.image.title="XianYuPlus"
 LABEL org.opencontainers.image.description="单商家私有化闲鱼虚拟商品经营助手"
 LABEL org.opencontainers.image.version="1.0.0"
 LABEL org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"

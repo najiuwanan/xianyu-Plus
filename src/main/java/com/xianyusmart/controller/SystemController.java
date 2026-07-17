@@ -133,7 +133,7 @@ public class SystemController {
                     .uri(URI.create(releaseApi))
                     .timeout(Duration.ofSeconds(15))
                     .header("Accept", "application/vnd.github+json")
-                    .header("User-Agent", "XianYuSmart")
+                    .header("User-Agent", "XianYuPlus")
                     .GET()
                     .build();
 

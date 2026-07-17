@@ -4,7 +4,7 @@
 
 ## 许可证与适用范围
 
-XianYuSmart 采用 [PolyForm Noncommercial License 1.0.0](LICENSE) 许可，仅授权非商业用途。项目源码可用于个人学习、技术研究、实验和非商业测试；法律规定的合理使用权利不受影响。
+XianYuPlus 采用 [PolyForm Noncommercial License 1.0.0](LICENSE) 许可，仅授权非商业用途。项目源码可用于个人学习、技术研究、实验和非商业测试；法律规定的合理使用权利不受影响。
 
 本公开许可证不授予任何商业用途权利。禁止任何直接或间接商业用途，包括但不限于：
 

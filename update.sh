@@ -14,4 +14,4 @@ docker compose up -d --build
 docker compose ps
 
 echo
-echo "更新完成！XianYu-Plus 已重启。"
+echo "更新完成！XianYuPlus 已重启。"

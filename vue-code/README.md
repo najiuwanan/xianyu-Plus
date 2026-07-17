@@ -1,4 +1,4 @@
-# XianYuSmart 前端
+# XianYuPlus 前端
 
 Vue 3、TypeScript 与 Vite 构建的单商家经营后台，生产产物直接输出到 Spring Boot 的 `src/main/resources/static`。
 

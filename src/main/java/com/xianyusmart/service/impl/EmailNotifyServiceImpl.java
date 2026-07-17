@@ -48,7 +48,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
             String to = getSettingValue(KEY_SMTP_FROM);
 
             String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date());
-            String subject = "【XianYuSmart】消息监听已掉线 - " + (accountNote != null && !accountNote.isEmpty() ? accountNote : "账号" + accountId);
+            String subject = "【XianYuPlus】消息监听已掉线 - " + (accountNote != null && !accountNote.isEmpty() ? accountNote : "账号" + accountId);
             String content = buildWsDisconnectEmailContent(accountId, accountNote, time);
 
             MimeMessage message = mailSender.createMimeMessage();
@@ -89,7 +89,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
             String to = getSettingValue(KEY_SMTP_FROM);
 
             String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date());
-            String subject = "【XianYuSmart】Cookie已过期 - " + (accountNote != null && !accountNote.isEmpty() ? accountNote : "账号" + accountId);
+            String subject = "【XianYuPlus】Cookie已过期 - " + (accountNote != null && !accountNote.isEmpty() ? accountNote : "账号" + accountId);
             String content = buildCookieExpireEmailContent(accountId, accountNote, time);
 
             MimeMessage message = mailSender.createMimeMessage();
@@ -135,7 +135,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
             String to = getSettingValue(KEY_SMTP_FROM);
 
             String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date());
-            String subject = "【XianYuSmart】邮箱配置测试";
+            String subject = "【XianYuPlus】邮箱配置测试";
             String content = buildTestEmailContent(time);
 
             MimeMessage message = mailSender.createMimeMessage();
@@ -157,13 +157,13 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
     private String buildTestEmailContent(String time) {
         StringBuilder sb = new StringBuilder();
         sb.append("<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>");
-        sb.append("<h2 style='color:#34c759;border-bottom:2px solid #34c759;padding-bottom:10px;'>✅ XianYuSmart - 邮箱配置测试</h2>");
+        sb.append("<h2 style='color:#34c759;border-bottom:2px solid #34c759;padding-bottom:10px;'>✅ XianYuPlus - 邮箱配置测试</h2>");
         sb.append("<div style='background:#f0f9ff;border-radius:8px;padding:16px;margin:16px 0;'>");
         sb.append("<p style='margin:8px 0;'><strong>发送时间：</strong>").append(time).append("</p>");
         sb.append("<p style='margin:8px 0;color:#34c759;'>恭喜！您的邮箱通知配置已正常工作，可以正常接收系统通知邮件。</p>");
         sb.append("</div>");
         sb.append("<div style='color:#999;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:10px;'>");
-        sb.append("此邮件由 XianYuSmart 自动发送，请勿回复");
+        sb.append("此邮件由 XianYuPlus 自动发送，请勿回复");
         sb.append("</div>");
         sb.append("</div>");
         return sb.toString();
@@ -195,7 +195,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
     private String buildWsDisconnectEmailContent(Long accountId, String accountNote, String time) {
         StringBuilder sb = new StringBuilder();
         sb.append("<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>");
-        sb.append("<h2 style='color:#f56c6c;border-bottom:2px solid #f56c6c;padding-bottom:10px;'>🔴 XianYuSmart - 消息监听已掉线</h2>");
+        sb.append("<h2 style='color:#f56c6c;border-bottom:2px solid #f56c6c;padding-bottom:10px;'>🔴 XianYuPlus - 消息监听已掉线</h2>");
         sb.append("<div style='background:#fef0f0;border-radius:8px;padding:16px;margin:16px 0;'>");
         sb.append("<p style='margin:8px 0;'><strong>账号ID：</strong>").append(accountId).append("</p>");
         if (accountNote != null && !accountNote.isEmpty()) {
@@ -214,7 +214,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
         sb.append("<p style='margin:4px 0;color:#666;'><strong>处理建议：</strong>请检查网络连接，确认Cookie是否有效，并在账号管理页面尝试重新连接。</p>");
         sb.append("</div>");
         sb.append("<div style='color:#999;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:10px;'>");
-        sb.append("此邮件由 XianYuSmart 自动发送，请勿回复");
+        sb.append("此邮件由 XianYuPlus 自动发送，请勿回复");
         sb.append("</div>");
         sb.append("</div>");
         return sb.toString();
@@ -223,7 +223,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
     private String buildCookieExpireEmailContent(Long accountId, String accountNote, String time) {
         StringBuilder sb = new StringBuilder();
         sb.append("<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>");
-        sb.append("<h2 style='color:#e6a23c;border-bottom:2px solid #e6a23c;padding-bottom:10px;'>⚠️ XianYuSmart - Cookie已过期</h2>");
+        sb.append("<h2 style='color:#e6a23c;border-bottom:2px solid #e6a23c;padding-bottom:10px;'>⚠️ XianYuPlus - Cookie已过期</h2>");
         sb.append("<div style='background:#fdf6ec;border-radius:8px;padding:16px;margin:16px 0;'>");
         sb.append("<p style='margin:8px 0;'><strong>账号ID：</strong>").append(accountId).append("</p>");
         if (accountNote != null && !accountNote.isEmpty()) {
@@ -243,7 +243,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
         sb.append("<p style='margin:4px 0;color:#666;'><strong>处理建议：</strong>请登录闲鱼APP重新获取Cookie，并在账号管理页面更新Cookie。</p>");
         sb.append("</div>");
         sb.append("<div style='color:#999;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:10px;'>");
-        sb.append("此邮件由 XianYuSmart 自动发送，请勿回复");
+        sb.append("此邮件由 XianYuPlus 自动发送，请勿回复");
         sb.append("</div>");
         sb.append("</div>");
         return sb.toString();
@@ -279,7 +279,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
             String from = getSettingValue(KEY_SMTP_USERNAME);
 
             String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date());
-            String subject = "【XianYuSmart】卡密库存预警 - " + (configName != null ? configName : "卡密配置");
+            String subject = "【XianYuPlus】卡密库存预警 - " + (configName != null ? configName : "卡密配置");
             String content = buildKamiAlertEmailContent(configName, availableCount, totalCount, time);
 
             MimeMessage message = mailSender.createMimeMessage();
@@ -317,7 +317,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
             String from = getSettingValue(KEY_SMTP_USERNAME);
 
             String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date());
-            String subject = "【XianYuSmart】卡密库存不足 - " + (configName != null ? configName : "卡密配置");
+            String subject = "【XianYuPlus】卡密库存不足 - " + (configName != null ? configName : "卡密配置");
             String content = buildKamiStockOutEmailContent(configName, orderId, time);
 
             MimeMessage message = mailSender.createMimeMessage();
@@ -337,7 +337,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
     private String buildKamiStockOutEmailContent(String configName, String orderId, String time) {
         StringBuilder sb = new StringBuilder();
         sb.append("<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>");
-        sb.append("<h2 style='color:#f56c6c;border-bottom:2px solid #f56c6c;padding-bottom:10px;'>🔴 XianYuSmart - 卡密库存不足</h2>");
+        sb.append("<h2 style='color:#f56c6c;border-bottom:2px solid #f56c6c;padding-bottom:10px;'>🔴 XianYuPlus - 卡密库存不足</h2>");
         sb.append("<div style='background:#fef0f0;border-radius:8px;padding:16px;margin:16px 0;'>");
         sb.append("<p style='margin:8px 0;'><strong>卡密配置：</strong>").append(configName != null ? configName : "未命名").append("</p>");
         sb.append("<p style='margin:8px 0;'><strong>触发订单：</strong>").append(orderId != null ? orderId : "未知").append("</p>");
@@ -348,7 +348,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
         sb.append("<p style='margin:4px 0;color:#666;'>请及时补充卡密，或手动处理该订单。</p>");
         sb.append("</div>");
         sb.append("<div style='color:#999;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:10px;'>");
-        sb.append("此邮件由 XianYuSmart 自动发送，请勿回复");
+        sb.append("此邮件由 XianYuPlus 自动发送，请勿回复");
         sb.append("</div>");
         sb.append("</div>");
         return sb.toString();
@@ -373,7 +373,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
             JavaMailSenderImpl mailSender = buildMailSender();
             String from = getSettingValue(KEY_SMTP_USERNAME);
             String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date());
-            String subject = "【XianYuSmart】自动发货失败 - " + (orderId != null ? orderId : "未知订单");
+            String subject = "【XianYuPlus】自动发货失败 - " + (orderId != null ? orderId : "未知订单");
             String content = buildAutoDeliveryFailEmailContent(xyGoodsId, orderId, failReason, time);
 
             MimeMessage message = mailSender.createMimeMessage();
@@ -392,7 +392,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
     private String buildAutoDeliveryFailEmailContent(String xyGoodsId, String orderId, String failReason, String time) {
         StringBuilder sb = new StringBuilder();
         sb.append("<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>");
-        sb.append("<h2 style='color:#f56c6c;border-bottom:2px solid #f56c6c;padding-bottom:10px;'>🔴 XianYuSmart - 自动发货失败</h2>");
+        sb.append("<h2 style='color:#f56c6c;border-bottom:2px solid #f56c6c;padding-bottom:10px;'>🔴 XianYuPlus - 自动发货失败</h2>");
         sb.append("<div style='background:#fef0f0;border-radius:8px;padding:16px;margin:16px 0;'>");
         sb.append("<p style='margin:8px 0;'><strong>商品ID：</strong>").append(xyGoodsId != null ? xyGoodsId : "未知").append("</p>");
         sb.append("<p style='margin:8px 0;'><strong>订单ID：</strong>").append(orderId != null ? orderId : "未知").append("</p>");
@@ -403,7 +403,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
         sb.append("<p style='margin:4px 0;color:#666;'>请检查发货配置或手动处理该订单。</p>");
         sb.append("</div>");
         sb.append("<div style='color:#999;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:10px;'>");
-        sb.append("此邮件由 XianYuSmart 自动发送，请勿回复");
+        sb.append("此邮件由 XianYuPlus 自动发送，请勿回复");
         sb.append("</div>");
         sb.append("</div>");
         return sb.toString();
@@ -412,7 +412,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
     private String buildKamiAlertEmailContent(String configName, int availableCount, int totalCount, String time) {
         StringBuilder sb = new StringBuilder();
         sb.append("<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>");
-        sb.append("<h2 style='color:#e6a23c;border-bottom:2px solid #e6a23c;padding-bottom:10px;'>⚠️ XianYuSmart - 卡密库存预警</h2>");
+        sb.append("<h2 style='color:#e6a23c;border-bottom:2px solid #e6a23c;padding-bottom:10px;'>⚠️ XianYuPlus - 卡密库存预警</h2>");
         sb.append("<div style='background:#fdf6ec;border-radius:8px;padding:16px;margin:16px 0;'>");
         sb.append("<p style='margin:8px 0;'><strong>卡密配置：</strong>").append(configName != null ? configName : "未命名").append("</p>");
         sb.append("<p style='margin:8px 0;'><strong>可用数量：</strong><span style='color:#e6a23c;font-weight:bold;'>").append(availableCount).append("</span></p>");
@@ -424,7 +424,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
         sb.append("<p style='margin:4px 0;color:#666;'>如需关闭预警通知，请在卡密配置页面调整预警设置。</p>");
         sb.append("</div>");
         sb.append("<div style='color:#999;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:10px;'>");
-        sb.append("此邮件由 XianYuSmart 自动发送，请勿回复");
+        sb.append("此邮件由 XianYuPlus 自动发送，请勿回复");
         sb.append("</div>");
         sb.append("</div>");
         return sb.toString();
@@ -448,7 +448,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
             String to = getSettingValue(KEY_SMTP_FROM);
 
             String time = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS").format(new Date());
-            String subject = "【XianYuSmart】触发风控验证 - " + (accountNote != null && !accountNote.isEmpty() ? accountNote : "账号" + accountId);
+            String subject = "【XianYuPlus】触发风控验证 - " + (accountNote != null && !accountNote.isEmpty() ? accountNote : "账号" + accountId);
             String content = buildCaptchaRequiredEmailContent(accountId, accountNote, reason, time);
 
             MimeMessage message = mailSender.createMimeMessage();
@@ -468,7 +468,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
     private String buildCaptchaRequiredEmailContent(Long accountId, String accountNote, String reason, String time) {
         StringBuilder sb = new StringBuilder();
         sb.append("<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;'>");
-        sb.append("<h2 style='color:#f56c6c;border-bottom:2px solid #f56c6c;padding-bottom:10px;'>🔴 XianYuSmart - 触发风控验证</h2>");
+        sb.append("<h2 style='color:#f56c6c;border-bottom:2px solid #f56c6c;padding-bottom:10px;'>🔴 XianYuPlus - 触发风控验证</h2>");
         sb.append("<div style='background:#fef0f0;border-radius:8px;padding:16px;margin:16px 0;'>");
         sb.append("<p style='margin:8px 0;'><strong>账号ID：</strong>").append(accountId).append("</p>");
         if (accountNote != null && !accountNote.isEmpty()) {
@@ -490,7 +490,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
         sb.append("<li>切换到Application/应用程序标签页</li>");
         sb.append("<li>在左侧找到Cookies，点击https://www.goofish.com</li>");
         sb.append("<li>复制所有Cookie（可使用EditThisCookie等浏览器插件）</li>");
-        sb.append("<li>在 XianYuSmart 的账号管理页面，更新该账号的Cookie</li>");
+        sb.append("<li>在 XianYuPlus 的账号管理页面，更新该账号的Cookie</li>");
         sb.append("</ol>");
         sb.append("<p style='margin:4px 0;color:#666;'><strong>注意事项：</strong></p>");
         sb.append("<ul style='margin:4px 0;padding-left:20px;color:#666;'>");
@@ -500,7 +500,7 @@ public class EmailNotifyServiceImpl implements EmailNotifyService {
         sb.append("</ul>");
         sb.append("</div>");
         sb.append("<div style='color:#999;font-size:12px;margin-top:20px;border-top:1px solid #eee;padding-top:10px;'>");
-        sb.append("此邮件由 XianYuSmart 自动发送，请勿回复");
+        sb.append("此邮件由 XianYuPlus 自动发送，请勿回复");
         sb.append("</div>");
         sb.append("</div>");
         return sb.toString();

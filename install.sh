@@ -45,6 +45,6 @@ docker compose up -d --build
 docker compose ps
 
 echo
-echo "XianYuSmart 已启动: http://localhost:12400"
+echo "XianYuPlus 已启动: http://localhost:12400"
 echo "公网部署需先配置 deploy/nginx/certs、ALLOWED_ORIGINS 和 TRUST_PROXY，再执行:"
 echo "docker compose --profile proxy up -d"

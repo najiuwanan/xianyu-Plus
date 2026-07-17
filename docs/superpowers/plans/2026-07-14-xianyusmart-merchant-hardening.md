@@ -1,8 +1,8 @@
-# XianYuSmart Merchant Hardening Implementation Plan
+# XianYuPlus Merchant Hardening Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 建设单商家私有部署的 XianYuSmart 1.0.0，重点解决 MySQL 部署、卡密重复交付、任务重启丢失、公网安全和商家待办效率。
+**Goal:** 建设单商家私有部署的 XianYuPlus 1.0.0，重点解决 MySQL 部署、卡密重复交付、任务重启丢失、公网安全和商家待办效率。
 
 **Architecture:** 保持 Spring Boot 3 + Vue 3 单体结构，以 MySQL 8 同时承担业务存储、幂等约束和短租约任务队列。WebSocket 与订单轮询只负责发现订单，履约协调器统一预占卡密、发送、确认和重试；不引入 Redis、消息队列、微服务或新的前端组件库。
 
@@ -81,7 +81,7 @@ Expected: FAIL，原因是 MySQL 驱动、数据源或 Flyway 基线尚未配置
 ```xml
 <artifactId>xianyusmart</artifactId>
 <version>1.0.0</version>
-<name>XianYuSmart</name>
+<name>XianYuPlus</name>
 <description>单商家私有化闲鱼虚拟商品经营助手</description>
 <dependency>
     <groupId>com.mysql</groupId>
@@ -190,7 +190,7 @@ Expected: BUILD SUCCESS。
 
 ```bash
 git add pom.xml src/main src/test compose.yaml .env.example deploy Dockerfile
-git commit -m "feat: 建立 XianYuSmart MySQL 部署基线"
+git commit -m "feat: 建立 XianYuPlus MySQL 部署基线"
 ```
 
 ### Task 2: 修正 MySQL SQL 并统一有界资源
@@ -663,7 +663,7 @@ FROM xianyu_goods_order;
 
 - [ ] **Step 4: 经营导向导航和品牌统一**
 
-导航分组固定为“总览、经营、自动化、系统”，页面标题、登录页和浏览器标题统一为 XianYuSmart。保留现有路由与 API，避免无收益的页面重写。
+导航分组固定为“总览、经营、自动化、系统”，页面标题、登录页和浏览器标题统一为 XianYuPlus。保留现有路由与 API，避免无收益的页面重写。
 
 - [ ] **Step 5: 前端类型检查和生产构建**
 
@@ -692,15 +692,15 @@ git commit -m "feat: 增加商家待办总览与简约商用界面"
 - Modify: `install.sh`
 - Modify: `vue-code/README.md`
 - Modify: `vue-code/DEPLOYMENT.md`
-- Modify: `src/main/java/com/xianyusmart/XianYuSmartApplication.java`
+- Modify: `src/main/java/com/xianyusmart/XianYuPlusApplication.java`
 
 - [ ] **Step 1: 统一产品名称与许可信息**
 
-README 必须包含 XianYuSmart 定位、能力矩阵与 PolyForm 非商业许可。Java 包路径保持不变，避免无业务收益的大规模差异。
+README 必须包含 XianYuPlus 定位、能力矩阵与 PolyForm 非商业许可。Java 包路径保持不变，避免无业务收益的大规模差异。
 
-Run: `rg -n "XianYuSmart|xianyusmart" README.md vue-code/src vue-code/index.html Dockerfile install.sh pom.xml`
+Run: `rg -n "XianYuPlus|xianyusmart" README.md vue-code/src vue-code/index.html Dockerfile install.sh pom.xml`
 
-Expected: 对外产品位置统一使用 XianYuSmart。
+Expected: 对外产品位置统一使用 XianYuPlus。
 
 - [ ] **Step 2: 整理项目逻辑和痛点映射**
 
@@ -742,5 +742,5 @@ Expected: 仅包含正式交付文件，或工作区干净。
 
 ```bash
 git add README.md docs Dockerfile install.sh vue-code src/main pom.xml compose.yaml .env.example deploy
-git commit -m "docs: 完成 XianYuSmart 部署与运维说明"
+git commit -m "docs: 完成 XianYuPlus 部署与运维说明"
 ```
