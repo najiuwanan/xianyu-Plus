@@ -284,17 +284,8 @@
 .orders__body {
   flex: 1;
   display: grid;
-  grid-template-columns: 320px 1fr;
-  gap: var(--d-space-4);
+  grid-template-columns: minmax(0, 1fr);
   min-height: 0;
-}
-
-.orders__body--no-goods {
-  grid-template-columns: 1fr;
-}
-
-.orders__body:has(.orders__goods-panel--collapsed) {
-  grid-template-columns: 60px 1fr;
 }
 
 /* --- Goods Panel --- */
@@ -919,6 +910,17 @@
   line-height: 1.5;
 }
 
+.orders__dialog-hint {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #765000;
+  background: rgba(255, 159, 10, .10);
+  font-size: 12px;
+  line-height: 1.65;
+  text-align: left;
+}
+
 .orders__dialog-footer {
   display: flex;
   border-top: 1px solid var(--d-border);
@@ -953,6 +955,17 @@
   font-weight: 600;
 }
 
+.orders__dialog-btn--rule {
+  color: #a76800;
+  background: rgba(255, 190, 0, .08);
+  font-weight: 650;
+}
+
+.orders__dialog-btn:disabled {
+  cursor: not-allowed;
+  opacity: .58;
+}
+
 @media (hover: hover) {
   .orders__dialog-btn--confirm:hover { background: rgba(48,209,88,0.04); }
 }
@@ -965,13 +978,6 @@
 /* ============================================================
    Responsive
    ============================================================ */
-
-/* Tablet (768px - 1024px) */
-@media screen and (max-width: 1024px) {
-  .orders__body {
-    grid-template-columns: 260px 1fr;
-  }
-}
 
 /* Phone (< 768px) */
 @media screen and (max-width: 768px) {

@@ -22,6 +22,7 @@ interface Props {
 interface Emits {
   (e: 'copySid', sid: string): void
   (e: 'confirmShipment', item: DeliveryRecordItem): void
+  (e: 'ruleDelivery', item: DeliveryRecordItem): void
   (e: 'viewDetail', item: DeliveryRecordItem): void
 }
 
@@ -192,6 +193,12 @@ const canConfirmShipment = (order: DeliveryRecordItem) => {
     && !['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')
 }
 
+const canRuleDelivery = (order: DeliveryRecordItem) => {
+  return order.deliveryStatus === 'FAILED'
+    && Boolean(order.orderId && order.xianyuAccountId && order.xyGoodsId)
+    && !['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')
+}
+
 const getConfirmText = (state: number) => {
   return state === 1 ? '已确认' : '未确认'
 }
@@ -282,6 +289,15 @@ const getConfirmBg = (state: number) => {
           <IconEye />
           <span>详情</span>
           <span class="detail-tooltip">单击查询本地，双击查询闲鱼服务器</span>
+        </button>
+        <button
+          v-if="canRuleDelivery(order)"
+          class="order-card__action order-card__action--rule-delivery"
+          :class="{ 'order-card__action--loading': order.manualDelivering }"
+          @click="emit('ruleDelivery', order)"
+        >
+          <IconTruck />
+          <span>{{ order.manualDelivering ? '发货中' : '按规则发货' }}</span>
         </button>
         <button
           v-if="canConfirmShipment(order)"
@@ -385,6 +401,15 @@ const getConfirmBg = (state: number) => {
               <span class="detail-tooltip">单击查询本地，双击查询闲鱼服务器</span>
             </button>
             <button
+              v-if="canRuleDelivery(order)"
+              class="table__action table__action--rule-delivery"
+              :class="{ 'table__action--loading': order.manualDelivering }"
+              @click="emit('ruleDelivery', order)"
+            >
+              <IconTruck />
+              <span>{{ order.manualDelivering ? '发货中' : '按规则发货' }}</span>
+            </button>
+            <button
               v-if="canConfirmShipment(order)"
               class="table__action table__action--ship"
               :class="{ 'table__action--loading': order.confirming }"
@@ -393,7 +418,7 @@ const getConfirmBg = (state: number) => {
               <IconTruck />
               <span>{{ order.confirming ? '处理中' : '确认发货' }}</span>
             </button>
-            <span v-else class="table__action-placeholder">-</span>
+            <span v-if="!canRuleDelivery(order) && !canConfirmShipment(order)" class="table__action-placeholder">-</span>
           </td>
         </tr>
       </tbody>
@@ -721,6 +746,18 @@ const getConfirmBg = (state: number) => {
   border-color: rgba(52, 199, 89, 0.2);
 }
 
+.order-card__action--rule-delivery,
+.table__action--rule-delivery {
+  color: #b26a00;
+  border-color: rgba(255, 159, 10, .32);
+  background: rgba(255, 159, 10, .05);
+}
+
+@media (hover: hover) {
+  .order-card__action--rule-delivery:hover,
+  .table__action--rule-delivery:hover { background: rgba(255, 159, 10, .12); }
+}
+
 @media (hover: hover) {
   .order-card__action--ship:hover {
     background: rgba(52, 199, 89, 0.06);
@@ -772,7 +809,7 @@ const getConfirmBg = (state: number) => {
 }
 
 .table__th--actions {
-  width: 100px;
+  width: 190px;
   text-align: center;
 }
 
@@ -804,6 +841,7 @@ const getConfirmBg = (state: number) => {
 }
 
 .table__td--actions {
+  min-width: 190px;
   text-align: center;
 }
 
