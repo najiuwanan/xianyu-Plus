@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xianyusmart.mapper.OrderAutomationRecordMapper;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -29,6 +30,9 @@ public class RateService {
     private final XianyuApiCallUtils xianyuApiCallUtils;
     private final OrderAutomationRecordMapper automationRecordMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Autowired(required = false)
+    private AutomationExceptionNotificationService automationExceptionNotificationService;
 
     public RateService(AccountService accountService,
                        XianyuApiCallUtils xianyuApiCallUtils,
@@ -311,8 +315,12 @@ public class RateService {
 
     private void recordFailure(Long accountId, String tradeId, String error) {
         String safeError = error == null || error.isBlank() ? "评价接口调用失败" : error;
-        automationRecordMapper.markRateFailure(accountId, tradeId,
-                safeError.substring(0, Math.min(safeError.length(), 500)));
+        String reason = safeError.substring(0, Math.min(safeError.length(), 500));
+        automationRecordMapper.markRateFailure(accountId, tradeId, reason);
+        if (automationExceptionNotificationService != null) {
+            automationExceptionNotificationService.notify(accountId, "自动评价", reason,
+                    Map.of("orderId", tradeId));
+        }
     }
 
     public record PendingRateOrderCheck(boolean ready, String message) {

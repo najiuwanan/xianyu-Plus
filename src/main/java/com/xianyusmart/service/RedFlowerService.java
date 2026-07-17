@@ -7,6 +7,7 @@ import com.xianyusmart.mapper.OrderAutomationRecordMapper;
 import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -27,6 +28,9 @@ public class RedFlowerService {
     private final AccountService accountService;
     private final OrderAutomationRecordMapper automationRecordMapper;
     private final XianyuApiCallUtils xianyuApiCallUtils;
+
+    @Autowired(required = false)
+    private AutomationExceptionNotificationService automationExceptionNotificationService;
 
     @Value("${app.red-flower.lookback-days:10}")
     private int lookbackDays = 10;
@@ -73,6 +77,7 @@ public class RedFlowerService {
             for (XianyuGoodsOrder order : orders) {
                 automationRecordMapper.markRedFlowerFailure(accountId, order.getOrderId(), error);
             }
+            notifyFailure(accountId, error, orders.size());
             log.warn("【账号{}】求小红花失败：Cookie 不可用", accountId);
             return;
         }
@@ -126,6 +131,7 @@ public class RedFlowerService {
 
         String error = truncate(result.getErrorMessage());
         automationRecordMapper.markRedFlowerFailure(accountId, orderId, error);
+        notifyFailure(accountId, error, 1);
         log.warn("【账号{}】订单求小红花失败：orderId={}, reason={}", accountId, orderId, error);
         return false;
     }
@@ -135,5 +141,15 @@ public class RedFlowerService {
             return "接口调用失败，未返回错误信息";
         }
         return message.substring(0, Math.min(message.length(), 500));
+    }
+
+    private void notifyFailure(Long accountId, String reason, int affectedCount) {
+        if (automationExceptionNotificationService == null) {
+            return;
+        }
+        String detail = affectedCount > 1
+                ? "本次有 " + affectedCount + " 笔订单未能请求小红花：" + reason
+                : reason;
+        automationExceptionNotificationService.notify(accountId, "小红花", detail, Map.of());
     }
 }

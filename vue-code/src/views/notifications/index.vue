@@ -136,6 +136,21 @@
               <textarea v-model="formConfig.templates.NEW_MESSAGE.content" rows="5"></textarea>
             </div>
           </div>
+
+          <div class="notify-item">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="formConfig.notifyAutomationException" /> 自动化失败/人工核对提醒
+            </label>
+            <div class="template-config" v-if="formConfig.notifyAutomationException">
+              <div class="template-config__header">
+                <label>自定义正文模板</label>
+                <button type="button" @click="restoreTemplate('AUTOMATION_EXCEPTION')">恢复示例</button>
+              </div>
+              <p class="template-variables">可用变量：{action}、{reason}、{accountId}、{accountNote}、{orderId}、{goodsName}、{buyerName}</p>
+              <textarea v-model="formConfig.templates.AUTOMATION_EXCEPTION.content" rows="6"></textarea>
+              <p class="template-hint">开启后，自动发货、评价、小红花和商品擦亮出现异常时会推送；同一账号同一类异常 5 分钟内会合并一次，避免消息轰炸。</p>
+            </div>
+          </div>
         </div>
 
         <div class="modal-actions">
@@ -279,7 +294,8 @@ const EMAIL_COOKIE_EXPIRE_NOTIFY_KEY = 'email_notify_cookie_expire_enabled'
 const templateExamples = {
   AUTO_DELIVERY: '订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}\n发货内容：\n{content}',
   ACCOUNT_OFFLINE: '账号：{accountNote}（ID：{accountId}）\n原因：{reason}',
-  NEW_MESSAGE: '商品：{goodsName}\n买家：{buyerName}\n买家消息：\n{msgContent}\n原因：{reason}'
+  NEW_MESSAGE: '商品：{goodsName}\n买家：{buyerName}\n买家消息：\n{msgContent}\n原因：{reason}',
+  AUTOMATION_EXCEPTION: '类型：{action}\n账号：{accountNote}（ID：{accountId}）\n订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}\n原因：{reason}'
 } as const
 
 type NotificationEventType = keyof typeof templateExamples
@@ -288,10 +304,13 @@ const createDefaultFormConfig = () => ({
   notifyAutoDelivery: true,
   notifyAccountOffline: true,
   notifyNewMessage: true,
+  // 新增异常提醒默认关闭，避免已有渠道在升级后未经确认就产生推送。
+  notifyAutomationException: false,
   templates: {
     AUTO_DELIVERY: { content: templateExamples.AUTO_DELIVERY },
     ACCOUNT_OFFLINE: { content: templateExamples.ACCOUNT_OFFLINE },
-    NEW_MESSAGE: { content: templateExamples.NEW_MESSAGE }
+    NEW_MESSAGE: { content: templateExamples.NEW_MESSAGE },
+    AUTOMATION_EXCEPTION: { content: templateExamples.AUTOMATION_EXCEPTION }
   }
 })
 
@@ -309,7 +328,8 @@ const normalizeFormConfig = (config: unknown) => {
     templates: {
       AUTO_DELIVERY: { ...defaults.templates.AUTO_DELIVERY, ...templates.AUTO_DELIVERY },
       ACCOUNT_OFFLINE: { ...defaults.templates.ACCOUNT_OFFLINE, ...templates.ACCOUNT_OFFLINE },
-      NEW_MESSAGE: { ...defaults.templates.NEW_MESSAGE, ...templates.NEW_MESSAGE }
+      NEW_MESSAGE: { ...defaults.templates.NEW_MESSAGE, ...templates.NEW_MESSAGE },
+      AUTOMATION_EXCEPTION: { ...defaults.templates.AUTOMATION_EXCEPTION, ...templates.AUTOMATION_EXCEPTION }
     }
   }
   ;(Object.keys(templateExamples) as NotificationEventType[]).forEach((eventType) => {
@@ -835,6 +855,7 @@ input:checked + .slider:before {
   font-size: 12px;
   line-height: 1.5;
 }
+.template-hint { margin: 8px 0 0; color: #98a2b3; font-size: 12px; line-height: 1.5; }
 .template-config textarea {
   width: 100%;
   padding: 8px;

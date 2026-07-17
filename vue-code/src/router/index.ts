@@ -117,6 +117,12 @@ const router = createRouter({
       meta: { title: '实时日志', icon: '📟' }
     },
     {
+      path: '/system-check',
+      name: 'system-check',
+      component: () => import('@/views/system-check/index.vue'),
+      meta: { title: '系统自检', icon: '🩺' }
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/settings/index.vue'),

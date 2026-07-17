@@ -5,19 +5,26 @@ import com.xianyusmart.enums.DeliveryChannel;
 import com.xianyusmart.enums.DeliveryStatus;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.xianyusmart.service.DeliveryTaskService;
+import com.xianyusmart.service.AutomationExceptionNotificationService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
 public class DeliveryTaskServiceImpl implements DeliveryTaskService {
 
     private final XianyuGoodsOrderMapper orderMapper;
+
+    @Autowired(required = false)
+    private AutomationExceptionNotificationService automationExceptionNotificationService;
 
     @Value("${app.delivery.lease-seconds:120}")
     private int leaseSeconds;
@@ -91,6 +98,8 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
         String safeMessage = errorMessage == null ? "自动发货失败" : errorMessage.substring(0, Math.min(errorMessage.length(), 500));
         if (orderMapper.retryOrFailTask(taskId, status, nextRetryTime, safeMessage, workerId) == 0) {
             log.warn("任务租约已失效，忽略重试操作: taskId={}", taskId);
+        } else if (exhausted) {
+            notifyException(task, "自动发货", safeMessage);
         }
     }
 
@@ -100,6 +109,11 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
                 errorMessage.substring(0, Math.min(errorMessage.length(), 500));
         if (orderMapper.markTaskReviewRequired(taskId, safeMessage, workerId) == 0) {
             log.warn("任务租约已失效，忽略人工复核操作: taskId={}", taskId);
+        } else {
+            XianyuGoodsOrder task = orderMapper.selectById(taskId);
+            if (task != null) {
+                notifyException(task, "自动发货需人工核对", safeMessage);
+            }
         }
     }
 
@@ -125,5 +139,16 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
         if (taskId != null && workerId != null) {
             orderMapper.pauseClaimedTask(taskId, workerId);
         }
+    }
+
+    private void notifyException(XianyuGoodsOrder task, String action, String reason) {
+        if (automationExceptionNotificationService == null) {
+            return;
+        }
+        Map<String, Object> details = new HashMap<>();
+        details.put("orderId", task.getOrderId());
+        details.put("goodsName", task.getGoodsTitle());
+        details.put("buyerName", task.getBuyerUserName());
+        automationExceptionNotificationService.notify(task.getXianyuAccountId(), action, reason, details);
     }
 }

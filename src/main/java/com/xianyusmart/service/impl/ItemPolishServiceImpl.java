@@ -15,8 +15,10 @@ import com.xianyusmart.mapper.XianyuItemPolishRecordMapper;
 import com.xianyusmart.service.AccountService;
 import com.xianyusmart.service.ItemService;
 import com.xianyusmart.service.ItemPolishService;
+import com.xianyusmart.service.AutomationExceptionNotificationService;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -59,6 +61,9 @@ public class ItemPolishServiceImpl implements ItemPolishService {
     private final XianyuApiCallUtils xianyuApiCallUtils;
     private final Executor taskExecutor;
     private final Set<Long> runningAccountIds = ConcurrentHashMap.newKeySet();
+
+    @Autowired(required = false)
+    private AutomationExceptionNotificationService automationExceptionNotificationService;
 
     public ItemPolishServiceImpl(XianyuAccountMapper accountMapper,
                                  XianyuGoodsInfoMapper goodsInfoMapper,
@@ -268,6 +273,9 @@ public class ItemPolishServiceImpl implements ItemPolishService {
             updateRunSummary(accountId, total, success, failed, summary == null ? "任务结束" : summary);
             if (failed == 0) {
                 resolveRunFailures(accountId);
+            } else if (automationExceptionNotificationService != null) {
+                automationExceptionNotificationService.notify(accountId, "商品擦亮",
+                        summary == null ? "本次擦亮执行失败" : summary, Map.of());
             }
             runningAccountIds.remove(accountId);
         }

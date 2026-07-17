@@ -74,6 +74,7 @@ const pageTitleMap: Record<string, string> = {
   '/auto-reply': '自动回复',
   '/operation-log': '操作日志',
   '/runtime-log': '实时日志',
+  '/system-check': '系统自检',
   '/settings': '系统设置'
 }
 
@@ -92,6 +93,7 @@ const pageIconMap: Record<string, any> = {
   '/auto-reply': markRaw(IconChat),
   '/operation-log': markRaw(IconLog),
   '/runtime-log': markRaw(IconLog),
+  '/system-check': markRaw(IconShield),
   '/settings': markRaw(IconShield)
 }
 
