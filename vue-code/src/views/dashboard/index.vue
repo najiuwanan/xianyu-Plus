@@ -13,9 +13,7 @@ const router = useRouter()
 const {
   loading,
   stats,
-  accountHealth,
   trends,
-  activities,
   accountIssueCount,
   automationExceptionCount,
   loadStatistics
@@ -28,10 +26,6 @@ const todoCount = computed(() =>
   + Number(automationExceptionCount.value || 0)
   + Number(stats.lowStockConfigCount || 0)
   + Number(accountIssueCount.value || 0)
-)
-
-const healthyAccountCount = computed(() =>
-  accountHealth.value.filter(item => !item.needsAttention && item.accountStatus === 1).length
 )
 
 const recentTrend = computed(() => {
@@ -58,6 +52,7 @@ const recentTrend = computed(() => {
 
 const sevenDayOrderCount = computed(() => recentTrend.value.reduce((sum, item) => sum + item.orderCount, 0))
 const sevenDayRevenue = computed(() => recentTrend.value.reduce((sum, item) => sum + item.revenue, 0))
+const dailyAverageOrderCount = computed(() => Math.round(sevenDayOrderCount.value / 7))
 
 const todoRows = computed(() => [
   { label: '未读买家消息', detail: '买家消息等待人工查看与回复', count: Number(stats.unreadMessageCount || 0), action: '去处理', path: '/messages', tone: stats.unreadMessageCount ? 'danger' : 'success', icon: IconMessage },
@@ -73,25 +68,6 @@ const money = (value: number) => Number(value || 0).toLocaleString('zh-CN', {
 })
 
 const go = (path: string) => router.push(path)
-const goConnection = (accountId?: number) => router.push(accountId ? `/connection/${accountId}` : '/connection')
-
-const formatActivityTime = (timestamp?: number) => {
-  if (!timestamp) return '刚刚'
-  const value = timestamp < 100000000000 ? timestamp * 1000 : timestamp
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '刚刚'
-  const today = new Date()
-  if (date.toDateString() === today.toDateString()) {
-    return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })
-  }
-  return `${date.getMonth() + 1}/${date.getDate()} ${date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}`
-}
-
-const activityStatusClass = (status?: number) => {
-  if (status === -1) return 'activity-dot--failed'
-  if (status === 0) return 'activity-dot--warning'
-  return 'activity-dot--success'
-}
 
 onMounted(loadStatistics)
 </script>
@@ -151,37 +127,20 @@ onMounted(loadStatistics)
 
     </section>
 
-    <div class="dashboard-columns">
-      <section class="dashboard-panel dashboard-panel--chart">
-        <div class="panel-heading"><div><h2>近 7 日成功交付</h2><p>{{ sevenDayOrderCount }} 笔订单，¥{{ money(sevenDayRevenue) }}</p></div></div>
+    <section class="dashboard-panel dashboard-panel--chart">
+      <div class="panel-heading panel-heading--chart">
+        <div><h2>近 7 日成功交付</h2><p>已完成 {{ sevenDayOrderCount }} 笔订单，成交 ¥{{ money(sevenDayRevenue) }}</p></div>
+        <div class="chart-summary" aria-label="近七日交付汇总">
+          <span><small>日均交付</small><strong>{{ dailyAverageOrderCount }} 笔</strong></span>
+          <span><small>近 7 日成交额</small><strong>¥{{ money(sevenDayRevenue) }}</strong></span>
+        </div>
+      </div>
         <div class="chart-legend"><span><i></i>成功交付订单数</span><span>每根柱形代表对应日期的交付数量</span></div>
         <div class="trend-chart" aria-label="近七天成功交付订单趋势">
           <div v-for="item in recentTrend" :key="item.dateKey" class="trend-chart__item" :title="`${item.dateKey}：${item.orderCount} 笔，¥ ${money(item.revenue)}`">
             <strong>{{ item.orderCount }}</strong><div class="trend-chart__track"><i :style="{ height: `${item.height}%` }"></i></div><span>{{ item.label }}</span>
           </div>
         </div>
-      </section>
-
-      <section class="dashboard-panel dashboard-panel--activities">
-        <div class="panel-heading"><div><h2>最近动态</h2><p>最近 10 条系统操作记录</p></div><button class="text-button" @click="go('/operation-log')">查看全部 <span>›</span></button></div>
-        <div v-if="activities.length" class="activity-list">
-          <button v-for="(activity, index) in activities" :key="`${activity.createdAt || index}-${activity.content}`" class="activity-row" type="button" @click="go('/operation-log')">
-            <span class="activity-dot" :class="activityStatusClass(activity.status)"></span><time>{{ formatActivityTime(activity.createdAt) }}</time><div class="activity-row__content"><strong>{{ activity.content }}</strong><small>{{ activity.accountName || '系统' }}{{ activity.module ? ` · ${activity.module}` : '' }}</small></div><span class="activity-row__arrow">›</span>
-          </button>
-        </div>
-        <div v-else class="empty-state">暂时没有可展示的最近动态</div>
-      </section>
-    </div>
-
-    <section v-if="accountHealth.length" class="dashboard-panel account-health-panel">
-      <div class="panel-heading"><div><h2>账号健康</h2><p>实时连接状态；{{ healthyAccountCount }} 个账号运行正常，{{ accountIssueCount }} 个需要关注</p></div><button class="text-button" @click="go('/connection')">连接管理 <span>›</span></button></div>
-      <div class="account-health-list">
-        <button v-for="account in accountHealth" :key="account.accountId" class="account-health-row" :class="{ 'account-health-row--attention': account.needsAttention }" @click="goConnection(account.accountId)">
-          <div class="account-health-row__main"><strong>{{ account.accountName || `账号 ${account.accountId}` }}</strong><small>{{ account.healthText }}</small></div>
-          <div class="health-badges"><span class="health-badge" :class="account.cookieStatus === 1 ? 'health-badge--success' : 'health-badge--muted'">{{ account.cookieStatusText }}</span><span class="health-badge" :class="account.websocketConnected ? 'health-badge--success' : (account.accountStatus === 0 ? 'health-badge--muted' : 'health-badge--warning')">{{ account.websocketConnected ? '实时连接正常' : '实时未连接' }}</span><span v-if="account.automationRiskPaused" class="health-badge health-badge--danger">自动化已暂停</span><span v-else class="health-badge health-badge--muted">{{ account.accountStatusText }}</span><span v-if="account.unreadMessageCount" class="health-badge health-badge--blue">{{ account.unreadMessageCount }} 条未读</span></div>
-          <span class="account-health-row__action">处理 ›</span>
-        </button>
-      </div>
     </section>
   </div>
 </template>
