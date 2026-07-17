@@ -39,16 +39,9 @@ const detailSkuText = ref('')
 const detailFromServer = ref(false)
 const detailTimeline = ref<OrderTimelineEvent[]>([])
 const detailTimelineLoading = ref(false)
-const moreActionsOrderKey = ref<string | null>(null)
-const loadingMoreActionsKey = ref<string | null>(null)
 const runningCompensationKey = ref<string | null>(null)
-const compensationActions = ref<Record<string, OrderAutomationAvailableActions>>({})
 
 const orderKey = (order: DeliveryRecordItem) => `${order.xianyuAccountId || ''}:${order.orderId || ''}`
-
-const hasCompensationAction = (actions?: OrderAutomationAvailableActions) => {
-  return Boolean(actions?.rateAvailable || actions?.redFlowerAvailable)
-}
 
 const loadTimeline = async (order: DeliveryRecordItem) => {
   if (!order.orderId || !order.xianyuAccountId) return
@@ -211,50 +204,33 @@ const canRuleDelivery = (order: DeliveryRecordItem) => {
     && !['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')
 }
 
-const canOpenMoreActions = (order: DeliveryRecordItem) => {
-  return Boolean(order.orderId && order.xianyuAccountId)
-    && !['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')
-}
-
-const toggleMoreActions = async (order: DeliveryRecordItem) => {
-  if (!canOpenMoreActions(order) || !order.orderId || !order.xianyuAccountId) return
-  const key = orderKey(order)
-  if (moreActionsOrderKey.value === key) {
-    moreActionsOrderKey.value = null
+const runCompensation = async (order: DeliveryRecordItem, action: AutomationAction) => {
+  if (!order.orderId || !order.xianyuAccountId) {
+    showInfo('该订单缺少订单号或账号信息，暂不能执行此操作')
     return
   }
-
-  moreActionsOrderKey.value = key
-  loadingMoreActionsKey.value = key
-  try {
-    const response = await getOrderAutomationAvailableActions({
-      accountId: order.xianyuAccountId,
-      orderId: order.orderId
-    })
-    if (response.code !== 0 && response.code !== 200) {
-      throw new Error(response.msg || '检查可补偿操作失败')
-    }
-    compensationActions.value[key] = response.data || {
-      rateAvailable: false,
-      redFlowerAvailable: false
-    }
-    if (!hasCompensationAction(compensationActions.value[key])) {
-      moreActionsOrderKey.value = null
-      showInfo('当前订单暂无可补偿的评价或小红花操作')
-    }
-  } catch (error: any) {
-    moreActionsOrderKey.value = null
-    showError(`检查补偿条件失败：${error.message || '请稍后重试'}`)
-  } finally {
-    if (loadingMoreActionsKey.value === key) loadingMoreActionsKey.value = null
-  }
-}
-
-const runCompensation = async (order: DeliveryRecordItem, action: AutomationAction) => {
-  if (!order.orderId || !order.xianyuAccountId) return
   const key = `${orderKey(order)}:${action}`
   runningCompensationKey.value = key
   try {
+    const actionResponse = await getOrderAutomationAvailableActions({
+      accountId: order.xianyuAccountId,
+      orderId: order.orderId
+    })
+    if (actionResponse.code !== 0 && actionResponse.code !== 200) {
+      throw new Error(actionResponse.msg || '检查补偿条件失败')
+    }
+    const availableActions: OrderAutomationAvailableActions = actionResponse.data || {
+      rateAvailable: false,
+      redFlowerAvailable: false
+    }
+    const available = action === 'RED_FLOWER'
+      ? availableActions.redFlowerAvailable : availableActions.rateAvailable
+    const reason = action === 'RED_FLOWER'
+      ? availableActions.redFlowerReason : availableActions.rateReason
+    if (!available) {
+      showInfo(reason || `${action === 'RED_FLOWER' ? '补小红花' : '补评价'}当前不可执行`)
+      return
+    }
     const response = await retryOrderAutomation({
       accountId: order.xianyuAccountId,
       orderId: order.orderId,
@@ -264,14 +240,25 @@ const runCompensation = async (order: DeliveryRecordItem, action: AutomationActi
       throw new Error(response.msg || response.data?.message || '补偿操作失败')
     }
     showSuccess(response.data?.message || (action === 'RED_FLOWER' ? '补小红花成功' : '补评价成功'))
-    moreActionsOrderKey.value = null
-    delete compensationActions.value[orderKey(order)]
     emit('refresh')
   } catch (error: any) {
     showError(`${action === 'RED_FLOWER' ? '补小红花' : '补评价'}失败：${error.message || '请稍后重试'}`)
   } finally {
     if (runningCompensationKey.value === key) runningCompensationKey.value = null
   }
+}
+
+const ruleDeliveryReason = (order: DeliveryRecordItem) => {
+  if (canRuleDelivery(order)) return '按商品关联的卡券规则补发'
+  if (['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')) return '退款或关闭交易不能发货'
+  if (order.state === 1) return '订单已经发货完成'
+  return '仅自动发货失败且已匹配卡券规则的订单可手动补发'
+}
+
+const confirmShipmentReason = (order: DeliveryRecordItem) => {
+  if (canConfirmShipment(order)) return '向闲鱼确认该订单已发货'
+  if (['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')) return '退款或关闭交易不能确认发货'
+  return order.state === 1 ? '当前订单不满足确认发货条件' : '请先完成发货后再确认'
 }
 
 const getConfirmText = (state: number) => {
@@ -357,8 +344,8 @@ const getConfirmBg = (state: number) => {
           <span>复制订单ID</span>
         </button>
         <button
-          v-if="order.orderId"
           class="order-card__action order-card__action--detail"
+          :disabled="!order.orderId"
           @click="handleClickDetail(order)"
         >
           <IconEye />
@@ -366,48 +353,41 @@ const getConfirmBg = (state: number) => {
           <span class="detail-tooltip">单击查询本地，双击查询闲鱼服务器</span>
         </button>
         <button
-          v-if="canRuleDelivery(order)"
           class="order-card__action order-card__action--rule-delivery"
           :class="{ 'order-card__action--loading': order.manualDelivering }"
+          :disabled="!canRuleDelivery(order)"
+          :title="ruleDeliveryReason(order)"
           @click="emit('ruleDelivery', order)"
         >
           <IconTruck />
-          <span>{{ order.manualDelivering ? '发货中' : '按规则发货' }}</span>
+          <span>{{ order.manualDelivering ? '发货中' : '手动发货' }}</span>
         </button>
         <button
-          v-if="canConfirmShipment(order)"
           class="order-card__action order-card__action--ship"
           :class="{ 'order-card__action--loading': order.confirming }"
+          :disabled="!canConfirmShipment(order)"
+          :title="confirmShipmentReason(order)"
           @click="emit('confirmShipment', order)"
         >
           <IconTruck />
           <span>{{ order.confirming ? '处理中' : '确认发货' }}</span>
         </button>
-        <div v-if="canOpenMoreActions(order)" class="more-actions">
-          <button
-            class="order-card__action order-card__action--more"
-            :class="{ 'order-card__action--loading': loadingMoreActionsKey === orderKey(order) }"
-            @click.stop="toggleMoreActions(order)"
-          >
-            <span>{{ loadingMoreActionsKey === orderKey(order) ? '检查中' : '更多操作' }}</span>
-          </button>
-          <div v-if="moreActionsOrderKey === orderKey(order) && hasCompensationAction(compensationActions[orderKey(order)])" class="more-actions__menu">
-            <button
-              v-if="compensationActions[orderKey(order)]?.rateAvailable"
-              :disabled="runningCompensationKey === `${orderKey(order)}:RATE_CHECK`"
-              @click="runCompensation(order, 'RATE_CHECK')"
-            >
-              {{ runningCompensationKey === `${orderKey(order)}:RATE_CHECK` ? '补评价中…' : '补评价' }}
-            </button>
-            <button
-              v-if="compensationActions[orderKey(order)]?.redFlowerAvailable"
-              :disabled="runningCompensationKey === `${orderKey(order)}:RED_FLOWER`"
-              @click="runCompensation(order, 'RED_FLOWER')"
-            >
-              {{ runningCompensationKey === `${orderKey(order)}:RED_FLOWER` ? '补小红花中…' : '补小红花' }}
-            </button>
-          </div>
-        </div>
+        <button
+          class="order-card__action order-card__action--more"
+          :disabled="runningCompensationKey === `${orderKey(order)}:RATE_CHECK`"
+          title="会先检查闲鱼待评价列表，再决定是否评价"
+          @click="runCompensation(order, 'RATE_CHECK')"
+        >
+          <span>{{ runningCompensationKey === `${orderKey(order)}:RATE_CHECK` ? '检查中' : '补评价' }}</span>
+        </button>
+        <button
+          class="order-card__action order-card__action--flower"
+          :disabled="runningCompensationKey === `${orderKey(order)}:RED_FLOWER`"
+          title="会先检查是否已确认发货及交易状态"
+          @click="runCompensation(order, 'RED_FLOWER')"
+        >
+          <span>{{ runningCompensationKey === `${orderKey(order)}:RED_FLOWER` ? '检查中' : '补小红花' }}</span>
+        </button>
       </div>
     </div>
 
@@ -491,59 +471,53 @@ const getConfirmBg = (state: number) => {
             <span class="time-text">{{ formatTime(order.orderCreateTime || order.createTime) }}</span>
           </td>
           <td class="table__td table__td--actions">
-            <button
-              v-if="order.orderId"
-              class="table__action table__action--detail"
-              @click="handleClickDetail(order)"
-            >
-              <IconEye />
-              <span>详情</span>
-              <span class="detail-tooltip">单击查询本地，双击查询闲鱼服务器</span>
-            </button>
-            <button
-              v-if="canRuleDelivery(order)"
-              class="table__action table__action--rule-delivery"
-              :class="{ 'table__action--loading': order.manualDelivering }"
-              @click="emit('ruleDelivery', order)"
-            >
-              <IconTruck />
-              <span>{{ order.manualDelivering ? '发货中' : '按规则发货' }}</span>
-            </button>
-            <button
-              v-if="canConfirmShipment(order)"
-              class="table__action table__action--ship"
-              :class="{ 'table__action--loading': order.confirming }"
-              @click="emit('confirmShipment', order)"
-            >
-              <IconTruck />
-              <span>{{ order.confirming ? '处理中' : '确认发货' }}</span>
-            </button>
-            <div v-if="canOpenMoreActions(order)" class="more-actions">
+            <div class="table__actions-grid">
+              <button
+                class="table__action table__action--detail"
+                :disabled="!order.orderId"
+                @click="handleClickDetail(order)"
+              >
+                <IconEye />
+                <span>详情</span>
+                <span class="detail-tooltip">单击查询本地，双击查询闲鱼服务器</span>
+              </button>
+              <button
+                class="table__action table__action--rule-delivery"
+                :class="{ 'table__action--loading': order.manualDelivering }"
+                :disabled="!canRuleDelivery(order)"
+                :title="ruleDeliveryReason(order)"
+                @click="emit('ruleDelivery', order)"
+              >
+                <IconTruck />
+                <span>{{ order.manualDelivering ? '发货中' : '手动发货' }}</span>
+              </button>
+              <button
+                class="table__action table__action--ship"
+                :class="{ 'table__action--loading': order.confirming }"
+                :disabled="!canConfirmShipment(order)"
+                :title="confirmShipmentReason(order)"
+                @click="emit('confirmShipment', order)"
+              >
+                <IconTruck />
+                <span>{{ order.confirming ? '处理中' : '确认发货' }}</span>
+              </button>
               <button
                 class="table__action table__action--more"
-                :class="{ 'table__action--loading': loadingMoreActionsKey === orderKey(order) }"
-                @click.stop="toggleMoreActions(order)"
+                :disabled="runningCompensationKey === `${orderKey(order)}:RATE_CHECK`"
+                title="会先检查闲鱼待评价列表，再决定是否评价"
+                @click="runCompensation(order, 'RATE_CHECK')"
               >
-                <span>{{ loadingMoreActionsKey === orderKey(order) ? '检查中' : '更多操作' }}</span>
+                <span>{{ runningCompensationKey === `${orderKey(order)}:RATE_CHECK` ? '检查中' : '补评价' }}</span>
               </button>
-              <div v-if="moreActionsOrderKey === orderKey(order) && hasCompensationAction(compensationActions[orderKey(order)])" class="more-actions__menu">
-                <button
-                  v-if="compensationActions[orderKey(order)]?.rateAvailable"
-                  :disabled="runningCompensationKey === `${orderKey(order)}:RATE_CHECK`"
-                  @click="runCompensation(order, 'RATE_CHECK')"
-                >
-                  {{ runningCompensationKey === `${orderKey(order)}:RATE_CHECK` ? '补评价中…' : '补评价' }}
-                </button>
-                <button
-                  v-if="compensationActions[orderKey(order)]?.redFlowerAvailable"
-                  :disabled="runningCompensationKey === `${orderKey(order)}:RED_FLOWER`"
-                  @click="runCompensation(order, 'RED_FLOWER')"
-                >
-                  {{ runningCompensationKey === `${orderKey(order)}:RED_FLOWER` ? '补小红花中…' : '补小红花' }}
-                </button>
-              </div>
+              <button
+                class="table__action table__action--flower"
+                :disabled="runningCompensationKey === `${orderKey(order)}:RED_FLOWER`"
+                title="会先检查是否已确认发货及交易状态"
+                @click="runCompensation(order, 'RED_FLOWER')"
+              >
+                <span>{{ runningCompensationKey === `${orderKey(order)}:RED_FLOWER` ? '检查中' : '补小红花' }}</span>
+              </button>
             </div>
-            <span v-if="!canRuleDelivery(order) && !canConfirmShipment(order) && !canOpenMoreActions(order)" class="table__action-placeholder">-</span>
           </td>
         </tr>
       </tbody>
@@ -828,6 +802,7 @@ const getConfirmBg = (state: number) => {
 
 .order-card__footer {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   padding: 8px 12px;
   border-top: 0.5px solid var(--c-border-strong);
@@ -838,7 +813,7 @@ const getConfirmBg = (state: number) => {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  flex: 1;
+  flex: 1 1 calc(33.333% - 6px);
   height: 32px;
   font-size: 12px;
   font-weight: 500;
@@ -898,6 +873,12 @@ const getConfirmBg = (state: number) => {
   transform: scale(0.97);
 }
 
+.order-card__action:disabled,
+.table__action:disabled {
+  cursor: not-allowed;
+  opacity: .42;
+}
+
 .table-container {
   min-height: 100%;
 }
@@ -934,7 +915,7 @@ const getConfirmBg = (state: number) => {
 }
 
 .table__th--actions {
-  width: 190px;
+  width: 270px;
   text-align: center;
 }
 
@@ -966,8 +947,15 @@ const getConfirmBg = (state: number) => {
 }
 
 .table__td--actions {
-  min-width: 190px;
+  min-width: 270px;
   text-align: center;
+}
+
+.table__actions-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  min-width: 252px;
 }
 
 .order-id {
@@ -1087,6 +1075,10 @@ const getConfirmBg = (state: number) => {
   -webkit-tap-highlight-color: transparent;
 }
 
+.table__actions-grid .table__action {
+  width: 100%;
+}
+
 .table__action svg {
   width: 13px;
   height: 13px;
@@ -1154,66 +1146,26 @@ const getConfirmBg = (state: number) => {
   pointer-events: none;
 }
 
-.more-actions {
-  position: relative;
-  display: inline-flex;
-}
-
 .table__action--more,
 .order-card__action--more {
   border-color: rgba(88, 86, 214, .22);
   color: #5856d6;
 }
 
-.more-actions__menu {
-  position: absolute;
-  z-index: 20;
-  right: 0;
-  top: calc(100% + 6px);
-  display: flex;
-  min-width: 104px;
-  flex-direction: column;
-  padding: 5px;
-  overflow: hidden;
-  border: 1px solid rgba(60, 60, 67, .14);
-  border-radius: 9px;
-  background: rgba(255, 255, 255, .98);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, .12);
+.table__action--flower,
+.order-card__action--flower {
+  border-color: rgba(244, 114, 182, .3);
+  color: #c02677;
+  background: rgba(244, 114, 182, .04);
 }
 
-.order-card .more-actions__menu {
-  top: auto;
-  bottom: calc(100% + 6px);
-}
-
-.more-actions__menu button {
-  padding: 8px 10px;
-  border: 0;
-  border-radius: 6px;
-  color: #333;
-  background: transparent;
-  cursor: pointer;
-  font-size: 12px;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.more-actions__menu button:hover:not(:disabled) {
-  background: rgba(88, 86, 214, .08);
-  color: #4a48ba;
-}
-
-.more-actions__menu button:disabled {
-  cursor: not-allowed;
-  opacity: .55;
+@media (hover: hover) {
+  .table__action--flower:hover:not(:disabled),
+  .order-card__action--flower:hover:not(:disabled) { background: rgba(244, 114, 182, .11); }
 }
 
 .table__action:active {
   transform: scale(0.95);
-}
-
-.table__action-placeholder {
-  color: var(--c-text-3);
 }
 
 .empty-state {
