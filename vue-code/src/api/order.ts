@@ -40,6 +40,21 @@ export interface DeliveryRecordPageResult {
   pageSize: number
 }
 
+export interface OrderTimelineEvent {
+  type: string
+  title: string
+  description?: string
+  status: 'SUCCESS' | 'PENDING' | 'FAILED' | 'WARNING' | 'SKIPPED' | 'INFO'
+  occurredAt?: string
+  retryable?: boolean
+  retryAction?: 'DELIVERY' | 'RATE' | 'RED_FLOWER'
+}
+
+export interface OrderTimelineResult {
+  orderId: string
+  events: OrderTimelineEvent[]
+}
+
 export function queryDeliveryRecordList(data: DeliveryRecordQueryReq) {
   return request<DeliveryRecordPageResult>({
     url: '/items/autoDeliveryRecords',
@@ -59,6 +74,14 @@ export function confirmShipment(data: { xianyuAccountId: number; orderId: string
 export function getOrderDetail(data: { xianyuAccountId: number; orderId: string; fromServer?: boolean }) {
   return request<string>({
     url: '/order/detail',
+    method: 'POST',
+    data
+  })
+}
+
+export function getOrderTimeline(data: { xianyuAccountId: number; orderId: string }) {
+  return request<OrderTimelineResult>({
+    url: '/order/timeline',
     method: 'POST',
     data
   })

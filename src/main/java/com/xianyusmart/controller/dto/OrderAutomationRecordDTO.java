@@ -34,4 +34,7 @@ public class OrderAutomationRecordDTO {
     private String redFlowerError;
     private Integer redFlowerAttemptCount;
     private LocalDateTime redFlowerNextRetryTime;
+
+    /** 最近一次自动化状态写入时间，供订单详情中的失败事件展示。 */
+    private LocalDateTime updatedTime;
 }

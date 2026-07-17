@@ -115,6 +115,32 @@ public interface OrderAutomationRecordMapper {
             "</script>")
     long countExecutionRecords(@Param("accountId") Long accountId, @Param("status") String status);
 
+    /** 获取订单详情时间线所需的自动化状态；即使尚无执行记录也返回账号当前开关。 */
+    @Select("SELECT a.auto_rate_enabled AS rate_enabled, COALESCE(r.rate_status, 0) AS rate_status, " +
+            "r.rate_time, r.rate_error, a.auto_ask_flower AS red_flower_enabled, " +
+            "COALESCE(r.red_flower_status, 0) AS red_flower_status, r.red_flower_time, " +
+            "r.red_flower_error, COALESCE(r.red_flower_attempt_count, 0) AS red_flower_attempt_count, " +
+            "r.red_flower_next_retry_time, r.update_time AS updated_time " +
+            "FROM xianyu_account a " +
+            "LEFT JOIN xianyu_order_automation_record r " +
+            "ON r.xianyu_account_id = a.id AND r.order_id = #{orderId} " +
+            "WHERE a.id = #{accountId} LIMIT 1")
+    @Results({
+            @Result(property = "rateEnabled", column = "rate_enabled"),
+            @Result(property = "rateStatus", column = "rate_status"),
+            @Result(property = "rateTime", column = "rate_time"),
+            @Result(property = "rateError", column = "rate_error"),
+            @Result(property = "redFlowerEnabled", column = "red_flower_enabled"),
+            @Result(property = "redFlowerStatus", column = "red_flower_status"),
+            @Result(property = "redFlowerTime", column = "red_flower_time"),
+            @Result(property = "redFlowerError", column = "red_flower_error"),
+            @Result(property = "redFlowerAttemptCount", column = "red_flower_attempt_count"),
+            @Result(property = "redFlowerNextRetryTime", column = "red_flower_next_retry_time"),
+            @Result(property = "updatedTime", column = "updated_time")
+    })
+    OrderAutomationRecordDTO findTimelineState(@Param("accountId") Long accountId,
+                                                @Param("orderId") String orderId);
+
     @Select("<script>" +
             "SELECT COUNT(1) AS total, " +
             "COALESCE(SUM(CASE WHEN (a.auto_rate_enabled = 0 OR COALESCE(r.rate_status, 0) = 1) " +

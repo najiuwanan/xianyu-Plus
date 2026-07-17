@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { formatTime } from '@/utils'
 import { showSuccess, showError } from '@/utils'
-import { getOrderDetail } from '@/api/order'
+import { getOrderDetail, getOrderTimeline, type OrderTimelineEvent } from '@/api/order'
 import type { DeliveryRecordItem } from '../useOrderManager'
 
 import IconEmpty from '@/components/icons/IconEmpty.vue'
@@ -26,12 +27,35 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+const router = useRouter()
 
 const detailVisible = ref(false)
 const detailLoading = ref(false)
 const detailData = ref<any>(null)
 const detailSkuText = ref('')
 const detailFromServer = ref(false)
+const detailTimeline = ref<OrderTimelineEvent[]>([])
+const detailTimelineLoading = ref(false)
+
+const loadTimeline = async (order: DeliveryRecordItem) => {
+  if (!order.orderId || !order.xianyuAccountId) return
+  detailTimelineLoading.value = true
+  try {
+    const res = await getOrderTimeline({ xianyuAccountId: order.xianyuAccountId, orderId: order.orderId })
+    if (res.code === 200 || res.code === 0) {
+      detailTimeline.value = res.data?.events || []
+    }
+  } catch {
+    detailTimeline.value = []
+  } finally {
+    detailTimelineLoading.value = false
+  }
+}
+
+const openExceptionCenter = async () => {
+  detailVisible.value = false
+  await router.push('/exception-center')
+}
 
 const handleViewDetail = async (order: DeliveryRecordItem, fromServer: boolean = false) => {
   if (!order.orderId || !order.xianyuAccountId) return
@@ -40,6 +64,8 @@ const handleViewDetail = async (order: DeliveryRecordItem, fromServer: boolean =
   detailData.value = null
   detailSkuText.value = ''
   detailFromServer.value = fromServer
+  detailTimeline.value = []
+  detailTimelineLoading.value = false
   try {
     const res = await getOrderDetail({ xianyuAccountId: order.xianyuAccountId, orderId: order.orderId, fromServer })
     if (res.code === 200 || res.code === 0) {
@@ -61,6 +87,7 @@ const handleViewDetail = async (order: DeliveryRecordItem, fromServer: boolean =
         }
       } else {
         detailSkuText.value = parsed.skuName || ''
+        void loadTimeline(order)
       }
     } else {
       showError(res.msg || '获取订单详情失败')
@@ -248,7 +275,7 @@ const getConfirmBg = (state: number) => {
           <span>复制订单ID</span>
         </button>
         <button
-          v-if="order.orderId && canConfirmShipment(order)"
+          v-if="order.orderId"
           class="order-card__action order-card__action--detail"
           @click="handleClickDetail(order)"
         >
@@ -349,7 +376,7 @@ const getConfirmBg = (state: number) => {
           </td>
           <td class="table__td table__td--actions">
             <button
-              v-if="order.orderId && canConfirmShipment(order)"
+              v-if="order.orderId"
               class="table__action table__action--detail"
               @click="handleClickDetail(order)"
             >
@@ -495,6 +522,34 @@ const getConfirmBg = (state: number) => {
                   <pre>{{ JSON.stringify(detailData, null, 2) }}</pre>
                 </div>
               </div>
+              <section v-if="!detailFromServer" class="order-timeline">
+                <div class="order-timeline__header">
+                  <div>
+                    <h4>订单生命周期</h4>
+                    <p>本地同步、发货、评价和小红花的处理记录</p>
+                  </div>
+                </div>
+                <div v-if="detailTimelineLoading" class="order-timeline__loading">正在加载生命周期…</div>
+                <div v-else-if="detailTimeline.length" class="order-timeline__list">
+                  <article v-for="event in detailTimeline" :key="`${event.type}-${event.title}`" class="order-timeline__event">
+                    <span class="order-timeline__dot" :class="`order-timeline__dot--${event.status.toLowerCase()}`"></span>
+                    <div class="order-timeline__content">
+                      <div class="order-timeline__title-row">
+                        <strong>{{ event.title }}</strong>
+                        <span class="order-timeline__status" :class="`order-timeline__status--${event.status.toLowerCase()}`">
+                          {{ event.status === 'SUCCESS' ? '成功' : event.status === 'FAILED' ? '失败' : event.status === 'WARNING' ? '需关注' : event.status === 'SKIPPED' ? '未执行' : event.status === 'PENDING' ? '等待中' : '已记录' }}
+                        </span>
+                      </div>
+                      <p v-if="event.description">{{ event.description }}</p>
+                      <div class="order-timeline__meta">
+                        <time v-if="event.occurredAt">{{ event.occurredAt }}</time>
+                        <button v-if="event.retryable" type="button" @click="openExceptionCenter">去异常中心处理</button>
+                      </div>
+                    </div>
+                  </article>
+                </div>
+                <div v-else class="order-timeline__empty">暂无可追溯的自动化记录</div>
+              </section>
             </div>
           </template>
           <div v-else class="detail-dialog__empty">暂无数据</div>
@@ -1134,6 +1189,148 @@ const getConfirmBg = (state: number) => {
 
 .detail-dialog__fail {
   color: #ff3b30;
+  font-size: 12px;
+}
+
+.order-timeline {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(60, 60, 67, 0.1);
+}
+
+.order-timeline__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.order-timeline__header h4 {
+  margin: 0;
+  color: #1c1c1e;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.order-timeline__header p {
+  margin: 4px 0 0;
+  color: #86868b;
+  font-size: 11px;
+}
+
+.order-timeline__list {
+  display: flex;
+  flex-direction: column;
+}
+
+.order-timeline__event {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  padding-bottom: 15px;
+}
+
+.order-timeline__event:not(:last-child)::before {
+  position: absolute;
+  top: 15px;
+  bottom: -1px;
+  left: 7px;
+  width: 1px;
+  background: rgba(60, 60, 67, 0.16);
+  content: '';
+}
+
+.order-timeline__dot {
+  z-index: 1;
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: #8e8e93;
+  box-shadow: 0 0 0 1px rgba(60, 60, 67, 0.15);
+}
+
+.order-timeline__dot--success { background: #34c759; }
+.order-timeline__dot--pending { background: #ff9500; }
+.order-timeline__dot--failed { background: #ff3b30; }
+.order-timeline__dot--warning { background: #ff9500; }
+.order-timeline__dot--skipped { background: #8e8e93; }
+.order-timeline__dot--info { background: #007aff; }
+
+.order-timeline__content {
+  min-width: 0;
+}
+
+.order-timeline__title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.order-timeline__title-row strong {
+  overflow: hidden;
+  color: #1d1d1f;
+  font-size: 13px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-timeline__status {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.order-timeline__status--success { color: #16803b; background: rgba(52, 199, 89, 0.13); }
+.order-timeline__status--pending,
+.order-timeline__status--warning { color: #b15c00; background: rgba(255, 149, 0, 0.14); }
+.order-timeline__status--failed { color: #d6302f; background: rgba(255, 59, 48, 0.12); }
+.order-timeline__status--skipped { color: #6e6e73; background: rgba(142, 142, 147, 0.13); }
+.order-timeline__status--info { color: #0066cf; background: rgba(0, 122, 255, 0.11); }
+
+.order-timeline__content p {
+  margin: 3px 0 0;
+  color: #6e6e73;
+  font-size: 12px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.order-timeline__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 5px;
+}
+
+.order-timeline__meta time {
+  color: #98989d;
+  font-size: 11px;
+}
+
+.order-timeline__meta button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #007aff;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.order-timeline__meta button:hover {
+  color: #0056b3;
+}
+
+.order-timeline__loading,
+.order-timeline__empty {
+  padding: 12px 0 4px 26px;
+  color: #86868b;
   font-size: 12px;
 }
 

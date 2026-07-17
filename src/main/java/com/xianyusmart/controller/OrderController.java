@@ -6,9 +6,11 @@ import com.xianyusmart.controller.dto.OrderDetailReqDTO;
 import com.xianyusmart.controller.dto.OrderListReqDTO;
 import com.xianyusmart.controller.dto.OrderListRespDTO;
 import com.xianyusmart.controller.dto.OrderDTO;
+import com.xianyusmart.controller.dto.OrderTimelineRespDTO;
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.xianyusmart.service.OrderService;
+import com.xianyusmart.service.OrderTimelineService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +35,9 @@ public class OrderController {
 
     @Autowired
     private com.xianyusmart.service.PendingOrderPollService pendingOrderPollService;
+
+    @Autowired
+    private OrderTimelineService orderTimelineService;
 
     /**
      * 查询订单列表（第三方调用）
@@ -154,6 +159,28 @@ public class OrderController {
         } catch (Exception e) {
             log.error("获取订单详情失败", e);
             return ResultObject.failed("获取订单详情失败: " + e.getMessage());
+        }
+    }
+
+    /** 获取本地订单、自动发货、评价和小红花组成的生命周期时间线。 */
+    @PostMapping("/timeline")
+    public ResultObject<OrderTimelineRespDTO> getOrderTimeline(
+            @RequestBody OrderDetailReqDTO reqDTO) {
+        if (reqDTO == null || reqDTO.getXianyuAccountId() == null) {
+            return ResultObject.failed("账号ID不能为空");
+        }
+        if (reqDTO.getOrderId() == null || reqDTO.getOrderId().isBlank()) {
+            return ResultObject.failed("订单ID不能为空");
+        }
+        try {
+            return ResultObject.success(orderTimelineService.getTimeline(
+                    reqDTO.getXianyuAccountId(), reqDTO.getOrderId()));
+        } catch (IllegalArgumentException e) {
+            return ResultObject.failed(e.getMessage());
+        } catch (Exception e) {
+            log.error("获取订单生命周期失败: accountId={}, orderId={}",
+                    reqDTO.getXianyuAccountId(), reqDTO.getOrderId(), e);
+            return ResultObject.failed("获取订单生命周期失败: " + e.getMessage());
         }
     }
 
