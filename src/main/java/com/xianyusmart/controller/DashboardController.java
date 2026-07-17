@@ -3,7 +3,9 @@ package com.xianyusmart.controller;
 import com.xianyusmart.common.ResultObject;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.xianyusmart.controller.dto.DashboardAccountHealthDTO;
+import com.xianyusmart.controller.dto.DashboardActivityDTO;
 import com.xianyusmart.controller.dto.DashboardOverviewRespDTO;
+import com.xianyusmart.controller.dto.DashboardTrendPointDTO;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.xianyusmart.controller.dto.DashboardStatsRespDTO;
 import com.xianyusmart.controller.dto.DashboardUnreadCountDTO;
@@ -84,13 +86,13 @@ public class DashboardController {
 
             DashboardOverviewRespDTO response = new DashboardOverviewRespDTO();
             response.setStats(stats);
-            response.setAccountHealth(buildAccountHealth(unreadByAccount));
+            response.setAccountHealth(loadAccountHealth(unreadByAccount));
             response.setAccountIssueCount((int) response.getAccountHealth().stream()
                     .filter(item -> Boolean.TRUE.equals(item.getNeedsAttention()))
                     .count());
             response.setAutomationExceptionCount(loadAutomationExceptionCount());
-            response.setTrends(orderMapper.selectRecentDeliveryTrend());
-            response.setActivities(operationLogMapper.findRecentActivities(10));
+            response.setTrends(loadRecentDeliveryTrend());
+            response.setActivities(loadRecentActivities());
             return ResultObject.success(response);
         } catch (Exception e) {
             log.error("获取运营首页总览失败", e);
@@ -110,6 +112,33 @@ public class DashboardController {
         } catch (Exception e) {
             log.warn("读取仪表盘未读消息数失败，将按 0 展示", e);
             return Map.of();
+        }
+    }
+
+    private List<DashboardAccountHealthDTO> loadAccountHealth(Map<Long, Integer> unreadByAccount) {
+        try {
+            return buildAccountHealth(unreadByAccount);
+        } catch (Exception e) {
+            log.warn("读取仪表盘账号健康状态失败，将暂不展示账号状态", e);
+            return List.of();
+        }
+    }
+
+    private List<DashboardTrendPointDTO> loadRecentDeliveryTrend() {
+        try {
+            return orderMapper.selectRecentDeliveryTrend();
+        } catch (Exception e) {
+            log.warn("读取仪表盘近七日交付趋势失败，将暂不展示趋势", e);
+            return List.of();
+        }
+    }
+
+    private List<DashboardActivityDTO> loadRecentActivities() {
+        try {
+            return operationLogMapper.findRecentActivities(10);
+        } catch (Exception e) {
+            log.warn("读取仪表盘最近动态失败，将暂不展示动态", e);
+            return List.of();
         }
     }
 

@@ -64,8 +64,8 @@ public interface XianyuGoodsOrderMapper {
             "COALESCE(SUM(CAST(total_price AS DECIMAL(12, 2))), 0) AS revenue " +
             "FROM xianyu_goods_order r " +
             "WHERE state = 1 AND " + ORDER_TIME_SQL + " >= DATE_SUB(CURRENT_DATE, INTERVAL 6 DAY) " +
-            "GROUP BY DATE(" + ORDER_TIME_SQL + ") " +
-            "ORDER BY DATE(" + ORDER_TIME_SQL + ") ASC")
+            "GROUP BY date_key " +
+            "ORDER BY date_key ASC")
     List<DashboardTrendPointDTO> selectRecentDeliveryTrend();
     
     @Insert("INSERT INTO xianyu_goods_order (xianyu_account_id, xianyu_goods_id, xy_goods_id, pnm_id, order_id, buyer_user_id, buyer_user_name, sid, content, state, fail_reason, confirm_state, goods_title, sku_name, order_create_time, pay_success_time, consign_time, total_price, buy_num, delivery_status, expected_quantity, delivery_channel, trade_status, trade_status_text) " +
