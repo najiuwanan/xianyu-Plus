@@ -81,6 +81,12 @@ const router = createRouter({
       meta: { title: '自动化执行中心', icon: '✨' }
     },
     {
+      path: '/exception-center',
+      name: 'exception-center',
+      component: () => import('@/views/exception-center/index.vue'),
+      meta: { title: '异常中心', icon: '⚠️' }
+    },
+    {
       path: '/pending-orders',
       name: 'pending-orders',
       component: () => import('@/views/pending-orders/index.vue'),

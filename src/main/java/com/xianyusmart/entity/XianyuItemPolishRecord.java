@@ -20,5 +20,6 @@ public class XianyuItemPolishRecord {
     private String triggerType;
     private Integer success;
     private String message;
+    private LocalDateTime resolvedAt;
     private LocalDateTime createTime;
 }

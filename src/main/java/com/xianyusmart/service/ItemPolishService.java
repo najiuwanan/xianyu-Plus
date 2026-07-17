@@ -11,5 +11,8 @@ public interface ItemPolishService {
 
     Map<String, Object> startManualRun(Long accountId);
 
+    /** 对异常中心中的单条失败擦亮记录立即补试。 */
+    Map<String, Object> retryFailedRecord(Long accountId, Long recordId);
+
     void runDueSchedules();
 }

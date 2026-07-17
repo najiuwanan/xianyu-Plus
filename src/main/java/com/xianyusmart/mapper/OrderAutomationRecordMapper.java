@@ -2,6 +2,7 @@ package com.xianyusmart.mapper;
 
 import com.xianyusmart.controller.dto.OrderAutomationRecordDTO;
 import com.xianyusmart.controller.dto.OrderAutomationSummaryDTO;
+import com.xianyusmart.controller.dto.ExceptionCenterRecordDTO;
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -144,6 +145,40 @@ public interface OrderAutomationRecordMapper {
             @Result(property = "redFlowerSuccess", column = "red_flower_success")
     })
     OrderAutomationSummaryDTO summarizeExecutionRecords(@Param("accountId") Long accountId);
+
+    /** 供异常中心展示的自动评价失败记录，不受当前开关状态影响。 */
+    @Select("<script>" +
+            "SELECT 'RATE' AS type, r.order_id AS recordId, r.xianyu_account_id AS accountId, " +
+            "COALESCE(a.account_note, a.unb) AS accountName, r.order_id AS orderId, " +
+            "o.xy_goods_id AS xyGoodsId, o.goods_title AS goodsTitle, o.buyer_user_name AS buyerUserName, " +
+            "COALESCE(NULLIF(r.rate_error, ''), '自动评价失败，暂未返回详细原因') AS reason, " +
+            "'FAILED' AS status, TRUE AS retryable, COALESCE(r.update_time, r.create_time) AS occurredAt " +
+            "FROM xianyu_order_automation_record r " +
+            "INNER JOIN xianyu_account a ON a.id = r.xianyu_account_id " +
+            "LEFT JOIN xianyu_goods_order o ON o.xianyu_account_id = r.xianyu_account_id AND o.order_id = r.order_id " +
+            "WHERE r.rate_status = 2 " +
+            "<if test='accountId != null'>AND r.xianyu_account_id = #{accountId} </if>" +
+            "ORDER BY r.update_time DESC, r.id DESC LIMIT #{limit}" +
+            "</script>")
+    List<ExceptionCenterRecordDTO> findRateFailures(@Param("accountId") Long accountId,
+                                                     @Param("limit") int limit);
+
+    /** 供异常中心展示的小红花失败记录，不受当前开关状态影响。 */
+    @Select("<script>" +
+            "SELECT 'RED_FLOWER' AS type, r.order_id AS recordId, r.xianyu_account_id AS accountId, " +
+            "COALESCE(a.account_note, a.unb) AS accountName, r.order_id AS orderId, " +
+            "o.xy_goods_id AS xyGoodsId, o.goods_title AS goodsTitle, o.buyer_user_name AS buyerUserName, " +
+            "COALESCE(NULLIF(r.red_flower_error, ''), '小红花请求失败，暂未返回详细原因') AS reason, " +
+            "'FAILED' AS status, TRUE AS retryable, COALESCE(r.update_time, r.create_time) AS occurredAt " +
+            "FROM xianyu_order_automation_record r " +
+            "INNER JOIN xianyu_account a ON a.id = r.xianyu_account_id " +
+            "LEFT JOIN xianyu_goods_order o ON o.xianyu_account_id = r.xianyu_account_id AND o.order_id = r.order_id " +
+            "WHERE r.red_flower_status = 2 " +
+            "<if test='accountId != null'>AND r.xianyu_account_id = #{accountId} </if>" +
+            "ORDER BY r.update_time DESC, r.id DESC LIMIT #{limit}" +
+            "</script>")
+    List<ExceptionCenterRecordDTO> findRedFlowerFailures(@Param("accountId") Long accountId,
+                                                          @Param("limit") int limit);
 
     @Select("SELECT COUNT(1) FROM xianyu_goods_order " +
             "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId} AND state = 1")

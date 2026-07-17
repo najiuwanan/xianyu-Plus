@@ -2,6 +2,7 @@ package com.xianyusmart.mapper;
 
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.controller.dto.DashboardStatsRespDTO;
+import com.xianyusmart.controller.dto.ExceptionCenterRecordDTO;
 import org.apache.ibatis.annotations.*;
 
 import java.util.List;
@@ -148,6 +149,24 @@ public interface XianyuGoodsOrderMapper {
 
     @Select("SELECT * FROM xianyu_goods_order WHERE id = #{id}")
     XianyuGoodsOrder selectById(@Param("id") Long id);
+
+    /** 自动发货已失败或需要人工核对的订单，供异常中心统一处理。 */
+    @Select("<script>" +
+            "SELECT 'DELIVERY' AS type, CAST(o.id AS CHAR) AS recordId, o.xianyu_account_id AS accountId, " +
+            "COALESCE(a.account_note, a.unb) AS accountName, o.order_id AS orderId, o.xy_goods_id AS xyGoodsId, " +
+            "o.goods_title AS goodsTitle, o.buyer_user_name AS buyerUserName, " +
+            "COALESCE(NULLIF(o.last_error_message, ''), NULLIF(o.fail_reason, ''), " +
+            "CASE WHEN o.delivery_status = 'REVIEW_REQUIRED' THEN '发送结果不确定，请先人工核对' ELSE '自动发货失败' END) AS reason, " +
+            "o.delivery_status AS status, CASE WHEN o.delivery_status = 'FAILED' THEN TRUE ELSE FALSE END AS retryable, " +
+            "o.create_time AS occurredAt " +
+            "FROM xianyu_goods_order o " +
+            "INNER JOIN xianyu_account a ON a.id = o.xianyu_account_id " +
+            "WHERE o.delivery_status IN ('FAILED', 'REVIEW_REQUIRED') " +
+            "<if test='accountId != null'>AND o.xianyu_account_id = #{accountId} </if>" +
+            "ORDER BY o.create_time DESC, o.id DESC LIMIT #{limit}" +
+            "</script>")
+    List<ExceptionCenterRecordDTO> findDeliveryExceptions(@Param("accountId") Long accountId,
+                                                            @Param("limit") int limit);
 
     @Select("SELECT * FROM xianyu_goods_order WHERE " +
             "((delivery_status IN ('PENDING', 'RETRY_WAIT') AND (next_retry_time IS NULL OR next_retry_time <= NOW(3))) " +

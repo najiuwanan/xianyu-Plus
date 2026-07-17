@@ -127,6 +127,38 @@ public class ItemPolishServiceImpl implements ItemPolishService {
     }
 
     @Override
+    public Map<String, Object> retryFailedRecord(Long accountId, Long recordId) {
+        ensureAccountActive(accountId);
+        if (recordId == null) {
+            throw new IllegalArgumentException("擦亮记录不能为空");
+        }
+        XianyuItemPolishRecord failedRecord = recordMapper.selectById(recordId);
+        if (failedRecord == null || !accountId.equals(failedRecord.getXianyuAccountId())) {
+            throw new IllegalArgumentException("擦亮失败记录不存在");
+        }
+        if (!Integer.valueOf(0).equals(failedRecord.getSuccess())) {
+            throw new IllegalArgumentException("该擦亮记录不是失败状态，无需重试");
+        }
+        // 商品同步阶段失败没有对应商品，重试时重新执行完整的“同步 → 擦亮”流程。
+        if (!StringUtils.hasText(failedRecord.getXyGoodsId())) {
+            boolean started = startRun(accountId, "RETRY", false);
+            return Map.of("started", started, "message", started
+                    ? "擦亮重试已开始，将重新同步商品后执行"
+                    : "该账号正在同步或擦亮，请等待当前任务完成");
+        }
+        if (!runningAccountIds.add(accountId)) {
+            return Map.of("started", false, "message", "该账号正在同步或擦亮，请等待当前任务完成");
+        }
+        try {
+            taskExecutor.execute(() -> retrySingleItem(accountId, failedRecord));
+            return Map.of("started", true, "message", "擦亮重试已开始，请稍后刷新异常中心查看结果");
+        } catch (Exception e) {
+            runningAccountIds.remove(accountId);
+            throw e;
+        }
+    }
+
+    @Override
     public void runDueSchedules() {
         LocalDate today = LocalDate.now();
         LocalTime now = LocalTime.now().withSecond(0).withNano(0);
@@ -231,8 +263,12 @@ public class ItemPolishServiceImpl implements ItemPolishService {
             failed = Math.max(1, failed);
             summary = "执行异常：" + messageOf(e);
             log.error("【自动擦亮】账号 {} 执行异常", accountId, e);
+            saveRunFailureRecord(accountId, triggerType, summary);
         } finally {
             updateRunSummary(accountId, total, success, failed, summary == null ? "任务结束" : summary);
+            if (failed == 0) {
+                resolveRunFailures(accountId);
+            }
             runningAccountIds.remove(accountId);
         }
     }
@@ -290,14 +326,68 @@ public class ItemPolishServiceImpl implements ItemPolishService {
 
     private void saveRecord(Long accountId, XianyuGoodsInfo item, String triggerType,
                             boolean success, String message) {
+        saveRecord(accountId, item.getXyGoodId(), item.getTitle(), triggerType, success, message);
+    }
+
+    private void saveRecord(Long accountId, String xyGoodsId, String goodsTitle, String triggerType,
+                            boolean success, String message) {
         XianyuItemPolishRecord record = new XianyuItemPolishRecord();
         record.setXianyuAccountId(accountId);
-        record.setXyGoodsId(item.getXyGoodId());
-        record.setGoodsTitle(item.getTitle());
+        record.setXyGoodsId(xyGoodsId == null ? "" : xyGoodsId);
+        record.setGoodsTitle(goodsTitle);
         record.setTriggerType(triggerType);
         record.setSuccess(success ? 1 : 0);
         record.setMessage(trimMessage(message));
         recordMapper.insert(record);
+        if (success && StringUtils.hasText(xyGoodsId)) {
+            recordMapper.resolveItemFailures(accountId, xyGoodsId);
+        }
+    }
+
+    private void retrySingleItem(Long accountId, XianyuItemPolishRecord failedRecord) {
+        try {
+            ensureAccountActive(accountId);
+            String cookie = accountService.getCookieByAccountId(accountId);
+            if (!StringUtils.hasText(cookie)) {
+                throw new IllegalStateException("账号没有可用 Cookie，请先在连接管理中更新凭证");
+            }
+            XianyuGoodsInfo item = goodsInfoMapper.selectOne(
+                    new LambdaQueryWrapper<XianyuGoodsInfo>()
+                            .eq(XianyuGoodsInfo::getXianyuAccountId, accountId)
+                            .eq(XianyuGoodsInfo::getXyGoodId, failedRecord.getXyGoodsId())
+                            .eq(XianyuGoodsInfo::getStatus, 0)
+                            .last("LIMIT 1"));
+            if (item == null) {
+                saveRecord(accountId, failedRecord.getXyGoodsId(), failedRecord.getGoodsTitle(), "RETRY", false,
+                        "商品已下架或尚未同步到本地，无法重试擦亮");
+                return;
+            }
+            String error = polishItem(accountId, item.getXyGoodId());
+            saveRecord(accountId, item, "RETRY", error == null, error == null ? "擦亮重试成功" : error);
+        } catch (Exception e) {
+            String reason = "擦亮重试异常：" + messageOf(e);
+            log.warn("【自动擦亮】账号 {} 商品 {} 重试失败：{}", accountId,
+                    failedRecord.getXyGoodsId(), reason);
+            saveRecord(accountId, failedRecord.getXyGoodsId(), failedRecord.getGoodsTitle(), "RETRY", false, reason);
+        } finally {
+            runningAccountIds.remove(accountId);
+        }
+    }
+
+    private void saveRunFailureRecord(Long accountId, String triggerType, String message) {
+        try {
+            saveRecord(accountId, "", "同步与擦亮任务", triggerType, false, message);
+        } catch (Exception e) {
+            log.warn("【自动擦亮】保存任务失败记录异常：{}", e.getMessage());
+        }
+    }
+
+    private void resolveRunFailures(Long accountId) {
+        try {
+            recordMapper.resolveRunFailures(accountId);
+        } catch (Exception e) {
+            log.warn("【自动擦亮】标记已解决任务失败记录异常：{}", e.getMessage());
+        }
     }
 
     private void updateRunSummary(Long accountId, int total, int success, int failed, String message) {

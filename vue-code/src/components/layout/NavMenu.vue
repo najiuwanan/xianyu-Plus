@@ -62,6 +62,10 @@ const onSelect = (index: string) => {
       <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="m16.24 7.76 2.83-2.83"/><path d="M18 12h4"/><path d="m16.24 16.24 2.83 2.83"/><path d="M12 18v4"/><path d="m7.76 16.24-2.83 2.83"/><path d="M6 12H2"/><path d="m7.76 7.76-2.83-2.83"/><circle cx="12" cy="12" r="4"/></svg>
       <span>自动化执行中心</span>
     </router-link>
+    <router-link to="/exception-center" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/exception-center')">
+      <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 2.9 1.8 17a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 2.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      <span>异常中心</span>
+    </router-link>
     <router-link to="/auto-reply" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/auto-reply')">
       <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4L22 2z"/></svg>
       <span>自动回复</span>

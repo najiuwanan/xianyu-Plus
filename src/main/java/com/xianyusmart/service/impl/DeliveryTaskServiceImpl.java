@@ -109,8 +109,8 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
     }
 
     @Override
-    public void requeue(Long taskId) {
-        orderMapper.requeueTask(taskId);
+    public boolean requeue(Long taskId) {
+        return orderMapper.requeueTask(taskId) > 0;
     }
 
     @Override
