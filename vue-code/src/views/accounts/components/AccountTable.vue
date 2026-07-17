@@ -9,6 +9,7 @@ import IconEmpty from '@/components/icons/IconEmpty.vue'
 import IconClock from '@/components/icons/IconClock.vue'
 import IconCheck from '@/components/icons/IconCheck.vue'
 import IconAlert from '@/components/icons/IconAlert.vue'
+import IconLink from '@/components/icons/IconLink.vue'
 
 interface Props {
   accounts: Account[]
@@ -20,6 +21,7 @@ interface Emits {
   (e: 'delete', id: number): void
   (e: 'toggleEnabled', account: Account): void
   (e: 'resumeAutomation', account: Account): void
+  (e: 'connection', account: Account): void
 }
 
 defineProps<Props>()
@@ -75,7 +77,7 @@ const getStatusRing = (status: number) => {
 const getStatusDescription = (status: number) => {
   if (status === 1) return '账号状态正常'
   if (status === 0) return '实时连接与自动化已暂停'
-  if (status === -2) return '请前往连接管理完成验证'
+  if (status === -2) return '请在账号详情完成验证'
   if (status === -1) return '请检查账号连接状态'
   return '请检查账号连接状态'
 }
@@ -146,6 +148,10 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
       </div>
 
       <div class="account-card__footer">
+        <button class="account-card__btn account-card__btn--connection" @click="emit('connection', account)">
+          <IconLink />
+          <span>账号详情</span>
+        </button>
         <button
           v-if="account.status === 1 || account.status === 0"
           class="account-card__btn account-card__btn--toggle"
@@ -222,6 +228,10 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
           <td class="table__td table__td--time">{{ formatTime(account.updatedTime) }}</td>
           <td class="table__td table__td--actions">
             <div class="table__action-group">
+              <button class="table__action table__action--connection" @click="emit('connection', account)">
+                <IconLink />
+                <span>账号详情</span>
+              </button>
               <button
                 v-if="account.status === 1 || account.status === 0"
                 class="table__action table__action--toggle"
@@ -492,6 +502,12 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
   background: rgba(10,132,255,0.85);
   border: 1px solid rgba(255,255,255,0.35);
   box-shadow: 0 4px 16px rgba(10,132,255,0.35);
+}
+
+.account-card__btn--connection {
+  color: #2368b7;
+  background: rgba(10,132,255,.10);
+  border-color: rgba(10,132,255,.24);
 }
 
 @media (hover: hover) {
@@ -782,6 +798,12 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
   color: var(--c-accent);
   border-color: rgba(10,132,255,.25);
   background: rgba(10,132,255,.12);
+}
+
+.table__action--connection {
+  color: #2368b7;
+  border-color: rgba(10,132,255,.25);
+  background: rgba(10,132,255,.08);
 }
 
 .table__action--disable {

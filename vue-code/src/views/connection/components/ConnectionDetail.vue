@@ -4,7 +4,6 @@ import { showConfirm } from '@/utils/confirm'
 import { toast } from '@/utils/toast'
 import { getConnectionStatus, startConnection, stopConnection } from '@/api/websocket'
 import { updateAccount } from '@/api/account'
-import { queryOperationLogs, type OperationLog } from '@/api/operation-log'
 import { showSuccess, showError, showInfo } from '@/utils'
 import CredentialModal from './CredentialModal.vue'
 import ManualUpdateCookieModal from './ManualUpdateCookieModal.vue'
@@ -15,7 +14,6 @@ import IconKey from '@/components/icons/IconKey.vue'
 import IconPlay from '@/components/icons/IconPlay.vue'
 import IconStop from '@/components/icons/IconStop.vue'
 import IconRefresh from '@/components/icons/IconRefresh.vue'
-import IconLog from '@/components/icons/IconLog.vue'
 import IconCheck from '@/components/icons/IconCheck.vue'
 import IconAlert from '@/components/icons/IconAlert.vue'
 import IconLink from '@/components/icons/IconLink.vue'
@@ -44,7 +42,6 @@ const props = defineProps<Props>()
 
 const connectionStatus = ref<ConnectionStatus | null>(null)
 const statusLoading = ref(false)
-const operationLogs = ref<OperationLog[]>([])
 let statusInterval: number | null = null
 
 const showManualUpdateCookieDialog = ref(false)
@@ -92,25 +89,6 @@ const loadConnectionStatus = async (silent = false) => {
     console.error('加载状态失败:', error.message)
   } finally {
     statusLoading.value = false
-  }
-}
-
-const loadOperationLogs = async () => {
-  if (!props.accountId) return
-  try {
-    const response = await queryOperationLogs({
-      accountId: props.accountId,
-      page: 1,
-      pageSize: 20
-    })
-    if (response.code === 0 || response.code === 200) {
-      const data = response.data
-      operationLogs.value = (data?.logs || []).filter(
-        (log: OperationLog) => log.operationModule === 'COOKIE' || log.operationModule === 'TOKEN'
-      )
-    }
-  } catch (error: any) {
-    console.error('加载操作日志失败:', error.message)
   }
 }
 
@@ -163,7 +141,7 @@ const handleStopConnection = async () => {
 }
 
 const handleRefresh = async () => {
-  await Promise.all([loadConnectionStatus(), loadOperationLogs()])
+  await loadConnectionStatus()
   showInfo('状态已刷新')
 }
 
@@ -179,84 +157,20 @@ const handleCaptchaSuccess = async () => {
   await loadConnectionStatus()
 }
 
-const getCookieStatusText = (status?: number) => {
-  if (status === undefined || status === null) return '未知'
-  const map: Record<number, string> = { 1: '有效', 2: '过期', 3: '失效' }
-  return map[status] || '未知'
-}
-
-const getCookieStatusColor = (status?: number) => {
-  if (status === 1) return '#30D158'
-  if (status === 2) return '#FF9F0A'
-  if (status === 3) return '#FF453A'
-  return 'rgba(28,28,30,.55)'
-}
-
-const formatTimestamp = (timestamp?: number | string) => {
-  if (!timestamp) return '未设置'
-  const date = new Date(timestamp)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit'
-  }).replace(/\//g, '-')
-}
-
-const isTokenExpired = (timestamp?: number) => {
-  if (!timestamp) return false
-  return Date.now() > timestamp
-}
-
-const getTokenStatusText = (timestamp?: number) => {
-  if (!timestamp) return '未设置'
-  return isTokenExpired(timestamp) ? '已过期' : '有效'
-}
-
-const getTokenStatusColor = (timestamp?: number) => {
-  if (!timestamp) return 'rgba(28,28,30,.55)'
-  return isTokenExpired(timestamp) ? '#FF453A' : '#30D158'
-}
-
-const getMH5TkStatusText = (mH5Tk?: string) => {
-  if (!mH5Tk) return '未设置'
-  return '有效'
-}
-
-const getMH5TkStatusColor = (mH5Tk?: string) => {
-  if (!mH5Tk) return 'rgba(28,28,30,.55)'
-  return '#30D158'
-}
-
-const h5Token = computed(() => connectionStatus.value?.mH5Tk || connectionStatus.value?.mh5Tk)
-
-const getOperationStatusText = (status: number) => {
-  const map: Record<number, string> = { 1: '成功', 2: '失败', 3: '部分成功' }
-  return map[status] || '未知'
-}
-
-const getOperationStatusColor = (status: number) => {
-  if (status === 1) return '#30D158'
-  if (status === 2) return '#FF453A'
-  if (status === 3) return '#FF9F0A'
-  return 'rgba(28,28,30,.55)'
-}
-
 const canSyncGoods = computed(() => connectionStatus.value?.cookieStatus === 1)
 const canAutoReply = computed(() => connectionStatus.value?.connected === true)
 
 watch(() => props.accountId, (newId) => {
   if (newId) {
     loadConnectionStatus()
-    loadOperationLogs()
     if (statusInterval) clearInterval(statusInterval)
     statusInterval = window.setInterval(() => {
       if (props.accountId) {
         loadConnectionStatus(true)
-        loadOperationLogs()
       }
     }, 10000)
   } else {
     connectionStatus.value = null
-    operationLogs.value = []
     if (statusInterval) {
       clearInterval(statusInterval)
       statusInterval = null
@@ -358,25 +272,6 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <div class="log-section">
-          <div class="log-section__header">
-            <div class="log-section__title">
-              <IconLog />
-              <span>操作日志</span>
-            </div>
-          </div>
-          <div class="log-container">
-            <div v-for="log in operationLogs" :key="log.id" class="log-entry">
-              <span class="log-entry__time">{{ formatTimestamp(log.createTime) }}</span>
-              <span class="log-entry__module">{{ log.operationModule }}</span>
-              <span class="log-entry__desc">{{ log.operationDesc }}</span>
-              <span class="log-entry__status" :style="{ color: getOperationStatusColor(log.operationStatus) }">
-                {{ getOperationStatusText(log.operationStatus) }}
-              </span>
-            </div>
-            <div v-if="operationLogs.length === 0" class="log-empty">暂无Cookie/Token相关日志</div>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -699,76 +594,4 @@ onBeforeUnmount(() => {
   cursor: not-allowed;
 }
 
-.log-section {
-  margin-top: 20px;
-  padding-bottom: 8px;
-}
-
-.log-section__header {
-  margin-bottom: 10px;
-}
-
-.log-section__title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--c-text-1);
-}
-
-.log-section__title svg { width: 16px; height: 16px; }
-
-.log-container {
-  background: #2c3e50;
-  color: #ecf0f1;
-  border-radius: 8px;
-  padding: 12px;
-  font-family: 'Courier New', Consolas, monospace;
-  font-size: 12px;
-  max-height: 180px;
-  overflow-y: auto;
-}
-
-.log-entry {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 6px;
-  line-height: 1.5;
-}
-
-.log-entry:last-child { margin-bottom: 0; }
-
-.log-entry__time {
-  color: #95a5a6;
-  font-size: 11px;
-  flex-shrink: 0;
-}
-
-.log-entry__module {
-  color: #3498db;
-  flex-shrink: 0;
-  font-weight: 500;
-}
-
-.log-entry__desc {
-  color: #ecf0f1;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.log-entry__status {
-  flex-shrink: 0;
-  font-weight: 500;
-}
-
-.log-empty {
-  text-align: center;
-  color: #95a5a6;
-  padding: 16px;
-  font-size: 12px;
-}
 </style>

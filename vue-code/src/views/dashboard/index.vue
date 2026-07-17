@@ -4,7 +4,6 @@ import { useRouter } from 'vue-router'
 import IconAlert from '@/components/icons/IconAlert.vue'
 import IconClipboard from '@/components/icons/IconClipboard.vue'
 import IconMessage from '@/components/icons/IconMessage.vue'
-import IconPackage from '@/components/icons/IconPackage.vue'
 import IconRefresh from '@/components/icons/IconRefresh.vue'
 import IconTruck from '@/components/icons/IconTruck.vue'
 import { useDashboard } from './useDashboard'
@@ -14,19 +13,11 @@ const {
   loading,
   stats,
   trends,
-  accountIssueCount,
   automationExceptionCount,
   loadStatistics
 } = useDashboard()
 
-const todoCount = computed(() =>
-  Number(stats.unreadMessageCount || 0)
-  + Number(stats.pendingTaskCount || 0)
-  + Number(stats.reviewRequiredCount || 0)
-  + Number(automationExceptionCount.value || 0)
-  + Number(stats.lowStockConfigCount || 0)
-  + Number(accountIssueCount.value || 0)
-)
+const exceptionCount = computed(() => Number(automationExceptionCount.value || 0))
 
 const recentTrend = computed(() => {
   const pointByDate = new Map(trends.value.map(item => [item.dateKey, item]))
@@ -53,14 +44,6 @@ const recentTrend = computed(() => {
 const sevenDayOrderCount = computed(() => recentTrend.value.reduce((sum, item) => sum + item.orderCount, 0))
 const sevenDayRevenue = computed(() => recentTrend.value.reduce((sum, item) => sum + item.revenue, 0))
 const dailyAverageOrderCount = computed(() => Math.round(sevenDayOrderCount.value / 7))
-
-const todoRows = computed(() => [
-  { label: '未读买家消息', detail: '买家消息等待人工查看与回复', count: Number(stats.unreadMessageCount || 0), action: '去处理', path: '/messages', tone: stats.unreadMessageCount ? 'danger' : 'success', icon: IconMessage },
-  { label: '等待自动发货', detail: '已付款订单将由自动化任务持续处理', count: Number(stats.pendingTaskCount || 0), action: '查看订单', path: '/orders', tone: stats.pendingTaskCount ? 'warning' : 'success', icon: IconTruck },
-  { label: '需要人工核对', detail: '请确认无法自动完成的订单或任务', count: Number(stats.reviewRequiredCount || 0), action: '去核对', path: '/exception-center', tone: stats.reviewRequiredCount ? 'warning' : 'success', icon: IconClipboard },
-  { label: '自动化异常', detail: '发货、评价、小红花与擦亮失败记录', count: Number(automationExceptionCount.value || 0), action: '看原因', path: '/exception-center', tone: automationExceptionCount.value ? 'warning' : 'success', icon: IconAlert },
-  { label: '卡券库存预警', detail: '库存不足可能影响后续自动发货', count: Number(stats.lowStockConfigCount || 0), action: '去补充', path: '/kami-config', tone: stats.lowStockConfigCount ? 'warning' : 'success', icon: IconPackage }
-])
 
 const money = (value: number) => Number(value || 0).toLocaleString('zh-CN', {
   minimumFractionDigits: 2,
@@ -104,27 +87,8 @@ onMounted(loadStatistics)
       </article>
       <article class="metric-card">
         <span class="metric-card__icon metric-card__icon--amber"><IconAlert /></span>
-        <div><span>待处理异常</span><strong>{{ todoCount }}</strong><small>待办、异常、库存与账号状态</small></div>
+        <div><span>自动化异常</span><strong>{{ exceptionCount }}</strong><small>发货、评价、求花与擦亮失败</small></div>
       </article>
-    </section>
-
-    <section class="dashboard-workbench">
-      <section class="dashboard-panel dashboard-panel--todo">
-        <div class="panel-heading">
-          <div><h2>待办事项</h2><p>{{ todoCount }} 项需要优先关注</p></div>
-          <button class="text-button" @click="go('/exception-center')">查看异常中心 <span>›</span></button>
-        </div>
-        <div class="todo-table" role="table" aria-label="运营待办事项">
-          <div class="todo-table__head" role="row"><span>事项</span><span>状态</span><span>数量</span><span>操作</span></div>
-          <button v-for="item in todoRows" :key="item.label" class="todo-row" type="button" @click="go(item.path)">
-            <span class="todo-row__name"><span class="todo-row__icon" :class="`todo-row__icon--${item.tone}`"><component :is="item.icon" /></span><span><strong>{{ item.label }}</strong><small>{{ item.detail }}</small></span></span>
-            <span class="todo-row__status"><i :class="`status-dot status-dot--${item.tone}`"></i>{{ item.count ? '待处理' : '正常' }}</span>
-            <strong class="todo-row__count">{{ item.count }}</strong>
-            <span class="todo-row__action">{{ item.action }}</span>
-          </button>
-        </div>
-      </section>
-
     </section>
 
     <section class="dashboard-panel dashboard-panel--chart">

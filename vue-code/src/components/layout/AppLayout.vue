@@ -15,7 +15,6 @@ const drawerVisible = ref(false)
 const pageTitleMap: Record<string, string> = {
   '/dashboard': '运营总览',
   '/accounts': '账号管理',
-  '/connection': '连接管理',
   '/goods': '商品管理',
   '/orders': '订单管理',
   '/messages': '在线客服',

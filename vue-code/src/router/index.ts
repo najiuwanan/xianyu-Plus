@@ -28,15 +28,14 @@ const router = createRouter({
     },
     {
       path: '/connection',
-      name: 'connection',
-      component: () => import('@/views/connection/index.vue'),
-      meta: { title: '连接管理', icon: '🔗' }
+      redirect: { path: '/accounts', query: { connection: '1' } }
     },
     {
       path: '/connection/:id',
-      name: 'connection-detail',
-      component: () => import('@/views/connection/ConnectionDetail.vue'),
-      meta: { title: '连接详情', icon: '🔗' }
+      redirect: to => ({
+        path: '/accounts',
+        query: { ...to.query, connection: '1', accountId: String(to.params.id) }
+      })
     },
     {
       path: '/goods',
