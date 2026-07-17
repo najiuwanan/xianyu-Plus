@@ -2,6 +2,7 @@ package com.xianyusmart.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.xianyusmart.entity.XianyuOperationLog;
+import com.xianyusmart.controller.dto.DashboardActivityDTO;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -64,6 +65,16 @@ public interface XianyuOperationLogMapper extends BaseMapper<XianyuOperationLog>
             @Param("operationModule") String operationModule,
             @Param("operationStatus") Integer operationStatus
     );
+
+    /** 仪表盘最近动态，不暴露日志中的请求参数与敏感内容。 */
+    @Select("SELECT l.operation_module AS module, " +
+            "COALESCE(NULLIF(l.operation_desc, ''), '系统操作') AS content, " +
+            "l.operation_status AS status, l.create_time AS created_at, " +
+            "COALESCE(NULLIF(a.account_note, ''), a.unb, '系统') AS account_name " +
+            "FROM xianyu_operation_log l " +
+            "LEFT JOIN xianyu_account a ON a.id = l.xianyu_account_id " +
+            "ORDER BY l.create_time DESC LIMIT #{limit}")
+    List<DashboardActivityDTO> findRecentActivities(@Param("limit") int limit);
     
     /**
      * 根据账号ID删除操作记录

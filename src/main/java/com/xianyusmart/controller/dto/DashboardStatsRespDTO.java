@@ -50,4 +50,7 @@ public class DashboardStatsRespDTO {
     private Integer availableKamiCount;
 
     private Integer lowStockConfigCount;
+
+    /** 当前在线客服中尚未处理的买家消息数。 */
+    private Integer unreadMessageCount;
 }

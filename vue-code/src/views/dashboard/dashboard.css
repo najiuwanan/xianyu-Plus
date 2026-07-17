@@ -37,7 +37,9 @@
 }
 
 .merchant-dashboard p,
-.metric-card small {
+.metric-card small,
+.account-health-row small,
+.activity-row small {
   color: #6b7280;
   font-size: 13px;
   line-height: 20px;
@@ -54,7 +56,7 @@
 .dashboard-panel {
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  border-radius: 10px;
 }
 
 .metric-card {
@@ -77,9 +79,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-.metric-card--primary strong {
-  color: #155eef;
-}
+.metric-card--primary strong { color: #155eef; }
+.metric-card--message strong { color: #2563eb; }
+.metric-card--attention strong { color: #c2410c; }
 
 .dashboard-panel {
   padding: 18px;
@@ -89,6 +91,14 @@
 .panel-heading {
   padding-bottom: 14px;
   border-bottom: 1px solid #eef0f2;
+}
+
+.text-button {
+  border: 0;
+  background: transparent;
+  color: #155eef;
+  font-size: 13px;
+  cursor: pointer;
 }
 
 .todo-list {
@@ -112,26 +122,14 @@
   cursor: pointer;
 }
 
-.todo-row:last-child {
-  border-bottom: 0;
-}
+.todo-row:last-child { border-bottom: 0; }
+.todo-row:hover,
+.account-health-row:hover { background: #f8f9fb; }
+.todo-row strong { text-align: right; font-variant-numeric: tabular-nums; }
+.todo-row__action { color: #155eef; font-size: 13px; text-align: right; }
 
-.todo-row:hover {
-  background: #f8f9fb;
-}
-
-.todo-row strong {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.todo-row__action {
-  color: #155eef;
-  font-size: 13px;
-  text-align: right;
-}
-
-.status-dot {
+.status-dot,
+.activity-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
@@ -140,6 +138,7 @@
 .status-dot--blue { background: #155eef; }
 .status-dot--orange { background: #f79009; }
 .status-dot--red { background: #d92d20; }
+.status-dot--green { background: #12b76a; }
 
 .dashboard-columns {
   display: grid;
@@ -147,39 +146,119 @@
   gap: 16px;
 }
 
-.overview-list {
-  margin: 0;
+.dashboard-columns .dashboard-panel { min-width: 0; }
+
+.trend-chart {
+  height: 204px;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+  padding-top: 18px;
 }
 
-.overview-list > div {
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid #f0f1f3;
+.trend-chart__item {
+  height: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 20px 1fr 22px;
+  align-items: end;
+  gap: 5px;
+  text-align: center;
 }
 
-.overview-list > div:last-child {
-  border-bottom: 0;
-}
-
-.overview-list dt {
-  color: #4b5563;
-  font-size: 13px;
-}
-
-.overview-list dd {
-  margin: 0;
-  font-weight: 650;
+.trend-chart__item strong,
+.trend-chart__item span {
+  font-size: 12px;
+  color: #667085;
   font-variant-numeric: tabular-nums;
 }
 
-.quick-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  padding-top: 16px;
+.trend-chart__track {
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef4ff 100%);
+  overflow: hidden;
 }
+
+.trend-chart__track i {
+  width: min(30px, 70%);
+  min-height: 3px;
+  display: block;
+  border-radius: 6px 6px 0 0;
+  background: linear-gradient(180deg, #53a7ff, #155eef);
+}
+
+.activity-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.activity-row {
+  min-height: 47px;
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #f0f1f3;
+}
+
+.activity-row:last-child { border-bottom: 0; }
+.activity-row__content { min-width: 0; display: flex; flex-direction: column; }
+.activity-row__content strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.activity-row time { color: #98a2b3; font-size: 12px; font-variant-numeric: tabular-nums; }
+.activity-dot--success { background: #12b76a; }
+.activity-dot--warning { background: #f79009; }
+.activity-dot--failed { background: #d92d20; }
+
+.account-health-panel { padding-bottom: 8px; }
+.account-health-list { display: flex; flex-direction: column; }
+
+.account-health-row {
+  width: 100%;
+  min-height: 68px;
+  padding: 10px 4px;
+  display: grid;
+  grid-template-columns: minmax(150px, 0.8fr) minmax(360px, 2fr) 42px;
+  align-items: center;
+  gap: 16px;
+  border: 0;
+  border-bottom: 1px solid #f0f1f3;
+  background: transparent;
+  color: #1f2329;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-health-row:last-child { border-bottom: 0; }
+.account-health-row--attention .account-health-row__main strong { color: #b42318; }
+.account-health-row__main { min-width: 0; display: flex; flex-direction: column; }
+.account-health-row__main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-health-row__action { color: #155eef; font-size: 13px; text-align: right; }
+
+.health-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+.health-badge {
+  max-width: 100%;
+  padding: 3px 8px;
+  overflow: hidden;
+  border-radius: 99px;
+  color: #475467;
+  background: #f2f4f7;
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.health-badge--success { color: #067647; background: #ecfdf3; }
+.health-badge--warning { color: #b54708; background: #fffaeb; }
+.health-badge--danger { color: #b42318; background: #fef3f2; }
+.health-badge--blue { color: #175cd3; background: #eff8ff; }
+.health-badge--muted { color: #667085; background: #f2f4f7; }
+
+.quick-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding-top: 16px; }
 
 .button {
   min-height: 36px;
@@ -190,31 +269,29 @@
   cursor: pointer;
 }
 
-.button:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
+.button:disabled { cursor: not-allowed; opacity: 0.6; }
+.button--secondary { color: #344054; background: #ffffff; border: 1px solid #d0d5dd; }
+.button--secondary:hover:not(:disabled) { border-color: #98a2b3; background: #f9fafb; }
 
-.button--secondary {
-  color: #344054;
-  background: #ffffff;
-  border: 1px solid #d0d5dd;
-}
+.empty-state { padding: 36px 0 18px; color: #98a2b3; font-size: 13px; text-align: center; }
 
-.button--secondary:hover:not(:disabled) {
-  border-color: #98a2b3;
-  background: #f9fafb;
-}
-
-@media (max-width: 1024px) {
+@media (max-width: 1100px) {
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .account-health-row { grid-template-columns: minmax(140px, 0.8fr) minmax(250px, 2fr) 42px; }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 760px) {
   .merchant-dashboard { padding: 16px; }
   .merchant-dashboard__header { align-items: flex-start; }
-  .metric-grid,
-  .dashboard-columns { grid-template-columns: 1fr; }
+  .dashboard-columns,
+  .quick-actions { grid-template-columns: 1fr; }
   .todo-row { grid-template-columns: 12px minmax(120px, 1fr) 36px; }
   .todo-row__action { display: none; }
+  .account-health-row { grid-template-columns: minmax(0, 1fr) 36px; gap: 8px; }
+  .health-badges { grid-column: 1 / -1; }
+}
+
+@media (max-width: 480px) {
+  .metric-grid { grid-template-columns: 1fr; }
+  .merchant-dashboard__header { flex-direction: column; }
 }

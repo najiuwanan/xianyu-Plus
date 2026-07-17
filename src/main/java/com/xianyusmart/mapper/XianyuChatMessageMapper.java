@@ -2,6 +2,7 @@ package com.xianyusmart.mapper;
 
 import com.xianyusmart.entity.XianyuChatMessage;
 import com.xianyusmart.controller.dto.ChatSessionDTO;
+import com.xianyusmart.controller.dto.DashboardUnreadCountDTO;
 import org.apache.ibatis.annotations.*;
 
 import java.util.List;
@@ -188,6 +189,21 @@ public interface XianyuChatMessageMapper {
     List<ChatSessionDTO> findRecentSessions(@Param("accountId") Long accountId,
                                             @Param("sellerUserId") String sellerUserId,
                                             @Param("limit") int limit);
+
+    /**
+     * 仪表盘未读数：仅计入买家在上次人工查看后发来的消息。
+     * 账号的 UNB 即卖家用户 ID，避免把自己发出的消息计为未读。
+     */
+    @Select("SELECT m.xianyu_account_id AS account_id, COUNT(1) AS unread_count " +
+            "FROM xianyu_chat_message m " +
+            "INNER JOIN xianyu_account a ON a.id = m.xianyu_account_id " +
+            "LEFT JOIN xianyu_chat_session_read r ON r.xianyu_account_id = m.xianyu_account_id AND r.s_id = m.s_id " +
+            "WHERE m.s_id IS NOT NULL AND m.s_id <> '' " +
+            "AND m.sender_user_id IS NOT NULL AND m.sender_user_id <> '' " +
+            "AND m.sender_user_id <> a.unb " +
+            "AND m.id > COALESCE(r.last_read_message_id, 0) " +
+            "GROUP BY m.xianyu_account_id")
+    List<DashboardUnreadCountDTO> countUnreadMessagesByAccount();
 
     /** 多账号场景下按账号和会话查询上下文，避免相同 s_id 串数据。 */
     @Select("SELECT * FROM xianyu_chat_message " +

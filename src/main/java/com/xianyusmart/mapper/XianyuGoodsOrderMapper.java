@@ -2,6 +2,7 @@ package com.xianyusmart.mapper;
 
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.controller.dto.DashboardStatsRespDTO;
+import com.xianyusmart.controller.dto.DashboardTrendPointDTO;
 import com.xianyusmart.controller.dto.ExceptionCenterRecordDTO;
 import org.apache.ibatis.annotations.*;
 
@@ -56,6 +57,16 @@ public interface XianyuGoodsOrderMapper {
                  )) AS low_stock_config_count
             """)
     DashboardStatsRespDTO selectDashboardStats();
+
+    /** 近七天已成功交付订单与金额，用于运营首页趋势图。 */
+    @Select("SELECT DATE_FORMAT(DATE(" + ORDER_TIME_SQL + "), '%Y-%m-%d') AS date_key, " +
+            "COUNT(*) AS order_count, " +
+            "COALESCE(SUM(CAST(total_price AS DECIMAL(12, 2))), 0) AS revenue " +
+            "FROM xianyu_goods_order r " +
+            "WHERE state = 1 AND " + ORDER_TIME_SQL + " >= DATE_SUB(CURRENT_DATE, INTERVAL 6 DAY) " +
+            "GROUP BY DATE(" + ORDER_TIME_SQL + ") " +
+            "ORDER BY DATE(" + ORDER_TIME_SQL + ") ASC")
+    List<DashboardTrendPointDTO> selectRecentDeliveryTrend();
     
     @Insert("INSERT INTO xianyu_goods_order (xianyu_account_id, xianyu_goods_id, xy_goods_id, pnm_id, order_id, buyer_user_id, buyer_user_name, sid, content, state, fail_reason, confirm_state, goods_title, sku_name, order_create_time, pay_success_time, consign_time, total_price, buy_num, delivery_status, expected_quantity, delivery_channel, trade_status, trade_status_text) " +
             "VALUES (#{xianyuAccountId}, #{xianyuGoodsId}, #{xyGoodsId}, #{pnmId}, #{orderId}, #{buyerUserId}, #{buyerUserName}, #{sid}, #{content}, #{state}, #{failReason}, #{confirmState}, #{goodsTitle}, #{skuName}, #{orderCreateTime}, #{paySuccessTime}, #{consignTime}, #{totalPrice}, COALESCE(#{buyNum}, 1), COALESCE(#{deliveryStatus}, CASE WHEN #{state} = 1 THEN 'COMPLETED' WHEN #{state} = -1 THEN 'FAILED' ELSE 'PENDING' END), COALESCE(#{expectedQuantity}, COALESCE(#{buyNum}, 1)), #{deliveryChannel}, #{tradeStatus}, #{tradeStatusText}) " +
