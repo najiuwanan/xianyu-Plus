@@ -1,13 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, provide, ref, shallowRef } from 'vue'
-import { RouterView, useRoute, useRouter } from 'vue-router'
+import { RouterView, useRoute } from 'vue-router'
 import NavMenu from './NavMenu.vue'
 import UpdateDialog from './UpdateDialog.vue'
+import UserMenu from './UserMenu.vue'
 import { checkUpdate } from '@/api/system'
-import { getAuthUsername } from '@/utils/request'
 
 const route = useRoute()
-const router = useRouter()
 
 declare const __APP_VERSION__: string
 
@@ -41,8 +40,6 @@ const pageTitleMap: Record<string, string> = {
 }
 
 const currentPageTitle = computed(() => pageTitleMap[route.path] || 'XianYuPlus')
-const currentUserName = computed(() => getAuthUsername() || '管理员')
-const userInitial = computed(() => currentUserName.value.slice(0, 1).toUpperCase() || 'X')
 
 const setHeaderContent = (content: any) => {
   headerContent.value = content
@@ -60,7 +57,6 @@ const loadVersion = async () => {
 }
 
 const openUpdateDialog = () => updateDialog.value?.open()
-const openSettings = () => router.push('/settings')
 
 const checkScreenSize = () => {
   const width = window.innerWidth
@@ -112,11 +108,7 @@ onUnmounted(() => {
           <div class="workspace-header__spacer"></div>
           <div class="workspace-header__actions">
             <span class="today-status"><span aria-hidden="true">☼</span> 今天，生意顺利</span>
-            <button class="user-menu" type="button" title="进入系统设置" @click="openSettings">
-              <span class="user-menu__avatar">{{ userInitial }}</span>
-              <span class="user-menu__name">{{ currentUserName }}</span>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
-            </button>
+            <UserMenu />
           </div>
         </header>
         <main class="workspace-main">
@@ -132,6 +124,7 @@ onUnmounted(() => {
         </button>
         <strong>{{ currentPageTitle }}</strong>
         <div v-if="headerContent" class="header-content-slot"><component :is="headerContent" /></div>
+        <UserMenu />
       </header>
       <main class="workspace-main workspace-main--compact">
         <RouterView />
@@ -179,11 +172,6 @@ onUnmounted(() => {
 .workspace-header__actions { display: flex; align-items: center; gap: 14px; }
 .today-status { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--xy-border); border-radius: 999px; color: #4c5d78; font-size: 13px; white-space: nowrap; }
 .today-status span { color: var(--xy-amber-deep); font-size: 18px; line-height: 14px; }
-.user-menu { display: inline-flex; align-items: center; gap: 8px; padding: 4px 0 4px 4px; border: 0; background: transparent; color: var(--xy-ink); cursor: pointer; }
-.user-menu:hover .user-menu__name { color: var(--xy-amber-deep); }
-.user-menu__avatar { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #e9c76d; border-radius: 50%; background: #fff3ce; color: #755100; font-size: 13px; font-weight: 700; }
-.user-menu__name { max-width: 120px; overflow: hidden; font-size: 14px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; transition: color .15s ease; }
-.user-menu svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .workspace-main { flex: 1; min-width: 0; overflow: auto; padding: 28px 32px 36px; background: var(--xy-page); }
 
 .compact-header { height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--xy-border); background: var(--xy-surface); }

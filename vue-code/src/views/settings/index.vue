@@ -1,45 +1,20 @@
 <script setup lang="ts">
 import { ref, onMounted, markRaw } from 'vue'
-import { useRouter } from 'vue-router'
-import { getCurrentUser, changePassword, fetchModels, testAi, testEmbedding } from '@/api/system'
-import { logout } from '@/api/auth'
+import { fetchModels, testAi, testEmbedding } from '@/api/system'
 import { getSetting, saveSetting } from '@/api/setting'
 import { getAIStatus } from '@/api/ai'
 import { getBackupModules, exportBackup, importBackup, getLogDates, downloadLog, type BackupModule } from '@/api/backup'
 import { getLogRetention, saveLogRetention } from '@/api/runtime-log'
 import { toast } from '@/utils/toast'
 import { showConfirm } from '@/utils/confirm'
-import { clearAuthToken } from '@/utils/request'
-import IconUser from '@/components/icons/IconUser.vue'
 import IconRobot from '@/components/icons/IconRobot.vue'
 import IconChat from '@/components/icons/IconChat.vue'
 import IconBackup from '@/components/icons/IconBackup.vue'
 import IconInfo from '@/components/icons/IconInfo.vue'
 import IconLog from '@/components/icons/IconLog.vue'
 
-const router = useRouter()
-
 // 当前选中的菜单
-const activeMenu = ref('account')
-
-// 账号信息
-const username = ref('')
-const lastLoginTime = ref('')
-const loading = ref(false)
-
-// 修改密码
-const showPasswordForm = ref(false)
-const oldPassword = ref('')
-const newPassword = ref('')
-const confirmPassword = ref('')
-const changingPassword = ref(false)
-
-const showOldPassword = ref(false)
-const showNewPassword = ref(false)
-const showConfirmPassword = ref(false)
-
-// 退出登录
-const loggingOut = ref(false)
+const activeMenu = ref('ai')
 
 // 系统提示词
 const SYS_PROMPT_KEY = 'sys_prompt'
@@ -276,7 +251,6 @@ const aiStatus = ref({
 
 // 菜单配置
 const menuItems = [
-  { key: 'account', label: '系统账号', icon: markRaw(IconUser) },
   { key: 'ai', label: 'AI 服务配置', icon: markRaw(IconRobot) },
   { key: 'prompt', label: 'AI客服配置', icon: markRaw(IconChat) },
   { key: 'backup', label: '备份与恢复', icon: markRaw(IconBackup) },
@@ -328,19 +302,6 @@ function handleSettingsMenuSelect(key: string) {
 }
 
 onMounted(async () => {
-  loading.value = true
-  try {
-    const res = await getCurrentUser()
-    if (res.code === 200 && res.data) {
-      username.value = res.data.username || ''
-      lastLoginTime.value = res.data.lastLoginTime || ''
-    }
-  } catch (e) {
-    console.error('获取用户信息失败:', e)
-  } finally {
-    loading.value = false
-  }
-
   // 加载系统提示词配置
   try {
     const res = await getSetting({ settingKey: SYS_PROMPT_KEY })
@@ -439,64 +400,6 @@ async function loadAIStatus() {
     }
   } catch (e) {
     console.error('获取AI状态失败:', e)
-  }
-}
-
-async function handleChangePassword() {
-  if (!oldPassword.value) {
-    toast.warning('请输入原密码')
-    return
-  }
-  if (!newPassword.value || newPassword.value.length < 6) {
-    toast.warning('新密码长度需在6-50之间')
-    return
-  }
-  if (newPassword.value !== confirmPassword.value) {
-    toast.warning('两次密码不一致')
-    return
-  }
-  changingPassword.value = true
-  try {
-    const res = await changePassword({
-      oldPassword: oldPassword.value,
-      newPassword: newPassword.value,
-      confirmPassword: confirmPassword.value
-    })
-    if (res.code === 200) {
-      toast.success('密码修改成功')
-      showPasswordForm.value = false
-      oldPassword.value = ''
-      newPassword.value = ''
-      confirmPassword.value = ''
-    }
-  } finally {
-    changingPassword.value = false
-  }
-}
-
-async function handleLogout() {
-  try {
-    await showConfirm(
-      '确定要退出登录吗？',
-      '退出确认'
-    )
-
-    loggingOut.value = true
-    try {
-      await logout()
-      clearAuthToken()
-      toast.success('已退出登录')
-      router.push('/login')
-    } catch (e) {
-      console.error('退出登录失败:', e)
-      // 即使接口失败，也清除本地token并跳转
-      clearAuthToken()
-      router.push('/login')
-    } finally {
-      loggingOut.value = false
-    }
-  } catch {
-    // 用户取消
   }
 }
 
@@ -875,111 +778,6 @@ function handleBackupMenuEnter() {
 
     <!-- 右侧内容 -->
     <div class="settings__content">
-      <!-- 系统账号（包含修改密码和退出登录） -->
-      <div v-if="activeMenu === 'account'" class="settings__panel">
-        <div class="settings__panel-title">系统账号</div>
-        <div v-if="loading" class="settings__loading">
-          <div class="settings__spinner"></div>
-          <span>加载中...</span>
-        </div>
-        <div v-else class="settings__info">
-          <div class="settings__info-row">
-            <span class="settings__info-label">账号</span>
-            <span class="settings__info-value">{{ username }}</span>
-          </div>
-          <div class="settings__info-row">
-            <span class="settings__info-label">最后登录时间</span>
-            <span class="settings__info-value">{{ lastLoginTime || '-' }}</span>
-          </div>
-        </div>
-
-        <!-- 修改密码 -->
-        <div class="settings__section">
-          <div class="settings__section-header">
-            <div class="settings__section-title">修改密码</div>
-            <button
-              v-if="!showPasswordForm"
-              class="settings__toggle-btn"
-              @click="showPasswordForm = true"
-            >
-              修改
-            </button>
-          </div>
-          <div v-if="showPasswordForm" class="settings__form">
-            <div class="settings__field">
-              <label class="settings__label">原密码</label>
-              <div class="settings__input-wrap">
-                <input
-                  v-model="oldPassword"
-                  :type="showOldPassword ? 'text' : 'password'"
-                  class="settings__input"
-                  placeholder="请输入原密码"
-                  :disabled="changingPassword"
-                />
-                <button class="settings__eye-btn" @click="showOldPassword = !showOldPassword" tabindex="-1">
-                  {{ showOldPassword ? '隐藏' : '显示' }}
-                </button>
-              </div>
-            </div>
-
-            <div class="settings__field">
-              <label class="settings__label">新密码</label>
-              <div class="settings__input-wrap">
-                <input
-                  v-model="newPassword"
-                  :type="showNewPassword ? 'text' : 'password'"
-                  class="settings__input"
-                  placeholder="请输入新密码（6-50位）"
-                  :disabled="changingPassword"
-                />
-                <button class="settings__eye-btn" @click="showNewPassword = !showNewPassword" tabindex="-1">
-                  {{ showNewPassword ? '隐藏' : '显示' }}
-                </button>
-              </div>
-            </div>
-
-            <div class="settings__field">
-              <label class="settings__label">确认新密码</label>
-              <div class="settings__input-wrap">
-                <input
-                  v-model="confirmPassword"
-                  :type="showConfirmPassword ? 'text' : 'password'"
-                  class="settings__input"
-                  placeholder="请再次输入新密码"
-                  :disabled="changingPassword"
-                  @keydown.enter="handleChangePassword"
-                />
-                <button class="settings__eye-btn" @click="showConfirmPassword = !showConfirmPassword" tabindex="-1">
-                  {{ showConfirmPassword ? '隐藏' : '显示' }}
-                </button>
-              </div>
-            </div>
-
-            <div class="settings__actions">
-              <button class="settings__btn settings__btn--secondary" :disabled="changingPassword" @click="showPasswordForm = false">
-                取消
-              </button>
-              <button class="settings__btn settings__btn--primary" :disabled="changingPassword" @click="handleChangePassword">
-                {{ changingPassword ? '请稍候...' : '确认修改' }}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 退出登录 -->
-        <div class="settings__section">
-          <div class="settings__section-title">退出登录</div>
-          <p class="settings__logout-text">退出当前系统账号，退出后需要重新登录</p>
-          <button
-            class="settings__btn settings__btn--danger"
-            :disabled="loggingOut"
-            @click="handleLogout"
-          >
-            {{ loggingOut ? '退出中...' : '退出登录' }}
-          </button>
-        </div>
-      </div>
-
       <!-- AI 服务配置（包含 Embedding 配置和系统提示词） -->
       <div v-if="activeMenu === 'ai'" class="settings__panel">
         <div class="settings__panel-title">AI 服务配置</div>
