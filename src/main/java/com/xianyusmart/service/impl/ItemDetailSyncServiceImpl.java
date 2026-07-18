@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xianyusmart.controller.dto.ItemDTO;
 import com.xianyusmart.controller.dto.SyncProgressRespDTO;
+import com.xianyusmart.controller.dto.SyncSingleItemRespDTO;
 import com.xianyusmart.entity.XianyuGoodsSku;
 import com.xianyusmart.entity.XianyuGoodsSkuProperty;
 import com.xianyusmart.service.AccountService;
@@ -221,18 +222,35 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
     }
 
     @Override
-    public boolean syncSingleItem(Long accountId, String itemId) {
+    public SyncSingleItemRespDTO syncSingleItem(Long accountId, String itemId) {
         if (accountId == null || itemId == null || itemId.isEmpty()) {
             log.warn("同步单个商品参数无效: accountId={}, itemId={}", accountId, itemId);
-            return false;
+            return buildSingleSyncResult(false, false, "商品信息不完整，无法同步详情");
         }
         String cookieStr = accountService.getCookieByAccountId(accountId);
         if (cookieStr == null || cookieStr.isEmpty()) {
             log.warn("账号Cookie不存在: accountId={}", accountId);
-            return false;
+            return buildSingleSyncResult(false, false, "账号登录信息已失效，请重新连接账号后再试");
         }
         log.info("同步单个商品: accountId={}, itemId={}", accountId, itemId);
-        return fetchAndSaveDetail(itemId, cookieStr, accountId).success();
+        DetailSyncResult result = fetchAndSaveDetail(itemId, cookieStr, accountId);
+        if (result.success()) {
+            return buildSingleSyncResult(true, false, "商品详情同步成功");
+        }
+        if (result.verificationRequired()) {
+            return buildSingleSyncResult(false, true,
+                    "闲鱼要求安全验证，暂时无法读取商品详情；请在闲鱼客户端完成验证后稍后重试");
+        }
+        return buildSingleSyncResult(false, false,
+                result.message() == null || result.message().isBlank() ? "商品详情同步失败，请稍后重试" : result.message());
+    }
+
+    private SyncSingleItemRespDTO buildSingleSyncResult(boolean success, boolean verificationRequired, String message) {
+        SyncSingleItemRespDTO result = new SyncSingleItemRespDTO();
+        result.setSuccess(success);
+        result.setVerificationRequired(verificationRequired);
+        result.setMessage(message);
+        return result;
     }
 
     private String getBusinessError(String response) {

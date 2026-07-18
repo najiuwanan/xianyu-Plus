@@ -677,8 +677,8 @@ onMounted(() => {
               </div>
               
               <div v-show="fixedMaterialExpanded" class="ar__config-section-body">
-                <div class="ar__toggle-hint" style="margin-bottom: 8px;">
-                  固定资料会每次AI回复时都带上，保存在本地数据库
+              <div class="ar__toggle-hint" style="margin-bottom: 8px;">
+                  固定资料会每次 AI 回复时都带上，保存在本地数据库；同步时会优先读取本地详情，缺失时自动向闲鱼拉取一次
                 </div>
 
                 <textarea

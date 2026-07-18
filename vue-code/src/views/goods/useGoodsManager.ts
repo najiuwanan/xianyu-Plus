@@ -351,14 +351,15 @@ export function useGoodsManager() {
         xianyuAccountId: selectedAccountId.value,
         xyGoodsId: xyGoodId
       })
-      if (response.code === 0 || response.code === 200) {
+      if ((response.code === 0 || response.code === 200) && response.data?.success) {
         showSuccess('同步成功')
         loadGoods()
       } else {
-        throw new Error(response.msg || '同步失败')
+        throw new Error(response.data?.message || response.msg || '同步失败')
       }
     } catch (error: any) {
       console.error('同步失败:', error)
+      showError(error.message || '同步失败')
     }
   }
 

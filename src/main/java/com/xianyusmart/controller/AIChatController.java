@@ -5,6 +5,8 @@ import com.xianyusmart.config.rag.DynamicAIChatClientManager;
 import com.xianyusmart.controller.dto.ChatWithAIReqDTO;
 import com.xianyusmart.service.AIService;
 import com.xianyusmart.service.GoodsInfoService;
+import com.xianyusmart.service.ItemDetailSyncService;
+import com.xianyusmart.controller.dto.SyncSingleItemRespDTO;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.entity.XianyuGoodsConfig;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +31,9 @@ public class AIChatController {
     
     @Autowired
     private GoodsInfoService goodsInfoService;
+
+    @Autowired
+    private ItemDetailSyncService itemDetailSyncService;
     
     @Autowired
     private XianyuGoodsConfigMapper goodsConfigMapper;
@@ -104,12 +109,22 @@ public class AIChatController {
     @PostMapping("/syncDetailToFixedMaterial")
     public ResultObject<?> syncDetailToFixedMaterial(@RequestBody FixedMaterialReqDTO req) {
         String detailInfo = goodsInfoService.getDetailInfoByGoodsId(req.getGoodsId());
-        if (detailInfo != null && !detailInfo.isEmpty()) {
-            goodsConfigMapper.updateFixedMaterial(req.getAccountId(), req.getGoodsId(), detailInfo);
-            return ResultObject.success(null);
-        } else {
-            return ResultObject.failed("商品详情为空，无法同步");
+        if (detailInfo == null || detailInfo.isBlank()) {
+            // 旧逻辑只会复制本地缓存，刚同步或刚上架的商品没有缓存时必然失败。
+            // 这里按用户操作实际拉取一次详情，再写入固定资料。
+            SyncSingleItemRespDTO syncResult = itemDetailSyncService.syncSingleItem(req.getAccountId(), req.getGoodsId());
+            if (!syncResult.isSuccess()) {
+                return ResultObject.failed(syncResult.getMessage());
+            }
+            detailInfo = goodsInfoService.getDetailInfoByGoodsId(req.getGoodsId());
         }
+
+        if (detailInfo == null || detailInfo.isBlank()) {
+            return ResultObject.failed("闲鱼未返回可用于 AI 回复的商品详情；新上架商品请稍后重试，或手动填写固定资料");
+        }
+
+        goodsConfigMapper.updateFixedMaterial(req.getAccountId(), req.getGoodsId(), detailInfo);
+        return ResultObject.success(null);
     }
 
     public static class FixedMaterialReqDTO {

@@ -177,17 +177,12 @@ public class ItemController {
     }
 
     @PostMapping("/syncSingle")
-    public ResultObject<String> syncSingleItem(@RequestBody java.util.Map<String, Object> params) {
+    public ResultObject<SyncSingleItemRespDTO> syncSingleItem(@RequestBody java.util.Map<String, Object> params) {
         try {
             Long accountId = Long.parseLong(params.get("xianyuAccountId").toString());
             String xyGoodsId = params.get("xyGoodsId").toString();
             log.info("同步单个商品: xianyuAccountId={}, xyGoodsId={}", accountId, xyGoodsId);
-            boolean success = itemDetailSyncService.syncSingleItem(accountId, xyGoodsId);
-            if (success) {
-                return ResultObject.success("同步成功");
-            } else {
-                return ResultObject.failed("同步失败");
-            }
+            return ResultObject.success(itemDetailSyncService.syncSingleItem(accountId, xyGoodsId));
         } catch (Exception e) {
             log.error("同步单个商品失败", e);
             return ResultObject.failed("同步失败: " + e.getMessage());

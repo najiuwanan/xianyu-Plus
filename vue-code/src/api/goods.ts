@@ -72,6 +72,12 @@ export interface SyncProgressResponse {
   estimatedRemainingTime: number;
 }
 
+export interface SyncSingleItemResponse {
+  success: boolean;
+  verificationRequired: boolean;
+  message: string;
+}
+
 // 获取商品列表
 export function getGoodsList(data: {
   xianyuAccountId: number;
@@ -162,7 +168,7 @@ export function syncSingleItem(data: {
   xianyuAccountId: number;
   xyGoodsId: string;
 }) {
-  return request({
+  return request<SyncSingleItemResponse>({
     url: '/items/syncSingle',
     method: 'POST',
     data

@@ -2,6 +2,7 @@ package com.xianyusmart.service;
 
 import com.xianyusmart.controller.dto.SyncProgressRespDTO;
 import com.xianyusmart.controller.dto.ItemDTO;
+import com.xianyusmart.controller.dto.SyncSingleItemRespDTO;
 import java.util.List;
 
 public interface ItemDetailSyncService {
@@ -9,5 +10,5 @@ public interface ItemDetailSyncService {
     SyncProgressRespDTO getProgress(String syncId);
     void cancelSync(String syncId);
     boolean isSyncing(Long accountId);
-    boolean syncSingleItem(Long accountId, String itemId);
+    SyncSingleItemRespDTO syncSingleItem(Long accountId, String itemId);
 }
