@@ -6,7 +6,6 @@ import IconClipboard from '@/components/icons/IconClipboard.vue'
 import IconMessage from '@/components/icons/IconMessage.vue'
 import IconRefresh from '@/components/icons/IconRefresh.vue'
 import IconTruck from '@/components/icons/IconTruck.vue'
-import { getSystemUpdateStatus, type SystemUpdateStatus } from '@/api/system'
 import { useDashboard } from './useDashboard'
 
 const router = useRouter()
@@ -19,8 +18,6 @@ const {
 } = useDashboard()
 
 const exceptionCount = computed(() => Number(automationExceptionCount.value || 0))
-const updateStatus = ref<SystemUpdateStatus | null>(null)
-const updateChecking = ref(false)
 const trendDays = ref<7 | 30>(7)
 const trendTitle = computed(() => `近 ${trendDays.value} 日成功交付`)
 const trendAriaLabel = computed(() => `近 ${trendDays.value} 天成功交付订单趋势`)
@@ -59,27 +56,8 @@ const money = (value: number) => Number(value || 0).toLocaleString('zh-CN', {
 
 const go = (path: string) => router.push(path)
 
-const loadUpdateStatus = async (forceRefresh = false) => {
-  updateChecking.value = true
-  try {
-    const response = await getSystemUpdateStatus(forceRefresh)
-    if (response.code === 0 || response.code === 200) {
-      updateStatus.value = response.data || null
-    }
-  } catch {
-    updateStatus.value = {
-      versionTracked: false,
-      updateAvailable: false,
-      message: '暂时无法检查 GitHub 更新，将稍后自动重试'
-    }
-  } finally {
-    updateChecking.value = false
-  }
-}
-
 onMounted(() => {
   loadStatistics()
-  loadUpdateStatus()
 })
 </script>
 
@@ -100,23 +78,18 @@ onMounted(() => {
       </div>
     </header>
 
-    <section class="update-notice" :class="{ 'update-notice--available': updateStatus?.updateAvailable }" aria-live="polite">
-      <span class="update-notice__icon" aria-hidden="true">{{ updateStatus?.updateAvailable ? '↑' : 'i' }}</span>
-      <div class="update-notice__content">
-        <strong>系统公告</strong>
-        <span>{{ updateStatus?.message || '正在检查 GitHub 更新…' }}</span>
-        <small v-if="updateStatus?.updateAvailable && updateStatus.latestMessage">{{ updateStatus.latestMessage }}</small>
-      </div>
-      <div class="update-notice__actions">
-        <a v-if="updateStatus?.updateAvailable && updateStatus.updateUrl" :href="updateStatus.updateUrl" target="_blank" rel="noopener noreferrer">查看更新</a>
-        <button type="button" :disabled="updateChecking" @click="loadUpdateStatus(true)">{{ updateChecking ? '检查中…' : '检查更新' }}</button>
-      </div>
-    </section>
-
     <section class="metric-grid" aria-label="今日经营指标">
       <article class="metric-card metric-card--revenue">
         <span class="metric-card__icon metric-card__icon--amber">¥</span>
         <div><span>今日成交额</span><strong>¥{{ money(stats.todayRevenue) }}</strong><small>成功交付订单的金额</small></div>
+      </article>
+      <article class="metric-card">
+        <span class="metric-card__icon metric-card__icon--blue"><IconClipboard /></span>
+        <div><span>今日订单数</span><strong>{{ stats.todayOrderCount }}</strong><small>按闲鱼下单时间统计</small></div>
+      </article>
+      <article class="metric-card">
+        <span class="metric-card__icon metric-card__icon--purple">Σ</span>
+        <div><span>总订单数</span><strong>{{ stats.totalOrderCount }}</strong><small>当前已同步订单总数</small></div>
       </article>
       <article class="metric-card">
         <span class="metric-card__icon metric-card__icon--green"><IconTruck /></span>

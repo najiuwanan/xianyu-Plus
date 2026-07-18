@@ -15,6 +15,8 @@ export function useDashboard() {
     sellingItemCount: 0,
     offShelfItemCount: 0,
     soldItemCount: 0,
+    todayOrderCount: 0,
+    totalOrderCount: 0,
     todayRevenue: 0,
     todayDeliveryCount: 0,
     todayReplyCount: 0,

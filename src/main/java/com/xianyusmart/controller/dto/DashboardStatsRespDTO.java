@@ -35,6 +35,12 @@ public class DashboardStatsRespDTO {
      */
     private Integer soldItemCount;
 
+    /** 今日下单数，按闲鱼订单的下单/付款时间统计。 */
+    private Integer todayOrderCount;
+
+    /** 当前已同步到本系统的订单总数。 */
+    private Integer totalOrderCount;
+
     private BigDecimal todayRevenue;
 
     private Integer todayDeliveryCount;

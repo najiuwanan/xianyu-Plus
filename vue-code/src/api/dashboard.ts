@@ -6,6 +6,8 @@ export interface DashboardStats {
   sellingItemCount: number
   offShelfItemCount: number
   soldItemCount: number
+  todayOrderCount: number
+  totalOrderCount: number
   todayRevenue: number
   todayDeliveryCount: number
   todayReplyCount: number

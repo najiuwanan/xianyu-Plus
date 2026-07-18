@@ -35,6 +35,10 @@ public interface XianyuGoodsOrderMapper {
               (SELECT COUNT(*) FROM xianyu_goods WHERE status = 0) AS selling_item_count,
               (SELECT COUNT(*) FROM xianyu_goods WHERE status = 1) AS off_shelf_item_count,
               (SELECT COUNT(*) FROM xianyu_goods WHERE status = 2) AS sold_item_count,
+              (SELECT COUNT(*) FROM xianyu_goods_order) AS total_order_count,
+              (SELECT COUNT(*) FROM xianyu_goods_order r
+                 WHERE """ + ORDER_TIME_SQL + """
+                 >= CURRENT_DATE) AS today_order_count,
               (SELECT COALESCE(SUM(CAST(total_price AS DECIMAL(12, 2))), 0)
                  FROM xianyu_goods_order WHERE state = 1 AND create_time >= CURRENT_DATE) AS today_revenue,
               (SELECT COUNT(*) FROM xianyu_goods_order

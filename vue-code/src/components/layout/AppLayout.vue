@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, provide, ref, shallowRef } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import NavMenu from './NavMenu.vue'
 import UserMenu from './UserMenu.vue'
+import { getSystemUpdateStatus, type SystemUpdateStatus } from '@/api/system'
 
 const route = useRoute()
 
@@ -11,6 +12,8 @@ const isMobile = ref(false)
 const isTablet = ref(false)
 const isDesktop = ref(true)
 const drawerVisible = ref(false)
+const updateStatus = ref<SystemUpdateStatus | null>(null)
+const updateChecking = ref(false)
 
 const pageTitleMap: Record<string, string> = {
   '/dashboard': '运营总览',
@@ -54,8 +57,27 @@ const closeDrawer = () => {
   drawerVisible.value = false
 }
 
+const loadUpdateStatus = async (forceRefresh = false) => {
+  updateChecking.value = true
+  try {
+    const response = await getSystemUpdateStatus(forceRefresh)
+    if (response.code === 0 || response.code === 200) {
+      updateStatus.value = response.data || null
+    }
+  } catch {
+    updateStatus.value = {
+      versionTracked: false,
+      updateAvailable: false,
+      message: '暂时无法检查 GitHub 更新，请稍后重试'
+    }
+  } finally {
+    updateChecking.value = false
+  }
+}
+
 onMounted(() => {
   checkScreenSize()
+  loadUpdateStatus()
   window.addEventListener('resize', checkScreenSize)
 })
 
@@ -82,6 +104,13 @@ onUnmounted(() => {
         <header class="workspace-header">
           <div class="workspace-header__spacer"></div>
           <div class="workspace-header__actions">
+            <div class="workspace-notice" :class="{ 'workspace-notice--available': updateStatus?.updateAvailable }" aria-live="polite">
+              <span class="workspace-notice__icon" aria-hidden="true">{{ updateStatus?.updateAvailable ? '↑' : 'i' }}</span>
+              <strong>系统公告</strong>
+              <span class="workspace-notice__message">{{ updateStatus?.message || '正在检查 GitHub 更新…' }}</span>
+              <a v-if="updateStatus?.updateAvailable && updateStatus.updateUrl" :href="updateStatus.updateUrl" target="_blank" rel="noopener noreferrer">查看更新</a>
+              <button type="button" :disabled="updateChecking" @click="loadUpdateStatus(true)">{{ updateChecking ? '检查中…' : '检查更新' }}</button>
+            </div>
             <span class="today-status"><span aria-hidden="true">☼</span> 今天，生意顺利</span>
             <UserMenu />
           </div>
@@ -137,7 +166,16 @@ onUnmounted(() => {
 .brand__copy small { color: var(--xy-muted); font-size: 11px; line-height: 16px; }
 
 .workspace-header { height: 70px; display: flex; flex: 0 0 70px; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--xy-border-soft); background: rgba(255, 255, 255, .88); }
-.workspace-header__actions { display: flex; align-items: center; gap: 14px; }
+.workspace-header__actions { min-width: 0; display: flex; align-items: center; gap: 14px; }
+.workspace-notice { min-width: 0; max-width: 520px; display: inline-flex; align-items: center; gap: 7px; padding: 5px 7px 5px 9px; border: 1px solid #dce7f7; border-radius: 999px; background: #f7fbff; color: #47627f; font-size: 12px; white-space: nowrap; }
+.workspace-notice--available { border-color: #efd07a; background: #fffbec; color: #77590a; }
+.workspace-notice__icon { width: 18px; height: 18px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: #e7f1ff; color: #2672cf; font-size: 12px; font-weight: 800; }
+.workspace-notice--available .workspace-notice__icon { background: #fff0bd; color: #a66d00; }
+.workspace-notice strong { flex: 0 0 auto; color: var(--xy-ink); font-size: 12px; }
+.workspace-notice__message { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-notice a, .workspace-notice button { min-height: 24px; padding: 0 7px; border: 1px solid #ccd8e7; border-radius: 999px; background: var(--xy-surface); color: #385879; font-size: 11px; font-weight: 700; line-height: 22px; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.workspace-notice a { border-color: #e4bd47; background: var(--xy-amber); color: #583f00; }
+.workspace-notice button:disabled { cursor: not-allowed; opacity: .6; }
 .today-status { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--xy-border); border-radius: 999px; color: #4c5d78; font-size: 13px; white-space: nowrap; }
 .today-status span { color: var(--xy-amber-deep); font-size: 18px; line-height: 14px; }
 .workspace-main { flex: 1; min-width: 0; overflow: auto; padding: 28px 32px 36px; background: var(--xy-page); }
@@ -160,6 +198,7 @@ onUnmounted(() => {
 .drawer-enter-from, .drawer-leave-to { opacity: 0; }
 .drawer-enter-from .drawer-menu, .drawer-leave-to .drawer-menu { transform: translateX(-100%); }
 
+@media (max-width: 1180px) { .workspace-notice { max-width: 340px; } }
 @media (max-width: 1023px) { .workspace-main { padding: 24px; } }
 @media (max-width: 767px) { .workspace-main, .workspace-main--compact { padding: 16px; } .compact-header { height: 56px; padding: 0 14px; } .header-content-slot { max-width: 52%; overflow: hidden; } }
 </style>
