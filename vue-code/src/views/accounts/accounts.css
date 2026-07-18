@@ -189,6 +189,23 @@
   position: relative;
 }
 
+.accounts__content:not(.accounts__content--detail-open) {
+  flex: 0 0 auto;
+  overflow: visible;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.accounts__content:not(.accounts__content--detail-open)::before {
+  display: none;
+}
+
+.accounts__content:not(.accounts__content--detail-open) .accounts__workspace,
+.accounts__content:not(.accounts__content--detail-open) .accounts__table-wrap {
+  overflow: visible;
+}
+
 .accounts__workspace {
   flex: 1;
   display: flex;

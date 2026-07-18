@@ -212,21 +212,10 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
     </div>
   </div>
 
-  <!-- Desktop/Tablet: Table View -->
-  <div v-else class="table-container" :class="{ 'table-container--loading': loading }">
-    <table class="table" v-if="accounts.length > 0">
-      <thead class="table__head">
-        <tr>
-          <th class="table__th table__th--account">账号</th>
-          <th class="table__th table__th--status">账号状态</th>
-          <th class="table__th table__th--automation">自动化</th>
-          <th class="table__th table__th--time">最近更新</th>
-          <th class="table__th table__th--actions">操作</th>
-        </tr>
-      </thead>
-      <tbody class="table__body">
-        <tr v-for="account in accounts" :key="account.id" class="table__tr">
-          <td class="table__td table__td--account">
+  <!-- Desktop/Tablet: Account Overview Cards -->
+  <div v-else class="account-overview-list" :class="{ 'account-overview-list--loading': loading }">
+    <article v-for="account in accounts" :key="account.id" class="account-overview-card">
+          <div class="account-overview-card__identity">
             <div class="account-identity">
               <span class="account-identity__avatar">{{ (account.accountNote || account.unb || '鱼').charAt(0) }}</span>
               <div class="account-identity__content">
@@ -234,41 +223,29 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
                 <span>UNB：{{ account.unb }} · ID：{{ account.id }}</span>
               </div>
             </div>
-          </td>
-          <td class="table__td table__td--status">
-            <div class="account-status-panel" :style="{ background: getStatusBg(account.status) }">
-              <span class="account-status__dot" :style="{ background: getStatusColor(account.status), boxShadow: getStatusRing(account.status) }"></span>
-              <div class="account-status__text">
-                <span class="account-status__label">运行状态</span>
+          </div>
+          <section class="account-overview-card__section account-overview-card__section--status" :style="{ background: getStatusBg(account.status) }">
+              <span class="account-overview-card__label">账号状态</span>
+              <div class="account-overview-card__status">
+                <i :style="{ background: getStatusColor(account.status), boxShadow: getStatusRing(account.status) }"></i>
                 <strong :style="{ color: getStatusColor(account.status) }">{{ getAccountStatusText(account.status).text }}</strong>
-                <span class="account-status__description">{{ getStatusDescription(account.status) }}</span>
               </div>
+              <small>{{ getStatusDescription(account.status) }}</small>
+          </section>
+          <section class="account-overview-card__section account-overview-card__section--automation">
+            <span class="account-overview-card__label">自动化</span>
+            <div class="account-overview-card__automation-items">
+              <span :class="{ 'account-overview-card__automation-item--on': isEnabled(account.autoRateEnabled) }">评价 <b>{{ isEnabled(account.autoRateEnabled) ? '开启' : '关闭' }}</b></span>
+              <span :class="{ 'account-overview-card__automation-item--on': isEnabled(account.autoAskFlower) }">小红花 <b>{{ isEnabled(account.autoAskFlower) ? '开启' : '关闭' }}</b></span>
             </div>
-          </td>
-          <td class="table__td table__td--automation">
-            <div class="automation-summary">
-              <div class="automation-summary__item" :class="{ 'automation-summary__item--on': isEnabled(account.autoRateEnabled) }">
-                <span>自动评价</span>
-                <strong>{{ isEnabled(account.autoRateEnabled) ? '已开启' : '已关闭' }}</strong>
-              </div>
-              <div class="automation-summary__item" :class="{ 'automation-summary__item--on': isEnabled(account.autoAskFlower) }">
-                <span>自动小红花</span>
-                <strong>{{ isEnabled(account.autoAskFlower) ? '已开启' : '已关闭' }}</strong>
-              </div>
-              <span v-if="isRiskPaused(account)" class="automation-chip automation-chip--risk" :title="account.automationRiskPauseReason">
-                <i></i>自动化已保护暂停
-              </span>
-              <small v-if="isRiskPaused(account)" class="automation-risk-reason">{{ account.automationRiskPauseReason || '连续自动化失败，等待人工确认' }}</small>
-            </div>
-          </td>
-          <td class="table__td table__td--time">
-            <div class="account-time">
-              <span>最近更新</span>
-              <time>{{ formatTime(account.updatedTime) }}</time>
-              <small>创建于 {{ formatTime(account.createdTime) }}</small>
-            </div>
-          </td>
-          <td class="table__td table__td--actions">
+            <small v-if="isRiskPaused(account)" class="account-overview-card__risk" :title="account.automationRiskPauseReason">自动化已保护暂停</small>
+          </section>
+          <section class="account-overview-card__section account-overview-card__section--time">
+            <span class="account-overview-card__label">最近更新</span>
+            <time>{{ formatTime(account.updatedTime) }}</time>
+            <small>创建于 {{ formatTime(account.createdTime) }}</small>
+          </section>
+          <div class="account-overview-card__actions">
             <div class="table__action-group">
               <button
                 class="table__action table__action--toggle"
@@ -303,10 +280,8 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
                 </Transition>
               </div>
             </div>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+          </div>
+    </article>
 
     <!-- Empty State -->
     <div v-if="!loading && accounts.length === 0" class="empty-state">
@@ -321,7 +296,8 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
    Shared Tokens (Liquid Glass Design System)
    ============================================================ */
 .card-list,
-.table-container {
+.table-container,
+.account-overview-list {
   --c-bg: transparent;
   --c-surface: rgba(255,255,255,0.55);
   --c-surface-hover: rgba(255,255,255,0.72);
@@ -941,6 +917,153 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
   font-size: 10px;
 }
 
+/* ============================================================
+   Desktop Account Overview Cards
+   ============================================================ */
+.account-overview-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px;
+}
+
+.account-overview-card {
+  display: grid;
+  grid-template-columns: minmax(230px, 1.25fr) minmax(195px, 1fr) minmax(220px, 1.2fr) minmax(175px, .9fr) auto;
+  align-items: stretch;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #e5ebf2;
+  border-radius: 16px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 8px 20px rgba(30, 50, 80, .045);
+  transition: border-color var(--c-ease), box-shadow var(--c-ease), transform var(--c-ease);
+}
+
+@media (hover: hover) {
+  .account-overview-card:hover {
+    border-color: #cbdcf2;
+    box-shadow: 0 10px 24px rgba(30, 50, 80, .09);
+  }
+}
+
+.account-overview-card__identity,
+.account-overview-card__section {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.account-overview-card__identity {
+  padding: 0 8px;
+}
+
+.account-overview-card__section {
+  min-height: 70px;
+  padding: 9px 12px;
+  border: 1px solid #edf1f5;
+  border-radius: 12px;
+  background: #fafbfd;
+}
+
+.account-overview-card__label {
+  display: block;
+  margin-bottom: 6px;
+  color: #77869a;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .03em;
+}
+
+.account-overview-card__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account-overview-card__status i {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.account-overview-card__status strong {
+  font-size: 14px;
+  font-weight: 750;
+}
+
+.account-overview-card__section small {
+  margin-top: 4px;
+  overflow: hidden;
+  color: #6f7e91;
+  font-size: 11px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-overview-card__automation-items {
+  display: flex;
+  gap: 6px;
+}
+
+.account-overview-card__automation-items > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 7px;
+  border: 1px solid #e3e8ef;
+  border-radius: 8px;
+  background: #fff;
+  color: #748196;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.account-overview-card__automation-items b {
+  color: #7f8c9e;
+  font-size: 11px;
+}
+
+.account-overview-card__automation-items > .account-overview-card__automation-item--on {
+  border-color: #c7ead5;
+  background: #effaf3;
+  color: #347d50;
+}
+
+.account-overview-card__automation-item--on b { color: #168442; }
+.account-overview-card__risk { color: #b65d00 !important; }
+
+.account-overview-card__section--time time {
+  color: #3f516b;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.account-overview-card__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-left: 2px;
+}
+
+@media screen and (min-width: 768px) and (max-width: 1220px) {
+  .account-overview-card {
+    grid-template-columns: minmax(210px, 1.2fr) minmax(180px, 1fr) minmax(200px, 1.1fr) auto;
+  }
+
+  .account-overview-card__section--time {
+    grid-column: 1 / 3;
+  }
+
+  .account-overview-card__actions {
+    grid-column: 3 / -1;
+  }
+}
+
 .table__action-group {
   display: inline-flex;
   align-items: center;
@@ -1177,7 +1300,8 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
    Loading State
    ============================================================ */
 .card-list--loading,
-.table-container--loading {
+.table-container--loading,
+.account-overview-list--loading {
   opacity: 0.5;
   pointer-events: none;
 }
