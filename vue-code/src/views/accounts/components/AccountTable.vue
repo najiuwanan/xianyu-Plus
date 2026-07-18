@@ -28,6 +28,7 @@ defineProps<Props>()
 const emit = defineEmits<Emits>()
 
 const isMobile = ref(false)
+const openedActionMenuId = ref<number | null>(null)
 const checkScreenSize = () => {
   isMobile.value = window.innerWidth < 768
 }
@@ -35,11 +36,28 @@ const checkScreenSize = () => {
 onMounted(() => {
   checkScreenSize()
   window.addEventListener('resize', checkScreenSize)
+  window.addEventListener('click', closeActionMenu)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkScreenSize)
+  window.removeEventListener('click', closeActionMenu)
 })
+
+const closeActionMenu = () => {
+  openedActionMenuId.value = null
+}
+
+const toggleActionMenu = (event: MouseEvent, accountId: number) => {
+  event.stopPropagation()
+  openedActionMenuId.value = openedActionMenuId.value === accountId ? null : accountId
+}
+
+const runAction = (event: MouseEvent, action: () => void) => {
+  event.stopPropagation()
+  closeActionMenu()
+  action()
+}
 
 const getStatusColor = (status: number) => {
   if (status === 0) return '#8e8e93'
@@ -84,6 +102,7 @@ const getStatusDescription = (status: number) => {
 
 const isEnabled = (value?: number) => value === 1
 const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
+const canToggleEnabled = (account: Account) => account.status === 1 || account.status === 0
 </script>
 
 <template>
@@ -152,25 +171,27 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
           <IconLink />
           <span>账号详情</span>
         </button>
-        <button
-          v-if="account.status === 1 || account.status === 0"
-          class="account-card__btn account-card__btn--toggle"
-          :class="account.status === 0 ? 'account-card__btn--enable' : 'account-card__btn--disable'"
-          @click="emit('toggleEnabled', account)"
-        >
-          <span>{{ account.status === 0 ? '启用' : '禁用' }}</span>
-        </button>
-        <button v-if="isRiskPaused(account)" class="account-card__btn account-card__btn--enable" @click="emit('resumeAutomation', account)">
-          <span>恢复自动化</span>
-        </button>
-        <button class="account-card__btn account-card__btn--edit" @click="emit('edit', account)">
-          <IconEdit />
-          <span>编辑</span>
-        </button>
-        <button class="account-card__btn account-card__btn--delete" @click="emit('delete', account.id)">
-          <IconTrash />
-          <span>删除</span>
-        </button>
+        <div class="account-card__more-wrap" @click.stop>
+          <button class="account-card__btn account-card__btn--more" type="button" @click="toggleActionMenu($event, account.id)">
+            <span>更多操作</span>
+            <span class="account-card__more-caret">⌄</span>
+          </button>
+          <Transition name="action-menu">
+            <div v-if="openedActionMenuId === account.id" class="account-action-menu account-action-menu--mobile" role="menu">
+              <button type="button" role="menuitem" @click="runAction($event, () => emit('edit', account))"><IconEdit /> 设置账号</button>
+              <button
+                type="button"
+                role="menuitem"
+                :disabled="!canToggleEnabled(account)"
+                :title="canToggleEnabled(account) ? '' : '当前账号需先处理连接或验证问题'"
+                @click="runAction($event, () => emit('toggleEnabled', account))"
+              >{{ account.status === 0 ? '启用账号' : '禁用账号' }}</button>
+              <button type="button" role="menuitem" :disabled="!isRiskPaused(account)" @click="runAction($event, () => emit('resumeAutomation', account))">恢复自动化</button>
+              <div class="account-action-menu__divider"></div>
+              <button type="button" role="menuitem" class="account-action-menu__danger" @click="runAction($event, () => emit('delete', account.id))"><IconTrash /> 删除账号</button>
+            </div>
+          </Transition>
+        </div>
       </div>
     </div>
 
@@ -186,21 +207,19 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
     <table class="table" v-if="accounts.length > 0">
       <thead class="table__head">
         <tr>
-          <th class="table__th table__th--id">ID</th>
-          <th class="table__th">UNB</th>
-          <th class="table__th">账号备注</th>
+          <th class="table__th table__th--account">账号</th>
           <th class="table__th table__th--status">账号状态</th>
           <th class="table__th table__th--automation">自动化</th>
-          <th class="table__th table__th--time">创建时间</th>
-          <th class="table__th table__th--time">更新时间</th>
+          <th class="table__th table__th--time">最近更新</th>
           <th class="table__th table__th--actions">操作</th>
         </tr>
       </thead>
       <tbody class="table__body">
         <tr v-for="account in accounts" :key="account.id" class="table__tr">
-          <td class="table__td table__td--id">{{ account.id }}</td>
-          <td class="table__td">{{ account.unb }}</td>
-          <td class="table__td">{{ account.accountNote || '未命名账号' }}</td>
+          <td class="table__td table__td--account">
+            <strong>{{ account.accountNote || '未命名账号' }}</strong>
+            <span>UNB：{{ account.unb }} · ID：{{ account.id }}</span>
+          </td>
           <td class="table__td table__td--status">
             <div class="account-status">
               <span class="account-status__dot" :style="{ background: getStatusColor(account.status), boxShadow: getStatusRing(account.status) }"></span>
@@ -224,7 +243,6 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
               <small v-if="isRiskPaused(account)" class="automation-risk-reason">{{ account.automationRiskPauseReason || '连续自动化失败，等待人工确认' }}</small>
             </div>
           </td>
-          <td class="table__td table__td--time">{{ formatTime(account.createdTime) }}</td>
           <td class="table__td table__td--time">{{ formatTime(account.updatedTime) }}</td>
           <td class="table__td table__td--actions">
             <div class="table__action-group">
@@ -232,25 +250,27 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
                 <IconLink />
                 <span>账号详情</span>
               </button>
-              <button
-                v-if="account.status === 1 || account.status === 0"
-                class="table__action table__action--toggle"
-                :class="account.status === 0 ? 'table__action--enable' : 'table__action--disable'"
-                @click="emit('toggleEnabled', account)"
-              >
-                <span>{{ account.status === 0 ? '启用' : '禁用' }}</span>
-              </button>
-              <button v-if="isRiskPaused(account)" class="table__action table__action--enable" @click="emit('resumeAutomation', account)">
-                <span>恢复自动化</span>
-              </button>
-              <button class="table__action table__action--edit" @click="emit('edit', account)">
-                <IconEdit />
-                <span>设置</span>
-              </button>
-              <button class="table__action table__action--delete" @click="emit('delete', account.id)">
-                <IconTrash />
-                <span>删除</span>
-              </button>
+              <div class="table__action-menu-wrap" @click.stop>
+                <button class="table__action table__action--more" type="button" @click="toggleActionMenu($event, account.id)">
+                  <span>更多操作</span>
+                  <span class="table__action-caret">⌄</span>
+                </button>
+                <Transition name="action-menu">
+                  <div v-if="openedActionMenuId === account.id" class="account-action-menu" role="menu">
+                    <button type="button" role="menuitem" @click="runAction($event, () => emit('edit', account))"><IconEdit /> 设置账号</button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      :disabled="!canToggleEnabled(account)"
+                      :title="canToggleEnabled(account) ? '' : '当前账号需先处理连接或验证问题'"
+                      @click="runAction($event, () => emit('toggleEnabled', account))"
+                    >{{ account.status === 0 ? '启用账号' : '禁用账号' }}</button>
+                    <button type="button" role="menuitem" :disabled="!isRiskPaused(account)" @click="runAction($event, () => emit('resumeAutomation', account))">恢复自动化</button>
+                    <div class="account-action-menu__divider"></div>
+                    <button type="button" role="menuitem" class="account-action-menu__danger" @click="runAction($event, () => emit('delete', account.id))"><IconTrash /> 删除账号</button>
+                  </div>
+                </Transition>
+              </div>
             </div>
           </td>
         </tr>
@@ -475,6 +495,12 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
   border-top: none;
 }
 
+.account-card__more-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
+}
+
 .account-card__btn {
   display: inline-flex;
   align-items: center;
@@ -508,6 +534,21 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
   color: #2368b7;
   background: rgba(10,132,255,.10);
   border-color: rgba(10,132,255,.24);
+}
+
+.account-card__btn--more {
+  width: 100%;
+  color: var(--c-text-2);
+  background: rgba(60,60,67,.06);
+  border-color: rgba(60,60,67,.13);
+}
+
+.account-card__more-caret,
+.table__action-caret {
+  margin-left: 2px;
+  font-size: 15px;
+  line-height: 1;
+  transform: translateY(-1px);
 }
 
 @media (hover: hover) {
@@ -594,11 +635,11 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
   border-bottom: 1px solid rgba(60,60,67,.12);
 }
 
-.table__th--id { width: 64px; }
-.table__th--status { width: 180px; }
-.table__th--automation { width: 220px; }
-.table__th--time { width: 168px; }
-.table__th--actions { width: 200px; text-align: center; }
+.table__th--account { min-width: 220px; }
+.table__th--status { width: 170px; }
+.table__th--automation { width: 250px; }
+.table__th--time { width: 164px; }
+.table__th--actions { width: 196px; text-align: center; }
 
 /* Table Body */
 
@@ -629,6 +670,31 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
   color: var(--c-text-3);
   font-variant-numeric: tabular-nums;
   font-size: 12px;
+}
+
+.table__td--account {
+  min-width: 220px;
+}
+
+.table__td--account strong,
+.table__td--account span {
+  display: block;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table__td--account strong {
+  color: var(--c-text-1);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.table__td--account span {
+  margin-top: 2px;
+  color: var(--c-text-3);
+  font-size: 11px;
 }
 
 .table__td--time {
@@ -754,6 +820,10 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
   gap: 6px;
 }
 
+.table__action-menu-wrap {
+  position: relative;
+}
+
 /* Status Tag */
 .status-tag {
   display: inline-flex;
@@ -806,6 +876,12 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
   background: rgba(10,132,255,.08);
 }
 
+.table__action--more {
+  color: var(--c-text-2);
+  border-color: rgba(60,60,67,.14);
+  background: rgba(60,60,67,.05);
+}
+
 .table__action--disable {
   color: #b26a00;
   border-color: rgba(255,159,10,.30);
@@ -845,6 +921,82 @@ const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
 
 .table__action:active {
   transform: scale(0.95);
+}
+
+.account-action-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: 164px;
+  padding: 6px;
+  border: 1px solid rgba(60,60,67,.14);
+  border-radius: 10px;
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 14px 28px rgba(30,42,60,.16);
+}
+
+.account-action-menu button {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #34445b;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.account-action-menu button:hover:not(:disabled) {
+  background: rgba(255,191,0,.12);
+  color: #332900;
+}
+
+.account-action-menu button:disabled {
+  color: #a6adb7;
+  cursor: not-allowed;
+}
+
+.account-action-menu button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.account-action-menu__divider {
+  height: 1px;
+  margin: 5px 3px;
+  background: rgba(60,60,67,.11);
+}
+
+.account-action-menu .account-action-menu__danger {
+  color: #d83a35;
+}
+
+.account-action-menu .account-action-menu__danger:hover {
+  background: rgba(255,69,58,.10);
+  color: #bd302b;
+}
+
+.account-action-menu--mobile {
+  top: auto;
+  right: 0;
+  bottom: calc(100% + 8px);
+}
+
+.action-menu-enter-active,
+.action-menu-leave-active {
+  transition: opacity .14s ease, transform .14s ease;
+}
+
+.action-menu-enter-from,
+.action-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 /* ============================================================
