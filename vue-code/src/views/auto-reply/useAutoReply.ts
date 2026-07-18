@@ -1,4 +1,4 @@
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getAccountList } from '@/api/account'
 import { getGoodsList, updateAutoReplyStatus, getAutoReplyConfig, updateAutoReplyConfig, getAutoReplyRecords } from '@/api/goods'
@@ -58,6 +58,12 @@ export function useAutoReply() {
   const fixedMaterialSaving = ref(false)
   const fixedMaterialSyncing = ref(false)
   const fixedMaterialExpanded = ref(true)
+  const captchaGuide = reactive({
+    visible: false,
+    accountId: 0,
+    captchaUrl: ''
+  })
+  const retryDetailSyncAfterCaptcha = ref(false)
 
   // Chat
   const chatMessages = ref<ChatMessage[]>([])
@@ -302,7 +308,7 @@ export function useAutoReply() {
   }
 
   // Sync detail to fixed material
-  const handleSyncDetailToFixedMaterial = async () => {
+  const handleSyncDetailToFixedMaterial = async (allowCaptchaGuide = true) => {
     if (!selectedGoods.value || !selectedAccountId.value) return
 
     fixedMaterialSyncing.value = true
@@ -312,6 +318,17 @@ export function useAutoReply() {
         goodsId: selectedGoods.value.item.xyGoodId
       })
       const data = await response.json()
+      if ((data.code === 0 || data.code === 200)
+        && data.data?.verificationRequired
+        && data.data?.captchaUrl
+        && allowCaptchaGuide) {
+        captchaGuide.accountId = selectedAccountId.value
+        captchaGuide.captchaUrl = data.data.captchaUrl
+        retryDetailSyncAfterCaptcha.value = true
+        captchaGuide.visible = true
+        showInfo('请在验证窗口完成闲鱼安全验证，完成后会自动重新同步商品详情')
+        return
+      }
       if (data.code === 0 || data.code === 200) {
         showSuccess('商品详情已同步到固定资料')
         await loadFixedMaterial()
@@ -326,6 +343,14 @@ export function useAutoReply() {
     } finally {
       fixedMaterialSyncing.value = false
     }
+  }
+
+  const handleDetailCaptchaVerified = async () => {
+    captchaGuide.visible = false
+    if (!retryDetailSyncAfterCaptcha.value) return
+    retryDetailSyncAfterCaptcha.value = false
+    showInfo('验证完成，正在重新同步商品详情')
+    await handleSyncDetailToFixedMaterial(false)
   }
 
   // Toggle fixed material expanded
@@ -1127,6 +1152,7 @@ export function useAutoReply() {
     fixedMaterialSaving,
     fixedMaterialSyncing,
     fixedMaterialExpanded,
+    captchaGuide,
     chatMessages,
     chatInput,
     chatSending,
@@ -1175,6 +1201,7 @@ export function useAutoReply() {
     parseTriggerContext,
     handleSaveFixedMaterial,
     handleSyncDetailToFixedMaterial,
+    handleDetailCaptchaVerified,
     toggleFixedMaterialExpanded,
 
     keywordRules,

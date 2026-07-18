@@ -107,13 +107,21 @@ public class AIChatController {
     }
 
     @PostMapping("/syncDetailToFixedMaterial")
-    public ResultObject<?> syncDetailToFixedMaterial(@RequestBody FixedMaterialReqDTO req) {
+    public ResultObject<FixedMaterialRespDTO> syncDetailToFixedMaterial(@RequestBody FixedMaterialReqDTO req) {
         String detailInfo = goodsInfoService.getDetailInfoByGoodsId(req.getGoodsId());
         if (detailInfo == null || detailInfo.isBlank()) {
             // 旧逻辑只会复制本地缓存，刚同步或刚上架的商品没有缓存时必然失败。
             // 这里按用户操作实际拉取一次详情，再写入固定资料。
             SyncSingleItemRespDTO syncResult = itemDetailSyncService.syncSingleItem(req.getAccountId(), req.getGoodsId());
             if (!syncResult.isSuccess()) {
+                if (syncResult.isVerificationRequired()
+                        && syncResult.getCaptchaUrl() != null
+                        && !syncResult.getCaptchaUrl().isBlank()) {
+                    FixedMaterialRespDTO verificationResp = new FixedMaterialRespDTO();
+                    verificationResp.setVerificationRequired(true);
+                    verificationResp.setCaptchaUrl(syncResult.getCaptchaUrl());
+                    return ResultObject.success(verificationResp);
+                }
                 return ResultObject.failed(syncResult.getMessage());
             }
             detailInfo = goodsInfoService.getDetailInfoByGoodsId(req.getGoodsId());
@@ -124,7 +132,9 @@ public class AIChatController {
         }
 
         goodsConfigMapper.updateFixedMaterial(req.getAccountId(), req.getGoodsId(), detailInfo);
-        return ResultObject.success(null);
+        FixedMaterialRespDTO resp = new FixedMaterialRespDTO();
+        resp.setFixedMaterial(detailInfo);
+        return ResultObject.success(resp);
     }
 
     public static class FixedMaterialReqDTO {
@@ -142,9 +152,15 @@ public class AIChatController {
 
     public static class FixedMaterialRespDTO {
         private String fixedMaterial;
+        private boolean verificationRequired;
+        private String captchaUrl;
 
         public String getFixedMaterial() { return fixedMaterial; }
         public void setFixedMaterial(String fixedMaterial) { this.fixedMaterial = fixedMaterial; }
+        public boolean isVerificationRequired() { return verificationRequired; }
+        public void setVerificationRequired(boolean verificationRequired) { this.verificationRequired = verificationRequired; }
+        public String getCaptchaUrl() { return captchaUrl; }
+        public void setCaptchaUrl(String captchaUrl) { this.captchaUrl = captchaUrl; }
     }
 
     public static class ChatTestReqDTO {

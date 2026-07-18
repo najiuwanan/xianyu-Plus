@@ -2,6 +2,11 @@ package com.xianyusmart.service.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.microsoft.playwright.BrowserContext;
+import com.microsoft.playwright.Cookie;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.options.WaitUntilState;
+import com.xianyusmart.config.PlaywrightManager;
 import com.xianyusmart.controller.dto.ItemDTO;
 import com.xianyusmart.controller.dto.SyncProgressRespDTO;
 import com.xianyusmart.controller.dto.SyncSingleItemRespDTO;
@@ -14,15 +19,20 @@ import com.xianyusmart.service.GoodsSkuPropertyService;
 import com.xianyusmart.service.ItemDetailSyncService;
 import com.xianyusmart.utils.ItemDetailUtils;
 import com.xianyusmart.utils.XianyuApiUtils;
+import com.xianyusmart.utils.XianyuSignUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -44,11 +54,18 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
     private ObjectMapper objectMapper;
 
     @Autowired
+    private PlaywrightManager playwrightManager;
+
+    @Autowired
     @Lazy
     private ItemDetailSyncServiceImpl self;
 
     private final ConcurrentHashMap<String, SyncProgress> progressMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, String> accountSyncMap = new ConcurrentHashMap<>();
+
+    private static final String GOOFISH_COOKIE_DOMAIN = ".goofish.com";
+    private static final String TAOBAO_COOKIE_DOMAIN = ".taobao.com";
+    private static final int H5_DETAIL_TIMEOUT_MS = 15_000;
 
     private static class SyncProgress {
         String syncId;
@@ -59,6 +76,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         int failedCount = 0;
         int deferredCount = 0;
         boolean verificationRequired = false;
+        String captchaUrl = null;
         boolean isCompleted = false;
         boolean isRunning = true;
         String currentItemId = null;
@@ -135,6 +153,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
 
                 if (result.verificationRequired()) {
                     progress.verificationRequired = true;
+                    progress.captchaUrl = result.captchaUrl();
                     progress.deferredCount = Math.max(0, progress.totalCount - progress.completedCount);
                     progress.message = String.format(
                             "商品基础信息已同步；闲鱼要求安全验证，详情同步暂停（已完成 %d/%d，待补全 %d 个）",
@@ -164,7 +183,36 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         }
     }
 
+    /**
+     * 详情接口仍是首选；只有接口失败、返回空内容或进入验证态时才读取商品 H5 页面。
+     * H5 读取仅用于获取页面上的正文，不会点击、拖动或尝试绕过任何安全验证。
+     */
     private DetailSyncResult fetchAndSaveDetail(String itemId, String cookieStr, Long accountId) {
+        DetailSyncResult mtopResult = fetchAndSaveDetailFromMtop(itemId, cookieStr, accountId);
+        if (mtopResult.verificationRequired()) {
+            return DetailSyncResult.verificationRequired(mtopResult.message(), buildH5ItemUrl(itemId));
+        }
+
+        String detailInfo = goodsInfoService.getDetailInfoByGoodsId(itemId);
+        if (mtopResult.success() && detailInfo != null && !detailInfo.isBlank()) {
+            return mtopResult;
+        }
+
+        H5DetailResult h5Result = fetchDescriptionFromH5(itemId, cookieStr);
+        if (h5Result.verificationRequired()) {
+            return DetailSyncResult.verificationRequired(h5Result.message(), h5Result.captchaUrl());
+        }
+        if (h5Result.description() != null && !h5Result.description().isBlank()) {
+            goodsInfoService.updateDetailInfo(itemId, h5Result.description());
+            log.info("商品详情已通过 H5 页面补全: itemId={}", itemId);
+            return DetailSyncResult.successful();
+        }
+        return mtopResult.success()
+                ? DetailSyncResult.failed("商品详情未返回可读取的文字内容")
+                : mtopResult;
+    }
+
+    private DetailSyncResult fetchAndSaveDetailFromMtop(String itemId, String cookieStr, Long accountId) {
         try {
             Map<String, Object> dataMap = new HashMap<>();
             dataMap.put("itemId", itemId);
@@ -221,6 +269,79 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         }
     }
 
+    private H5DetailResult fetchDescriptionFromH5(String itemId, String cookieStr) {
+        String h5ItemUrl = buildH5ItemUrl(itemId);
+        try (BrowserContext context = playwrightManager.createContext()) {
+            context.addCookies(buildBrowserCookies(cookieStr));
+            Page page = context.newPage();
+            page.navigate(h5ItemUrl, new Page.NavigateOptions()
+                    .setWaitUntil(WaitUntilState.DOMCONTENTLOADED)
+                    .setTimeout(H5_DETAIL_TIMEOUT_MS));
+            page.waitForTimeout(900);
+
+            String pageText = getPageText(page);
+            if (isVerificationRequired(page.url() + "\n" + pageText)) {
+                log.info("商品 H5 页面要求人工验证: itemId={}, url={}", itemId, page.url());
+                return H5DetailResult.verificationRequired("闲鱼要求安全验证", page.url());
+            }
+
+            String description = extractDescriptionFromH5(page);
+            if (description != null && !description.isBlank()) {
+                return H5DetailResult.successful(description);
+            }
+            log.info("商品 H5 页面未找到可读取的文字详情: itemId={}", itemId);
+            return H5DetailResult.failed();
+        } catch (Exception e) {
+            log.warn("读取商品 H5 页面失败: itemId={}, message={}", itemId, e.getMessage());
+            return H5DetailResult.failed();
+        }
+    }
+
+    private List<Cookie> buildBrowserCookies(String cookieStr) {
+        Map<String, String> cookieMap = XianyuSignUtils.parseCookies(cookieStr);
+        List<Cookie> browserCookies = new ArrayList<>();
+        for (Map.Entry<String, String> entry : cookieMap.entrySet()) {
+            if (entry.getKey() == null || entry.getKey().isBlank()
+                    || entry.getValue() == null || entry.getValue().isBlank()) {
+                continue;
+            }
+            browserCookies.add(new Cookie(entry.getKey(), entry.getValue()).setDomain(GOOFISH_COOKIE_DOMAIN).setPath("/"));
+            browserCookies.add(new Cookie(entry.getKey(), entry.getValue()).setDomain(TAOBAO_COOKIE_DOMAIN).setPath("/"));
+        }
+        return browserCookies;
+    }
+
+    private String getPageText(Page page) {
+        Object value = page.evaluate("() => document.body ? document.body.innerText : ''");
+        return value == null ? "" : String.valueOf(value);
+    }
+
+    private String extractDescriptionFromH5(Page page) {
+        Object value = page.evaluate("""
+                () => {
+                  const selectors = [
+                    '[class*="detail-desc"]', '[class*="detailDesc"]',
+                    '[class*="goods-detail"]', '[class*="goodsDetail"]',
+                    '[class*="item-detail"]', '[class*="itemDetail"]',
+                    '[data-testid*="detail"]', '[data-testid*="desc"]'
+                  ];
+                  for (const selector of selectors) {
+                    for (const node of document.querySelectorAll(selector)) {
+                      const text = (node.innerText || node.textContent || '').trim();
+                      if (text.length >= 20) return text;
+                    }
+                  }
+                  return '';
+                }
+                """);
+        String description = value == null ? "" : String.valueOf(value).trim();
+        return description.length() >= 20 ? description : null;
+    }
+
+    private String buildH5ItemUrl(String itemId) {
+        return "https://m.goofish.com/item?id=" + itemId;
+    }
+
     @Override
     public SyncSingleItemRespDTO syncSingleItem(Long accountId, String itemId) {
         if (accountId == null || itemId == null || itemId.isEmpty()) {
@@ -237,6 +358,10 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         if (result.success()) {
             return buildSingleSyncResult(true, false, "商品详情同步成功");
         }
+        if (result.verificationRequired() && result.captchaUrl() != null && !result.captchaUrl().isBlank()) {
+            return buildSingleSyncResult(false, true,
+                    "闲鱼要求安全验证，请在页面中完成验证后自动重试", result.captchaUrl());
+        }
         if (result.verificationRequired()) {
             return buildSingleSyncResult(false, true,
                     "闲鱼要求安全验证，暂时无法读取商品详情；请在闲鱼客户端完成验证后稍后重试");
@@ -246,10 +371,15 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
     }
 
     private SyncSingleItemRespDTO buildSingleSyncResult(boolean success, boolean verificationRequired, String message) {
+        return buildSingleSyncResult(success, verificationRequired, message, null);
+    }
+
+    private SyncSingleItemRespDTO buildSingleSyncResult(boolean success, boolean verificationRequired, String message, String captchaUrl) {
         SyncSingleItemRespDTO result = new SyncSingleItemRespDTO();
         result.setSuccess(success);
         result.setVerificationRequired(verificationRequired);
         result.setMessage(message);
+        result.setCaptchaUrl(captchaUrl);
         return result;
     }
 
@@ -280,20 +410,43 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         return normalized.contains("fail_sys_user_validate")
                 || normalized.contains("rgv587_error")
                 || normalized.contains("captcha")
+                || normalized.contains("slider")
+                || normalized.contains("security verification")
+                || normalized.contains("\u5b89\u5168\u9a8c\u8bc1")
+                || normalized.contains("\u6ed1\u52a8\u9a8c\u8bc1")
+                || normalized.contains("\u8bf7\u5b8c\u6210\u9a8c\u8bc1")
                 || normalized.contains("安全验证");
     }
 
-    private record DetailSyncResult(boolean success, boolean verificationRequired, String message) {
+    private record DetailSyncResult(boolean success, boolean verificationRequired, String message, String captchaUrl) {
         static DetailSyncResult successful() {
-            return new DetailSyncResult(true, false, null);
+            return new DetailSyncResult(true, false, null, null);
         }
 
         static DetailSyncResult failed(String message) {
-            return new DetailSyncResult(false, false, message);
+            return new DetailSyncResult(false, false, message, null);
         }
 
         static DetailSyncResult verificationRequired(String message) {
-            return new DetailSyncResult(false, true, message);
+            return verificationRequired(message, null);
+        }
+
+        static DetailSyncResult verificationRequired(String message, String captchaUrl) {
+            return new DetailSyncResult(false, true, message, captchaUrl);
+        }
+    }
+
+    private record H5DetailResult(String description, boolean verificationRequired, String message, String captchaUrl) {
+        static H5DetailResult successful(String description) {
+            return new H5DetailResult(description, false, null, null);
+        }
+
+        static H5DetailResult failed() {
+            return new H5DetailResult(null, false, null, null);
+        }
+
+        static H5DetailResult verificationRequired(String message, String captchaUrl) {
+            return new H5DetailResult(null, true, message, captchaUrl);
         }
     }
 
@@ -343,6 +496,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         dto.setFailedCount(progress.failedCount);
         dto.setDeferredCount(progress.deferredCount);
         dto.setVerificationRequired(progress.verificationRequired);
+        dto.setCaptchaUrl(progress.captchaUrl);
         dto.setIsCompleted(progress.isCompleted);
         dto.setIsRunning(progress.isRunning);
         dto.setCurrentItemId(progress.currentItemId);

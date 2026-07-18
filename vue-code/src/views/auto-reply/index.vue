@@ -15,6 +15,7 @@ import IconCheck from '@/components/icons/IconCheck.vue'
 import IconPackage from '@/components/icons/IconPackage.vue'
 
 import GoodsDetailDialog from '../goods/components/GoodsDetailDialog.vue'
+import CaptchaGuideDialog from '../connection/components/CaptchaGuideDialog.vue'
 import ImageUploader from '@/components/ImageUploader.vue'
 
 const goodsPanelCollapsed = ref(true)
@@ -37,6 +38,7 @@ const {
   fixedMaterialSaving,
   fixedMaterialSyncing,
   fixedMaterialExpanded,
+  captchaGuide,
   chatMessages,
   chatInput,
   chatSending,
@@ -83,6 +85,7 @@ const {
   parseTriggerContext,
   handleSaveFixedMaterial,
   handleSyncDetailToFixedMaterial,
+  handleDetailCaptchaVerified,
   toggleFixedMaterialExpanded,
   keywordRules, newKeyword, newContentText, newContentImage,
   toggleKeywordReply, toggleHumanIntervention, updateHumanInterventionMinutes, handleAddKeyword, handleDeleteRule, handleUpdateKeyword, handleAddContent, handleDeleteContent,
@@ -669,7 +672,7 @@ onMounted(() => {
                   class="btn btn--ghost btn--sm"
                   :class="{ 'btn--loading': fixedMaterialSyncing }"
                   :disabled="fixedMaterialSyncing"
-                  @click.stop="handleSyncDetailToFixedMaterial"
+                  @click.stop="() => handleSyncDetailToFixedMaterial()"
                 >
                   <IconSparkle />
                   同步商品详情
@@ -773,6 +776,13 @@ onMounted(() => {
       v-model="detailDialogVisible"
       :goods-id="selectedGoodsId"
       :account-id="selectedAccountId"
+    />
+
+    <CaptchaGuideDialog
+      v-model="captchaGuide.visible"
+      :account-id="captchaGuide.accountId"
+      :captcha-url="captchaGuide.captchaUrl"
+      @success="handleDetailCaptchaVerified"
     />
 
     <!-- Records List Dialog -->

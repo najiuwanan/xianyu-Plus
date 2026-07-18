@@ -10,6 +10,7 @@ public class SyncSingleItemRespDTO {
 
     private boolean success;
     private boolean verificationRequired;
+    private String captchaUrl;
     private String message;
 
     public boolean isSuccess() {
@@ -26,6 +27,14 @@ public class SyncSingleItemRespDTO {
 
     public void setVerificationRequired(boolean verificationRequired) {
         this.verificationRequired = verificationRequired;
+    }
+
+    public String getCaptchaUrl() {
+        return captchaUrl;
+    }
+
+    public void setCaptchaUrl(String captchaUrl) {
+        this.captchaUrl = captchaUrl;
     }
 
     public String getMessage() {

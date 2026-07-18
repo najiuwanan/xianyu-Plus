@@ -64,6 +64,7 @@ export interface SyncProgressResponse {
   failedCount: number;
   deferredCount: number;
   verificationRequired: boolean;
+  captchaUrl?: string;
   isCompleted: boolean;
   isRunning: boolean;
   currentItemId: string;
@@ -75,6 +76,7 @@ export interface SyncProgressResponse {
 export interface SyncSingleItemResponse {
   success: boolean;
   verificationRequired: boolean;
+  captchaUrl?: string;
   message: string;
 }
 

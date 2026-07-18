@@ -14,6 +14,8 @@ public class SyncProgressRespDTO {
     private Integer deferredCount;
     /** 是否因闲鱼安全验证暂停详情同步。 */
     private Boolean verificationRequired;
+    /** 服务器端人工验证会话需要打开的闲鱼页面。 */
+    private String captchaUrl;
     private Boolean isCompleted;
     private Boolean isRunning;
     private String currentItemId;
