@@ -227,33 +227,47 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
       <tbody class="table__body">
         <tr v-for="account in accounts" :key="account.id" class="table__tr">
           <td class="table__td table__td--account">
-            <strong>{{ account.accountNote || '未命名账号' }}</strong>
-            <span>UNB：{{ account.unb }} · ID：{{ account.id }}</span>
+            <div class="account-identity">
+              <span class="account-identity__avatar">{{ (account.accountNote || account.unb || '鱼').charAt(0) }}</span>
+              <div class="account-identity__content">
+                <strong>{{ account.accountNote || '未命名账号' }}</strong>
+                <span>UNB：{{ account.unb }} · ID：{{ account.id }}</span>
+              </div>
+            </div>
           </td>
           <td class="table__td table__td--status">
-            <div class="account-status">
+            <div class="account-status-panel" :style="{ background: getStatusBg(account.status) }">
               <span class="account-status__dot" :style="{ background: getStatusColor(account.status), boxShadow: getStatusRing(account.status) }"></span>
               <div class="account-status__text">
+                <span class="account-status__label">运行状态</span>
                 <strong :style="{ color: getStatusColor(account.status) }">{{ getAccountStatusText(account.status).text }}</strong>
-                <span>{{ getStatusDescription(account.status) }}</span>
+                <span class="account-status__description">{{ getStatusDescription(account.status) }}</span>
               </div>
             </div>
           </td>
           <td class="table__td table__td--automation">
-            <div class="automation-list">
-              <span class="automation-chip" :class="{ 'automation-chip--on': isEnabled(account.autoRateEnabled) }">
-                <i></i>自动评价 {{ isEnabled(account.autoRateEnabled) ? '已开启' : '已关闭' }}
-              </span>
-              <span class="automation-chip" :class="{ 'automation-chip--on': isEnabled(account.autoAskFlower) }">
-                <i></i>自动求花 {{ isEnabled(account.autoAskFlower) ? '已开启' : '已关闭' }}
-              </span>
+            <div class="automation-summary">
+              <div class="automation-summary__item" :class="{ 'automation-summary__item--on': isEnabled(account.autoRateEnabled) }">
+                <span>自动评价</span>
+                <strong>{{ isEnabled(account.autoRateEnabled) ? '已开启' : '已关闭' }}</strong>
+              </div>
+              <div class="automation-summary__item" :class="{ 'automation-summary__item--on': isEnabled(account.autoAskFlower) }">
+                <span>自动小红花</span>
+                <strong>{{ isEnabled(account.autoAskFlower) ? '已开启' : '已关闭' }}</strong>
+              </div>
               <span v-if="isRiskPaused(account)" class="automation-chip automation-chip--risk" :title="account.automationRiskPauseReason">
                 <i></i>自动化已保护暂停
               </span>
               <small v-if="isRiskPaused(account)" class="automation-risk-reason">{{ account.automationRiskPauseReason || '连续自动化失败，等待人工确认' }}</small>
             </div>
           </td>
-          <td class="table__td table__td--time">{{ formatTime(account.updatedTime) }}</td>
+          <td class="table__td table__td--time">
+            <div class="account-time">
+              <span>最近更新</span>
+              <time>{{ formatTime(account.updatedTime) }}</time>
+              <small>创建于 {{ formatTime(account.createdTime) }}</small>
+            </div>
+          </td>
           <td class="table__td table__td--actions">
             <div class="table__action-group">
               <button
@@ -626,6 +640,7 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
 
 .table {
   width: 100%;
+  min-width: 1040px;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -639,12 +654,12 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
 
 .table__th {
   text-align: left;
-  padding: 12px 16px;
+  padding: 13px 18px;
   font-size: 12px;
-  font-weight: 600;
-  color: #1c1c1e;
-  letter-spacing: .4px;
-  background: rgba(255,255,255,0.55);
+  font-weight: 700;
+  color: #42526a;
+  letter-spacing: .02em;
+  background: rgba(248,250,252,.82);
   backdrop-filter: blur(16px) saturate(1.6);
   -webkit-backdrop-filter: blur(16px) saturate(1.6);
   white-space: nowrap;
@@ -652,10 +667,10 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
   border-bottom: 1px solid rgba(60,60,67,.12);
 }
 
-.table__th--account { min-width: 220px; }
-.table__th--status { width: 170px; }
-.table__th--automation { width: 250px; }
-.table__th--time { width: 164px; }
+.table__th--account { min-width: 250px; }
+.table__th--status { width: 220px; }
+.table__th--automation { width: 280px; }
+.table__th--time { width: 190px; }
 .table__th--actions { width: 252px; text-align: center; }
 
 /* Table Body */
@@ -675,7 +690,7 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
 }
 
 .table__td {
-  padding: 12px 16px;
+  padding: 16px 18px;
   color: var(--c-text-1);
   white-space: nowrap;
   background: transparent;
@@ -690,11 +705,34 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
 }
 
 .table__td--account {
-  min-width: 220px;
+  min-width: 250px;
 }
 
-.table__td--account strong,
-.table__td--account span {
+.account-identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.account-identity__avatar {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #ffe49a;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #fff6d5, #ffe8a3);
+  color: #9a6300;
+  font-size: 16px;
+  font-weight: 750;
+  box-shadow: 0 4px 10px rgba(221, 158, 0, .12);
+}
+
+.account-identity__content { min-width: 0; }
+
+.account-identity__content strong,
+.account-identity__content span {
   display: block;
   max-width: 250px;
   overflow: hidden;
@@ -702,45 +740,50 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
   white-space: nowrap;
 }
 
-.table__td--account strong {
-  color: var(--c-text-1);
-  font-size: 13px;
-  font-weight: 600;
+.account-identity__content strong {
+  color: #26364d;
+  font-size: 14px;
+  font-weight: 700;
 }
 
-.table__td--account span {
-  margin-top: 2px;
-  color: var(--c-text-3);
+.account-identity__content span {
+  margin-top: 3px;
+  color: #79879a;
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 
 .table__td--time {
-  color: var(--c-text-2);
+  color: #526179;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
 .table__td--status {
-  min-width: 180px;
+  min-width: 220px;
 }
 
 .table__td--automation {
-  min-width: 220px;
+  min-width: 280px;
 }
 
 .table__td--actions {
   text-align: center;
 }
 
-.account-status {
-  display: inline-flex;
+.account-status-panel {
+  display: flex;
   align-items: center;
-  gap: 9px;
+  min-height: 54px;
+  gap: 10px;
+  padding: 9px 11px;
+  border: 1px solid rgba(255,255,255,.72);
+  border-radius: 12px;
 }
 
 .account-status__dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -748,22 +791,28 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
 .account-status__text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .account-status__text strong {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 14px;
+  font-weight: 700;
   line-height: 1.2;
 }
 
-.account-status__text span {
-  color: var(--c-text-3);
+.account-status__label {
+  color: #708095 !important;
   font-size: 11px;
-  line-height: 1.25;
+  font-weight: 600;
+  line-height: 1.15;
 }
 
-.automation-list,
+.account-status__description {
+  color: #66768b !important;
+  font-size: 11px;
+  line-height: 1.3;
+}
+
 .account-card__automation-list {
   display: flex;
   align-items: center;
@@ -829,6 +878,67 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
 
 .account-card__automation-list {
   flex: 1;
+}
+
+.automation-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(112px, 1fr));
+  gap: 7px;
+}
+
+.automation-summary__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid #e7ecf2;
+  border-radius: 10px;
+  background: #f8fafc;
+  color: #7d8999;
+  font-size: 11px;
+}
+
+.automation-summary__item strong {
+  color: #7d8999;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.automation-summary__item--on {
+  border-color: #cdeed9;
+  background: #effbf3;
+  color: #24814a;
+}
+
+.automation-summary__item--on strong { color: #168a42; }
+
+.automation-summary .automation-chip,
+.automation-summary .automation-risk-reason {
+  grid-column: 1 / -1;
+}
+
+.account-time {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.account-time > span {
+  color: #8090a3;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.account-time time {
+  color: #43546c;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.account-time small {
+  color: #8b97a7;
+  font-size: 10px;
 }
 
 .table__action-group {
