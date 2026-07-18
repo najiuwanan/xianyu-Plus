@@ -1,5 +1,5 @@
 import { ref, reactive } from 'vue'
-import { getAccountList, deleteAccount as deleteAccountApi, setAccountEnabled, resumeAccountAutomation } from '@/api/account'
+import { getAccountList, deleteAccount as deleteAccountApi, setAccountEnabled, resumeAccountAutomation, refreshAccountAvatar as refreshAccountAvatarApi } from '@/api/account'
 import { showSuccess, showError, showConfirm } from '@/utils'
 import type { Account } from '@/types'
 
@@ -112,6 +112,21 @@ export function useAccountManager() {
     }
   }
 
+  const refreshAccountAvatar = async (account: Account) => {
+    try {
+      const response = await refreshAccountAvatarApi({ accountId: account.id })
+      if (response.code !== 0 && response.code !== 200) {
+        throw new Error(response.msg || '暂时无法获取闲鱼头像')
+      }
+      showSuccess('闲鱼头像已更新')
+      await loadAccounts()
+    } catch (error: any) {
+      if (!error?.messageShown) {
+        showError(error?.message || '暂时无法获取闲鱼头像，已保留文字头像')
+      }
+    }
+  }
+
   // 确认删除账号
   const confirmDelete = async () => {
     if (!deleteAccountId.value) return;
@@ -147,6 +162,7 @@ export function useAccountManager() {
     deleteAccount,
     toggleAccountEnabled,
     resumeAutomation,
+    refreshAccountAvatar,
     confirmDelete
   }
 }

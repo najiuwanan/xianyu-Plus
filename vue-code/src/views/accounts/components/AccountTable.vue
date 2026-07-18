@@ -23,6 +23,7 @@ interface Emits {
   (e: 'delete', id: number): void
   (e: 'toggleEnabled', account: Account): void
   (e: 'resumeAutomation', account: Account): void
+  (e: 'refreshAvatar', account: Account): void
   (e: 'connection', account: Account): void
   (e: 'automationSettings', account: Account, section: AutomationSection): void
 }
@@ -32,6 +33,7 @@ const emit = defineEmits<Emits>()
 
 const isMobile = ref(false)
 const openedActionMenuId = ref<number | null>(null)
+const failedAvatarIds = ref<Set<number>>(new Set())
 const checkScreenSize = () => {
   isMobile.value = window.innerWidth < 768
 }
@@ -106,6 +108,18 @@ const getStatusDescription = (status: number) => {
 const isEnabled = (value?: number) => value === 1
 const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
 const canToggleEnabled = (account: Account) => account.status === 1 || account.status === 0
+const canShowAvatar = (account: Account) => Boolean(account.avatarUrl) && !failedAvatarIds.value.has(account.id)
+
+const hideAvatar = (accountId: number) => {
+  failedAvatarIds.value = new Set(failedAvatarIds.value).add(accountId)
+}
+
+const refreshAvatar = (account: Account) => {
+  const nextFailedAvatarIds = new Set(failedAvatarIds.value)
+  nextFailedAvatarIds.delete(account.id)
+  failedAvatarIds.value = nextFailedAvatarIds
+  emit('refreshAvatar', account)
+}
 </script>
 
 <template>
@@ -117,9 +131,15 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
       class="account-card"
     >
       <div class="account-card__header">
-        <div class="account-card__avatar">
-          {{ (account.accountNote || account.unb || '未').charAt(0) }}
-        </div>
+        <button
+          type="button"
+          class="account-card__avatar"
+          title="刷新闲鱼头像"
+          @click="refreshAvatar(account)"
+        >
+          <img v-if="canShowAvatar(account)" :src="account.avatarUrl" alt="闲鱼账号头像" @error="hideAvatar(account.id)" />
+          <span v-else>{{ (account.accountNote || account.unb || '未').charAt(0) }}</span>
+        </button>
         <div class="account-card__info">
           <span class="account-card__name">{{ account.accountNote || '未命名账号' }}</span>
           <span class="account-card__unb">UNB: {{ account.unb }}</span>
@@ -217,7 +237,15 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
     <article v-for="account in accounts" :key="account.id" class="account-overview-card">
           <div class="account-overview-card__identity">
             <div class="account-identity">
-              <span class="account-identity__avatar">{{ (account.accountNote || account.unb || '鱼').charAt(0) }}</span>
+              <button
+                type="button"
+                class="account-identity__avatar"
+                title="刷新闲鱼头像"
+                @click="refreshAvatar(account)"
+              >
+                <img v-if="canShowAvatar(account)" :src="account.avatarUrl" alt="闲鱼账号头像" @error="hideAvatar(account.id)" />
+                <span v-else>{{ (account.accountNote || account.unb || '鱼').charAt(0) }}</span>
+              </button>
               <div class="account-identity__content">
                 <strong>{{ account.accountNote || '未命名账号' }}</strong>
                 <span>UNB：{{ account.unb }} · ID：{{ account.id }}</span>
@@ -394,6 +422,9 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
   font-size: 18px;
   font-weight: 600;
   flex-shrink: 0;
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
   box-shadow: 0 4px 16px rgba(10,132,255,0.35);
 }
 
@@ -703,6 +734,23 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
   font-size: 16px;
   font-weight: 750;
   box-shadow: 0 4px 10px rgba(221, 158, 0, .12);
+  padding: 0;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+.account-card__avatar img,
+.account-identity__avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.account-card__avatar:focus-visible,
+.account-identity__avatar:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
 }
 
 .account-identity__content { min-width: 0; }

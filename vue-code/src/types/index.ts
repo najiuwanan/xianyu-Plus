@@ -11,6 +11,7 @@ export interface Account {
   id: number
   accountNote: string
   unb: string
+  avatarUrl?: string
   status: number
   createdTime: string
   updatedTime: string

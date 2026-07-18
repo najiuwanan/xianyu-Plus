@@ -34,7 +34,8 @@ const {
   editAccount,
   deleteAccount,
   toggleAccountEnabled,
-  resumeAutomation
+  resumeAutomation,
+  refreshAccountAvatar
 } = useAccountManager();
 
 const selectedConnectionAccount = computed(() =>
@@ -112,6 +113,7 @@ void loadAccounts();
           @delete="deleteAccount"
           @toggle-enabled="toggleAccountEnabled"
           @resume-automation="resumeAutomation"
+          @refresh-avatar="refreshAccountAvatar"
           @connection="openConnection"
         />
       </div>

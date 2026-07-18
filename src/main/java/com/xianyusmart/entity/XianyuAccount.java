@@ -29,6 +29,9 @@ public class XianyuAccount {
      * UNB标识
      */
     private String unb;
+
+    /** 闲鱼账号头像地址；无法获取时前端使用文字头像兜底 */
+    private String avatarUrl;
     
     /**
      * 设备ID（UUID格式-用户ID，用于WebSocket连接）

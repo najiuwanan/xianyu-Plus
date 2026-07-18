@@ -67,3 +67,12 @@ export function manualAddAccount(data: { accountNote: string; cookie: string }) 
     data
   })
 }
+
+// 刷新并缓存账号头像；接口不可用时仍保留前端文字头像
+export function refreshAccountAvatar(data: { accountId: number }) {
+  return request<string>({
+    url: '/account/refreshAvatar',
+    method: 'POST',
+    data
+  })
+}

@@ -14,6 +14,7 @@ import com.xianyusmart.controller.dto.ManualAddAccountReqDTO;
 import com.xianyusmart.controller.dto.UpdateAccountReqDTO;
 import com.xianyusmart.controller.dto.UpdateAccountRespDTO;
 import com.xianyusmart.service.AccountService;
+import com.xianyusmart.service.AccountProfileService;
 import com.xianyusmart.service.AutoReplyDelayService;
 import com.xianyusmart.service.AutomationRiskGuardService;
 import com.xianyusmart.service.DeliveryTaskService;
@@ -37,6 +38,9 @@ public class AccountController {
     
     @Autowired
     private AccountService accountService;
+
+    @Autowired
+    private AccountProfileService accountProfileService;
 
     @Autowired
     private WebSocketService webSocketService;
@@ -83,6 +87,7 @@ public class AccountController {
                     reqDTO.getUnb(),
                     reqDTO.getCookie()
             );
+            accountProfileService.refreshAvatar(accountId);
             
             AddAccountRespDTO respDTO = new AddAccountRespDTO();
             respDTO.setAccountId(accountId);
@@ -124,6 +129,7 @@ public class AccountController {
                     unb,
                     reqDTO.getCookie()
             );
+            accountProfileService.refreshAvatar(accountId);
             
             AddAccountRespDTO respDTO = new AddAccountRespDTO();
             respDTO.setAccountId(accountId);
@@ -276,6 +282,27 @@ public class AccountController {
     @lombok.Data
     public static class AccountIdReqDTO {
         private Long accountId;
+    }
+
+    /**
+     * 手动刷新账号头像。头像获取失败不会影响账号连接或自动化功能。
+     */
+    @PostMapping("/refreshAvatar")
+    public ResultObject<String> refreshAvatar(@RequestBody AccountIdReqDTO reqDTO) {
+        if (reqDTO == null || reqDTO.getAccountId() == null) {
+            return ResultObject.failed("请选择需要刷新头像的账号");
+        }
+
+        XianyuAccount account = accountMapper.selectById(reqDTO.getAccountId());
+        if (account == null) {
+            return ResultObject.failed("账号不存在");
+        }
+
+        String avatarUrl = accountProfileService.refreshAvatar(account.getId());
+        if (avatarUrl == null || avatarUrl.isBlank()) {
+            return ResultObject.failed("暂时无法获取闲鱼头像，已保留文字头像");
+        }
+        return ResultObject.success(avatarUrl);
     }
 
     /**
