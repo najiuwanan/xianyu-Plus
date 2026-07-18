@@ -22,6 +22,7 @@ public class RateTaskScheduler {
 
     private final XianyuAccountMapper accountMapper;
     private final OrderAutomationService orderAutomationService;
+    private final PendingOrderPollService pendingOrderPollService;
     private final AutomationRiskGuardService automationRiskGuardService;
     private final AutomationScheduleService automationScheduleService;
     private final Executor taskExecutor;
@@ -29,11 +30,13 @@ public class RateTaskScheduler {
 
     public RateTaskScheduler(XianyuAccountMapper accountMapper,
                              OrderAutomationService orderAutomationService,
+                             PendingOrderPollService pendingOrderPollService,
                              AutomationRiskGuardService automationRiskGuardService,
                              AutomationScheduleService automationScheduleService,
                              @Qualifier("taskExecutor") Executor taskExecutor) {
         this.accountMapper = accountMapper;
         this.orderAutomationService = orderAutomationService;
+        this.pendingOrderPollService = pendingOrderPollService;
         this.automationRiskGuardService = automationRiskGuardService;
         this.automationScheduleService = automationScheduleService;
         this.taskExecutor = taskExecutor;
@@ -60,6 +63,7 @@ public class RateTaskScheduler {
             }
             taskExecutor.execute(() -> {
                 try {
+                    pendingOrderPollService.refreshRecentSoldOrderHistory(account.getId());
                     orderAutomationService.runScheduledRateForAccount(
                             account.getId(), RATE_REQUEST_INTERVAL_SECONDS);
                 } catch (Exception exception) {

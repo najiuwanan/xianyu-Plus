@@ -1,5 +1,8 @@
 package com.xianyusmart.service;
 
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.xianyusmart.entity.XianyuAccount;
+import com.xianyusmart.mapper.XianyuAccountMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -7,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.List;
 
 /** Schedules red flower requests without occupying a scheduler thread during network calls. */
 @Slf4j
@@ -14,14 +18,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class RedFlowerTaskScheduler {
 
     private final RedFlowerService redFlowerService;
+    private final XianyuAccountMapper accountMapper;
+    private final PendingOrderPollService pendingOrderPollService;
     private final AutomationScheduleService automationScheduleService;
     private final Executor taskExecutor;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
     public RedFlowerTaskScheduler(RedFlowerService redFlowerService,
-                                  AutomationScheduleService automationScheduleService,
+                                   XianyuAccountMapper accountMapper,
+                                   PendingOrderPollService pendingOrderPollService,
+                                   AutomationScheduleService automationScheduleService,
                                   @Qualifier("taskExecutor") Executor taskExecutor) {
         this.redFlowerService = redFlowerService;
+        this.accountMapper = accountMapper;
+        this.pendingOrderPollService = pendingOrderPollService;
         this.automationScheduleService = automationScheduleService;
         this.taskExecutor = taskExecutor;
     }
@@ -34,7 +44,13 @@ public class RedFlowerTaskScheduler {
         }
         taskExecutor.execute(() -> {
             try {
-                redFlowerService.processPendingRedFlowers();
+                List<XianyuAccount> accounts = accountMapper.selectList(new QueryWrapper<XianyuAccount>()
+                        .eq("status", 1)
+                        .eq("auto_ask_flower", 1));
+                for (XianyuAccount account : accounts) {
+                    pendingOrderPollService.refreshRecentSoldOrderHistory(account.getId());
+                    redFlowerService.processPendingRedFlowersForAccount(account.getId());
+                }
             } catch (Exception exception) {
                 log.error("定时求小红花任务执行异常", exception);
             } finally {

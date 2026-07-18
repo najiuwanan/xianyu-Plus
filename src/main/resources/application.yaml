@@ -14,7 +14,7 @@ app:
   red-flower:
     interval-ms: ${RED_FLOWER_INTERVAL_MS:300000}
     initial-delay-ms: ${RED_FLOWER_INITIAL_DELAY_MS:90000}
-    lookback-days: ${RED_FLOWER_LOOKBACK_DAYS:10}
+    lookback-days: ${RED_FLOWER_LOOKBACK_DAYS:30}
     batch-size: ${RED_FLOWER_BATCH_SIZE:50}
   websocket:
     auto-reconnect-on-startup: ${WEBSOCKET_AUTO_RECONNECT_ON_STARTUP:true}

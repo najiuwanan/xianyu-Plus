@@ -12,6 +12,7 @@ import com.xianyusmart.service.AutoDeliveryService;
 import com.xianyusmart.service.EmailNotifyService;
 import com.xianyusmart.service.KamiConfigService;
 import com.xianyusmart.service.OrderService;
+import com.xianyusmart.service.RedFlowerService;
 import com.xianyusmart.service.NotificationChannelService;
 import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.entity.XianyuGoodsInfo;
@@ -77,6 +78,9 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private RedFlowerService redFlowerService;
 
     @Autowired
     private OrderDetailFetcher orderDetailFetcher;
@@ -612,6 +616,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 if (result != null) {
                     log.info("【账号{}】✅ 自动确认发货成功: orderId={}", accountId, orderId);
                     orderMapper.updateConfirmState(accountId, orderId);
+                    redFlowerService.requestAfterShipmentConfirmed(accountId, orderId);
                 } else {
                     log.error("【账号{}】❌ 自动确认发货失败: orderId={}", accountId, orderId);
                 }

@@ -1,6 +1,7 @@
 package com.xianyusmart.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.xianyusmart.controller.dto.OrderAutomationRecordDTO;
 import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.mapper.OrderAutomationRecordMapper;
@@ -35,8 +36,8 @@ public class RedFlowerService {
     @Autowired(required = false)
     private AutomationRiskGuardService automationRiskGuardService;
 
-    @Value("${app.red-flower.lookback-days:10}")
-    private int lookbackDays = 10;
+    @Value("${app.red-flower.lookback-days:30}")
+    private int lookbackDays = 30;
 
     @Value("${app.red-flower.batch-size:50}")
     private int batchSize = 50;
@@ -59,12 +60,53 @@ public class RedFlowerService {
                 .eq(XianyuAccount::getStatus, 1)
                 .eq(XianyuAccount::getAutoAskFlower, 1));
         for (XianyuAccount account : accounts) {
-            if (automationRiskGuardService != null && automationRiskGuardService.isPaused(account.getId())) {
-                log.warn("【账号{}】自动化保护已暂停，跳过小红花任务", account.getId());
-                continue;
-            }
-            processAccount(account.getId());
+            processPendingRedFlowersForAccount(account.getId());
         }
+    }
+
+    /**
+     * Runs the red-flower scan for one eligible account.  This is shared by
+     * the scheduled scan and the post-confirm-shipment hook.
+     */
+    public void processPendingRedFlowersForAccount(Long accountId) {
+        if (accountId == null) {
+            return;
+        }
+        XianyuAccount account = accountMapper.selectById(accountId);
+        if (account == null
+                || !Integer.valueOf(1).equals(account.getStatus())
+                || !Integer.valueOf(1).equals(account.getAutoAskFlower())) {
+            return;
+        }
+        if (automationRiskGuardService != null && automationRiskGuardService.isPaused(accountId)) {
+            return;
+        }
+        processAccount(accountId);
+    }
+
+    /**
+     * Requests a red flower immediately after a successful shipment
+     * confirmation.  It deliberately does not run at payment time.
+     */
+    public boolean requestAfterShipmentConfirmed(Long accountId, String orderId) {
+        if (accountId == null || orderId == null || orderId.isBlank()) {
+            return false;
+        }
+        XianyuAccount account = accountMapper.selectById(accountId);
+        if (account == null
+                || !Integer.valueOf(1).equals(account.getStatus())
+                || !Integer.valueOf(1).equals(account.getAutoAskFlower())
+                || (automationRiskGuardService != null && automationRiskGuardService.isPaused(accountId))) {
+            return false;
+        }
+        if (automationRecordMapper.countConfirmedShipmentOrder(accountId, orderId) <= 0) {
+            return false;
+        }
+        OrderAutomationRecordDTO timeline = automationRecordMapper.findTimelineState(accountId, orderId);
+        if (timeline != null && Integer.valueOf(1).equals(timeline.getRedFlowerStatus())) {
+            return true;
+        }
+        return retryRedFlower(accountId, orderId);
     }
 
     void processAccount(Long accountId) {

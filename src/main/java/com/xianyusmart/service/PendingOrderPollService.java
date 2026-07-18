@@ -123,6 +123,19 @@ public class PendingOrderPollService {
         return synced;
     }
 
+    /** Refreshes the newest sold-order snapshot so receipt status changes reach automation promptly. */
+    public int refreshRecentSoldOrderHistory(Long accountId) {
+        if (accountId == null) {
+            return 0;
+        }
+        try {
+            return syncOrderHistoryToDb(accountId, orderService.querySoldOrders(accountId, 1));
+        } catch (Exception exception) {
+            log.warn("Refresh recent sold orders failed for accountId={}: {}", accountId, exception.getMessage());
+            return 0;
+        }
+    }
+
     /**
      * 订单管理只保留近 30 天的交易；旧订单不会写入或参与自动化中心统计。
      */

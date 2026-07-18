@@ -10,6 +10,7 @@ import com.xianyusmart.controller.dto.OrderTimelineRespDTO;
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.xianyusmart.service.OrderService;
+import com.xianyusmart.service.RedFlowerService;
 import com.xianyusmart.service.OrderTimelineService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,6 +30,9 @@ public class OrderController {
 
     @Autowired
     private OrderService orderService;
+
+    @Autowired
+    private RedFlowerService redFlowerService;
 
     @Autowired
     private XianyuGoodsOrderMapper orderMapper;
@@ -128,6 +132,7 @@ public class OrderController {
 
             if (result != null) {
                 orderMapper.updateConfirmState(reqDTO.getXianyuAccountId(), reqDTO.getOrderId());
+                redFlowerService.requestAfterShipmentConfirmed(reqDTO.getXianyuAccountId(), reqDTO.getOrderId());
                 return ResultObject.success(result);
             } else {
                 return ResultObject.failed("确认发货失败");
