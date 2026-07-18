@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { getAutomationScheduleTasks, saveAutomationScheduleTasks, type AutomationScheduleTask } from '@/api/automation-schedule'
+import IconCheck from '@/components/icons/IconCheck.vue'
+import IconRefresh from '@/components/icons/IconRefresh.vue'
 import { toast } from '@/utils/toast'
 
 defineOptions({ name: 'AutomationSchedulePage' })
@@ -55,8 +57,14 @@ onMounted(loadTasks)
         <p>设置业务自动化的检查间隔。保存后立即生效，无需重启服务。</p>
       </div>
       <div class="page-header__actions">
-        <button class="button button--secondary" :disabled="loading || saving" @click="loadTasks">{{ loading ? '刷新中…' : '刷新' }}</button>
-        <button class="button button--primary" :disabled="loading || saving || !tasks.length" @click="saveTasks">{{ saving ? '保存中…' : '保存设置' }}</button>
+        <button class="schedule-action schedule-action--refresh" :disabled="loading || saving" @click="loadTasks">
+          <IconRefresh />
+          <span>{{ loading ? '刷新中…' : '刷新任务' }}</span>
+        </button>
+        <button class="schedule-action schedule-action--save" :disabled="loading || saving || !tasks.length" @click="saveTasks">
+          <IconCheck />
+          <span>{{ saving ? '保存中…' : '保存设置' }}</span>
+        </button>
       </div>
     </header>
 
@@ -90,7 +98,15 @@ onMounted(loadTasks)
 .page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
 .page-header h1 { margin: 0; color: #14213b; font-size: 26px; line-height: 1.25; }
 .page-header p { margin: 7px 0 0; color: #687792; font-size: 14px; }
-.page-header__actions { display: flex; gap: 10px; flex-shrink: 0; }
+.page-header__actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.schedule-action { min-width: 112px; height: 40px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 15px; border: 1px solid transparent; border-radius: 10px; font-size: 13px; font-weight: 700; line-height: 1; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, background .16s ease, border-color .16s ease; }
+.schedule-action svg { width: 16px; height: 16px; stroke-width: 2; }
+.schedule-action:hover:not(:disabled) { transform: translateY(-1px); }
+.schedule-action:disabled { cursor: not-allowed; opacity: .58; }
+.schedule-action--refresh { border-color: #d8e0ec; background: #fff; color: #43536d; box-shadow: 0 2px 5px rgba(41, 57, 87, .04); }
+.schedule-action--refresh:hover:not(:disabled) { border-color: #9fb5d8; background: #f6f9ff; box-shadow: 0 6px 14px rgba(59, 95, 153, .12); }
+.schedule-action--save { border-color: #f0b400; background: linear-gradient(135deg, #ffc928, #f0ad00); color: #1d2a43; box-shadow: 0 7px 16px rgba(229, 170, 0, .22); }
+.schedule-action--save:hover:not(:disabled) { background: linear-gradient(135deg, #ffd43a, #f4b400); box-shadow: 0 9px 20px rgba(229, 170, 0, .3); }
 .schedule-notice { border: 1px solid #ffe2a2; background: #fff9e9; border-radius: 10px; color: #806021; font-size: 14px; line-height: 1.7; padding: 13px 16px; margin-bottom: 18px; }
 .task-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .task-card { display: flex; justify-content: space-between; gap: 24px; min-height: 154px; padding: 20px 22px; background: #fff; border: 1px solid #e8ecf3; border-radius: 12px; box-shadow: 0 6px 20px rgba(42, 60, 90, .04); }
@@ -107,5 +123,5 @@ onMounted(loadTasks)
 .reset-link { margin-top: 7px; padding: 0; border: 0; background: transparent; color: #2879e7; cursor: pointer; font-size: 12px; }
 .empty-state { grid-column: 1 / -1; padding: 52px 20px; border: 1px dashed #dce3ee; border-radius: 12px; color: #8a96aa; text-align: center; }
 @media (max-width: 980px) { .automation-schedule-page { padding: 24px 18px; } .task-grid { grid-template-columns: 1fr; } }
-@media (max-width: 620px) { .page-header, .task-card { flex-direction: column; } .page-header__actions { width: 100%; } .page-header__actions .button { flex: 1; } .task-card__setting { width: 100%; } }
+@media (max-width: 620px) { .page-header, .task-card { flex-direction: column; } .page-header__actions { width: 100%; } .schedule-action { flex: 1; } .task-card__setting { width: 100%; } }
 </style>
