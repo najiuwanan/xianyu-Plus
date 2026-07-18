@@ -11,6 +11,8 @@ import IconCheck from '@/components/icons/IconCheck.vue'
 import IconAlert from '@/components/icons/IconAlert.vue'
 import IconLink from '@/components/icons/IconLink.vue'
 
+type AutomationSection = 'rate' | 'flower' | 'polish'
+
 interface Props {
   accounts: Account[]
   loading?: boolean
@@ -22,6 +24,7 @@ interface Emits {
   (e: 'toggleEnabled', account: Account): void
   (e: 'resumeAutomation', account: Account): void
   (e: 'connection', account: Account): void
+  (e: 'automationSettings', account: Account, section: AutomationSection): void
 }
 
 defineProps<Props>()
@@ -167,6 +170,15 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
       </div>
 
       <div class="account-card__footer">
+        <button
+          class="account-card__btn account-card__btn--toggle"
+          :class="account.status === 0 ? 'account-card__btn--enable' : 'account-card__btn--disable'"
+          :disabled="!canToggleEnabled(account)"
+          :title="canToggleEnabled(account) ? '' : '当前账号需先处理连接或验证问题'"
+          @click="emit('toggleEnabled', account)"
+        >
+          <span>{{ account.status === 0 ? '启用账号' : '禁用账号' }}</span>
+        </button>
         <button class="account-card__btn account-card__btn--connection" @click="emit('connection', account)">
           <IconLink />
           <span>账号详情</span>
@@ -178,14 +190,12 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
           </button>
           <Transition name="action-menu">
             <div v-if="openedActionMenuId === account.id" class="account-action-menu account-action-menu--mobile" role="menu">
-              <button type="button" role="menuitem" @click="runAction($event, () => emit('edit', account))"><IconEdit /> 设置账号</button>
-              <button
-                type="button"
-                role="menuitem"
-                :disabled="!canToggleEnabled(account)"
-                :title="canToggleEnabled(account) ? '' : '当前账号需先处理连接或验证问题'"
-                @click="runAction($event, () => emit('toggleEnabled', account))"
-              >{{ account.status === 0 ? '启用账号' : '禁用账号' }}</button>
+              <div class="account-action-menu__title">自动化配置</div>
+              <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'rate'))">自动评价</button>
+              <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'flower'))">自动小红花</button>
+              <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'polish'))">每日自动擦亮</button>
+              <div class="account-action-menu__divider"></div>
+              <button type="button" role="menuitem" @click="runAction($event, () => emit('edit', account))"><IconEdit /> 编辑账号资料</button>
               <button type="button" role="menuitem" :disabled="!isRiskPaused(account)" @click="runAction($event, () => emit('resumeAutomation', account))">恢复自动化</button>
               <div class="account-action-menu__divider"></div>
               <button type="button" role="menuitem" class="account-action-menu__danger" @click="runAction($event, () => emit('delete', account.id))"><IconTrash /> 删除账号</button>
@@ -246,6 +256,15 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
           <td class="table__td table__td--time">{{ formatTime(account.updatedTime) }}</td>
           <td class="table__td table__td--actions">
             <div class="table__action-group">
+              <button
+                class="table__action table__action--toggle"
+                :class="account.status === 0 ? 'table__action--enable' : 'table__action--disable'"
+                :disabled="!canToggleEnabled(account)"
+                :title="canToggleEnabled(account) ? '' : '当前账号需先处理连接或验证问题'"
+                @click="emit('toggleEnabled', account)"
+              >
+                <span>{{ account.status === 0 ? '启用账号' : '禁用账号' }}</span>
+              </button>
               <button class="table__action table__action--connection" @click="emit('connection', account)">
                 <IconLink />
                 <span>账号详情</span>
@@ -257,14 +276,12 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
                 </button>
                 <Transition name="action-menu">
                   <div v-if="openedActionMenuId === account.id" class="account-action-menu" role="menu">
-                    <button type="button" role="menuitem" @click="runAction($event, () => emit('edit', account))"><IconEdit /> 设置账号</button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      :disabled="!canToggleEnabled(account)"
-                      :title="canToggleEnabled(account) ? '' : '当前账号需先处理连接或验证问题'"
-                      @click="runAction($event, () => emit('toggleEnabled', account))"
-                    >{{ account.status === 0 ? '启用账号' : '禁用账号' }}</button>
+                    <div class="account-action-menu__title">自动化配置</div>
+                    <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'rate'))">自动评价</button>
+                    <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'flower'))">自动小红花</button>
+                    <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'polish'))">每日自动擦亮</button>
+                    <div class="account-action-menu__divider"></div>
+                    <button type="button" role="menuitem" @click="runAction($event, () => emit('edit', account))"><IconEdit /> 编辑账号资料</button>
                     <button type="button" role="menuitem" :disabled="!isRiskPaused(account)" @click="runAction($event, () => emit('resumeAutomation', account))">恢复自动化</button>
                     <div class="account-action-menu__divider"></div>
                     <button type="button" role="menuitem" class="account-action-menu__danger" @click="runAction($event, () => emit('delete', account.id))"><IconTrash /> 删除账号</button>
@@ -639,7 +656,7 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
 .table__th--status { width: 170px; }
 .table__th--automation { width: 250px; }
 .table__th--time { width: 164px; }
-.table__th--actions { width: 196px; text-align: center; }
+.table__th--actions { width: 252px; text-align: center; }
 
 /* Table Body */
 
@@ -818,6 +835,7 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
 }
 
 .table__action-menu-wrap {
@@ -894,6 +912,12 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
   background: rgba(48,209,88,.12);
 }
 
+.table__action:disabled,
+.account-card__btn:disabled {
+  opacity: .48;
+  cursor: not-allowed;
+}
+
 @media (hover: hover) {
   .table__action--disable:hover { background: rgba(255,159,10,.20); }
   .table__action--enable:hover { background: rgba(48,209,88,.20); }
@@ -928,12 +952,20 @@ const canToggleEnabled = (account: Account) => account.status === 1 || account.s
   top: calc(100% + 8px);
   right: 0;
   z-index: 30;
-  width: 164px;
+  width: 184px;
   padding: 6px;
   border: 1px solid rgba(60,60,67,.14);
   border-radius: 10px;
   background: rgba(255,255,255,.98);
   box-shadow: 0 14px 28px rgba(30,42,60,.16);
+}
+
+.account-action-menu__title {
+  padding: 7px 8px 4px;
+  color: #7d8796;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
 }
 
 .account-action-menu button {

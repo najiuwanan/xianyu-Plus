@@ -14,9 +14,12 @@ import IconQrCode from '@/components/icons/IconQrCode.vue'
 import IconPlus from '@/components/icons/IconPlus.vue'
 import IconSync from '@/components/icons/IconSync.vue'
 
+type AccountEditorSection = 'profile' | 'rate' | 'flower' | 'polish'
+
 const route = useRoute()
 const router = useRouter()
 const selectedConnectionAccountId = ref<number | null>(null)
+const activeEditorSection = ref<AccountEditorSection>('profile')
 
 const {
   loading,
@@ -59,6 +62,11 @@ const closeConnection = () => {
   router.replace({ path: '/accounts', query: rest })
 }
 
+const openAccountEditor = (account: Account, section: AccountEditorSection = 'profile') => {
+  activeEditorSection.value = section
+  editAccount(account)
+}
+
 watch([accounts, () => route.query.accountId, () => route.query.connection], syncConnectionSelection, { immediate: true })
 
 void loadAccounts();
@@ -99,7 +107,8 @@ void loadAccounts();
         <AccountTable
           :accounts="accounts"
           :loading="loading"
-          @edit="editAccount"
+          @edit="openAccountEditor"
+          @automation-settings="(account, section) => openAccountEditor(account, section)"
           @delete="deleteAccount"
           @toggle-enabled="toggleAccountEnabled"
           @resume-automation="resumeAutomation"
@@ -141,6 +150,7 @@ void loadAccounts();
     <AddAccountDialog
       v-model="dialogs.add"
       :account="currentAccount"
+      :active-section="activeEditorSection"
       @success="loadAccounts"
     />
     <ManualAddDialog v-model="dialogs.manualAdd" @success="loadAccounts" />

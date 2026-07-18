@@ -5,9 +5,12 @@ import { getItemPolishOverview, saveItemPolishConfig } from '@/api/item-polish'
 import { showSuccess, showError } from '@/utils'
 import type { Account } from '@/types'
 
+type AccountEditorSection = 'profile' | 'rate' | 'flower' | 'polish'
+
 interface Props {
   modelValue: boolean
   account?: Account | null
+  activeSection?: AccountEditorSection
 }
 
 interface Emits {
@@ -30,6 +33,7 @@ const formData = ref({
 })
 
 const polishConfigLoading = ref(false)
+const activeSection = ref<AccountEditorSection>('profile')
 let polishConfigRequest = 0
 
 const loadPolishConfig = async (accountId: number) => {
@@ -77,6 +81,10 @@ watch(() => props.account, (newAccount) => {
       itemPolishScheduleTime: '09:00'
     }
   }
+}, { immediate: true })
+
+watch(() => props.activeSection, (section) => {
+  activeSection.value = section || 'profile'
 }, { immediate: true })
 
 const handleClose = () => {
@@ -130,22 +138,32 @@ const handleSubmit = async () => {
         </div>
 
         <div class="modal-body">
-          <label class="field-label" for="account-note">账号备注</label>
-          <input
-            id="account-note"
-            v-model="formData.accountNote"
-            type="text"
-            class="modal-input"
-            placeholder="例如：主账号、店铺一"
-          />
+          <nav class="editor-tabs" aria-label="账号配置分类">
+            <button type="button" :class="{ active: activeSection === 'profile' }" @click="activeSection = 'profile'">账号资料</button>
+            <button type="button" :class="{ active: activeSection === 'rate' }" @click="activeSection = 'rate'">自动评价</button>
+            <button type="button" :class="{ active: activeSection === 'flower' }" @click="activeSection = 'flower'">自动小红花</button>
+            <button type="button" :class="{ active: activeSection === 'polish' }" @click="activeSection = 'polish'">每日擦亮</button>
+          </nav>
 
-          <div class="automation-section">
+          <section v-if="activeSection === 'profile'" class="profile-section">
+            <label class="field-label" for="account-note">账号备注</label>
+            <input
+              id="account-note"
+              v-model="formData.accountNote"
+              type="text"
+              class="modal-input"
+              placeholder="例如：主账号、店铺一"
+            />
+            <p class="profile-section__hint">用于在系统内区分账号，不会发送给买家。</p>
+          </section>
+
+          <div v-else class="automation-section automation-section--tab">
             <div class="automation-section__header">
-              <h3>自动化设置</h3>
+              <h3>{{ activeSection === 'rate' ? '自动评价' : activeSection === 'flower' ? '自动小红花' : '每日自动擦亮' }}</h3>
               <p>按账号分别保存，不会影响其他账号。</p>
             </div>
 
-            <section class="automation-card" :class="{ 'automation-card--enabled': formData.autoRateEnabled === 1 }">
+            <section v-if="activeSection === 'rate'" class="automation-card" :class="{ 'automation-card--enabled': formData.autoRateEnabled === 1 }">
               <div class="automation-card__row">
                 <span class="automation-card__icon automation-card__icon--rate">评</span>
                 <div class="automation-card__info">
@@ -168,7 +186,7 @@ const handleSubmit = async () => {
               </div>
             </section>
 
-            <section class="automation-card" :class="{ 'automation-card--enabled': formData.autoAskFlower === 1 }">
+            <section v-if="activeSection === 'flower'" class="automation-card" :class="{ 'automation-card--enabled': formData.autoAskFlower === 1 }">
               <div class="automation-card__row">
                 <span class="automation-card__icon automation-card__icon--flower">花</span>
                 <div class="automation-card__info">
@@ -185,7 +203,7 @@ const handleSubmit = async () => {
               </p>
             </section>
 
-            <section class="automation-card" :class="{ 'automation-card--enabled': formData.itemPolishEnabled === 1 }">
+            <section v-if="activeSection === 'polish'" class="automation-card" :class="{ 'automation-card--enabled': formData.itemPolishEnabled === 1 }">
               <div class="automation-card__row">
                 <span class="automation-card__icon automation-card__icon--polish">亮</span>
                 <div class="automation-card__info">
@@ -279,6 +297,44 @@ const handleSubmit = async () => {
   overflow-y: auto;
 }
 
+.editor-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-bottom: 20px;
+  padding: 5px;
+  border-radius: 12px;
+  background: rgba(60,60,67,.06);
+}
+
+.editor-tabs button {
+  min-height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(28,28,30,.58);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.editor-tabs button.active {
+  background: rgba(255,255,255,.95);
+  color: #1c1c1e;
+  box-shadow: 0 2px 6px rgba(0,0,0,.08);
+}
+
+.profile-section {
+  min-height: 152px;
+}
+
+.profile-section__hint {
+  margin: 9px 0 0;
+  color: rgba(28,28,30,.52);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .field-label {
   display: block;
   margin-bottom: 8px;
@@ -323,6 +379,10 @@ const handleSubmit = async () => {
 
 .automation-section {
   margin-top: 24px;
+}
+
+.automation-section--tab {
+  margin-top: 0;
 }
 
 .automation-section__header {
