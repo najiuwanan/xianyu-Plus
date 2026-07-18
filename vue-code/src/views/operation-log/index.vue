@@ -12,6 +12,7 @@ import IconClock from '@/components/icons/IconClock.vue'
 import IconRefresh from '@/components/icons/IconRefresh.vue'
 import IconEmpty from '@/components/icons/IconEmpty.vue'
 import IconInfo from '@/components/icons/IconInfo.vue'
+import IconTrash from '@/components/icons/IconTrash.vue'
 
 const {
   loading,
@@ -25,15 +26,11 @@ const {
   isMobile,
   mobileView,
   selectedAccountForMobile,
-  detailDialogVisible,
-  detailLog,
-  deletingLogId,
   selectAccount,
   handlePageChange,
   handleRefresh,
-  viewDetail,
-  handleDeleteLog,
-  closeDetail,
+  handleClearLogs,
+  clearingLogs,
   goBackToAccounts,
   getAccountAvatar,
   getAccountName,
@@ -77,6 +74,14 @@ const HeaderSelectors = defineComponent({
         onClick: handleRefresh
       }, [
         h(IconRefresh, { class: 'header-refresh-icon' })
+      ]),
+      h('button', {
+        class: 'header-clear-btn',
+        disabled: !selectedAccountId.value || clearingLogs.value,
+        title: '清空当前账号操作记录',
+        onClick: handleClearLogs
+      }, [
+        h(IconTrash, { class: 'header-clear-icon' })
       ])
     ])
   }
@@ -121,6 +126,14 @@ onMounted(() => {
         <button class="btn btn--secondary" @click="handleRefresh">
           <IconRefresh />
           <span class="mobile-hidden">刷新</span>
+        </button>
+        <button
+          class="btn btn--danger"
+          :disabled="!selectedAccountId || clearingLogs"
+          @click="handleClearLogs"
+        >
+          <IconTrash />
+          <span>{{ clearingLogs ? '清空中…' : '清空记录' }}</span>
         </button>
       </div>
     </div>
@@ -215,7 +228,6 @@ onMounted(() => {
                   <th>操作描述</th>
                   <th>状态</th>
                   <th>时间</th>
-                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -236,18 +248,6 @@ onMounted(() => {
                   </td>
                   <td>
                     <span class="ol__log-time">{{ formatTime(log.createTime) }}</span>
-                  </td>
-                  <td>
-                    <div class="ol__log-action-group">
-                      <button class="ol__log-action-btn" @click="viewDetail(log)">详情</button>
-                      <button
-                        class="ol__log-action-btn ol__log-action-btn--danger"
-                        :disabled="deletingLogId === log.id"
-                        @click="handleDeleteLog(log)"
-                      >
-                        {{ deletingLogId === log.id ? '删除中' : '删除' }}
-                      </button>
-                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -274,7 +274,6 @@ onMounted(() => {
                 v-for="log in logs"
                 :key="log.id"
                 class="ol__log-card"
-                @click="viewDetail(log)"
               >
                 <div class="ol__log-card-header">
                   <span class="ol__log-type" :class="`ol__log-type--${getOperationTypeClass(log.operationType)}`">
@@ -294,13 +293,6 @@ onMounted(() => {
                     {{ formatDuration(log.durationMs) }}
                   </span>
                 </div>
-                <button
-                  class="ol__log-card-delete"
-                  :disabled="deletingLogId === log.id"
-                  @click.stop="handleDeleteLog(log)"
-                >
-                  {{ deletingLogId === log.id ? '删除中…' : '删除记录' }}
-                </button>
               </div>
 
               <!-- Empty -->
@@ -353,91 +345,5 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- Detail Dialog -->
-    <Transition name="overlay-fade">
-      <div
-        v-if="detailDialogVisible && detailLog"
-        class="ol__dialog-overlay"
-        @click.self="closeDetail"
-      >
-        <div class="ol__dialog">
-          <div class="ol__dialog-header">
-            <h3 class="ol__dialog-title">操作详情</h3>
-            <button class="ol__dialog-close" @click="closeDetail">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          </div>
-          <div class="ol__dialog-body">
-            <div class="ol__detail-row">
-              <span class="ol__detail-label">操作类型</span>
-              <span class="ol__detail-value">
-                <span class="ol__log-type" :class="`ol__log-type--${getOperationTypeClass(detailLog.operationType)}`">
-                  {{ getOperationTypeText(detailLog.operationType) }}
-                </span>
-              </span>
-            </div>
-            <div class="ol__detail-row">
-              <span class="ol__detail-label">操作描述</span>
-              <span class="ol__detail-value">{{ detailLog.operationDesc || '-' }}</span>
-            </div>
-            <div class="ol__detail-row">
-              <span class="ol__detail-label">状态</span>
-              <span class="ol__detail-value">
-                <span class="ol__log-status" :class="`ol__log-status--${getStatusClass(detailLog.operationStatus)}`">
-                  {{ getStatusText(detailLog.operationStatus) }}
-                </span>
-              </span>
-            </div>
-            <div v-if="detailLog.operationModule" class="ol__detail-row">
-              <span class="ol__detail-label">模块</span>
-              <span class="ol__detail-value">{{ detailLog.operationModule }}</span>
-            </div>
-            <div v-if="detailLog.targetType" class="ol__detail-row">
-              <span class="ol__detail-label">目标类型</span>
-              <span class="ol__detail-value">{{ detailLog.targetType }}</span>
-            </div>
-            <div v-if="detailLog.targetId" class="ol__detail-row">
-              <span class="ol__detail-label">目标ID</span>
-              <span class="ol__detail-value">{{ detailLog.targetId }}</span>
-            </div>
-            <div v-if="detailLog.durationMs" class="ol__detail-row">
-              <span class="ol__detail-label">耗时</span>
-              <span class="ol__detail-value" style="font-family:'SF Mono','Menlo',monospace;">{{ formatDuration(detailLog.durationMs) }}</span>
-            </div>
-            <div class="ol__detail-row">
-              <span class="ol__detail-label">时间</span>
-              <span class="ol__detail-value">{{ formatTime(detailLog.createTime) }}</span>
-            </div>
-            <div v-if="detailLog.requestParams" class="ol__detail-row" style="flex-direction:column;gap:6px;">
-              <span class="ol__detail-label">请求参数</span>
-              <pre class="ol__detail-pre">{{ detailLog.requestParams }}</pre>
-            </div>
-            <div v-if="detailLog.responseResult" class="ol__detail-row" style="flex-direction:column;gap:6px;">
-              <span class="ol__detail-label">响应结果</span>
-              <pre class="ol__detail-pre">{{ detailLog.responseResult }}</pre>
-            </div>
-            <div v-if="detailLog.errorMessage" class="ol__detail-row" style="flex-direction:column;gap:6px;">
-              <span class="ol__detail-label">错误信息</span>
-              <pre class="ol__detail-pre ol__detail-pre--error">{{ detailLog.errorMessage }}</pre>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Transition>
   </div>
 </template>
-
-<style scoped>
-.overlay-fade-enter-active,
-.overlay-fade-leave-active {
-  transition: opacity 0.2s ease;
-}
-
-.overlay-fade-enter-from,
-.overlay-fade-leave-to {
-  opacity: 0;
-}
-</style>

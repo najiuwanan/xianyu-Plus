@@ -56,11 +56,11 @@ export function deleteOldLogs(days: number) {
   });
 }
 
-// 删除单条操作记录
-export function deleteOperationLog(logId: number, accountId: number) {
-  return request<boolean>({
-    url: '/operation-log/delete',
+// 清空指定账号的全部操作记录
+export function clearOperationLogs(accountId: number) {
+  return request<number>({
+    url: '/operation-log/clear',
     method: 'POST',
-    data: { logId, accountId }
+    data: { accountId }
   });
 }

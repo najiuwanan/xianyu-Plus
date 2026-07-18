@@ -1,6 +1,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { getAccountList } from '@/api/account'
-import { queryOperationLogs, deleteOldLogs, deleteOperationLog } from '@/api/operation-log'
+import { queryOperationLogs, deleteOldLogs, clearOperationLogs } from '@/api/operation-log'
 import type { OperationLog } from '@/api/operation-log'
 import type { Account } from '@/types'
 import { showSuccess, showError, showInfo, showConfirm } from '@/utils'
@@ -59,14 +59,10 @@ export function useOperationLog() {
   const mobileView = ref<'accounts' | 'logs'>('accounts')
   const selectedAccountForMobile = ref<Account | null>(null)
 
-  // Detail dialog
-  const detailDialogVisible = ref(false)
-  const detailLog = ref<OperationLog | null>(null)
-
   // Delete dialog
   const deleteDialogVisible = ref(false)
   const deleteDays = ref('')
-  const deletingLogId = ref<number | null>(null)
+  const clearingLogs = ref(false)
 
   // Check screen size
   const checkScreenSize = () => {
@@ -256,18 +252,6 @@ export function useOperationLog() {
     showInfo('已刷新')
   }
 
-  // View detail
-  const viewDetail = (log: OperationLog) => {
-    detailLog.value = log
-    detailDialogVisible.value = true
-  }
-
-  // Close detail
-  const closeDetail = () => {
-    detailDialogVisible.value = false
-    detailLog.value = null
-  }
-
   // Delete old logs - open dialog
   const openDeleteDialog = () => {
     deleteDays.value = ''
@@ -300,24 +284,23 @@ export function useOperationLog() {
     }
   }
 
-  // 删除单条操作记录
-  const handleDeleteLog = async (log: OperationLog) => {
-    if (!selectedAccountId.value || deletingLogId.value === log.id) return
+  // 清空当前账号的全部操作记录
+  const handleClearLogs = async () => {
+    if (!selectedAccountId.value || clearingLogs.value) return
 
     try {
-      await showConfirm('确定删除这条操作记录吗？删除后无法恢复。', '删除记录')
+      await showConfirm('确定清空当前账号的全部操作记录吗？此操作无法恢复。', '清空操作记录')
     } catch {
       return
     }
 
-    deletingLogId.value = log.id
+    clearingLogs.value = true
     try {
-      const response = await deleteOperationLog(log.id, selectedAccountId.value)
+      const response = await clearOperationLogs(selectedAccountId.value)
       if (response.code === 0 || response.code === 200) {
-        showSuccess('操作记录已删除')
-        if (logs.value.length === 1 && page.value > 1) {
-          page.value--
-        }
+        const deleted = response.data ?? 0
+        showSuccess(`已清空 ${deleted} 条操作记录`)
+        page.value = 1
         await loadLogs()
       } else {
         throw new Error(response.msg || '删除失败')
@@ -328,7 +311,7 @@ export function useOperationLog() {
         showError('删除失败: ' + error.message)
       }
     } finally {
-      deletingLogId.value = null
+      clearingLogs.value = false
     }
   }
 
@@ -359,11 +342,9 @@ export function useOperationLog() {
     isMobile,
     mobileView,
     selectedAccountForMobile,
-    detailDialogVisible,
-    detailLog,
     deleteDialogVisible,
     deleteDays,
-    deletingLogId,
+    clearingLogs,
     currentAccount,
 
     // Constants
@@ -379,11 +360,9 @@ export function useOperationLog() {
     handleResetFilter,
     handlePageChange,
     handleRefresh,
-    viewDetail,
-    closeDetail,
     openDeleteDialog,
     confirmDeleteOld,
-    handleDeleteLog,
+    handleClearLogs,
     goBackToAccounts,
     getAccountAvatar,
     getAccountName,

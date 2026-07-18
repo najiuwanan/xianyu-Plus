@@ -135,14 +135,13 @@ public class OperationLogServiceImpl implements OperationLogService {
     }
 
     @Override
-    public boolean deleteLog(Long logId, Long accountId) {
-        if (logId == null || accountId == null) {
-            return false;
+    public int clearLogs(Long accountId) {
+        if (accountId == null) {
+            return 0;
         }
 
-        LambdaQueryWrapper<XianyuOperationLog> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(XianyuOperationLog::getId, logId)
-                .eq(XianyuOperationLog::getXianyuAccountId, accountId);
-        return operationLogMapper.delete(queryWrapper) > 0;
+        int deleted = operationLogMapper.deleteByAccountId(accountId);
+        log.info("已清空账号操作记录: accountId={}, deleted={}", accountId, deleted);
+        return deleted;
     }
 }
