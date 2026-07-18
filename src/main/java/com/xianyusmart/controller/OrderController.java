@@ -83,8 +83,16 @@ public class OrderController {
                 dto.setTotalPrice(order.getTotalPrice());
                 dto.setBuyNum(order.getBuyNum());
                 dto.setDeliveryStatus(order.getDeliveryStatus());
+                dto.setDeliveryChannel(order.getDeliveryChannel());
+                dto.setLastErrorMessage(order.getLastErrorMessage());
                 dto.setTradeStatus(order.getTradeStatus());
                 dto.setTradeStatusText(order.getTradeStatusText());
+                dto.setRateEnabled(order.getRateEnabled());
+                dto.setRateStatus(order.getRateStatus());
+                dto.setRateError(order.getRateError());
+                dto.setRedFlowerEnabled(order.getRedFlowerEnabled());
+                dto.setRedFlowerStatus(order.getRedFlowerStatus());
+                dto.setRedFlowerError(order.getRedFlowerError());
                 dto.setCreateTime(order.getCreateTime());
                 orderDTOs.add(dto);
             }

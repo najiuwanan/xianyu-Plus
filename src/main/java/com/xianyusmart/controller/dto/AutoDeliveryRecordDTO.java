@@ -61,9 +61,27 @@ public class AutoDeliveryRecordDTO {
 
     private String deliveryStatus;
 
+    private String deliveryChannel;
+
+    private String failReason;
+
+    private String lastErrorMessage;
+
     private String tradeStatus;
 
     private String tradeStatusText;
+
+    private Integer rateEnabled;
+
+    private Integer rateStatus;
+
+    private String rateError;
+
+    private Integer redFlowerEnabled;
+
+    private Integer redFlowerStatus;
+
+    private String redFlowerError;
 
     private String createTime;
 }

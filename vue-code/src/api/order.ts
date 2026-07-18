@@ -28,8 +28,16 @@ export interface DeliveryRecordVO {
   totalPrice?: string
   buyNum?: number
   deliveryStatus?: string
+  deliveryChannel?: string
+  lastErrorMessage?: string
   tradeStatus?: string
   tradeStatusText?: string
+  rateEnabled?: number
+  rateStatus?: number
+  rateError?: string
+  redFlowerEnabled?: number
+  redFlowerStatus?: number
+  redFlowerError?: string
   createTime: string
 }
 

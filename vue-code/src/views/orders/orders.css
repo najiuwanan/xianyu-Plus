@@ -27,7 +27,9 @@
   --d-space-5: 20px;
   --d-transition: 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
 
-  height: 100%;
+  height: calc(100vh - 134px);
+  min-height: 0;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   padding: var(--d-space-4);
@@ -683,7 +685,7 @@
 
 .orders__table-wrap {
   flex: 1;
-  overflow-y: auto;
+  overflow: auto;
   min-height: 0;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
@@ -981,7 +983,7 @@
 
 /* Phone (< 768px) */
 @media screen and (max-width: 768px) {
-  .orders { padding: 0; }
+  .orders { height: auto; padding: 0; overflow: visible; }
   .mobile-hidden { display: none !important; }
   .orders__header { display: none; }
   .orders__filter-bar { margin-bottom: 0; }

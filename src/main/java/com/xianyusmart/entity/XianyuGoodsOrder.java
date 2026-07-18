@@ -81,4 +81,20 @@ public class XianyuGoodsOrder {
     private String lastErrorCode;
 
     private String lastErrorMessage;
+
+    /** 账号当前是否启用自动评价：0=未启用，1=已启用。 */
+    private Integer rateEnabled;
+
+    /** 评价状态：0=待处理，1=成功，2=失败，3=无需评价，4=等待平台确认。 */
+    private Integer rateStatus;
+
+    private String rateError;
+
+    /** 账号当前是否启用自动求小红花：0=未启用，1=已启用。 */
+    private Integer redFlowerEnabled;
+
+    /** 小红花状态：0=待处理，1=成功，2=失败。 */
+    private Integer redFlowerStatus;
+
+    private String redFlowerError;
 }

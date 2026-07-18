@@ -91,9 +91,13 @@ public interface XianyuGoodsOrderMapper {
     
     @Select("<script>" +
             "SELECT r.*, " +
-            "g.title as goods_title " +
+            "COALESCE(NULLIF(r.goods_title, ''), g.title) AS goods_title, " +
+            "a.auto_rate_enabled AS rate_enabled, COALESCE(ar.rate_status, 0) AS rate_status, ar.rate_error, " +
+            "a.auto_ask_flower AS red_flower_enabled, COALESCE(ar.red_flower_status, 0) AS red_flower_status, ar.red_flower_error " +
             "FROM xianyu_goods_order r " +
-            "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id " +
+            "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id AND r.xianyu_account_id = g.xianyu_account_id " +
+            "LEFT JOIN xianyu_account a ON a.id = r.xianyu_account_id " +
+            "LEFT JOIN xianyu_order_automation_record ar ON ar.xianyu_account_id = r.xianyu_account_id AND ar.order_id = r.order_id " +
             "WHERE r.xianyu_account_id = #{accountId} " +
             "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 30 DAY) " +
             "<if test='xyGoodsId != null and xyGoodsId != \"\"'>" +
@@ -128,8 +132,16 @@ public interface XianyuGoodsOrderMapper {
         @Result(property = "totalPrice", column = "total_price"),
         @Result(property = "buyNum", column = "buy_num"),
         @Result(property = "deliveryStatus", column = "delivery_status"),
+        @Result(property = "deliveryChannel", column = "delivery_channel"),
+        @Result(property = "lastErrorMessage", column = "last_error_message"),
         @Result(property = "tradeStatus", column = "trade_status"),
-        @Result(property = "tradeStatusText", column = "trade_status_text")
+        @Result(property = "tradeStatusText", column = "trade_status_text"),
+        @Result(property = "rateEnabled", column = "rate_enabled"),
+        @Result(property = "rateStatus", column = "rate_status"),
+        @Result(property = "rateError", column = "rate_error"),
+        @Result(property = "redFlowerEnabled", column = "red_flower_enabled"),
+        @Result(property = "redFlowerStatus", column = "red_flower_status"),
+        @Result(property = "redFlowerError", column = "red_flower_error")
     })
     List<XianyuGoodsOrder> selectByAccountIdWithPage(
             @Param("accountId") Long accountId,
@@ -140,7 +152,7 @@ public interface XianyuGoodsOrderMapper {
     
     @Select("<script>" +
             "SELECT COUNT(*) FROM xianyu_goods_order r " +
-            "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id " +
+            "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id AND r.xianyu_account_id = g.xianyu_account_id " +
             "WHERE r.xianyu_account_id = #{accountId} " +
             "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 30 DAY) " +
             "<if test='xyGoodsId != null and xyGoodsId != \"\"'>" +
@@ -271,9 +283,13 @@ public interface XianyuGoodsOrderMapper {
     int countDeliveryFail();
 
     @Select("<script>" +
-            "SELECT r.*, g.title as goods_title " +
+            "SELECT r.*, COALESCE(NULLIF(r.goods_title, ''), g.title) AS goods_title, " +
+            "a.auto_rate_enabled AS rate_enabled, COALESCE(ar.rate_status, 0) AS rate_status, ar.rate_error, " +
+            "a.auto_ask_flower AS red_flower_enabled, COALESCE(ar.red_flower_status, 0) AS red_flower_status, ar.red_flower_error " +
             "FROM xianyu_goods_order r " +
             "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id AND r.xianyu_account_id = g.xianyu_account_id " +
+            "LEFT JOIN xianyu_account a ON a.id = r.xianyu_account_id " +
+            "LEFT JOIN xianyu_order_automation_record ar ON ar.xianyu_account_id = r.xianyu_account_id AND ar.order_id = r.order_id " +
             "WHERE 1=1 " +
             "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 30 DAY) " +
             "<if test='accountId != null'>" +
@@ -314,8 +330,16 @@ public interface XianyuGoodsOrderMapper {
         @Result(property = "totalPrice", column = "total_price"),
         @Result(property = "buyNum", column = "buy_num"),
         @Result(property = "deliveryStatus", column = "delivery_status"),
+        @Result(property = "deliveryChannel", column = "delivery_channel"),
+        @Result(property = "lastErrorMessage", column = "last_error_message"),
         @Result(property = "tradeStatus", column = "trade_status"),
-        @Result(property = "tradeStatusText", column = "trade_status_text")
+        @Result(property = "tradeStatusText", column = "trade_status_text"),
+        @Result(property = "rateEnabled", column = "rate_enabled"),
+        @Result(property = "rateStatus", column = "rate_status"),
+        @Result(property = "rateError", column = "rate_error"),
+        @Result(property = "redFlowerEnabled", column = "red_flower_enabled"),
+        @Result(property = "redFlowerStatus", column = "red_flower_status"),
+        @Result(property = "redFlowerError", column = "red_flower_error")
     })
     List<XianyuGoodsOrder> selectByConditionWithPage(
             @Param("accountId") Long accountId,

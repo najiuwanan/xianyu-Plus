@@ -270,8 +270,17 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             dto.setTotalPrice(record.getTotalPrice());
             dto.setBuyNum(record.getBuyNum());
             dto.setDeliveryStatus(record.getDeliveryStatus());
+            dto.setDeliveryChannel(record.getDeliveryChannel());
+            dto.setFailReason(record.getFailReason());
+            dto.setLastErrorMessage(record.getLastErrorMessage());
             dto.setTradeStatus(record.getTradeStatus());
             dto.setTradeStatusText(record.getTradeStatusText());
+            dto.setRateEnabled(record.getRateEnabled());
+            dto.setRateStatus(record.getRateStatus());
+            dto.setRateError(record.getRateError());
+            dto.setRedFlowerEnabled(record.getRedFlowerEnabled());
+            dto.setRedFlowerStatus(record.getRedFlowerStatus());
+            dto.setRedFlowerError(record.getRedFlowerError());
             dto.setCreateTime(record.getCreateTime());
             recordDTOs.add(dto);
         }

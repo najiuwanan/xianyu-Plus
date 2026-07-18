@@ -291,6 +291,54 @@ const getConfirmColor = (state: number) => {
 const getConfirmBg = (state: number) => {
   return state === 1 ? 'rgba(48,209,88,.2)' : 'rgba(120,120,128,.12)'
 }
+
+type StatusPresentation = {
+  text: string
+  tone: 'success' | 'warning' | 'danger' | 'muted'
+  reason?: string
+}
+
+const getDeliveryMethod = (order: DeliveryRecordItem) => {
+  const channel = (order.deliveryChannel || '').toUpperCase()
+  if (channel.includes('MANUAL')) return '人工补发'
+  if (channel.includes('AUTO') || channel.includes('WS')) return '自动发货'
+  return order.deliveryStatus === 'SKIPPED' ? '未启用自动发货' : '自动发货'
+}
+
+const getDeliveryPresentation = (order: DeliveryRecordItem): StatusPresentation => {
+  const status = (order.deliveryStatus || '').toUpperCase()
+  const reason = order.lastErrorMessage || order.failReason
+  if (status === 'COMPLETED' || order.state === 1) return { text: '已发货', tone: 'success' }
+  if (status === 'REVIEW_REQUIRED') return { text: '待人工核对', tone: 'warning', reason }
+  if (status === 'FAILED' || order.state === -1) return { text: '发货失败', tone: 'danger', reason }
+  if (status === 'SKIPPED') return { text: '未自动发货', tone: 'muted', reason }
+  if (status === 'PROCESSING') return { text: '发货处理中', tone: 'warning' }
+  if (status === 'RETRY_WAIT') return { text: '等待重试', tone: 'warning', reason }
+  return { text: '等待发货', tone: 'warning' }
+}
+
+const getRatePresentation = (order: DeliveryRecordItem): StatusPresentation => {
+  if (order.rateEnabled !== 1) return { text: '未启用', tone: 'muted' }
+  switch (order.rateStatus) {
+    case 1: return { text: '已评价', tone: 'success' }
+    case 2: return { text: '评价失败', tone: 'danger', reason: order.rateError }
+    case 3: return { text: '无需评价', tone: 'muted', reason: order.rateError }
+    case 4: return { text: '等待确认', tone: 'warning', reason: order.rateError }
+    default: return { text: '待评价', tone: 'warning' }
+  }
+}
+
+const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation => {
+  if (order.redFlowerEnabled !== 1) return { text: '未启用', tone: 'muted' }
+  switch (order.redFlowerStatus) {
+    case 1: return { text: '已求花', tone: 'success' }
+    case 2: return { text: '求花失败', tone: 'danger', reason: order.redFlowerError }
+    default:
+      return order.confirmState === 1 && order.state === 1
+        ? { text: '待求花', tone: 'warning' }
+        : { text: '待确认发货', tone: 'muted' }
+  }
+}
 </script>
 
 <template>
@@ -395,39 +443,30 @@ const getConfirmBg = (state: number) => {
     <table class="table" v-if="orderList.length > 0">
       <thead class="table__head">
         <tr>
-          <th class="table__th">订单ID</th>
-          <th class="table__th">商品名称</th>
-          <th class="table__th table__th--center">规格</th>
-          <th class="table__th table__th--center">买家</th>
-          <th class="table__th table__th--center">发货内容</th>
-          <th class="table__th table__th--center">交易状态</th>
-          <th class="table__th table__th--center">自动发货</th>
-          <th class="table__th table__th--center">确认状态</th>
-          <th class="table__th table__th--center">下单时间</th>
+          <th class="table__th table__th--order">订单</th>
+          <th class="table__th table__th--product">商品与买家</th>
+          <th class="table__th table__th--trade">交易</th>
+          <th class="table__th table__th--delivery">发货</th>
+          <th class="table__th table__th--automation">自动化</th>
           <th class="table__th table__th--actions">操作</th>
         </tr>
       </thead>
       <tbody class="table__body">
         <tr v-for="order in orderList" :key="order.id" class="table__tr">
-          <td class="table__td">
-            <span class="order-id">{{ order.orderId || '-' }}</span>
-          </td>
-          <td class="table__td table__td--title">
-            <div class="order-title-cell">
-              <span class="order-title-cell__name text-ellipsis-10" :title="order.goodsTitle || '-'">{{ order.goodsTitle || '-' }}</span>
+          <td class="table__td table__td--order">
+            <div class="order-cell">
+              <span class="order-id">{{ order.orderId || '-' }}</span>
+              <span class="order-cell__time">{{ formatTime(order.orderCreateTime || order.createTime) }}</span>
             </div>
           </td>
-          <td class="table__td table__td--center">
-            <span v-if="order.skuName" class="sku-name-tag">{{ order.skuName }}</span>
-            <span v-else class="table__td-placeholder">-</span>
+          <td class="table__td table__td--product">
+            <div class="order-title-cell">
+              <span class="order-title-cell__name text-ellipsis-10" :title="order.goodsTitle || '-'">{{ order.goodsTitle || '-' }}</span>
+              <span v-if="order.skuName" class="order-title-cell__meta">规格：{{ order.skuName }}</span>
+              <span class="order-title-cell__meta">买家：{{ order.buyerUserName || '-' }}</span>
+            </div>
           </td>
-          <td class="table__td table__td--center">
-            <span class="buyer-name">{{ order.buyerUserName || '-' }}</span>
-          </td>
-          <td class="table__td">
-            <span class="content-text text-ellipsis-10" :title="order.content || '-'">{{ order.content || '-' }}</span>
-          </td>
-          <td class="table__td table__td--center">
+          <td class="table__td table__td--trade">
             <span
               class="status-tag"
               :style="{
@@ -437,22 +476,8 @@ const getConfirmBg = (state: number) => {
             >
               {{ getTradeStatusText(order) }}
             </span>
-          </td>
-          <td class="table__td table__td--center">
             <span
-              class="status-tag"
-              :style="{
-                color: getDeliveryColor(order.state, order.deliveryStatus),
-                background: getDeliveryBg(order.state, order.deliveryStatus)
-              }"
-            >
-              {{ getDeliveryText(order.state, order.deliveryStatus) }}
-            </span>
-            <span v-if="order.state === -1 && order.failReason" class="fail-reason" :title="order.failReason">{{ order.failReason }}</span>
-          </td>
-          <td class="table__td table__td--center">
-            <span
-              class="status-tag"
+              class="status-tag status-tag--secondary"
               :style="{
                 color: getConfirmColor(order.confirmState || 0),
                 background: getConfirmBg(order.confirmState || 0)
@@ -461,8 +486,28 @@ const getConfirmBg = (state: number) => {
               {{ getConfirmText(order.confirmState || 0) }}
             </span>
           </td>
-          <td class="table__td table__td--center">
-            <span class="time-text">{{ formatTime(order.orderCreateTime || order.createTime) }}</span>
+          <td class="table__td table__td--delivery">
+            <div class="delivery-cell">
+              <span class="status-chip" :class="`status-chip--${getDeliveryPresentation(order).tone}`">
+                {{ getDeliveryPresentation(order).text }}
+              </span>
+              <span class="delivery-cell__method">{{ getDeliveryMethod(order) }}</span>
+              <span v-if="getDeliveryPresentation(order).reason" class="delivery-cell__reason" :title="getDeliveryPresentation(order).reason">
+                {{ getDeliveryPresentation(order).reason }}
+              </span>
+            </div>
+          </td>
+          <td class="table__td table__td--automation">
+            <div class="automation-cell">
+              <div class="automation-cell__line" :title="getRatePresentation(order).reason">
+                <span class="automation-cell__label">评价</span>
+                <span class="status-chip" :class="`status-chip--${getRatePresentation(order).tone}`">{{ getRatePresentation(order).text }}</span>
+              </div>
+              <div class="automation-cell__line" :title="getRedFlowerPresentation(order).reason">
+                <span class="automation-cell__label">小红花</span>
+                <span class="status-chip" :class="`status-chip--${getRedFlowerPresentation(order).tone}`">{{ getRedFlowerPresentation(order).text }}</span>
+              </div>
+            </div>
           </td>
           <td class="table__td table__td--actions">
             <div class="table__action-group">
@@ -858,11 +903,13 @@ const getConfirmBg = (state: number) => {
 }
 
 .table-container {
-  min-height: 100%;
+  min-height: 0;
+  height: 100%;
 }
 
 .table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -892,8 +939,14 @@ const getConfirmBg = (state: number) => {
   text-align: center;
 }
 
+.table__th--order { width: 17%; }
+.table__th--product { width: 24%; }
+.table__th--trade { width: 12%; }
+.table__th--delivery { width: 18%; }
+.table__th--automation { width: 16%; }
+
 .table__th--actions {
-  width: 190px;
+  width: 13%;
   text-align: center;
 }
 
@@ -912,9 +965,9 @@ const getConfirmBg = (state: number) => {
 }
 
 .table__td {
-  padding: 10px 16px;
+  padding: 11px 14px;
   color: var(--c-text-1);
-  white-space: nowrap;
+  vertical-align: middle;
   background: transparent;
   transition: background var(--c-ease);
   line-height: 1.5;
@@ -925,7 +978,7 @@ const getConfirmBg = (state: number) => {
 }
 
 .table__td--actions {
-  min-width: 190px;
+  min-width: 124px;
   text-align: center;
 }
 
@@ -945,6 +998,26 @@ const getConfirmBg = (state: number) => {
   color: var(--c-text-2);
 }
 
+.order-cell,
+.delivery-cell,
+.automation-cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.order-cell__time,
+.order-title-cell__meta,
+.delivery-cell__method {
+  overflow: hidden;
+  color: var(--c-text-3);
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .order-title-cell {
   display: flex;
   flex-direction: column;
@@ -958,7 +1031,7 @@ const getConfirmBg = (state: number) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 280px;
+  max-width: 100%;
 }
 
 .text-ellipsis-10 {
@@ -997,6 +1070,62 @@ const getConfirmBg = (state: number) => {
   padding: 3px 10px;
   border-radius: 20px;
   line-height: 1;
+}
+
+.status-tag--secondary {
+  margin-top: 5px;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  width: fit-content;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+.status-chip--success { color: #168b49; background: rgba(48, 209, 88, .16); }
+.status-chip--warning { color: #a46600; background: rgba(255, 159, 10, .16); }
+.status-chip--danger { color: #d83c32; background: rgba(255, 69, 58, .13); }
+.status-chip--muted { color: #667085; background: rgba(120, 120, 128, .12); }
+
+.delivery-cell__reason {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #d83c32;
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.automation-cell {
+  gap: 6px;
+}
+
+.automation-cell__line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 7px;
+}
+
+.automation-cell__label {
+  flex: 0 0 38px;
+  color: var(--c-text-3);
+  font-size: 11px;
+}
+
+.automation-cell__line .status-chip {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fail-reason {
