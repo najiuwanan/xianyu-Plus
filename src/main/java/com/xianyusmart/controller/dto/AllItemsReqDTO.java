@@ -21,4 +21,10 @@ public class AllItemsReqDTO {
      * 最大页数限制
      */
     private Integer maxPages;
+
+    /**
+     * 是否在基础商品列表同步后继续补全商品详情。
+     * 手动“同步闲鱼商品”默认开启；擦亮任务只需要在售列表，会关闭它，避免额外详情请求。
+     */
+    private Boolean syncDetails = true;
 }

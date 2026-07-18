@@ -56,6 +56,8 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         int completedCount = 0;
         int successCount = 0;
         int failedCount = 0;
+        int deferredCount = 0;
+        boolean verificationRequired = false;
         boolean isCompleted = false;
         boolean isRunning = true;
         String currentItemId = null;
@@ -121,13 +123,24 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
                     break;
                 }
 
-                boolean success = fetchAndSaveDetail(itemId, cookieStr, accountId);
+                DetailSyncResult result = fetchAndSaveDetail(itemId, cookieStr, accountId);
                 
                 progress.completedCount++;
-                if (success) {
+                if (result.success()) {
                     progress.successCount++;
                 } else {
                     progress.failedCount++;
+                }
+
+                if (result.verificationRequired()) {
+                    progress.verificationRequired = true;
+                    progress.deferredCount = Math.max(0, progress.totalCount - progress.completedCount);
+                    progress.message = String.format(
+                            "商品基础信息已同步；闲鱼要求安全验证，详情同步暂停（已完成 %d/%d，待补全 %d 个）",
+                            progress.completedCount, progress.totalCount, progress.deferredCount + 1);
+                    log.warn("商品详情同步触发闲鱼安全验证，停止继续请求避免重复触发: accountId={}, itemId={}, reason={}",
+                            accountId, itemId, result.message());
+                    break;
                 }
 
                 progress.message = String.format("同步进度: %d/%d", progress.completedCount, progress.totalCount);
@@ -136,7 +149,9 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
             progress.isCompleted = true;
             progress.isRunning = false;
             progress.currentItemId = null;
-            progress.message = String.format("同步完成: 成功%d, 失败%d", progress.successCount, progress.failedCount);
+            if (!progress.verificationRequired) {
+                progress.message = String.format("详情同步完成: 成功%d, 失败%d", progress.successCount, progress.failedCount);
+            }
 
         } catch (Exception e) {
             log.error("异步同步异常: syncId={}", syncId, e);
@@ -148,7 +163,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         }
     }
 
-    private boolean fetchAndSaveDetail(String itemId, String cookieStr, Long accountId) {
+    private DetailSyncResult fetchAndSaveDetail(String itemId, String cookieStr, Long accountId) {
         try {
             Map<String, Object> dataMap = new HashMap<>();
             dataMap.put("itemId", itemId);
@@ -161,10 +176,20 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
 
             if (response == null) {
                 log.warn("获取商品详情失败，响应为空: itemId={}", itemId);
-                return false;
+                return DetailSyncResult.failed("商品详情响应为空");
             }
 
             log.info("mtop.taobao.idle.pc.detail 完整响应: itemId={}, response={}", itemId, response);
+
+            String businessError = getBusinessError(response);
+            if (businessError != null) {
+                boolean verificationRequired = isVerificationRequired(businessError);
+                log.warn("商品详情接口返回业务失败: itemId={}, verificationRequired={}, error={}",
+                        itemId, verificationRequired, businessError);
+                return verificationRequired
+                        ? DetailSyncResult.verificationRequired(businessError)
+                        : DetailSyncResult.failed(businessError);
+            }
 
             String extractedDesc = extractDescFromDetailJson(response);
             
@@ -187,11 +212,11 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
             }
 
             log.debug("商品详情同步成功: itemId={}", itemId);
-            return true;
+            return DetailSyncResult.successful();
 
         } catch (Exception e) {
             log.error("获取商品详情异常: itemId={}", itemId, e);
-            return false;
+            return DetailSyncResult.failed("商品详情解析失败: " + e.getMessage());
         }
     }
 
@@ -207,7 +232,51 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
             return false;
         }
         log.info("同步单个商品: accountId={}, itemId={}", accountId, itemId);
-        return fetchAndSaveDetail(itemId, cookieStr, accountId);
+        return fetchAndSaveDetail(itemId, cookieStr, accountId).success();
+    }
+
+    private String getBusinessError(String response) {
+        try {
+            JsonNode retNode = objectMapper.readTree(response).path("ret");
+            if (!retNode.isArray()) {
+                return null;
+            }
+            for (JsonNode ret : retNode) {
+                String value = ret.asText();
+                if (value != null && !value.toUpperCase(Locale.ROOT).startsWith("SUCCESS")) {
+                    return value;
+                }
+            }
+            return null;
+        } catch (Exception e) {
+            log.warn("无法识别商品详情接口的业务状态: {}", e.getMessage());
+            return "商品详情接口返回格式异常";
+        }
+    }
+
+    private boolean isVerificationRequired(String message) {
+        if (message == null) {
+            return false;
+        }
+        String normalized = message.toLowerCase(Locale.ROOT);
+        return normalized.contains("fail_sys_user_validate")
+                || normalized.contains("rgv587_error")
+                || normalized.contains("captcha")
+                || normalized.contains("安全验证");
+    }
+
+    private record DetailSyncResult(boolean success, boolean verificationRequired, String message) {
+        static DetailSyncResult successful() {
+            return new DetailSyncResult(true, false, null);
+        }
+
+        static DetailSyncResult failed(String message) {
+            return new DetailSyncResult(false, false, message);
+        }
+
+        static DetailSyncResult verificationRequired(String message) {
+            return new DetailSyncResult(false, true, message);
+        }
     }
 
     private String extractDescFromDetailJson(String detailJson) {
@@ -254,6 +323,8 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         dto.setCompletedCount(progress.completedCount);
         dto.setSuccessCount(progress.successCount);
         dto.setFailedCount(progress.failedCount);
+        dto.setDeferredCount(progress.deferredCount);
+        dto.setVerificationRequired(progress.verificationRequired);
         dto.setIsCompleted(progress.isCompleted);
         dto.setIsRunning(progress.isRunning);
         dto.setCurrentItemId(progress.currentItemId);

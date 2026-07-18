@@ -47,7 +47,6 @@ import java.util.concurrent.ThreadLocalRandom;
 public class ItemPolishServiceImpl implements ItemPolishService {
 
     private static final String PRIMARY_API = "mtop.taobao.idle.item.polish";
-    private static final String BACKUP_API = "mtop.idle.item.polish";
     private static final String MANUAL_TRIGGER = "MANUAL";
     private static final String SCHEDULED_TRIGGER = "SCHEDULED";
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
@@ -273,9 +272,9 @@ public class ItemPolishServiceImpl implements ItemPolishService {
 
             for (int index = 0; index < items.size(); index++) {
                 XianyuGoodsInfo item = items.get(index);
-                String error = polishItem(accountId, item.getXyGoodId());
-                boolean itemSkipped = isItemNoLongerOnSale(error);
-                boolean itemSuccess = error == null || itemSkipped;
+                PolishResult result = polishItem(accountId, item.getXyGoodId());
+                boolean itemSkipped = result.skipped();
+                boolean itemSuccess = result.success() || itemSkipped;
                 if (itemSuccess) {
                     if (itemSkipped) {
                         skipped++;
@@ -286,9 +285,9 @@ public class ItemPolishServiceImpl implements ItemPolishService {
                     failed++;
                 }
                 saveRecord(accountId, item, triggerType, itemSuccess,
-                        itemSkipped ? "商品已下架，已跳过擦亮" : (itemSuccess ? "擦亮成功" : error));
+                        itemSkipped ? result.message() : (itemSuccess ? "擦亮成功" : result.message()));
                 if (!itemSuccess && automationRiskGuardService != null
-                        && automationRiskGuardService.recordFailure(accountId, "商品擦亮", error)) {
+                        && automationRiskGuardService.recordFailure(accountId, "商品擦亮", result.message())) {
                     summary = "已连续失败，账号自动化保护已暂停，本轮擦亮停止执行";
                     break;
                 }
@@ -329,6 +328,8 @@ public class ItemPolishServiceImpl implements ItemPolishService {
     private int synchronizeOnSaleItems(Long accountId) {
         AllItemsReqDTO request = new AllItemsReqDTO();
         request.setXianyuAccountId(accountId);
+        // 擦亮只依赖在售商品基础列表，不需要逐个请求详情，避免增加闲鱼风控压力。
+        request.setSyncDetails(false);
         ResultObject<RefreshItemsRespDTO> result = itemService.refreshItems(request);
         if (result == null || result.getCode() == null || result.getCode() != 200) {
             String message = result == null ? "未收到同步结果" : messageOf(result.getMsg());
@@ -346,10 +347,9 @@ public class ItemPolishServiceImpl implements ItemPolishService {
         return totalCount;
     }
 
-    /** 返回 null 表示成功，其余为失败原因。 */
-    private String polishItem(Long accountId, String xyGoodsId) {
+    private PolishResult polishItem(Long accountId, String xyGoodsId) {
         if (!StringUtils.hasText(xyGoodsId)) {
-            return "商品 ID 为空";
+            return PolishResult.failed("商品 ID 为空");
         }
         Map<String, Object> data = Map.of("itemId", xyGoodsId);
         Map<String, String> query = Map.of(
@@ -359,18 +359,19 @@ public class ItemPolishServiceImpl implements ItemPolishService {
         XianyuApiCallUtils.ApiCallResult primary = xianyuApiCallUtils.callApiWithRetry(
                 accountId, PRIMARY_API, data, cookie, null, query);
         if (primary.isSuccess()) {
-            return null;
+            return PolishResult.successful();
         }
 
-        String refreshedCookie = accountService.getCookieByAccountId(accountId);
-        XianyuApiCallUtils.ApiCallResult backup = xianyuApiCallUtils.callApiWithRetry(
-                accountId, BACKUP_API, data, refreshedCookie, null, query);
-        if (backup.isSuccess()) {
-            return null;
-        }
         String primaryMessage = messageOf(primary.getErrorMessage());
-        String backupMessage = messageOf(backup.getErrorMessage());
-        return "主接口：" + primaryMessage + "；备用接口：" + backupMessage;
+        if (isDailyPolishLimit(primaryMessage)) {
+            // 平台已经确认当天擦亮过；继续重试或调用旧接口只会制造无效请求与失败记录。
+            log.info("【自动擦亮】账号 {} 商品 {} 已被闲鱼标记为今日已擦亮，跳过", accountId, xyGoodsId);
+            return PolishResult.skipped("闲鱼提示该商品今日已擦亮，已跳过；请以闲鱼 App 状态为准");
+        }
+        if (isItemNoLongerOnSale(primaryMessage)) {
+            return PolishResult.skipped("商品已下架或不在售，已跳过擦亮");
+        }
+        return PolishResult.failed("擦亮接口失败：" + primaryMessage);
     }
 
     /** 平台明确返回商品下架时，无需再擦亮，也不应计为自动化失败。 */
@@ -381,6 +382,31 @@ public class ItemPolishServiceImpl implements ItemPolishService {
         String detail = error.toLowerCase(Locale.ROOT);
         return detail.contains("已下架") || detail.contains("下架商品不支持")
                 || (detail.contains("unsupported_item_status") && detail.contains("下架"));
+    }
+
+    private boolean isDailyPolishLimit(String error) {
+        if (!StringUtils.hasText(error)) {
+            return false;
+        }
+        String detail = error.toLowerCase(Locale.ROOT);
+        return detail.contains("polish_duplicate")
+                || detail.contains("一天只能擦亮一次")
+                || detail.contains("今日已擦亮")
+                || detail.contains("已擦亮过");
+    }
+
+    private record PolishResult(boolean success, boolean skipped, String message) {
+        static PolishResult successful() {
+            return new PolishResult(true, false, null);
+        }
+
+        static PolishResult skipped(String message) {
+            return new PolishResult(false, true, message);
+        }
+
+        static PolishResult failed(String message) {
+            return new PolishResult(false, false, message);
+        }
     }
 
     private void saveRecord(Long accountId, XianyuGoodsInfo item, String triggerType,
@@ -421,11 +447,11 @@ public class ItemPolishServiceImpl implements ItemPolishService {
                         "商品已下架或不在售，已跳过擦亮");
                 return;
             }
-            String error = polishItem(accountId, item.getXyGoodId());
-            boolean itemSkipped = isItemNoLongerOnSale(error);
-            boolean itemSuccess = error == null || itemSkipped;
+            PolishResult result = polishItem(accountId, item.getXyGoodId());
+            boolean itemSkipped = result.skipped();
+            boolean itemSuccess = result.success() || itemSkipped;
             saveRecord(accountId, item, "RETRY", itemSuccess,
-                    itemSkipped ? "商品已下架，已跳过擦亮" : (itemSuccess ? "擦亮重试成功" : error));
+                    itemSkipped ? result.message() : (itemSuccess ? "擦亮重试成功" : result.message()));
         } catch (Exception e) {
             String reason = "擦亮重试异常：" + messageOf(e);
             log.warn("【自动擦亮】账号 {} 商品 {} 重试失败：{}", accountId,

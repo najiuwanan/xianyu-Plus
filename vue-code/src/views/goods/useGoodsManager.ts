@@ -64,8 +64,12 @@ export function useGoodsManager() {
             stopSyncPolling()
             syncing.value = false
             refreshing.value = false
-            if (response.data.successCount && response.data.successCount > 0) {
+            if (response.data.verificationRequired) {
+              showInfo(`商品基础信息已同步；闲鱼要求安全验证，${response.data.deferredCount || 1} 个商品详情将稍后再试`)
+            } else if (response.data.successCount && response.data.successCount > 0) {
               showSuccess(`详情同步完成: 成功${response.data.successCount}个, 失败${response.data.failedCount}个`)
+            } else if (response.data.failedCount > 0) {
+              showInfo(`商品基础信息已同步，但有${response.data.failedCount}个详情暂未补全`)
             }
             await loadGoods()
           }
@@ -80,8 +84,9 @@ export function useGoodsManager() {
     stopSyncPolling()
     syncing.value = true
     syncProgressTimer = setInterval(() => {
-      pollSyncProgress(syncId)
+      void pollSyncProgress(syncId)
     }, 1000)
+    void pollSyncProgress(syncId)
   }
 
   onUnmounted(() => {
@@ -154,20 +159,25 @@ export function useGoodsManager() {
       const response = await refreshGoods(selectedAccountId.value)
       if (response.code === 0 || response.code === 200) {
         if (response.data && response.data.success) {
-          showSuccess('商品数据刷新成功')
+          // 基础商品列表已经同步入库，先显示它；详情补全在后台进行，不再让页面等待全部请求结束。
+          await loadGoods()
           if (response.data.syncId) {
+            showSuccess(`已同步${response.data.successCount || 0}个商品，正在补全详情`)
             startSyncPolling(response.data.syncId)
           } else {
-            await loadGoods()
+            showSuccess(`已同步${response.data.successCount || 0}个商品`)
             refreshing.value = false
           }
         } else {
           showError(response.data?.message || '刷新商品数据失败')
           refreshing.value = false
         }
+      } else {
+        throw new Error(response.msg || '刷新商品数据失败')
       }
     } catch (error: any) {
       console.error('刷新商品数据失败:', error)
+      showError(error?.message || '刷新商品数据失败，请稍后重试')
       refreshing.value = false
     }
   }

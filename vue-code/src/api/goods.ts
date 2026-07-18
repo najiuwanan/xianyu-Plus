@@ -62,6 +62,8 @@ export interface SyncProgressResponse {
   completedCount: number;
   successCount: number;
   failedCount: number;
+  deferredCount: number;
+  verificationRequired: boolean;
   isCompleted: boolean;
   isRunning: boolean;
   currentItemId: string;

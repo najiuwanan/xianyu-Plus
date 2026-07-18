@@ -10,6 +10,10 @@ public class SyncProgressRespDTO {
     private Integer completedCount;
     private Integer successCount;
     private Integer failedCount;
+    /** 因闲鱼安全验证暂停、尚未请求详情的商品数。 */
+    private Integer deferredCount;
+    /** 是否因闲鱼安全验证暂停详情同步。 */
+    private Boolean verificationRequired;
     private Boolean isCompleted;
     private Boolean isRunning;
     private String currentItemId;

@@ -281,11 +281,13 @@ public class ItemServiceImpl implements ItemService {
                 respDTO.setSuccess(true);
                 respDTO.setMessage("刷新成功");
                 
-                String syncId = itemDetailSyncService.startSync(reqDTO.getXianyuAccountId(), allItems);
-                respDTO.setSyncId(syncId);
+                if (!Boolean.FALSE.equals(reqDTO.getSyncDetails())) {
+                    String syncId = itemDetailSyncService.startSync(reqDTO.getXianyuAccountId(), allItems);
+                    respDTO.setSyncId(syncId);
+                }
                 
                 log.info("刷新商品数据完成: xianyuAccountId={}, 总数={}, 成功={}, syncId={}", 
-                        reqDTO.getXianyuAccountId(), respDTO.getTotalCount(), respDTO.getSuccessCount(), syncId);
+                        reqDTO.getXianyuAccountId(), respDTO.getTotalCount(), respDTO.getSuccessCount(), respDTO.getSyncId());
             } else {
                 respDTO.setSuccessCount(0);
                 respDTO.setMessage("没有获取到商品数据");

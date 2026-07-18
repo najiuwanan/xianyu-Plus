@@ -18,6 +18,8 @@ const formatTime = (value?: string) => {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-')
 }
 
+const isSkippedRecord = (record: ItemPolishRecord) => record.success === 1 && (record.message || '').includes('跳过')
+
 const loadOverview = async (silent = false) => {
   if (!selectedAccountId.value) return
   if (!silent) loading.value = true
@@ -150,7 +152,11 @@ onMounted(loadAccounts)
                 <td>{{ formatTime(record.createTime) }}</td>
                 <td><strong>{{ record.goodsTitle || '未命名商品' }}</strong><small>ID: {{ record.xyGoodsId }}</small></td>
                 <td>{{ record.triggerType === 'SCHEDULED' ? '每日一键' : '手动一键' }}</td>
-                <td><span class="result-tag" :class="record.success === 1 ? 'result-tag--success' : 'result-tag--danger'">{{ record.success === 1 ? '成功' : '失败' }}</span></td>
+                <td>
+                  <span class="result-tag" :class="isSkippedRecord(record) ? 'result-tag--skipped' : (record.success === 1 ? 'result-tag--success' : 'result-tag--danger')">
+                    {{ isSkippedRecord(record) ? '已跳过' : (record.success === 1 ? '成功' : '失败') }}
+                  </span>
+                </td>
                 <td class="record-message">{{ record.message || '-' }}</td>
                 <td class="history-table__action-cell">
                   <button class="record-delete-btn" :disabled="deletingRecordId !== null" @click="deleteRecord(record)">
@@ -204,6 +210,7 @@ h2 { font-size: 17px; }
 .record-delete-btn:disabled { cursor: not-allowed; opacity: .55; }
 .result-tag, .running-tag { border-radius: 999px; padding: 3px 9px; font-size: 12px; white-space: nowrap; }
 .result-tag--success, .running-tag { color: #187b38; background: rgba(48,209,88,.15); }
+.result-tag--skipped { color: #9a6700; background: rgba(255, 193, 7, .18); }
 .result-tag--danger { color: #c83129; background: rgba(255,69,58,.13); }
 .empty-history, .empty-state { color: rgba(28,28,30,.48); text-align: center; padding: 34px 12px; }
 @media (max-width: 800px) {
