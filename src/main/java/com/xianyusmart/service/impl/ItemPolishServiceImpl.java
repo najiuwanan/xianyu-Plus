@@ -24,7 +24,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -48,6 +47,8 @@ import java.util.concurrent.ThreadLocalRandom;
 public class ItemPolishServiceImpl implements ItemPolishService {
 
     private static final String PRIMARY_API = "mtop.taobao.idle.item.polish";
+    /** 擦亮接口使用独立的 2.0 协议路径与请求版本，不能复用通用接口的 1.0 默认值。 */
+    private static final String PRIMARY_ENDPOINT_VERSION = "2.0";
     private static final String MANUAL_TRIGGER = "MANUAL";
     private static final String SCHEDULED_TRIGGER = "SCHEDULED";
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
@@ -92,7 +93,6 @@ public class ItemPolishServiceImpl implements ItemPolishService {
     public Map<String, Object> getOverview(Long accountId, int recordLimit) {
         validateAccount(accountId);
         XianyuItemPolishConfig config = getOrCreateConfig(accountId);
-        normalizeLegacyDailyPolishLimitRecords(accountId, config);
         int limit = recordLimit <= 0 ? DEFAULT_RECORD_LIMIT : Math.min(recordLimit, MAX_RECORD_LIMIT);
         List<XianyuItemPolishRecord> records = recordMapper.selectList(
                 new LambdaQueryWrapper<XianyuItemPolishRecord>()
@@ -354,24 +354,30 @@ public class ItemPolishServiceImpl implements ItemPolishService {
             return PolishResult.failed("商品 ID 为空");
         }
         Map<String, Object> data = Map.of("itemId", xyGoodsId);
+        // 该接口的页面请求版本为 2.0。此前误用通用 1.0 参数，平台可能返回
+        // “已擦亮”业务回执但不真正执行操作，造成后台与手机 H5 状态不一致。
         Map<String, String> query = Map.of(
-                "spm_cnt", "a21ybx.im.0.0",
-                "spm_pre", "a21ybx.collection.menu.1.272b5141NafCNK");
+                "v", PRIMARY_ENDPOINT_VERSION,
+                "spm_cnt", "a21ybx.item.0.0",
+                "spm_pre", "a21ybx.personal.feeds.1.42f86ac21eZ9zd",
+                "log_id", "42f86ac21eZ9zd");
         String cookie = accountService.getCookieByAccountId(accountId);
         XianyuApiCallUtils.ApiCallResult primary = xianyuApiCallUtils.callApiWithRetry(
-                accountId, PRIMARY_API, data, cookie, null, query);
+                accountId, PRIMARY_API, data, cookie, PRIMARY_ENDPOINT_VERSION, null, query);
         if (primary.isSuccess()) {
             return PolishResult.successful();
         }
 
         String primaryMessage = messageOf(primary.getErrorMessage());
-        if (isDailyPolishLimit(primaryMessage)) {
-            // 平台已经确认当天擦亮过；继续重试或调用旧接口只会制造无效请求与失败记录。
-            log.info("【自动擦亮】账号 {} 商品 {} 已被闲鱼标记为今日已擦亮，跳过", accountId, xyGoodsId);
-            return PolishResult.skipped("已跳过：闲鱼接口提示该商品当日已处理，未重复请求；App 按钮状态可能尚未同步，请以闲鱼实际页面为准");
-        }
         if (isItemNoLongerOnSale(primaryMessage)) {
             return PolishResult.skipped("商品已下架或不在售，已跳过擦亮");
+        }
+        if (isDailyPolishLimit(primaryMessage)) {
+            // 该回执没有 SUCCESS，不能把它当作真实擦亮成功。尤其当手机端仍可点击
+            // “一键擦亮”时，只有保留失败状态才能避免前端和闲鱼端状态被伪造为一致。
+            log.warn("【自动擦亮】账号 {} 商品 {} 返回已擦亮回执但未收到成功确认，保留失败记录: {}",
+                    accountId, xyGoodsId, primaryMessage);
+            return PolishResult.failed("擦亮未完成：闲鱼返回“已擦亮”但未给出成功确认，请刷新闲鱼 H5 后重试；原始回执：" + primaryMessage);
         }
         return PolishResult.failed("擦亮接口失败：" + primaryMessage);
     }
@@ -398,35 +404,6 @@ public class ItemPolishServiceImpl implements ItemPolishService {
                 || detail.contains("今日已擦亮")
                 || detail.contains("已擦亮过")
                 || detail.contains("已经擦亮过");
-    }
-
-    /**
-     * 旧版本把 IDLEITEM_POLISH_AGAIN 作为失败保存。接口语义实际是“今天已处理”，
-     * 因此在读取页面前一次性修正历史记录，并在它确实属于最近一次任务时修正汇总数字。
-     */
-    private void normalizeLegacyDailyPolishLimitRecords(Long accountId, XianyuItemPolishConfig config) {
-        try {
-            int normalized = recordMapper.normalizeDailyPolishLimitRecords(accountId);
-            if (normalized <= 0 || config.getLastRunFailed() == null || config.getLastRunFailed() <= 0
-                    || config.getLastRunAt() == null) {
-                return;
-            }
-            XianyuItemPolishRecord latest = recordMapper.selectOne(
-                    new LambdaQueryWrapper<XianyuItemPolishRecord>()
-                            .eq(XianyuItemPolishRecord::getXianyuAccountId, accountId)
-                            .orderByDesc(XianyuItemPolishRecord::getCreateTime)
-                            .last("LIMIT 1"));
-            if (latest == null || latest.getCreateTime() == null
-                    || !isDailyPolishLimit(latest.getMessage())
-                    || Math.abs(Duration.between(latest.getCreateTime(), config.getLastRunAt()).toSeconds()) > 120) {
-                return;
-            }
-            config.setLastRunFailed(0);
-            config.setLastRunMessage("上次执行已校正：闲鱼接口提示商品当日已处理，已作为跳过，不计入失败");
-            configMapper.updateById(config);
-        } catch (Exception e) {
-            log.warn("【自动擦亮】修正历史当日擦亮记录失败：{}", e.getMessage());
-        }
     }
 
     private record PolishResult(boolean success, boolean skipped, String message) {

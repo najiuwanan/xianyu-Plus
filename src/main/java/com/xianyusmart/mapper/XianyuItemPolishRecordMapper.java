@@ -18,18 +18,6 @@ public interface XianyuItemPolishRecordMapper extends BaseMapper<XianyuItemPolis
             "OR (LOWER(COALESCE(message, '')) LIKE '%unsupported_item_status%' " +
             "AND COALESCE(message, '') LIKE '%下架%'))";
 
-    /**
-     * 闲鱼会以该错误码表示该商品当天已进入擦亮冷却，而不是本项目调用失败。
-     * 历史版本未识别该错误码，导致这些记录被错误地展示为失败。
-     */
-    String DAILY_POLISH_SKIP_CONDITION = "(LOWER(COALESCE(message, '')) LIKE '%idleitem_polish_again%' " +
-            "OR LOWER(COALESCE(message, '')) LIKE '%polish_duplicate%' " +
-            "OR LOWER(COALESCE(message, '')) LIKE '%polish_again%' " +
-            "OR COALESCE(message, '') LIKE '%一天只能擦亮一次%' " +
-            "OR COALESCE(message, '') LIKE '%今日已擦亮%' " +
-            "OR COALESCE(message, '') LIKE '%已擦亮过%' " +
-            "OR COALESCE(message, '') LIKE '%已经擦亮过%')";
-
     /** 擦亮失败记录，包含同步阶段失败时保存的任务级记录。 */
     @Select("<script>" +
             "SELECT 'POLISH' AS type, CAST(r.id AS CHAR) AS recordId, r.xianyu_account_id AS accountId, " +
@@ -58,20 +46,6 @@ public interface XianyuItemPolishRecordMapper extends BaseMapper<XianyuItemPolis
             "<if test='accountId != null'>AND xianyu_account_id = #{accountId}</if>" +
             "</script>")
     int resolveOffShelfFailures(@Param("accountId") Long accountId);
-
-    /**
-     * 将旧版本误记为失败的“当日已擦亮”记录修正为跳过，避免继续进入异常处理。
-     * success=1 与前端的“已跳过”文案配合使用，不会被展示成擦亮成功。
-     */
-    @Update("<script>" +
-            "UPDATE xianyu_item_polish_record " +
-            "SET success = 1, resolved_at = NOW(3), " +
-            "message = CASE WHEN COALESCE(message, '') LIKE '已跳过：%' THEN message " +
-            "ELSE CONCAT('已跳过：', COALESCE(NULLIF(message, ''), '闲鱼提示该商品当日已处理')) END " +
-            "WHERE success = 0 AND " + DAILY_POLISH_SKIP_CONDITION + " " +
-            "<if test='accountId != null'>AND xianyu_account_id = #{accountId}</if>" +
-            "</script>")
-    int normalizeDailyPolishLimitRecords(@Param("accountId") Long accountId);
 
     @Update("UPDATE xianyu_item_polish_record SET resolved_at = NOW(3) " +
             "WHERE xianyu_account_id = #{accountId} AND xy_goods_id = '' " +

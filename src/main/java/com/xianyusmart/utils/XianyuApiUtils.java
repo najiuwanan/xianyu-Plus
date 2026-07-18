@@ -46,6 +46,8 @@ public class XianyuApiUtils {
         headers.put("Accept-Language", "zh-CN,zh;q=0.9");
         headers.put("Cache-Control", "no-cache");
         headers.put("Pragma", "no-cache");
+        // 与闲鱼网页端请求保持一致，避免网关把自动化请求识别为异常客户端。
+        headers.put("Priority", "u=1, i");
         headers.put("Origin", "https://www.goofish.com");
         headers.put("Referer", "https://www.goofish.com/");
         headers.put("Sec-Fetch-Dest", "empty");
