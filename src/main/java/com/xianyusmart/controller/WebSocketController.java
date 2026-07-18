@@ -495,6 +495,22 @@ public class WebSocketController {
     }
 
     /**
+     * 刷新同一滑块验证会话的预览图，避免首次截图仍处于页面骨架屏。
+     */
+    @PostMapping("/captcha/session/preview")
+    public ResultObject<CaptchaSessionService.CaptchaSessionResult> refreshCaptchaPreview(
+            @RequestBody CloseCaptchaSessionReqDTO reqDTO) {
+        try {
+            CaptchaSessionService.CaptchaSessionResult result = captchaSessionService.refreshPreview(
+                    reqDTO.getXianyuAccountId(), reqDTO.getSessionId());
+            return ResultObject.success(result);
+        } catch (Exception e) {
+            log.warn("刷新滑块验证预览失败: accountId={}", reqDTO.getXianyuAccountId(), e);
+            return ResultObject.failed("验证画面暂时无法刷新，请点击重新加载");
+        }
+    }
+
+    /**
      * 释放服务器滑块验证会话
      */
     @PostMapping("/captcha/session/close")

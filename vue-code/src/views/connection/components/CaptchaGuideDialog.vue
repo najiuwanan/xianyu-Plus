@@ -2,6 +2,7 @@
 import { ref, watch, onUnmounted } from 'vue';
 import {
   closeCaptchaSession,
+  refreshCaptchaPreview,
   replayCaptchaDrag,
   startCaptchaSession,
   type CaptchaDragPoint
@@ -28,13 +29,30 @@ const screenshot = ref('');
 const statusText = ref('正在加载验证页面...');
 const loading = ref(false);
 const submitting = ref(false);
+const previewReady = ref(false);
+const previewRefreshing = ref(false);
+const dragFeedback = ref({ visible: false, left: 0, top: 0, distance: 0 });
 let dragging = false;
 let dragPoints: CaptchaDragPoint[] = [];
 let lastPointTime = 0;
 let requestSequence = 0;
+let previewTimer: ReturnType<typeof setTimeout> | undefined;
+let dragStartClientX = 0;
 const MIN_HORIZONTAL_DRAG_DISTANCE = 36;
+const AUTO_PREVIEW_REFRESH_COUNT = 2;
 
 const getErrorMessage = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
+
+const clearPreviewTimer = () => {
+  if (previewTimer) {
+    clearTimeout(previewTimer);
+    previewTimer = undefined;
+  }
+};
+
+const resetDragFeedback = () => {
+  dragFeedback.value = { visible: false, left: 0, top: 0, distance: 0 };
+};
 
 const releaseSession = () => {
   const currentSessionId = sessionId.value;
@@ -46,8 +64,10 @@ const releaseSession = () => {
 
 const loadCaptchaSession = async () => {
   const currentSequence = ++requestSequence;
+  clearPreviewTimer();
   releaseSession();
   screenshot.value = '';
+  previewReady.value = false;
   statusText.value = '正在加载验证页面...';
   loading.value = true;
   try {
@@ -61,7 +81,8 @@ const loadCaptchaSession = async () => {
     if ((response.code === 0 || response.code === 200) && response.data) {
       sessionId.value = response.data.sessionId;
       screenshot.value = response.data.screenshot || '';
-      statusText.value = response.data.message || '请在验证画面中拖动滑块';
+      statusText.value = response.data.message || '验证页面正在加载，请稍候，画面会自动刷新';
+      schedulePreviewRefresh(currentSequence);
     } else {
       throw new Error(response.msg || '加载验证页面失败');
     }
@@ -73,6 +94,51 @@ const loadCaptchaSession = async () => {
       loading.value = false;
     }
   }
+};
+
+const refreshPreview = async (automatic = false) => {
+  if (!sessionId.value || submitting.value || dragging) return;
+  const activeSessionId = sessionId.value;
+  previewRefreshing.value = true;
+  if (automatic) {
+    statusText.value = '正在刷新验证画面，请稍候...';
+  }
+  try {
+    const response = await refreshCaptchaPreview(props.accountId, sessionId.value);
+    if ((response.code === 0 || response.code === 200) && response.data
+      && activeSessionId === sessionId.value && props.modelValue) {
+      screenshot.value = response.data.screenshot || screenshot.value;
+      previewReady.value = true;
+      statusText.value = response.data.message || '请确认滑块出现后按住向右拖动，松开后提交验证';
+    } else {
+      throw new Error(response.msg || '刷新验证画面失败');
+    }
+  } catch (error: unknown) {
+    statusText.value = getErrorMessage(error, '刷新验证画面失败');
+    if (!automatic) showError(statusText.value);
+  } finally {
+    previewRefreshing.value = false;
+  }
+};
+
+const schedulePreviewRefresh = (currentSequence: number, attempt = 0) => {
+  if (attempt >= AUTO_PREVIEW_REFRESH_COUNT) return;
+  previewTimer = setTimeout(async () => {
+    if (currentSequence !== requestSequence || !props.modelValue || !sessionId.value || dragging || submitting.value) return;
+    await refreshPreview(true);
+    if (currentSequence === requestSequence && props.modelValue && !dragging && !submitting.value) {
+      schedulePreviewRefresh(currentSequence, attempt + 1);
+    }
+  }, 900 + attempt * 700);
+};
+
+const handlePreviewRefresh = () => {
+  if (sessionId.value) {
+    clearPreviewTimer();
+    void refreshPreview();
+    return;
+  }
+  void loadCaptchaSession();
 };
 
 const getDragPoint = (event: PointerEvent): CaptchaDragPoint | null => {
@@ -91,13 +157,32 @@ const getDragPoint = (event: PointerEvent): CaptchaDragPoint | null => {
   return point;
 };
 
+const updateDragFeedback = (event: PointerEvent) => {
+  const image = imageRef.value;
+  if (!image) return;
+  const rect = image.getBoundingClientRect();
+  dragFeedback.value = {
+    visible: true,
+    left: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
+    top: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
+    distance: Math.max(0, Math.round(event.clientX - dragStartClientX))
+  };
+};
+
 const handlePointerDown = (event: PointerEvent) => {
   if (submitting.value || !sessionId.value) return;
+  if (!previewReady.value) {
+    statusText.value = '验证页面还在加载，请等待画面自动刷新后再拖动';
+    return;
+  }
   const point = getDragPoint(event);
   if (!point) return;
 
   dragging = true;
+  dragStartClientX = event.clientX;
   dragPoints = [point];
+  updateDragFeedback(event);
+  statusText.value = '正在记录拖动轨迹，松开后会提交到服务器验证';
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 };
 
@@ -107,11 +192,13 @@ const handlePointerMove = (event: PointerEvent) => {
   const previous = dragPoints[dragPoints.length - 1];
   if (!point || !previous || (Math.abs(point.x - previous.x) < 1 && Math.abs(point.y - previous.y) < 1)) return;
   dragPoints.push(point);
+  updateDragFeedback(event);
 };
 
 const handlePointerUp = async (event: PointerEvent) => {
   if (!dragging) return;
   dragging = false;
+  updateDragFeedback(event);
   const finalPoint = getDragPoint(event);
   if (finalPoint) {
     if (dragPoints.length >= 160) {
@@ -125,8 +212,9 @@ const handlePointerUp = async (event: PointerEvent) => {
   const firstPoint = dragPoints[0];
   const lastPoint = dragPoints[dragPoints.length - 1];
   if (!firstPoint || !lastPoint || lastPoint.x - firstPoint.x < MIN_HORIZONTAL_DRAG_DISTANCE) {
-    statusText.value = '请按住滑块向右拖动一段距离后再松开';
+    statusText.value = `已记录拖动 ${dragFeedback.value.distance}px，请按住滑块向右拖动一段距离后再松开`;
     dragPoints = [];
+    resetDragFeedback();
     return;
   }
 
@@ -153,16 +241,20 @@ const handlePointerUp = async (event: PointerEvent) => {
   } finally {
     submitting.value = false;
     dragPoints = [];
+    resetDragFeedback();
   }
 };
 
 const handlePointerCancel = () => {
   dragging = false;
   dragPoints = [];
+  resetDragFeedback();
 };
 
 const handleClose = () => {
   requestSequence++;
+  clearPreviewTimer();
+  resetDragFeedback();
   releaseSession();
   emit('update:modelValue', false);
 };
@@ -172,12 +264,15 @@ watch(() => props.modelValue, (visible) => {
     loadCaptchaSession();
   } else {
     requestSequence++;
+    clearPreviewTimer();
+    resetDragFeedback();
     releaseSession();
   }
 });
 
 onUnmounted(() => {
   requestSequence++;
+  clearPreviewTimer();
   releaseSession();
 });
 </script>
@@ -190,14 +285,18 @@ onUnmounted(() => {
           <div class="modal-header">
             <div>
               <h2 class="modal-title">滑块验证</h2>
-              <p class="modal-subtitle">验证在服务器浏览器中完成，成功后自动更新Cookie并重连</p>
+              <p class="modal-subtitle">验证在服务器浏览器中完成；画面会自动刷新，松开鼠标后才会同步拖动并更新 Cookie</p>
             </div>
             <button class="modal-close" type="button" aria-label="关闭" @click="handleClose">×</button>
           </div>
 
           <div class="modal-body">
             <div v-if="loading" class="captcha-state">正在加载验证页面...</div>
-            <div v-else-if="screenshot" class="captcha-viewer" :class="{ 'is-submitting': submitting }">
+            <div
+              v-else-if="screenshot"
+              class="captcha-viewer"
+              :class="{ 'is-submitting': submitting, 'is-loading-preview': !previewReady }"
+            >
               <img
                 ref="imageRef"
                 class="captcha-image"
@@ -209,6 +308,18 @@ onUnmounted(() => {
                 @pointerup.prevent="handlePointerUp"
                 @pointercancel="handlePointerCancel"
               >
+              <div v-if="!previewReady" class="captcha-loading-mask">
+                <span class="captcha-loading-spinner" />
+                <span>验证组件正在打开，画面准备好后即可拖动</span>
+              </div>
+              <div
+                v-if="dragFeedback.visible"
+                class="captcha-drag-indicator"
+                :style="{ left: `${dragFeedback.left}px`, top: `${dragFeedback.top}px` }"
+              >
+                <span class="captcha-drag-dot" />
+                <span class="captcha-drag-distance">已拖动 {{ dragFeedback.distance }} px</span>
+              </div>
             </div>
             <div v-else class="captcha-state captcha-state--error">{{ statusText }}</div>
             <p v-if="screenshot" class="captcha-status">{{ statusText }}</p>
@@ -216,8 +327,13 @@ onUnmounted(() => {
 
           <div class="modal-footer">
             <button class="btn btn-secondary" type="button" @click="handleClose">取消</button>
-            <button class="btn btn-secondary" type="button" :disabled="loading || submitting" @click="loadCaptchaSession">
-              重新加载
+            <button
+              class="btn btn-secondary"
+              type="button"
+              :disabled="loading || submitting || previewRefreshing"
+              @click="handlePreviewRefresh"
+            >
+              {{ sessionId ? '刷新画面' : '重新加载' }}
             </button>
           </div>
         </div>
@@ -297,6 +413,7 @@ onUnmounted(() => {
 }
 
 .captcha-viewer {
+  position: relative;
   overflow: hidden;
   border: 1px solid #dfe3e8;
   border-radius: 8px;
@@ -307,6 +424,10 @@ onUnmounted(() => {
 .captcha-viewer.is-submitting {
   opacity: 0.65;
   pointer-events: none;
+}
+
+.captcha-viewer.is-loading-preview {
+  cursor: wait;
 }
 
 .captcha-image {
@@ -320,6 +441,58 @@ onUnmounted(() => {
 
 .captcha-image:active {
   cursor: grabbing;
+}
+
+.captcha-loading-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.captcha-loading-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #dbeafe;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: captcha-spin 0.8s linear infinite;
+}
+
+.captcha-drag-indicator {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #ffffff;
+  font-size: 12px;
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(8px, calc(-100% - 8px));
+}
+
+.captcha-drag-dot {
+  width: 8px;
+  height: 8px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  background: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.26);
+}
+
+.captcha-drag-distance {
+  white-space: nowrap;
 }
 
 .captcha-state {
@@ -370,6 +543,12 @@ onUnmounted(() => {
 
 .btn-secondary:hover:not(:disabled) {
   background: #f7f8fa;
+}
+
+@keyframes captcha-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .modal-enter-active,

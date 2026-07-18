@@ -115,6 +115,15 @@ export function replayCaptchaDrag(accountId: number, sessionId: string, points: 
   });
 }
 
+// 刷新同一个服务器验证会话的画面，不会重新打开浏览器或丢失 Cookie
+export function refreshCaptchaPreview(accountId: number, sessionId: string) {
+  return request<CaptchaSessionResult>({
+    url: '/websocket/captcha/session/preview',
+    method: 'POST',
+    data: { xianyuAccountId: accountId, sessionId }
+  });
+}
+
 // 释放服务器滑块验证会话
 export function closeCaptchaSession(accountId: number, sessionId: string) {
   return request<string>({

@@ -100,6 +100,14 @@ public class CaptchaSessionServiceImpl implements CaptchaSessionService {
     }
 
     @Override
+    public CaptchaSessionResult refreshPreview(Long accountId, String sessionId) {
+        if (accountId == null || sessionId == null || sessionId.isBlank()) {
+            throw new IllegalArgumentException("滑块验证会话无效");
+        }
+        return execute(() -> doRefreshPreview(accountId, sessionId), 8);
+    }
+
+    @Override
     public void closeSession(Long accountId, String sessionId) {
         if (accountId == null || sessionId == null || sessionId.isBlank()) {
             return;
@@ -139,7 +147,9 @@ public class CaptchaSessionServiceImpl implements CaptchaSessionService {
             if (!isTrustedCaptchaUrl(page.url())) {
                 throw new IllegalArgumentException("滑块验证页面跳转到了非可信地址");
             }
-            page.waitForTimeout(800);
+            // 先尽快返回首帧，再由前端在同一浏览器会话中刷新预览。
+            // 闲鱼页面经常先渲染骨架屏，固定等待较久既不可靠，也会让用户误以为页面卡死。
+            page.waitForTimeout(250);
 
             String sessionId = UUID.randomUUID().toString();
             CaptchaSession session = new CaptchaSession(
@@ -158,7 +168,7 @@ public class CaptchaSessionServiceImpl implements CaptchaSessionService {
                     captureScreenshot(page),
                     false,
                     false,
-                    "请在验证画面中拖动滑块");
+                    "验证页面正在加载，请稍候，画面会自动刷新");
         } catch (Exception e) {
             if (context != null) {
                 closeContext(context);
@@ -220,6 +230,22 @@ public class CaptchaSessionServiceImpl implements CaptchaSessionService {
                 true,
                 connected,
                 connected ? "滑块验证成功，WebSocket已重连" : "滑块验证成功，WebSocket正在重连");
+    }
+
+    private CaptchaSessionResult doRefreshPreview(Long accountId, String sessionId) {
+        cleanupExpiredSessions();
+        CaptchaSession session = sessions.get(sessionId);
+        if (session == null || !Objects.equals(session.accountId(), accountId)) {
+            throw new IllegalArgumentException("滑块验证会话已失效，请重新开始");
+        }
+
+        sessions.put(sessionId, session.touch());
+        return new CaptchaSessionResult(
+                sessionId,
+                captureScreenshot(session.page()),
+                false,
+                false,
+                "验证页面已刷新，请确认滑块出现后按住向右拖动");
     }
 
     private void replayMouse(Page page, List<DragPoint> points) {
