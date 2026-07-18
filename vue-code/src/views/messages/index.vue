@@ -416,8 +416,9 @@ onBeforeUnmount(() => {
             {{ account.accountNote || account.unb }}
           </option>
         </select>
-        <button class="btn btn--secondary" :disabled="loadingSessions" @click="refreshAll">
-          <IconRefresh /> 刷新
+        <button class="customer-service__refresh-button" :class="{ 'is-loading': loadingSessions }" :disabled="loadingSessions" @click="refreshAll">
+          <IconRefresh />
+          <span>{{ loadingSessions ? '刷新中' : '刷新会话' }}</span>
         </button>
       </div>
     </header>
@@ -603,6 +604,13 @@ h1 { font-size:24px; line-height:1.2; }
 .customer-service__toolbar { gap:9px; }
 .customer-service__unread { display:inline-flex; align-items:center; height:28px; padding:0 9px; border-radius:999px; color:#b42318; background:#fef3f2; font-size:12px; font-weight:700; white-space:nowrap; }
 .customer-service__select, .detail-panel select { height:36px; border:1px solid rgba(60,60,67,.18); border-radius:9px; padding:0 10px; background:#fff; color:#1c1c1e; }
+.customer-service__refresh-button { height:36px; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 13px; border:1px solid rgba(10,132,255,.28); border-radius:9px; color:#0969c7; background:linear-gradient(180deg, #fff 0%, #f4f9ff 100%); box-shadow:0 3px 10px rgba(10,132,255,.10); cursor:pointer; font:inherit; font-size:12px; font-weight:600; white-space:nowrap; transition:transform .15s ease, box-shadow .15s ease, background .15s ease; }
+.customer-service__refresh-button svg { width:15px; height:15px; }
+.customer-service__refresh-button:hover:not(:disabled) { background:#eef7ff; box-shadow:0 5px 14px rgba(10,132,255,.18); transform:translateY(-1px); }
+.customer-service__refresh-button:active:not(:disabled) { transform:translateY(0); box-shadow:0 2px 6px rgba(10,132,255,.12); }
+.customer-service__refresh-button:disabled { cursor:not-allowed; opacity:.62; }
+.customer-service__refresh-button.is-loading svg { animation:customer-service-spin .72s linear infinite; }
+@keyframes customer-service-spin { to { transform:rotate(360deg); } }
 .customer-service__workspace { min-height:0; flex:1; display:grid; grid-template-columns:280px minmax(360px, 1fr) 260px; overflow:hidden; background:rgba(255,255,255,.9); border:1px solid rgba(60,60,67,.12); border-radius:16px; box-shadow:0 7px 28px rgba(0,0,0,.05); }
 .session-panel, .detail-panel { background:rgba(248,249,251,.75); min-width:0; }
 .session-panel { display:flex; flex-direction:column; border-right:1px solid rgba(60,60,67,.1); }

@@ -40,6 +40,7 @@ const detailFromServer = ref(false)
 const detailTimeline = ref<OrderTimelineEvent[]>([])
 const detailTimelineLoading = ref(false)
 const runningCompensationKey = ref<string | null>(null)
+const openedActionMenuKey = ref<string | null>(null)
 
 const orderKey = (order: DeliveryRecordItem) => `${order.xianyuAccountId || ''}:${order.orderId || ''}`
 
@@ -134,11 +135,29 @@ const checkScreenSize = () => {
 onMounted(() => {
   checkScreenSize()
   window.addEventListener('resize', checkScreenSize)
+  window.addEventListener('click', closeActionMenu)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkScreenSize)
+  window.removeEventListener('click', closeActionMenu)
 })
+
+const closeActionMenu = () => {
+  openedActionMenuKey.value = null
+}
+
+const toggleActionMenu = (event: MouseEvent, order: DeliveryRecordItem) => {
+  event.stopPropagation()
+  const key = orderKey(order)
+  openedActionMenuKey.value = openedActionMenuKey.value === key ? null : key
+}
+
+const runMenuAction = (event: MouseEvent, action: () => void) => {
+  event.stopPropagation()
+  closeActionMenu()
+  action()
+}
 
 const getStatusColor = (state: number) => {
   return state === 1 ? '#30D158' : '#FF453A'
@@ -339,10 +358,6 @@ const getConfirmBg = (state: number) => {
       </div>
 
       <div class="order-card__footer">
-        <button class="order-card__action order-card__action--copy" @click="emit('copySid', order.orderId || '')">
-          <IconCopy />
-          <span>复制订单ID</span>
-        </button>
         <button
           class="order-card__action order-card__action--detail"
           :disabled="!order.orderId"
@@ -352,42 +367,21 @@ const getConfirmBg = (state: number) => {
           <span>详情</span>
           <span class="detail-tooltip">单击查询本地，双击查询闲鱼服务器</span>
         </button>
-        <button
-          class="order-card__action order-card__action--rule-delivery"
-          :class="{ 'order-card__action--loading': order.manualDelivering }"
-          :disabled="!canRuleDelivery(order)"
-          :title="ruleDeliveryReason(order)"
-          @click="emit('ruleDelivery', order)"
-        >
-          <IconTruck />
-          <span>{{ order.manualDelivering ? '发货中' : '手动发货' }}</span>
-        </button>
-        <button
-          class="order-card__action order-card__action--ship"
-          :class="{ 'order-card__action--loading': order.confirming }"
-          :disabled="!canConfirmShipment(order)"
-          :title="confirmShipmentReason(order)"
-          @click="emit('confirmShipment', order)"
-        >
-          <IconTruck />
-          <span>{{ order.confirming ? '处理中' : '确认发货' }}</span>
-        </button>
-        <button
-          class="order-card__action order-card__action--more"
-          :disabled="runningCompensationKey === `${orderKey(order)}:RATE_CHECK`"
-          title="会先检查闲鱼待评价列表，再决定是否评价"
-          @click="runCompensation(order, 'RATE_CHECK')"
-        >
-          <span>{{ runningCompensationKey === `${orderKey(order)}:RATE_CHECK` ? '检查中' : '补评价' }}</span>
-        </button>
-        <button
-          class="order-card__action order-card__action--flower"
-          :disabled="runningCompensationKey === `${orderKey(order)}:RED_FLOWER`"
-          title="会先检查是否已确认发货及交易状态"
-          @click="runCompensation(order, 'RED_FLOWER')"
-        >
-          <span>{{ runningCompensationKey === `${orderKey(order)}:RED_FLOWER` ? '检查中' : '补小红花' }}</span>
-        </button>
+        <div class="order-card__more-wrap" @click.stop>
+          <button class="order-card__action order-card__action--menu" type="button" @click="toggleActionMenu($event, order)">
+            <span>更多操作</span><span class="order-action-caret">⌄</span>
+          </button>
+          <Transition name="action-menu">
+            <div v-if="openedActionMenuKey === orderKey(order)" class="order-action-menu order-action-menu--mobile" role="menu">
+              <button type="button" role="menuitem" :disabled="!order.orderId" @click="runMenuAction($event, () => emit('copySid', order.orderId || ''))"><IconCopy /> 复制订单 ID</button>
+              <button type="button" role="menuitem" :disabled="!canRuleDelivery(order)" :title="ruleDeliveryReason(order)" @click="runMenuAction($event, () => emit('ruleDelivery', order))"><IconTruck /> {{ order.manualDelivering ? '发货中' : '手动发货' }}</button>
+              <button type="button" role="menuitem" :disabled="!canConfirmShipment(order)" :title="confirmShipmentReason(order)" @click="runMenuAction($event, () => emit('confirmShipment', order))"><IconTruck /> {{ order.confirming ? '处理中' : '确认发货' }}</button>
+              <div class="order-action-menu__divider"></div>
+              <button type="button" role="menuitem" :disabled="runningCompensationKey === `${orderKey(order)}:RATE_CHECK`" title="会先检查闲鱼待评价列表，再决定是否评价" @click="runMenuAction($event, () => runCompensation(order, 'RATE_CHECK'))">{{ runningCompensationKey === `${orderKey(order)}:RATE_CHECK` ? '检查中' : '补评价' }}</button>
+              <button type="button" role="menuitem" :disabled="runningCompensationKey === `${orderKey(order)}:RED_FLOWER`" title="会先检查是否已确认发货及交易状态" @click="runMenuAction($event, () => runCompensation(order, 'RED_FLOWER'))">{{ runningCompensationKey === `${orderKey(order)}:RED_FLOWER` ? '检查中' : '补小红花' }}</button>
+            </div>
+          </Transition>
+        </div>
       </div>
     </div>
 
@@ -471,7 +465,7 @@ const getConfirmBg = (state: number) => {
             <span class="time-text">{{ formatTime(order.orderCreateTime || order.createTime) }}</span>
           </td>
           <td class="table__td table__td--actions">
-            <div class="table__actions-grid">
+            <div class="table__action-group">
               <button
                 class="table__action table__action--detail"
                 :disabled="!order.orderId"
@@ -481,42 +475,21 @@ const getConfirmBg = (state: number) => {
                 <span>详情</span>
                 <span class="detail-tooltip">单击查询本地，双击查询闲鱼服务器</span>
               </button>
-              <button
-                class="table__action table__action--rule-delivery"
-                :class="{ 'table__action--loading': order.manualDelivering }"
-                :disabled="!canRuleDelivery(order)"
-                :title="ruleDeliveryReason(order)"
-                @click="emit('ruleDelivery', order)"
-              >
-                <IconTruck />
-                <span>{{ order.manualDelivering ? '发货中' : '手动发货' }}</span>
-              </button>
-              <button
-                class="table__action table__action--ship"
-                :class="{ 'table__action--loading': order.confirming }"
-                :disabled="!canConfirmShipment(order)"
-                :title="confirmShipmentReason(order)"
-                @click="emit('confirmShipment', order)"
-              >
-                <IconTruck />
-                <span>{{ order.confirming ? '处理中' : '确认发货' }}</span>
-              </button>
-              <button
-                class="table__action table__action--more"
-                :disabled="runningCompensationKey === `${orderKey(order)}:RATE_CHECK`"
-                title="会先检查闲鱼待评价列表，再决定是否评价"
-                @click="runCompensation(order, 'RATE_CHECK')"
-              >
-                <span>{{ runningCompensationKey === `${orderKey(order)}:RATE_CHECK` ? '检查中' : '补评价' }}</span>
-              </button>
-              <button
-                class="table__action table__action--flower"
-                :disabled="runningCompensationKey === `${orderKey(order)}:RED_FLOWER`"
-                title="会先检查是否已确认发货及交易状态"
-                @click="runCompensation(order, 'RED_FLOWER')"
-              >
-                <span>{{ runningCompensationKey === `${orderKey(order)}:RED_FLOWER` ? '检查中' : '补小红花' }}</span>
-              </button>
+              <div class="table__action-menu-wrap" @click.stop>
+                <button class="table__action table__action--menu" type="button" @click="toggleActionMenu($event, order)">
+                  <span>更多操作</span><span class="order-action-caret">⌄</span>
+                </button>
+                <Transition name="action-menu">
+                  <div v-if="openedActionMenuKey === orderKey(order)" class="order-action-menu" role="menu">
+                    <button type="button" role="menuitem" :disabled="!order.orderId" @click="runMenuAction($event, () => emit('copySid', order.orderId || ''))"><IconCopy /> 复制订单 ID</button>
+                    <button type="button" role="menuitem" :disabled="!canRuleDelivery(order)" :title="ruleDeliveryReason(order)" @click="runMenuAction($event, () => emit('ruleDelivery', order))"><IconTruck /> {{ order.manualDelivering ? '发货中' : '手动发货' }}</button>
+                    <button type="button" role="menuitem" :disabled="!canConfirmShipment(order)" :title="confirmShipmentReason(order)" @click="runMenuAction($event, () => emit('confirmShipment', order))"><IconTruck /> {{ order.confirming ? '处理中' : '确认发货' }}</button>
+                    <div class="order-action-menu__divider"></div>
+                    <button type="button" role="menuitem" :disabled="runningCompensationKey === `${orderKey(order)}:RATE_CHECK`" title="会先检查闲鱼待评价列表，再决定是否评价" @click="runMenuAction($event, () => runCompensation(order, 'RATE_CHECK'))">{{ runningCompensationKey === `${orderKey(order)}:RATE_CHECK` ? '检查中' : '补评价' }}</button>
+                    <button type="button" role="menuitem" :disabled="runningCompensationKey === `${orderKey(order)}:RED_FLOWER`" title="会先检查是否已确认发货及交易状态" @click="runMenuAction($event, () => runCompensation(order, 'RED_FLOWER'))">{{ runningCompensationKey === `${orderKey(order)}:RED_FLOWER` ? '检查中' : '补小红花' }}</button>
+                  </div>
+                </Transition>
+              </div>
             </div>
           </td>
         </tr>
@@ -802,10 +775,15 @@ const getConfirmBg = (state: number) => {
 
 .order-card__footer {
   display: flex;
-  flex-wrap: wrap;
   gap: 8px;
   padding: 8px 12px;
   border-top: 0.5px solid var(--c-border-strong);
+}
+
+.order-card__more-wrap {
+  position: relative;
+  display: flex;
+  flex: 1;
 }
 
 .order-card__action {
@@ -813,7 +791,7 @@ const getConfirmBg = (state: number) => {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  flex: 1 1 calc(33.333% - 6px);
+  flex: 1;
   height: 32px;
   font-size: 12px;
   font-weight: 500;
@@ -915,7 +893,7 @@ const getConfirmBg = (state: number) => {
 }
 
 .table__th--actions {
-  width: 270px;
+  width: 190px;
   text-align: center;
 }
 
@@ -947,15 +925,18 @@ const getConfirmBg = (state: number) => {
 }
 
 .table__td--actions {
-  min-width: 270px;
+  min-width: 190px;
   text-align: center;
 }
 
-.table__actions-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+.table__action-group {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  min-width: 252px;
+}
+
+.table__action-menu-wrap {
+  position: relative;
 }
 
 .order-id {
@@ -1075,10 +1056,6 @@ const getConfirmBg = (state: number) => {
   -webkit-tap-highlight-color: transparent;
 }
 
-.table__actions-grid .table__action {
-  width: 100%;
-}
-
 .table__action svg {
   width: 13px;
   height: 13px;
@@ -1150,6 +1127,86 @@ const getConfirmBg = (state: number) => {
 .order-card__action--more {
   border-color: rgba(88, 86, 214, .22);
   color: #5856d6;
+}
+
+.table__action--menu,
+.order-card__action--menu {
+  border-color: rgba(60,60,67,.15);
+  color: var(--c-text-2);
+  background: rgba(60,60,67,.05);
+}
+
+.order-action-caret {
+  margin-left: 2px;
+  font-size: 15px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.order-action-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: 172px;
+  padding: 6px;
+  border: 1px solid rgba(60,60,67,.14);
+  border-radius: 10px;
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 14px 28px rgba(30,42,60,.16);
+}
+
+.order-action-menu--mobile {
+  top: auto;
+  bottom: calc(100% + 8px);
+}
+
+.order-action-menu button {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #34445b;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.order-action-menu button:hover:not(:disabled) {
+  color: #332900;
+  background: rgba(255,191,0,.12);
+}
+
+.order-action-menu button:disabled {
+  color: #a6adb7;
+  cursor: not-allowed;
+}
+
+.order-action-menu button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.order-action-menu__divider {
+  height: 1px;
+  margin: 5px 3px;
+  background: rgba(60,60,67,.11);
+}
+
+.action-menu-enter-active,
+.action-menu-leave-active {
+  transition: opacity .14s ease, transform .14s ease;
+}
+
+.action-menu-enter-from,
+.action-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .table__action--flower,
