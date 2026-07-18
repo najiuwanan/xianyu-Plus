@@ -66,14 +66,16 @@ public class PlaywrightManager {
         try {
             ensureBrowserReady();
             Browser.NewContextOptions contextOptions = new Browser.NewContextOptions()
-                    .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                    .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                    .setLocale("zh-CN");
             return browser.newContext(contextOptions);
         } catch (Exception e) {
             log.error("创建BrowserContext失败，尝试重建浏览器实例", e);
             try {
                 rebuild();
                 Browser.NewContextOptions contextOptions = new Browser.NewContextOptions()
-                        .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+                        .setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+                        .setLocale("zh-CN");
                 return browser.newContext(contextOptions);
             } catch (Exception ex) {
                 log.error("重建浏览器后仍然失败", ex);

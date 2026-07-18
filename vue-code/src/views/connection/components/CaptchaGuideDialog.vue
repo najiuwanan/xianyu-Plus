@@ -32,6 +32,7 @@ let dragging = false;
 let dragPoints: CaptchaDragPoint[] = [];
 let lastPointTime = 0;
 let requestSequence = 0;
+const MIN_HORIZONTAL_DRAG_DISTANCE = 36;
 
 const getErrorMessage = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
 
@@ -120,6 +121,14 @@ const handlePointerUp = async (event: PointerEvent) => {
     }
   }
   if (dragPoints.length < 2 || !sessionId.value) return;
+
+  const firstPoint = dragPoints[0];
+  const lastPoint = dragPoints[dragPoints.length - 1];
+  if (!firstPoint || !lastPoint || lastPoint.x - firstPoint.x < MIN_HORIZONTAL_DRAG_DISTANCE) {
+    statusText.value = '请按住滑块向右拖动一段距离后再松开';
+    dragPoints = [];
+    return;
+  }
 
   submitting.value = true;
   statusText.value = '正在提交验证结果...';
