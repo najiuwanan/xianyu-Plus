@@ -53,12 +53,3 @@ export function testAi(data: { apiKey: string; baseUrl: string; model: string })
     data
   })
 }
-
-/** 测试 Embedding 连接 */
-export function testEmbedding(data: { apiKey: string; baseUrl: string; model: string }) {
-  return request<string>({
-    url: '/system/testEmbedding',
-    method: 'post',
-    data
-  })
-}

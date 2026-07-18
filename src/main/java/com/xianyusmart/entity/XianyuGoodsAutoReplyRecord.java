@@ -61,7 +61,7 @@ public class XianyuGoodsAutoReplyRecord {
     private String replyContent;
     
     /**
-     * 回复类型：1-关键词匹配，2-RAG智能回复
+     * 回复类型：1-关键词匹配，2-AI智能回复
      */
     private Integer replyType;
     
@@ -71,7 +71,7 @@ public class XianyuGoodsAutoReplyRecord {
     private String matchedKeyword;
     
     /**
-     * 触发上下文JSON（包含触发消息列表和RAG命中资料列表）
+     * 触发上下文JSON（包含触发消息列表与可选的会话上下文）
      */
     private String triggerContext;
     

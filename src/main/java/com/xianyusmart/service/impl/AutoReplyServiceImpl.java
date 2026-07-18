@@ -19,7 +19,6 @@ import com.xianyusmart.service.AIService;
 import com.xianyusmart.service.AutoReplyService;
 import com.xianyusmart.service.WebSocketService;
 import com.xianyusmart.service.NotificationChannelService;
-import com.xianyusmart.service.bo.RAGReplyResult;
 import com.xianyusmart.service.reply.ReplyStrategy;
 import com.xianyusmart.service.reply.ReplyStrategyResolver;
 import lombok.extern.slf4j.Slf4j;

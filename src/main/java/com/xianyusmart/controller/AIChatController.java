@@ -3,19 +3,14 @@ package com.xianyusmart.controller;
 import com.xianyusmart.common.ResultObject;
 import com.xianyusmart.config.rag.DynamicAIChatClientManager;
 import com.xianyusmart.controller.dto.ChatWithAIReqDTO;
-import com.xianyusmart.controller.dto.DeleteRAGDataReqDTO;
-import com.xianyusmart.controller.dto.PutNewDataToRAGReqDTO;
 import com.xianyusmart.service.AIService;
 import com.xianyusmart.service.GoodsInfoService;
-import com.xianyusmart.service.bo.RAGDataRespBO;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.entity.XianyuGoodsConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
-
-import java.util.List;
 
 /**
  * AI对话控制器
@@ -44,7 +39,7 @@ public class AIChatController {
      */
     @PostMapping(path = "/chat", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> chatWithAi(@RequestBody ChatWithAIReqDTO chatWithAIReqDTO) {
-        return aiService.chatByRAG(chatWithAIReqDTO.getMsg(), chatWithAIReqDTO.getGoodsId());
+        return aiService.streamChat(chatWithAIReqDTO.getMsg(), null, null);
     }
 
     /**
@@ -68,7 +63,7 @@ public class AIChatController {
             }
         }
         
-        return aiService.chatByRAGWithFixedMaterialStream(req.getMsg(), req.getGoodsId(), fixedMaterial, goodsDetail);
+        return aiService.streamChat(req.getMsg(), fixedMaterial, goodsDetail);
     }
 
     /**
@@ -88,31 +83,6 @@ public class AIChatController {
         respDTO.setModel(statusInfo.getModel());
 
         return ResultObject.success(respDTO);
-    }
-
-    @PostMapping("/putNewData")
-    public ResultObject<?> putNewData(@RequestBody PutNewDataToRAGReqDTO putNewDataToRAGReqDTO) {
-        try {
-            aiService.putDataToRAG(putNewDataToRAGReqDTO.getContent(), putNewDataToRAGReqDTO.getGoodsId());
-            return ResultObject.success(null);
-        } catch (RuntimeException e) {
-            if (e.getMessage() != null && e.getMessage().contains("向量库未初始化")) {
-                return ResultObject.failed(1001, "请完成AI配置再上传资料");
-            }
-            throw e;
-        }
-    }
-
-    @PostMapping("/queryRAGData")
-    public ResultObject<List<RAGDataRespBO>> queryRAGData(@RequestBody PutNewDataToRAGReqDTO req) {
-        List<RAGDataRespBO> data = aiService.queryRAGDataBygoodsId(req.getGoodsId());
-        return ResultObject.success(data);
-    }
-
-    @PostMapping("/deleteRAGData")
-    public ResultObject<?> deleteRAGData(@RequestBody DeleteRAGDataReqDTO req) {
-        aiService.deleteRAGDataByDocumentId(req.getDocumentId());
-        return ResultObject.success(null);
     }
 
     @PostMapping("/saveFixedMaterial")

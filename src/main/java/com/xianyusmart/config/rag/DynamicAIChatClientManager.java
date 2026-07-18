@@ -196,8 +196,7 @@ public class DynamicAIChatClientManager {
         // Spring AI 的默认路径带有 /v1。Gemini OpenAI 兼容地址和用户自定义的
         // 版本化地址本身已经包含路径，需要改用相对的 OpenAI 端点，避免请求成 /v1/v1。
         if (usesVersionedOpenAiEndpoint(effectiveBaseUrl)) {
-            apiBuilder.completionsPath("/chat/completions")
-                    .embeddingsPath("/embeddings");
+            apiBuilder.completionsPath("/chat/completions");
         }
         OpenAiApi openAiApi = apiBuilder.build();
 

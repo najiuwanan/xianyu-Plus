@@ -75,7 +75,7 @@ public class XianyuGoodsAutoDeliveryConfig {
     private String autoAskFlowerText;
 
     /**
-     * 自动回复延时秒数（RAG回复延时）
+     * 自动回复延时秒数
      */
     private Integer ragDelaySeconds;
     

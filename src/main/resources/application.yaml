@@ -36,9 +36,6 @@ app:
 # AI功能开关（默认开启，API Key从数据库xianyu_sys_setting表读取，未配置时AI功能自动降级）
 ai:
   enabled: ${AI_ENABLED:true}
-  vectorstore:
-    simple:
-      file-path: ${VECTOR_STORE_FILE:data/vectorstore.json}
 
 # JWT配置
 jwt:
@@ -69,8 +66,6 @@ spring:
   # - ai_api_key、ai_base_url、ai_model 配置在数据库 xianyu_sys_setting 表中
   # - 通过 DynamicAIChatClientManager 动态读取，支持热更新无需重启
   # - 默认值：base_url=https://dashscope.aliyuncs.com/compatible-mode, model=deepseek-v3
-
-# SimpleVectorStore配置（本地文件持久化）
 
 # MyBatis配置
 mybatis-plus:

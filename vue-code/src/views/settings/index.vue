@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, markRaw } from 'vue'
-import { fetchModels, testAi, testEmbedding } from '@/api/system'
+import { fetchModels, testAi } from '@/api/system'
 import { getSetting, saveSetting } from '@/api/setting'
 import { getAIStatus } from '@/api/ai'
 import { getBackupModules, exportBackup, importBackup, getLogDates, downloadLog, type BackupModule } from '@/api/backup'
@@ -24,11 +24,6 @@ const sysPromptSaving = ref(false)
 const sysPromptLoaded = ref(false)
 
 // 相似度阈值
-const SIMILARITY_THRESHOLD_KEY = 'similarity_threshold'
-const DEFAULT_SIMILARITY_THRESHOLD = 0.1
-const similarityThreshold = ref(DEFAULT_SIMILARITY_THRESHOLD)
-const similarityThresholdSaving = ref(false)
-
 // AI API Key 配置
 const AI_API_KEY_SETTING = 'ai_api_key'
 const AI_BASE_URL_SETTING = 'ai_base_url'
@@ -87,25 +82,9 @@ const showApiKey = ref(false)
 const fetchingModels = ref(false)
 const availableModels = ref<string[]>([])
 
-// Embedding 模型配置（可选，默认共用 AI 配置）
-const EMBEDDING_API_KEY_SETTING = 'ai_embedding_api_key'
-const EMBEDDING_BASE_URL_SETTING = 'ai_embedding_base_url'
-const EMBEDDING_MODEL_SETTING = 'ai_embedding_model'
-const DEFAULT_EMBEDDING_MODEL = 'text-embedding-v3'
-
-const embeddingApiKey = ref('')
-const embeddingBaseUrl = ref('')
-const embeddingModel = ref(DEFAULT_EMBEDDING_MODEL)
-const embeddingSaving = ref(false)
-const showEmbeddingApiKey = ref(false)
-const showEmbeddingConfig = ref(false)
-
-const fetchingEmbeddingModels = ref(false)
-const availableEmbeddingModels = ref<string[]>([])
-
-async function handleFetchModels(type: 'chat' | 'embedding') {
-  const apiKey = type === 'chat' ? aiApiKey.value.trim() : embeddingApiKey.value.trim() || aiApiKey.value.trim()
-  const baseUrl = type === 'chat' ? aiBaseUrl.value.trim() : embeddingBaseUrl.value.trim() || aiBaseUrl.value.trim()
+async function handleFetchModels() {
+  const apiKey = aiApiKey.value.trim()
+  const baseUrl = aiBaseUrl.value.trim()
   
   if (!apiKey) {
     toast.warning('请先输入 API Key')
@@ -116,20 +95,12 @@ async function handleFetchModels(type: 'chat' | 'embedding') {
     return
   }
 
-  if (type === 'chat') {
-    fetchingModels.value = true
-  } else {
-    fetchingEmbeddingModels.value = true
-  }
+  fetchingModels.value = true
 
   try {
     const res = await fetchModels({ apiKey, baseUrl })
     if (res.code === 200 && res.data && res.data.models) {
-      if (type === 'chat') {
-        availableModels.value = res.data.models
-      } else {
-        availableEmbeddingModels.value = res.data.models
-      }
+      availableModels.value = res.data.models
       toast.success('获取模型成功，请在下拉框中选择')
     } else {
       toast.error(res.msg || '获取模型失败')
@@ -137,18 +108,12 @@ async function handleFetchModels(type: 'chat' | 'embedding') {
   } catch (e: any) {
     toast.error('请求失败: ' + (e.message || '未知错误'))
   } finally {
-    if (type === 'chat') {
-      fetchingModels.value = false
-    } else {
-      fetchingEmbeddingModels.value = false
-    }
+    fetchingModels.value = false
   }
 }
 
 const testingChat = ref(false)
-const testingEmbedding = ref(false)
 const showChatDropdown = ref(false)
-const showEmbeddingDropdown = ref(false)
 
 function getProvider(provider: AiProvider) {
   return AI_PROVIDERS.find(item => item.value === provider) ?? AI_PROVIDERS[0]!
@@ -180,16 +145,9 @@ function handleProviderChange() {
 function hideChatDropdownDelay() {
   setTimeout(() => { showChatDropdown.value = false }, 200)
 }
-function hideEmbeddingDropdownDelay() {
-  setTimeout(() => { showEmbeddingDropdown.value = false }, 200)
-}
 function selectChatModel(m: string) {
   aiModel.value = m
   showChatDropdown.value = false
-}
-function selectEmbeddingModel(m: string) {
-  embeddingModel.value = m
-  showEmbeddingDropdown.value = false
 }
 
 async function handleTestChat() {
@@ -214,30 +172,6 @@ async function handleTestChat() {
     testingChat.value = false
   }
 }
-
-async function handleTestEmbedding() {
-  const apiKey = embeddingApiKey.value.trim() || aiApiKey.value.trim()
-  const baseUrl = embeddingBaseUrl.value.trim() || aiBaseUrl.value.trim()
-  const model = embeddingModel.value.trim()
-  if (!apiKey || !baseUrl || !model) {
-    toast.warning('请先填写完整 Embedding 配置')
-    return
-  }
-  testingEmbedding.value = true
-  try {
-    const res = await testEmbedding({ apiKey, baseUrl, model })
-    if (res.code === 200) {
-      toast.success('🎉 Embedding 测试成功！连接正常')
-    } else {
-      toast.error(res.msg || '连接失败')
-    }
-  } catch (e: any) {
-    toast.error('请求异常: ' + (e.message || '未知错误'))
-  } finally {
-    testingEmbedding.value = false
-  }
-}
-
 
 // AI 状态
 const aiStatus = ref({
@@ -313,20 +247,8 @@ onMounted(async () => {
     console.error('获取系统提示词配置失败:', e)
   }
 
-  // 加载相似度阈值配置
-  try {
-    const res = await getSetting({ settingKey: SIMILARITY_THRESHOLD_KEY })
-    if (res.code === 200 && res.data && res.data.settingValue) {
-      similarityThreshold.value = parseFloat(res.data.settingValue) || DEFAULT_SIMILARITY_THRESHOLD
-    }
-  } catch (e) {
-    console.error('获取相似度阈值配置失败:', e)
-  }
-
   // 加载 AI 配置
   await loadAIConfig()
-  // 加载 Embedding 配置
-  await loadEmbeddingConfig()
   // 加载 AI 状态
   await loadAIStatus()
 })
@@ -369,28 +291,6 @@ async function loadAIConfig() {
   }
 }
 
-async function loadEmbeddingConfig() {
-  try {
-    const [apiKeyRes, baseUrlRes, modelRes] = await Promise.all([
-      getSetting({ settingKey: EMBEDDING_API_KEY_SETTING }),
-      getSetting({ settingKey: EMBEDDING_BASE_URL_SETTING }),
-      getSetting({ settingKey: EMBEDDING_MODEL_SETTING })
-    ])
-
-    if (apiKeyRes.code === 200 && apiKeyRes.data) {
-      embeddingApiKey.value = apiKeyRes.data.settingValue || ''
-    }
-    if (baseUrlRes.code === 200 && baseUrlRes.data && baseUrlRes.data.settingValue) {
-      embeddingBaseUrl.value = baseUrlRes.data.settingValue
-    }
-    if (modelRes.code === 200 && modelRes.data && modelRes.data.settingValue) {
-      embeddingModel.value = modelRes.data.settingValue
-    }
-  } catch (e) {
-    console.error('获取Embedding配置失败:', e)
-  }
-}
-
 async function loadAIStatus() {
   try {
     const res = await getAIStatus()
@@ -426,33 +326,6 @@ async function handleSaveSysPrompt() {
 
 function handleResetSysPrompt() {
   sysPromptValue.value = DEFAULT_SYS_PROMPT
-}
-
-async function handleSaveSimilarityThreshold() {
-  if (similarityThreshold.value < 0 || similarityThreshold.value > 1) {
-    toast.warning('相似度阈值必须在 0 到 1 之间')
-    return
-  }
-  similarityThresholdSaving.value = true
-  try {
-    const res = await saveSetting({
-      settingKey: SIMILARITY_THRESHOLD_KEY,
-      settingValue: similarityThreshold.value.toString(),
-      settingDesc: 'RAG向量搜索的相似度阈值（0-1之间，值越小匹配越宽松）'
-    })
-    if (res.code === 200) {
-      toast.success('相似度阈值保存成功')
-    }
-  } catch (e) {
-    console.error('保存相似度阈值失败:', e)
-    toast.error('保存相似度阈值失败')
-  } finally {
-    similarityThresholdSaving.value = false
-  }
-}
-
-function handleResetSimilarityThreshold() {
-  similarityThreshold.value = DEFAULT_SIMILARITY_THRESHOLD
 }
 
 async function handleSaveAIConfig() {
@@ -515,45 +388,6 @@ function handleResetAIConfig() {
   aiModel.value = DEFAULT_MODEL
   availableModels.value = []
   showChatDropdown.value = false
-}
-
-async function handleSaveEmbeddingConfig() {
-  embeddingSaving.value = true
-  try {
-    // 保存三个配置（可以为空，空值表示使用 AI 对话配置）
-    const [keyRes, urlRes, modelRes] = await Promise.all([
-      saveSetting({
-        settingKey: EMBEDDING_API_KEY_SETTING,
-        settingValue: embeddingApiKey.value.trim(),
-        settingDesc: 'Embedding模型API Key（留空则使用AI对话的API Key）'
-      }),
-      saveSetting({
-        settingKey: EMBEDDING_BASE_URL_SETTING,
-        settingValue: embeddingBaseUrl.value.trim(),
-        settingDesc: 'Embedding模型API Base URL（留空则使用AI对话的Base URL）'
-      }),
-      saveSetting({
-        settingKey: EMBEDDING_MODEL_SETTING,
-        settingValue: embeddingModel.value.trim(),
-        settingDesc: 'Embedding模型名称'
-      })
-    ])
-
-    if (keyRes.code === 200 && urlRes.code === 200 && modelRes.code === 200) {
-      toast.success('Embedding 配置保存成功，重启服务后生效')
-    }
-  } catch (e) {
-    console.error('保存Embedding配置失败:', e)
-    toast.error('保存Embedding配置失败')
-  } finally {
-    embeddingSaving.value = false
-  }
-}
-
-function handleResetEmbeddingConfig() {
-  embeddingApiKey.value = ''
-  embeddingBaseUrl.value = ''
-  embeddingModel.value = DEFAULT_EMBEDDING_MODEL
 }
 
 // 备份与恢复
@@ -778,7 +612,7 @@ function handleBackupMenuEnter() {
 
     <!-- 右侧内容 -->
     <div class="settings__content">
-      <!-- AI 服务配置（包含 Embedding 配置和系统提示词） -->
+      <!-- AI 服务配置 -->
       <div v-if="activeMenu === 'ai'" class="settings__panel">
         <div class="settings__panel-title">AI 服务配置</div>
 
@@ -861,7 +695,7 @@ function handleBackupMenuEnter() {
                   class="settings__btn settings__btn--secondary" 
                   style="min-height: 28px; height: 28px; font-size: 13px; padding: 0 10px;"
                   :disabled="fetchingModels"
-                  @click="handleFetchModels('chat')"
+                  @click="handleFetchModels"
                 >
                   {{ fetchingModels ? '获取中...' : '一键获取模型' }}
                 </button>
@@ -917,114 +751,6 @@ function handleBackupMenuEnter() {
           </div>
         </div>
 
-        <!-- 知识库 Embedding 配置 -->
-        <div class="settings__section">
-          <div class="settings__section-header">
-            <div class="settings__section-title">知识库检索模型（高级）</div>
-            <button
-              class="settings__toggle-btn"
-              @click="showEmbeddingConfig = !showEmbeddingConfig"
-            >
-              {{ showEmbeddingConfig ? '收起' : '高级配置' }}
-            </button>
-          </div>
-          <p class="settings__desc">
-            仅在自动回复使用“知识库资料”时需要。它会把资料转换为可检索内容，帮助 AI 根据商品资料作答；不使用知识库时无需调整。默认共用对话模型的配置。
-            <strong>注意：修改后需要重启服务才能生效。</strong>
-          </p>
-          <div class="settings__form">
-            <!-- 折叠内容 -->
-            <div v-if="showEmbeddingConfig" class="settings__collapse-content">
-              <div class="settings__field">
-                <label class="settings__label">API Key <span class="settings__label-hint">(留空则使用对话模型的 API Key)</span></label>
-                <div class="settings__input-wrap">
-                  <input
-                    v-model="embeddingApiKey"
-                    :type="showEmbeddingApiKey ? 'text' : 'password'"
-                    class="settings__input"
-                    placeholder="留空则使用对话模型的 API Key"
-                    :disabled="embeddingSaving"
-                  />
-                  <button class="settings__eye-btn" @click="showEmbeddingApiKey = !showEmbeddingApiKey" tabindex="-1">
-                    {{ showEmbeddingApiKey ? '隐藏' : '显示' }}
-                  </button>
-                </div>
-              </div>
-
-              <div class="settings__field">
-                <label class="settings__label">API Base URL <span class="settings__label-hint">(留空则使用对话模型的 Base URL)</span></label>
-                <input
-                  v-model="embeddingBaseUrl"
-                  type="text"
-                  class="settings__input"
-                  placeholder="留空则使用对话模型的 Base URL"
-                  :disabled="embeddingSaving"
-                />
-              </div>
-            </div>
-
-            <div class="settings__field">
-              <label class="settings__label" style="display: flex; justify-content: space-between; align-items: center;">
-                <span>模型名称</span>
-                <button 
-                  class="settings__btn settings__btn--secondary" 
-                  style="min-height: 28px; height: 28px; font-size: 13px; padding: 0 10px;"
-                  :disabled="fetchingEmbeddingModels"
-                  @click="handleFetchModels('embedding')"
-                >
-                  {{ fetchingEmbeddingModels ? '获取中...' : '一键获取模型' }}
-                </button>
-              </label>
-              <div style="position: relative; width: 100%;">
-                <input
-                  v-model="embeddingModel"
-                  type="text"
-                  class="settings__input"
-                  placeholder="Embedding 模型名称，如 text-embedding-v3"
-                  :disabled="embeddingSaving"
-                  @focus="showEmbeddingDropdown = true"
-                  @blur="hideEmbeddingDropdownDelay"
-                />
-                <div v-show="showEmbeddingDropdown && availableEmbeddingModels.length > 0" style="position: absolute; top: 100%; left: 0; width: 100%; max-height: 200px; overflow-y: auto; background: white; border: 1px solid #dcdfe6; border-radius: 4px; box-shadow: 0 2px 12px 0 rgba(0,0,0,.1); z-index: 1000; margin-top: 4px; padding: 6px 0;">
-                  <div 
-                    v-for="m in availableEmbeddingModels" 
-                    :key="m" 
-                    @mousedown="selectEmbeddingModel(m)" 
-                    style="padding: 8px 15px; cursor: pointer; color: #333; font-size: 14px; transition: background 0.2s;"
-                    onmouseover="this.style.backgroundColor='#f5f7fa'"
-                    onmouseout="this.style.backgroundColor='transparent'"
-                  >
-                    {{ m }}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="settings__actions">
-              <button
-                class="settings__btn settings__btn--secondary"
-                :disabled="embeddingSaving || testingEmbedding"
-                @click="handleTestEmbedding"
-              >
-                {{ testingEmbedding ? '测试中...' : '测试连接' }}
-              </button>
-              <button
-                class="settings__btn settings__btn--secondary"
-                :disabled="embeddingSaving"
-                @click="handleResetEmbeddingConfig"
-              >
-                恢复默认
-              </button>
-              <button
-                class="settings__btn settings__btn--primary"
-                :disabled="embeddingSaving"
-                @click="handleSaveEmbeddingConfig"
-              >
-                {{ embeddingSaving ? '保存中...' : '保存' }}
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
 
       <!-- AI客服配置 -->
@@ -1062,45 +788,6 @@ function handleBackupMenuEnter() {
           </div>
         </div>
 
-        <!-- 相似度阈值 -->
-        <div class="settings__section">
-          <div class="settings__section-title">相似度阈值</div>
-          <p class="settings__desc">
-            配置 RAG 向量搜索的相似度阈值。值越小，匹配越宽松，会返回更多相关度较低的结果；值越大，匹配越严格，只返回高度相关的结果。
-          </p>
-          <div class="settings__form">
-            <div class="settings__field">
-              <label class="settings__label">相似度阈值 (0-1)</label>
-              <input
-                v-model.number="similarityThreshold"
-                type="number"
-                class="settings__input"
-                placeholder="0.1"
-                :disabled="similarityThresholdSaving"
-                min="0"
-                max="1"
-                step="0.01"
-              />
-              <p class="settings__hint">推荐值：0.1（宽松）到 0.5（严格）之间</p>
-            </div>
-            <div class="settings__actions">
-              <button
-                class="settings__btn settings__btn--secondary"
-                :disabled="similarityThresholdSaving"
-                @click="handleResetSimilarityThreshold"
-              >
-                恢复默认
-              </button>
-              <button
-                class="settings__btn settings__btn--primary"
-                :disabled="similarityThresholdSaving"
-                @click="handleSaveSimilarityThreshold"
-              >
-                {{ similarityThresholdSaving ? '保存中...' : '保存' }}
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
 
       <!-- 备份与恢复 -->

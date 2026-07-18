@@ -7,7 +7,6 @@ import com.xianyusmart.event.chatMessageEvent.ChatMessageData;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.service.AIService;
-import com.xianyusmart.service.bo.RAGReplyResult;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,11 +50,11 @@ public class AIReplyStrategy implements ReplyStrategy {
             );
             String goodsDetail = goodsInfo != null ? goodsInfo.getDetailInfo() : null;
 
-            RAGReplyResult result = aiService.chatByRAGWithFixedMaterial(buyerMessage, xyGoodsId, fixedMaterial, goodsDetail);
+            String replyContent = aiService.chat(buyerMessage, null, fixedMaterial, goodsDetail);
 
-            if (result != null && result.getReplyContent() != null && !result.getReplyContent().trim().isEmpty()) {
+            if (replyContent != null && !replyContent.trim().isEmpty()) {
                 return ReplyResult.of(Collections.singletonList(
-                        ReplyResult.ReplyItem.text(result.getReplyContent(), REPLY_TYPE_AI)
+                        ReplyResult.ReplyItem.text(replyContent, REPLY_TYPE_AI)
                 ));
             }
             return ReplyResult.fail();

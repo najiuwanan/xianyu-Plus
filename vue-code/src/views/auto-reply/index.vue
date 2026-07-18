@@ -13,8 +13,6 @@ import IconImage from '@/components/icons/IconImage.vue'
 import IconSparkle from '@/components/icons/IconSparkle.vue'
 import IconCheck from '@/components/icons/IconCheck.vue'
 import IconPackage from '@/components/icons/IconPackage.vue'
-import IconClipboard from '@/components/icons/IconClipboard.vue'
-import IconSearch from '@/components/icons/IconSearch.vue'
 
 import GoodsDetailDialog from '../goods/components/GoodsDetailDialog.vue'
 import ImageUploader from '@/components/ImageUploader.vue'
@@ -35,16 +33,10 @@ const {
   onlyOnSale,
   detailDialogVisible,
   selectedGoodsId,
-  rightTab,
-  dataContent,
-  uploading,
   fixedMaterial,
   fixedMaterialSaving,
   fixedMaterialSyncing,
   fixedMaterialExpanded,
-  dataList,
-  dataLoading,
-  dataVisible,
   chatMessages,
   chatInput,
   chatSending,
@@ -70,9 +62,6 @@ const {
   selectGoods,
   toggleAutoReply,
   toggleContextOn,
-  handleUploadData,
-  handleQueryData,
-  handleDeleteData,
   handleSendChat,
   handleChatKeydown,
   handleGoodsScroll,
@@ -666,28 +655,7 @@ onMounted(() => {
             </div>
           </Teleport>
 
-          <!-- Tab Switch: Data / Chat (only in AI reply mode) -->
-          <div v-if="replyModeTab === 'ai'" class="ar__tab-group">
-            <button
-              class="ar__tab-btn"
-              :class="{ 'ar__tab-btn--active': rightTab === 'data' }"
-              @click="rightTab = 'data'"
-            >
-              <IconClipboard />
-              知识资料
-            </button>
-            <button
-              class="ar__tab-btn"
-              :class="{ 'ar__tab-btn--active': rightTab === 'chat' }"
-              @click="rightTab = 'chat'"
-            >
-              <IconRobot />
-              AI回答测试
-            </button>
-          </div>
-
-          <!-- ====== 知识资料视图 ====== -->
-          <template v-if="replyModeTab === 'ai' && rightTab === 'data'">
+          <template v-if="replyModeTab === 'ai'">
             <!-- Fixed material section -->
             <div class="ar__config-section">
               <div class="ar__config-section-header" @click="toggleFixedMaterialExpanded">
@@ -734,120 +702,13 @@ onMounted(() => {
                     <IconCheck />
                     保存固定资料
                   </button>
+                  <button class="btn btn--secondary" @click="toggleRecords">
+                    查看回复记录
+                  </button>
                 </div>
               </div>
             </div>
 
-            <!-- Upload view -->
-            <div v-if="!dataVisible" class="ar__config-section">
-              <div class="ar__config-section-title">添加资料</div>
-              <div class="ar__toggle-hint" style="margin-bottom: 8px;">
-                上传商品相关资料到AI知识库，AI将基于这些资料自动回复买家咨询
-              </div>
-
-              <textarea
-                v-model="dataContent"
-                class="ar__textarea"
-                placeholder="请输入商品资料内容，如商品介绍、规格参数、使用说明、常见问题等"
-                maxlength="5000"
-              ></textarea>
-              <div class="ar__textarea-footer">
-                <span class="ar__textarea-hint">支持文本内容，将存入AI知识库</span>
-                <span class="ar__textarea-count">{{ dataContent.length }} / 5000</span>
-              </div>
-
-              <div class="ar__save-row">
-                <button
-                  class="btn btn--primary"
-                  :class="{ 'btn--loading': uploading }"
-                  :disabled="uploading"
-                  @click="handleUploadData"
-                >
-                  <IconCheck />
-                  添加资料
-                </button>
-                <button
-                  class="btn btn--secondary"
-                  :class="{ 'btn--loading': dataLoading }"
-                  :disabled="dataLoading"
-                  @click="dataVisible = true; handleQueryData()"
-                >
-                  <IconSearch />
-                  查看现有资料
-                </button>
-                <button
-                  class="btn btn--secondary"
-                  @click="toggleRecords"
-                >
-                  <IconSearch />
-                  查看回复记录
-                </button>
-              </div>
-            </div>
-
-            <!-- Existing data view (replaces upload view) -->
-            <div v-else class="ar__data-section">
-              <div class="ar__data-section-header">
-                <span class="ar__data-section-title">现有资料</span>
-                <span v-if="!dataLoading && dataList.length > 0" class="ar__data-section-count">共 {{ dataList.length }} 条</span>
-                <button class="btn btn--ghost btn--sm" style="margin-left: auto;" @click="dataVisible = false">
-                  返回上传
-                </button>
-              </div>
-
-              <div class="ar__data-scroll">
-                <div v-if="dataLoading" class="ar__loading">
-                  <div class="ar__spinner"></div>
-                  <span>加载中...</span>
-                </div>
-
-                <div v-else-if="dataList.length === 0" class="ar__data-empty">
-                  <span class="ar__data-empty-text">暂无资料</span>
-                </div>
-
-                <!-- Desktop: Table view -->
-                <table v-else-if="!isMobile" class="ar__data-table">
-                  <thead class="ar__data-table-head">
-                    <tr>
-                      <th class="ar__data-table-th ar__data-table-th--index">#</th>
-                      <th class="ar__data-table-th ar__data-table-th--content">资料内容</th>
-                      <th class="ar__data-table-th ar__data-table-th--time">创建时间</th>
-                      <th class="ar__data-table-th ar__data-table-th--action">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody class="ar__data-table-body">
-                    <tr v-for="(item, index) in dataList" :key="item.documentId" class="ar__data-table-tr">
-                      <td class="ar__data-table-td ar__data-table-td--index">{{ index + 1 }}</td>
-                      <td class="ar__data-table-td ar__data-table-td--content">
-                        <span class="ar__data-content-text">{{ item.content }}</span>
-                      </td>
-                      <td class="ar__data-table-td ar__data-table-td--time">{{ formatTime(item.createTime) }}</td>
-                      <td class="ar__data-table-td ar__data-table-td--action">
-                        <button class="ar__data-del-btn" @click="handleDeleteData(item.documentId)">删除</button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-
-                <!-- Mobile: Card view -->
-                <div v-else class="ar__data-card-list">
-                  <div v-for="(item, index) in dataList" :key="item.documentId" class="ar__data-card">
-                    <div class="ar__data-card-header">
-                      <span class="ar__data-card-index">#{{ index + 1 }}</span>
-                      <span class="ar__data-card-time">{{ formatTime(item.createTime) }}</span>
-                    </div>
-                    <div class="ar__data-card-content">{{ item.content }}</div>
-                    <div class="ar__data-card-footer">
-                      <button class="ar__data-del-btn" @click="handleDeleteData(item.documentId)">删除</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <!-- ====== AI 对话视图 ====== -->
-          <template v-if="replyModeTab === 'ai' && rightTab === 'chat'">
             <div class="ar__chat-container">
               <!-- Chat messages -->
               <div
@@ -880,7 +741,7 @@ onMounted(() => {
               <div v-if="chatMessages.length === 0" class="ar__chat-empty">
                 <IconRobot />
                 <span class="ar__chat-empty-text">AI 对话</span>
-                <span class="ar__chat-empty-hint">基于商品知识库回答问题，输入消息开始对话</span>
+                <span class="ar__chat-empty-hint">结合商品详情、固定资料与系统提示词回答问题</span>
               </div>
 
               <!-- Chat input -->
@@ -1078,24 +939,6 @@ onMounted(() => {
               <div class="ar__detail-section-title">AI 回复</div>
               <div class="ar__detail-reply-content">{{ recordDetail.replyContent || '—' }}</div>
             </div>
-
-            <!-- RAG hit details -->
-            <template v-if="parseTriggerContext(recordDetail.triggerContext)?.ragHitDetails?.length">
-              <div class="ar__detail-section">
-                <div class="ar__detail-section-title">RAG 命中资料</div>
-                <div
-                  v-for="(hit, idx) in parseTriggerContext(recordDetail.triggerContext).ragHitDetails"
-                  :key="idx"
-                  class="ar__detail-hit-item"
-                >
-                  <div class="ar__detail-hit-meta">
-                    <span class="ar__detail-hit-doc">文档 #{{ idx + 1 }}</span>
-                    <span v-if="hit.score" class="ar__detail-hit-score">相似度: {{ (hit.score * 100).toFixed(1) }}%</span>
-                  </div>
-                  <div class="ar__detail-hit-content">{{ hit.content }}</div>
-                </div>
-              </div>
-            </template>
 
             <!-- Context messages (collapsible) -->
             <template v-if="parseTriggerContext(recordDetail.triggerContext)?.contextMessages">

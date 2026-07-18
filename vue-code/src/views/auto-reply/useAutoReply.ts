@@ -2,8 +2,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getAccountList } from '@/api/account'
 import { getGoodsList, updateAutoReplyStatus, getAutoReplyConfig, updateAutoReplyConfig, getAutoReplyRecords } from '@/api/goods'
-import { chatWithAI, chatTestWithAI, putNewDataToRAG, queryRAGData, deleteRAGData, saveFixedMaterial, getFixedMaterial, syncDetailToFixedMaterial } from '@/api/ai'
-import type { RAGDataItem } from '@/api/ai'
+import { chatWithAI, chatTestWithAI, saveFixedMaterial, getFixedMaterial, syncDetailToFixedMaterial } from '@/api/ai'
 import type { AutoReplyRecord } from '@/api/goods'
 import { showSuccess, showError, showInfo } from '@/utils'
 import { toast } from '@/utils/toast'
@@ -28,25 +27,14 @@ interface TriggerMessage {
   messageTime?: number
 }
 
-interface RagHitDetail {
-  score?: number
-  content?: string
-}
-
 interface TriggerContext {
   triggerMessages: TriggerMessage[]
-  ragHitDetails: RagHitDetail[]
   contextMessages: string
 }
 
 export function useAutoReply() {
   const route = useRoute()
   const router = useRouter()
-
-  const showAiConfigTip = () => {
-    toast.warning('请完成AI配置再上传资料，点击前往系统设置')
-  }
-  ;(window as any).__gotoSettings = () => router.push('/settings')
 
   const saving = ref(false)
   const accounts = ref<Account[]>([])
@@ -65,23 +53,11 @@ export function useAutoReply() {
   const detailDialogVisible = ref(false)
   const selectedGoodsId = ref<string>('')
 
-  // Right panel tab: 'data' | 'chat'
-  const rightTab = ref<'data' | 'chat'>('data')
-
-  // Upload data form
-  const dataContent = ref('')
-  const uploading = ref(false)
-
   // Fixed material
   const fixedMaterial = ref('')
   const fixedMaterialSaving = ref(false)
   const fixedMaterialSyncing = ref(false)
   const fixedMaterialExpanded = ref(true)
-
-  // Query existing knowledge data
-  const dataList = ref<RAGDataItem[]>([])
-  const dataLoading = ref(false)
-  const dataVisible = ref(false)
 
   // Chat
   const chatMessages = ref<ChatMessage[]>([])
@@ -260,19 +236,14 @@ export function useAutoReply() {
     selectedGoods.value = null
     goodsCurrentPage.value = 1
     chatMessages.value = []
-    dataContent.value = ''
     loadGoods()
   }
 
   // Select goods
   const selectGoods = async (goods: GoodsItemWithConfig) => {
     selectedGoods.value = goods
-    // 切换商品时重置聊天和资料
+    // 切换商品时重置聊天
     chatMessages.value = []
-    dataContent.value = ''
-    rightTab.value = 'data'
-    dataVisible.value = false
-    dataList.value = []
 
     if (isMobile.value) {
       mobileView.value = 'config'
@@ -890,148 +861,6 @@ export function useAutoReply() {
     }
   }
 
-  // Upload knowledge data
-  const handleUploadData = async () => {
-    if (!selectedGoods.value) {
-      showInfo('请先选择商品')
-      return
-    }
-    if (!dataContent.value.trim()) {
-      showInfo('请输入资料内容')
-      return
-    }
-
-    uploading.value = true
-    try {
-      const response = await putNewDataToRAG({
-        content: dataContent.value.trim(),
-        goodsId: selectedGoods.value.item.xyGoodId
-      })
-      if (!response.ok) {
-        if (response.status === 405 || response.status === 404) {
-          throw new Error('请前往系统设置->AI服务配置中完成配置')
-        }
-        throw new Error(`上传资料失败: ${response.status}`)
-      }
-      const result = await response.json()
-      if (result.code === 0 || result.code === 200) {
-        showSuccess('添加成功')
-        dataContent.value = ''
-        if (dataVisible.value) {
-          handleQueryData()
-        }
-      } else if (result.code === 1001) {
-        showAiConfigTip()
-      } else {
-        // 检查是否是AI未配置的错误
-        const errorMsg = result.msg || '上传资料失败'
-        if (errorMsg.includes('AI') || errorMsg.includes('API') || errorMsg.includes('配置')) {
-          throw new Error('请前往系统设置->AI服务配置中完成配置')
-        }
-        throw new Error(errorMsg)
-      }
-    } catch (error: any) {
-      console.error('上传资料失败:', error)
-      // 如果错误消息包含配置相关提示，使用友好提示
-      const errorMsg = error.message || '上传资料失败'
-      if (errorMsg.includes('配置') || errorMsg.includes('AI') || errorMsg.includes('API')) {
-        showError('请前往系统设置->AI服务配置中完成配置')
-      } else {
-        showError(errorMsg)
-      }
-    } finally {
-      uploading.value = false
-    }
-  }
-
-  // Query existing knowledge data
-  const handleQueryData = async () => {
-    if (!selectedGoods.value) {
-      showInfo('请先选择商品')
-      return
-    }
-
-    dataLoading.value = true
-    try {
-      const response = await queryRAGData({
-        goodsId: selectedGoods.value.item.xyGoodId
-      })
-      if (!response.ok) {
-        if (response.status === 405 || response.status === 404) {
-          throw new Error('AI 功能未开启，请前往系统设置->AI服务配置中完成配置')
-        }
-        throw new Error(`查询资料失败: ${response.status}`)
-      }
-      const result = await response.json()
-      if (result.code === 0 || result.code === 200) {
-        dataList.value = result.data || []
-      } else {
-        // 检查是否是AI未配置的错误
-        const errorMsg = result.msg || '查询资料失败'
-        if (errorMsg.includes('AI') || errorMsg.includes('API') || errorMsg.includes('配置')) {
-          throw new Error('请前往系统设置->AI服务配置中完成配置')
-        }
-        throw new Error(errorMsg)
-      }
-    } catch (error: any) {
-      console.error('查询资料失败:', error)
-      // 如果错误消息包含配置相关提示，使用友好提示
-      const errorMsg = error.message || '查询资料失败'
-      if (errorMsg.includes('配置') || errorMsg.includes('AI') || errorMsg.includes('API')) {
-        showError('请前往系统设置->AI服务配置中完成配置')
-      } else {
-        showError(errorMsg)
-      }
-      dataList.value = []
-    } finally {
-      dataLoading.value = false
-    }
-  }
-
-  // Delete knowledge data
-  const handleDeleteData = (documentId: string) => {
-    confirmDialog.value = {
-      visible: true,
-      title: '删除资料',
-      message: '确定要删除该资料吗？删除后不可恢复。',
-      type: 'danger',
-      onConfirm: async () => {
-        confirmDialog.value.visible = false
-        try {
-          const response = await deleteRAGData({ documentId })
-          if (!response.ok) {
-            if (response.status === 405 || response.status === 404) {
-              throw new Error('请前往系统设置->AI服务配置中完成配置')
-            }
-            throw new Error(`删除资料失败: ${response.status}`)
-          }
-          const result = await response.json()
-          if (result.code === 0 || result.code === 200) {
-            showSuccess('资料删除成功')
-            // 从列表中移除已删除项
-            dataList.value = dataList.value.filter(item => item.documentId !== documentId)
-          } else {
-            // 检查是否是AI未配置的错误
-            const errorMsg = result.msg || '删除资料失败'
-            if (errorMsg.includes('AI') || errorMsg.includes('API') || errorMsg.includes('配置')) {
-              throw new Error('请前往系统设置->AI服务配置中完成配置')
-            }
-            throw new Error(errorMsg)
-          }
-        } catch (error: any) {
-          console.error('删除资料失败:', error)
-          // 如果错误消息包含配置相关提示，使用友好提示
-          const errorMsg = error.message || '删除资料失败'
-          if (errorMsg.includes('配置') || errorMsg.includes('AI') || errorMsg.includes('API')) {
-            showError('请前往系统设置->AI服务配置中完成配置')
-          } else {
-            showError(errorMsg)
-          }
-        }
-      }
-    }
-  }
-
   // Generate unique ID
   const genId = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 7)
 
@@ -1239,7 +1068,7 @@ export function useAutoReply() {
 
   // Parse trigger context JSON
   const parseTriggerContext = (jsonStr: string | null | undefined): TriggerContext => {
-    const emptyContext: TriggerContext = { triggerMessages: [], ragHitDetails: [], contextMessages: '' }
+    const emptyContext: TriggerContext = { triggerMessages: [], contextMessages: '' }
     if (!jsonStr) return emptyContext
     try {
       const parsed: unknown = JSON.parse(jsonStr)
@@ -1247,7 +1076,6 @@ export function useAutoReply() {
       const context = parsed as Partial<TriggerContext>
       return {
         triggerMessages: Array.isArray(context.triggerMessages) ? context.triggerMessages : [],
-        ragHitDetails: Array.isArray(context.ragHitDetails) ? context.ragHitDetails : [],
         contextMessages: typeof context.contextMessages === 'string' ? context.contextMessages : ''
       }
     } catch {
@@ -1295,16 +1123,10 @@ export function useAutoReply() {
     onlyOnSale,
     detailDialogVisible,
     selectedGoodsId,
-    rightTab,
-    dataContent,
-    uploading,
     fixedMaterial,
     fixedMaterialSaving,
     fixedMaterialSyncing,
     fixedMaterialExpanded,
-    dataList,
-    dataLoading,
-    dataVisible,
     chatMessages,
     chatInput,
     chatSending,
@@ -1330,9 +1152,6 @@ export function useAutoReply() {
     selectGoods,
     toggleAutoReply,
     toggleContextOn,
-    handleUploadData,
-    handleQueryData,
-    handleDeleteData,
     handleSendChat,
     handleChatKeydown,
     handleGoodsScroll,

@@ -1,51 +1,21 @@
 package com.xianyusmart.service;
 
-import com.xianyusmart.service.bo.RAGDataRespBO;
-import com.xianyusmart.service.bo.RAGReplyResult;
-import org.antlr.v4.runtime.TokenStream;
 import reactor.core.publisher.Flux;
 
-import java.util.List;
-
 /**
- * @date 2026/4/10 22:26
- * @description
+ * AI 对话服务。
+ *
+ * <p>自动回复只使用系统提示词、商品详情、固定资料和可选会话上下文，
+ * 不再维护独立的知识库检索或向量模型。</p>
  */
-
 public interface AIService {
 
-    Flux<String> chatByRAG(String msg,String goodsId);
+    /** 流式 AI 对话，用于前端测试。 */
+    Flux<String> streamChat(String message, String fixedMaterial, String goodsDetail);
 
-    /**
-     * RAG聊天并返回命中资料详情
-     */
-    RAGReplyResult chatByRAGWithDetails(String msg, String goodsId);
+    /** 完整 AI 对话，用于自动回复。 */
+    String chat(String message, String contextMessages, String fixedMaterial, String goodsDetail);
 
-    /**
-     * RAG聊天并返回命中资料详情（携带会话上下文）
-     */
-    RAGReplyResult chatByRAGWithDetails(String msg, String goodsId, String contextMessages);
-
-    /**
-     * RAG聊天并返回命中资料详情（携带固定资料和商品详情）
-     */
-    RAGReplyResult chatByRAGWithFixedMaterial(String msg, String goodsId, String fixedMaterial, String goodsDetail);
-
-    /**
-     * RAG聊天（流式）- 携带固定资料和商品详情
-     */
-    reactor.core.publisher.Flux<String> chatByRAGWithFixedMaterialStream(String msg, String goodsId, String fixedMaterial, String goodsDetail);
-
-    /**
-     * RAG聊天并返回命中资料详情（携带会话上下文、固定资料和商品详情）
-     */
-    RAGReplyResult chatByRAGWithFixedMaterial(String msg, String goodsId, String contextMessages, String fixedMaterial, String goodsDetail);
-
-    void putDataToRAG(String content,String goodsId);
-
-    List<RAGDataRespBO> queryRAGDataBygoodsId(String goodsId);
-
-    void deleteRAGDataByDocumentId(String documentId);
-
+    /** 简短的通用 AI 调用，用于关键词回复润色。 */
     String simpleChat(String message);
 }

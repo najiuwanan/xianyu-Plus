@@ -3,7 +3,6 @@ package com.xianyusmart;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiChatAutoConfiguration;
-import org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration;
 import org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration;
 import org.springframework.boot.SpringApplication;
@@ -15,7 +14,6 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableAsync
 @SpringBootApplication(exclude = {
     OpenAiChatAutoConfiguration.class,
-    OpenAiEmbeddingAutoConfiguration.class,
     OpenAiAudioSpeechAutoConfiguration.class,
     OpenAiAudioTranscriptionAutoConfiguration.class,
     OpenAiImageAutoConfiguration.class,

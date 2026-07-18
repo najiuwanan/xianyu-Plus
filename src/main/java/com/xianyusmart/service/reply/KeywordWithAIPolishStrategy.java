@@ -9,7 +9,6 @@ import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.service.AIService;
 import com.xianyusmart.service.KeywordReplyService;
-import com.xianyusmart.service.bo.RAGReplyResult;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -129,11 +128,11 @@ public class KeywordWithAIPolishStrategy implements ReplyStrategy {
             );
             String goodsDetail = goodsInfo != null ? goodsInfo.getDetailInfo() : null;
 
-            RAGReplyResult ragResult = aiService.chatByRAGWithFixedMaterial(buyerMessage, xyGoodsId, fixedMaterial, goodsDetail);
+            String replyContent = aiService.chat(buyerMessage, null, fixedMaterial, goodsDetail);
 
-            if (ragResult != null && ragResult.getReplyContent() != null && !ragResult.getReplyContent().trim().isEmpty()) {
+            if (replyContent != null && !replyContent.trim().isEmpty()) {
                 return ReplyResult.of(Collections.singletonList(
-                        ReplyResult.ReplyItem.text(ragResult.getReplyContent(), REPLY_TYPE_AI)
+                        ReplyResult.ReplyItem.text(replyContent, REPLY_TYPE_AI)
                 ));
             }
             return ReplyResult.fail();
