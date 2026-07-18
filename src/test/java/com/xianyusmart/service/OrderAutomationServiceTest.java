@@ -1,9 +1,11 @@
 package com.xianyusmart.service;
 
 import com.xianyusmart.controller.dto.OrderAutomationQueryReqDTO;
+import com.xianyusmart.controller.dto.OrderAutomationBatchRespDTO;
 import com.xianyusmart.controller.dto.OrderAutomationRetryRespDTO;
 import com.xianyusmart.controller.dto.OrderAutomationSummaryDTO;
 import com.xianyusmart.entity.XianyuAccount;
+import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.mapper.OrderAutomationRecordMapper;
 import com.xianyusmart.mapper.XianyuAccountMapper;
 import org.junit.jupiter.api.Test;
@@ -19,6 +21,8 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.List;
 
 @ExtendWith(MockitoExtension.class)
 class OrderAutomationServiceTest {
@@ -56,7 +60,7 @@ class OrderAutomationServiceTest {
         OrderAutomationRetryRespDTO result = service().retry(8L, "trade-8", "RATE");
 
         assertFalse(result.isSuccess());
-        assertEquals("订单不在近三个月的可自动化范围内，无法评价", result.getMessage());
+        assertEquals("订单不在近 30 天的可自动化范围内，无法评价", result.getMessage());
         verify(redFlowerService, never()).retryRedFlower(any(), any());
         verify(rateService, never()).rateBuyer(any(), any(), any());
     }
@@ -106,6 +110,28 @@ class OrderAutomationServiceTest {
         assertFalse(result.isSuccess());
         assertEquals("订单尚未确认发货，暂不能请求小红花", result.getMessage());
         verify(redFlowerService, never()).retryRedFlower(any(), any());
+    }
+
+    @Test
+    void batchRedFlowerRequestsEligibleConfirmedOrdersWithinThirtyDays() {
+        XianyuAccount account = new XianyuAccount();
+        account.setId(8L);
+        account.setStatus(1);
+        account.setAutoAskFlower(1);
+        XianyuGoodsOrder order = new XianyuGoodsOrder();
+        order.setOrderId("trade-8");
+        when(accountMapper.selectById(8L)).thenReturn(account);
+        when(automationRecordMapper.findRedFlowerCandidates(8L, 30, 50)).thenReturn(List.of(order));
+        when(redFlowerService.retryRedFlower(8L, "trade-8")).thenReturn(true);
+
+        OrderAutomationBatchRespDTO result = service().batchRedFlower(8L);
+
+        assertEquals("RED_FLOWER", result.getAction());
+        assertEquals(1, result.getAccountCount());
+        assertEquals(1, result.getCheckedCount());
+        assertEquals(1, result.getSuccessCount());
+        assertEquals(0, result.getFailedCount());
+        verify(redFlowerService).retryRedFlower(8L, "trade-8");
     }
 
     private OrderAutomationService service() {

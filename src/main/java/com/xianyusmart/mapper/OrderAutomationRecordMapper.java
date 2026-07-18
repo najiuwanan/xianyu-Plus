@@ -20,14 +20,14 @@ import java.util.List;
 @Mapper
 public interface OrderAutomationRecordMapper {
 
-    /** 与订单管理一致：按真实下单时间限制近三个月，历史退款/关闭订单不进入自动化处理。 */
+    /** 与订单管理一致：按真实下单时间限制近 30 天，历史退款/关闭订单不进入自动化处理。 */
     String ORDER_TIME_SQL = "COALESCE(" +
             "STR_TO_DATE(REPLACE(SUBSTRING(o.order_create_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +
             "STR_TO_DATE(REPLACE(SUBSTRING(o.order_create_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
             "STR_TO_DATE(REPLACE(SUBSTRING(o.pay_success_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +
             "STR_TO_DATE(REPLACE(SUBSTRING(o.pay_success_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
             "o.create_time)";
-    String RECENT_MANAGED_ORDER_CONDITION = "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 3 MONTH) " +
+    String RECENT_MANAGED_ORDER_CONDITION = "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 30 DAY) " +
             "AND (o.trade_status IS NULL OR o.trade_status NOT IN ('REFUNDING', 'REFUNDED', 'CLOSED')) ";
     String RATE_ALREADY_RATED_CONDITION = "(COALESCE(rate_error, '') LIKE '%已评价%' " +
             "OR COALESCE(rate_error, '') LIKE '%已经评价%' " +
@@ -39,9 +39,13 @@ public interface OrderAutomationRecordMapper {
             "OR COALESCE(rate_error, '') LIKE '%当前订单不可评价%' " +
             "OR COALESCE(rate_error, '') LIKE '%订单不能评价%' " +
             "OR COALESCE(rate_error, '') LIKE '%订单不可评价%' " +
+            "OR COALESCE(rate_error, '') LIKE '%超过30天的订单不允许评价%' " +
+            "OR COALESCE(rate_error, '') LIKE '%超出30天的订单不允许评价%' " +
             "OR COALESCE(rate_error, '') LIKE '%不支持评价%' " +
             "OR COALESCE(rate_error, '') LIKE '%无评价资格%')";
     String RATE_WAITING_CONDITION = "(COALESCE(rate_error, '') LIKE '%未完成的交易不允许评价%' " +
+            "OR COALESCE(rate_error, '') LIKE '%未完成的交易不允许追评%' " +
+            "OR COALESCE(rate_error, '') LIKE '%未完成交易不允许追评%' " +
             "OR COALESCE(rate_error, '') LIKE '%未完成交易%' " +
             "OR COALESCE(rate_error, '') LIKE '%交易未完成%')";
     String RATE_TERMINAL_CONDITION = RATE_ALREADY_RATED_CONDITION + " OR " + RATE_NOT_ACTIONABLE_CONDITION;
@@ -227,7 +231,7 @@ public interface OrderAutomationRecordMapper {
             "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId} AND state = 1")
     int countSuccessfulDeliveryOrder(@Param("accountId") Long accountId, @Param("orderId") String orderId);
 
-    /** 已同步到订单管理、且属于近三个月非退款交易的订单，可执行自动评价检查。 */
+    /** 已同步到订单管理、且属于近 30 天非退款交易的订单，可执行自动评价检查。 */
     @Select("SELECT COUNT(1) FROM xianyu_goods_order o " +
             "WHERE o.xianyu_account_id = #{accountId} AND o.order_id = #{orderId} " +
             RECENT_MANAGED_ORDER_CONDITION)
@@ -257,7 +261,7 @@ public interface OrderAutomationRecordMapper {
                                                     @Param("lookbackDays") int lookbackDays,
                                                     @Param("limit") int limit);
 
-    /** 批量检查/评价使用的本地候选订单；只处理近三个月的正常交易。 */
+    /** 批量检查/评价使用的本地候选订单；只处理近 30 天的正常交易。 */
     @Select("SELECT o.order_id FROM xianyu_goods_order o " +
             "INNER JOIN xianyu_account a ON a.id = o.xianyu_account_id " +
             "LEFT JOIN xianyu_order_automation_record r " +

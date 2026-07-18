@@ -342,6 +342,7 @@ public class RateService {
                 .toLowerCase(Locale.ROOT);
         return detail.contains("当前订单不能评价") || detail.contains("当前订单不可评价")
                 || detail.contains("订单不能评价") || detail.contains("订单不可评价")
+                || isRateBeyondThirtyDays(detail)
                 || detail.contains("不支持评价") || detail.contains("无评价资格");
     }
 
@@ -349,7 +350,18 @@ public class RateService {
         String detail = (String.valueOf(result.getErrorMessage()) + " " + String.valueOf(result.getResponse()))
                 .toLowerCase(Locale.ROOT);
         return detail.contains("未完成的交易不允许评价") || detail.contains("未完成交易")
+                || isWaitingForCompletionReview(detail)
                 || detail.contains("交易未完成");
+    }
+
+    private boolean isRateBeyondThirtyDays(String detail) {
+        return detail.contains("超过30天的订单不允许评价")
+                || detail.contains("超出30天的订单不允许评价");
+    }
+
+    private boolean isWaitingForCompletionReview(String detail) {
+        return detail.contains("未完成的交易不允许追评")
+                || detail.contains("未完成交易不允许追评");
     }
 
     private void recordFailure(Long accountId, String tradeId, String error) {

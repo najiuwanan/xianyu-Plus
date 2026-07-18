@@ -23,7 +23,7 @@ import java.util.ArrayList;
 @Service
 public class PendingOrderPollService {
 
-    private static final int HISTORY_MONTHS = 3;
+    private static final int HISTORY_DAYS = 30;
     private static final DateTimeFormatter DASHED_ORDER_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter SLASHED_ORDER_TIME = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
 
@@ -124,7 +124,7 @@ public class PendingOrderPollService {
     }
 
     /**
-     * 订单管理只保留近三个月的交易；旧订单不会写入或参与自动化中心统计。
+     * 订单管理只保留近 30 天的交易；旧订单不会写入或参与自动化中心统计。
      */
     @SuppressWarnings("unchecked")
     public List<Map<String, Object>> filterRecentHistoryOrders(List<Map<String, Object>> orders) {
@@ -132,7 +132,7 @@ public class PendingOrderPollService {
             return List.of();
         }
 
-        LocalDateTime cutoff = LocalDateTime.now().minusMonths(HISTORY_MONTHS);
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(HISTORY_DAYS);
         List<Map<String, Object>> recentOrders = new ArrayList<>();
         for (Map<String, Object> order : orders) {
             Object commonDataObj = order.get("commonData");

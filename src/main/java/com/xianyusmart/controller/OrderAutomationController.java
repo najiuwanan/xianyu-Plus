@@ -61,6 +61,17 @@ public class OrderAutomationController {
                 : ResultObject.failed(result.getMessage());
     }
 
+    /** 对近 30 天已确认发货、尚未成功请求过小红花的订单批量请求小红花。 */
+    @PostMapping("/batch-red-flower")
+    public ResultObject<OrderAutomationBatchRespDTO> batchRedFlower(
+            @RequestBody(required = false) OrderAutomationBatchReqDTO request) {
+        OrderAutomationBatchReqDTO body = request == null ? new OrderAutomationBatchReqDTO() : request;
+        OrderAutomationBatchRespDTO result = orderAutomationService.batchRedFlower(body.getAccountId());
+        return result.getAccountCount() > 0
+                ? ResultObject.success(result, result.getMessage())
+                : ResultObject.failed(result.getMessage());
+    }
+
     /**
      * 订单管理打开“更多操作”时实时核验可补偿的动作。
      * 评价会先向闲鱼待评价列表确认，避免展示已评价订单的重复操作。

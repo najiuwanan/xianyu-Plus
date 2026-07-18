@@ -8,6 +8,7 @@ import com.xianyusmart.controller.dto.OrderAutomationAvailableActionsDTO;
 import com.xianyusmart.controller.dto.OrderAutomationRetryRespDTO;
 import com.xianyusmart.controller.dto.OrderAutomationSummaryDTO;
 import com.xianyusmart.entity.XianyuAccount;
+import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.mapper.OrderAutomationRecordMapper;
 import com.xianyusmart.mapper.XianyuAccountMapper;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,7 @@ public class OrderAutomationService {
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 100;
     private static final int BATCH_RATE_LIMIT_PER_ACCOUNT = 50;
+    private static final int BATCH_RED_FLOWER_LIMIT_PER_ACCOUNT = 50;
     private static final String DEFAULT_RATE_TEXT = "不错的买家！";
     private static final String RATE_LIST_UNMATCHED_REASON =
             "待评价状态待核验：未在闲鱼待评价列表中匹配到订单，可点击检查并评价再次核验";
@@ -75,13 +77,13 @@ public class OrderAutomationService {
         return switch (normalizedAction) {
             case "RATE" -> {
                 if (automationRecordMapper.countManagedAutomationOrder(accountId, orderId) <= 0) {
-                    yield new OrderAutomationRetryRespDTO(false, action, "订单不在近三个月的可自动化范围内，无法评价");
+                    yield new OrderAutomationRetryRespDTO(false, action, "订单不在近 30 天的可自动化范围内，无法评价");
                 }
                 yield checkAndRate(accountId, orderId);
             }
             case "RATE_CHECK" -> {
                 if (automationRecordMapper.countManagedAutomationOrder(accountId, orderId) <= 0) {
-                    yield new OrderAutomationRetryRespDTO(false, action, "订单不在近三个月的可自动化范围内，无法检查评价");
+                    yield new OrderAutomationRetryRespDTO(false, action, "订单不在近 30 天的可自动化范围内，无法检查评价");
                 }
                 yield checkAndRate(accountId, orderId);
             }
@@ -103,8 +105,8 @@ public class OrderAutomationService {
         }
 
         if (automationRecordMapper.countManagedAutomationOrder(accountId, orderId) <= 0) {
-            result.setRateReason("该订单不在近三个月的正常交易范围内");
-            result.setRedFlowerReason("该订单不在近三个月的正常交易范围内");
+            result.setRateReason("该订单不在近 30 天的正常交易范围内");
+            result.setRedFlowerReason("该订单不在近 30 天的正常交易范围内");
             return result;
         }
 
@@ -142,7 +144,7 @@ public class OrderAutomationService {
     }
 
     /**
-     * 批量核验本地近三个月订单是否进入闲鱼待评价列表；RATE 会在核验通过后立即评价。
+     * 批量核验本地近 30 天订单是否进入闲鱼待评价列表；RATE 会在核验通过后立即评价。
      */
     public OrderAutomationBatchRespDTO batchRate(Long accountId, String rawAction) {
         String action = rawAction == null ? "" : rawAction.trim().toUpperCase(Locale.ROOT);
@@ -224,6 +226,57 @@ public class OrderAutomationService {
     }
 
     /**
+     * 对近 30 天已确认发货、尚未成功请求过小红花的订单逐笔请求小红花。
+     * 仅处理已启用小红花自动化且未被风控暂停的账号。
+     */
+    public OrderAutomationBatchRespDTO batchRedFlower(Long accountId) {
+        OrderAutomationBatchRespDTO result = new OrderAutomationBatchRespDTO();
+        result.setAction("RED_FLOWER");
+
+        List<XianyuAccount> targetAccounts;
+        if (accountId == null) {
+            targetAccounts = accountMapper.selectList(new QueryWrapper<XianyuAccount>()
+                    .eq("status", 1)
+                    .eq("auto_ask_flower", 1));
+        } else {
+            XianyuAccount account = accountMapper.selectById(accountId);
+            targetAccounts = account == null
+                    || !Integer.valueOf(1).equals(account.getStatus())
+                    || !Integer.valueOf(1).equals(account.getAutoAskFlower())
+                    ? List.of() : List.of(account);
+        }
+        if (targetAccounts.isEmpty()) {
+            result.setMessage("没有可执行一键求小红花的已启用账号");
+            return result;
+        }
+
+        for (XianyuAccount account : targetAccounts) {
+            if (Integer.valueOf(1).equals(account.getAutomationRiskPaused())) {
+                continue;
+            }
+            result.setAccountCount(result.getAccountCount() + 1);
+            List<XianyuGoodsOrder> candidates = automationRecordMapper.findRedFlowerCandidates(
+                    account.getId(), 30, BATCH_RED_FLOWER_LIMIT_PER_ACCOUNT);
+            result.setCheckedCount(result.getCheckedCount() + candidates.size());
+            for (XianyuGoodsOrder candidate : candidates) {
+                if (!StringUtils.hasText(candidate.getOrderId())) {
+                    continue;
+                }
+                result.setReadyCount(result.getReadyCount() + 1);
+                if (redFlowerService.retryRedFlower(account.getId(), candidate.getOrderId())) {
+                    result.setSuccessCount(result.getSuccessCount() + 1);
+                } else {
+                    result.setFailedCount(result.getFailedCount() + 1);
+                }
+            }
+        }
+
+        result.setMessage("一键求小红花完成：检查 " + result.getCheckedCount() + " 笔，成功 "
+                + result.getSuccessCount() + " 笔，失败 " + result.getFailedCount() + " 笔");
+        return result;
+    }
+
+    /**
      * 评价列表用于快速筛选；最终资格仍以评价接口的响应为准。
      * 这样“列表未匹配”不会被误写成“买家未确认”，也能把已评价订单归为正常状态。
      */
@@ -264,6 +317,7 @@ public class OrderAutomationService {
             result.setSkippedCount(result.getSkippedCount() + 1);
         } else {
             result.setRatedCount(result.getRatedCount() + 1);
+            result.setSuccessCount(result.getSuccessCount() + 1);
         }
     }
 

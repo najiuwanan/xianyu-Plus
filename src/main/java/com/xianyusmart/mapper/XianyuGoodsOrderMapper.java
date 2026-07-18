@@ -86,7 +86,7 @@ public interface XianyuGoodsOrderMapper {
             "FROM xianyu_goods_order r " +
             "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id " +
             "WHERE r.xianyu_account_id = #{accountId} " +
-            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 3 MONTH) " +
+            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 30 DAY) " +
             "<if test='xyGoodsId != null and xyGoodsId != \"\"'>" +
             "AND r.xy_goods_id = #{xyGoodsId} " +
             "</if>" +
@@ -133,7 +133,7 @@ public interface XianyuGoodsOrderMapper {
             "SELECT COUNT(*) FROM xianyu_goods_order r " +
             "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id " +
             "WHERE r.xianyu_account_id = #{accountId} " +
-            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 3 MONTH) " +
+            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 30 DAY) " +
             "<if test='xyGoodsId != null and xyGoodsId != \"\"'>" +
             "AND r.xy_goods_id = #{xyGoodsId} " +
             "</if>" +
@@ -266,7 +266,7 @@ public interface XianyuGoodsOrderMapper {
             "FROM xianyu_goods_order r " +
             "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id AND r.xianyu_account_id = g.xianyu_account_id " +
             "WHERE 1=1 " +
-            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 3 MONTH) " +
+            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 30 DAY) " +
             "<if test='accountId != null'>" +
             "AND r.xianyu_account_id = #{accountId} " +
             "</if>" +
@@ -320,7 +320,7 @@ public interface XianyuGoodsOrderMapper {
             "SELECT COUNT(*) FROM xianyu_goods_order r " +
             "LEFT JOIN xianyu_goods g ON r.xy_goods_id = g.xy_good_id AND r.xianyu_account_id = g.xianyu_account_id " +
             "WHERE 1=1 " +
-            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 3 MONTH) " +
+            "AND " + ORDER_TIME_SQL + " >= DATE_SUB(NOW(3), INTERVAL 30 DAY) " +
             "<if test='accountId != null'>" +
             "AND r.xianyu_account_id = #{accountId} " +
             "</if>" +

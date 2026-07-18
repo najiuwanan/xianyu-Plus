@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { getAccountList } from '@/api/account'
 import {
+  batchRedFlowerOrders,
   batchRateOrders,
   queryOrderAutomation,
   retryOrderAutomation,
@@ -15,7 +16,7 @@ import type { Account } from '@/types'
 
 const loading = ref(false)
 const retryingKey = ref('')
-const batchAction = ref<'CHECK' | 'RATE' | ''>('')
+const batchAction = ref<'CHECK' | 'RATE' | 'RED_FLOWER' | ''>('')
 const accounts = ref<Account[]>([])
 const records = ref<OrderAutomationRecord[]>([])
 const total = ref(0)
@@ -110,7 +111,7 @@ const batchRate = async (action: 'CHECK' | 'RATE') => {
   const scope = selectedAccountId.value ? '当前账号' : '全部已启用账号'
   const message = action === 'RATE'
     ? `将核验${scope}的待评价订单；列表未匹配时会由平台评价接口再次确认，只处理平台允许评价的订单。确认继续吗？`
-    : `将核验${scope}近三个月订单是否进入闲鱼待评价列表。未匹配的订单只会标记为“待评价状态待核验”，不会直接判定买家未确认。确认继续吗？`
+    : `将核验${scope}近 30 天订单是否进入闲鱼待评价列表。未匹配的订单只会标记为“待评价状态待核验”，不会直接判定买家未确认。确认继续吗？`
   try {
     await showConfirm(message, action === 'RATE' ? '一键评价' : '一键检查')
   } catch {
@@ -123,6 +124,30 @@ const batchRate = async (action: 'CHECK' | 'RATE') => {
   } catch (error: any) {
     if (!error.messageShown) {
       showError(error.message || (action === 'RATE' ? '一键评价失败' : '一键检查失败'))
+    }
+  } finally {
+    batchAction.value = ''
+    loadRecords()
+  }
+}
+
+const batchRedFlower = async () => {
+  const scope = selectedAccountId.value ? '当前账号' : '全部已启用账号'
+  try {
+    await showConfirm(
+      `将对${scope}近 30 天内已确认发货、尚未成功请求过小红花的订单逐笔发起请求。确认继续吗？`,
+      '一键求小红花'
+    )
+  } catch {
+    return
+  }
+  batchAction.value = 'RED_FLOWER'
+  try {
+    const response = await batchRedFlowerOrders({ accountId: selectedAccountId.value })
+    showSuccess(response.data?.message || '一键求小红花完成')
+  } catch (error: any) {
+    if (!error.messageShown) {
+      showError(error.message || '一键求小红花失败')
     }
   } finally {
     batchAction.value = ''
@@ -201,7 +226,7 @@ onMounted(async () => {
     <header class="page-header">
       <div>
         <h1>自动化执行中心</h1>
-        <p>与订单管理共享近三个月的非退款订单；查看自动评价和小红花的执行状态，失败记录可立即补执行。</p>
+        <p>与订单管理共享近 30 天的非退款订单；查看自动评价和小红花的执行状态，失败记录可立即补执行。</p>
       </div>
       <div class="page-actions">
         <button class="refresh-button" :disabled="loading || !!batchAction" @click="loadRecords">
@@ -212,6 +237,9 @@ onMounted(async () => {
         </button>
         <button class="batch-rate-button" :disabled="loading || !!batchAction" @click="batchRate('RATE')">
           {{ batchAction === 'RATE' ? '评价中…' : '一键评价' }}
+        </button>
+        <button class="batch-flower-button" :disabled="loading || !!batchAction" @click="batchRedFlower">
+          {{ batchAction === 'RED_FLOWER' ? '请求中…' : '一键求小红花' }}
         </button>
       </div>
     </header>
@@ -260,7 +288,7 @@ onMounted(async () => {
     </div>
 
     <div class="hint">
-      在订单管理点击“同步订单”后，刷新本页即可看到同一批近三个月订单。小红花只会在确认发货成功后处理；自动评价先查询待评价列表，再由平台评价接口最终核验。只有平台明确提示“订单未完成”才会显示“等待买家确认”。
+      在订单管理点击“同步订单”后，刷新本页即可看到同一批近 30 天订单。小红花只会在确认发货成功后处理；自动评价先查询待评价列表，再由平台评价接口最终核验。只有平台明确提示“订单未完成”才会显示“等待买家确认”。
     </div>
 
     <div class="table-card">
@@ -345,12 +373,14 @@ onMounted(async () => {
 .page-header h1 { margin:0; font-size:26px; letter-spacing:-.5px; }
 .page-header p { margin:8px 0 0; color:#667085; font-size:14px; }
 .page-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:9px; }
-.refresh-button, .check-button, .batch-rate-button, .retry-button, .pagination button { border:1px solid #d0d5dd; background:#fff; border-radius:7px; padding:8px 13px; color:#344054; cursor:pointer; font-size:13px; font-weight:600; }
+.refresh-button, .check-button, .batch-rate-button, .batch-flower-button, .retry-button, .pagination button { border:1px solid #d0d5dd; background:#fff; border-radius:7px; padding:8px 13px; color:#344054; cursor:pointer; font-size:13px; font-weight:600; }
 .refresh-button:hover, .pagination button:not(:disabled):hover { border-color:#98a2b3; background:#f9fafb; }
 .check-button { border-color:#f2b900; background:#fffaf0; color:#8a5a00; }
 .check-button:hover:not(:disabled) { background:#fff1c2; }
 .batch-rate-button { border-color:#e6ac00; background:#f2b900; color:#1f3556; }
 .batch-rate-button:hover:not(:disabled) { background:#e6ac00; }
+.batch-flower-button { border-color:#12b76a; background:#ecfdf3; color:#067647; }
+.batch-flower-button:hover:not(:disabled) { background:#d1fadf; }
 button:disabled { cursor:not-allowed; opacity:.55; }
 .summary-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:14px; margin-bottom:18px; }
 .summary-card { text-align:left; min-height:96px; border:1px solid #eaecf0; border-radius:10px; background:#fff; padding:18px; cursor:pointer; color:#475467; transition:.18s ease; }

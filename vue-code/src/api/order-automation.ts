@@ -69,11 +69,13 @@ export interface OrderAutomationAvailableActions {
 }
 
 export interface OrderAutomationBatchResponse {
-  action: 'CHECK' | 'RATE'
+  action: 'CHECK' | 'RATE' | 'RED_FLOWER'
   accountCount: number
   checkedCount: number
   readyCount: number
   ratedCount: number
+  successCount: number
+  skippedCount: number
   waitingCount: number
   failedCount: number
   message: string
@@ -106,6 +108,14 @@ export function getOrderAutomationAvailableActions(data: { accountId: number; or
 export function batchRateOrders(data: { accountId?: number; action: 'CHECK' | 'RATE' }) {
   return request<OrderAutomationBatchResponse>({
     url: '/order-automation/batch-rate',
+    method: 'POST',
+    data
+  })
+}
+
+export function batchRedFlowerOrders(data: { accountId?: number }) {
+  return request<OrderAutomationBatchResponse>({
+    url: '/order-automation/batch-red-flower',
     method: 'POST',
     data
   })
