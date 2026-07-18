@@ -36,7 +36,7 @@ services:
       context: .
       args:
         APP_GIT_SHA: ${APP_GIT_SHA:-unknown}
-    image: ${APP_IMAGE:-xianyusmart:1.2.0}
+    image: ${APP_IMAGE:-xianyusmart:1.3.0}
     restart: unless-stopped
     depends_on:
       mysql:
