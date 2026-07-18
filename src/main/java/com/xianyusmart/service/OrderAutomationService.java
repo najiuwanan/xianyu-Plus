@@ -255,8 +255,8 @@ public class OrderAutomationService {
                 continue;
             }
             result.setAccountCount(result.getAccountCount() + 1);
-            List<XianyuGoodsOrder> candidates = automationRecordMapper.findRedFlowerCandidates(
-                    account.getId(), 30, BATCH_RED_FLOWER_LIMIT_PER_ACCOUNT);
+            List<XianyuGoodsOrder> candidates = automationRecordMapper.findManualRedFlowerCandidates(
+                    account.getId(), BATCH_RED_FLOWER_LIMIT_PER_ACCOUNT);
             result.setCheckedCount(result.getCheckedCount() + candidates.size());
             for (XianyuGoodsOrder candidate : candidates) {
                 if (!StringUtils.hasText(candidate.getOrderId())) {

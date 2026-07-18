@@ -261,6 +261,21 @@ public interface OrderAutomationRecordMapper {
                                                     @Param("lookbackDays") int lookbackDays,
                                                     @Param("limit") int limit);
 
+    /**
+     * 手动“一键求小红花”使用：忽略自动重试等待时间，主动补偿近 30 天已确认发货但尚未成功的订单。
+     * 自动调度仍使用 findRedFlowerCandidates，避免频繁重复请求。
+     */
+    @Select("SELECT o.order_id AS orderId FROM xianyu_goods_order o " +
+            "LEFT JOIN xianyu_order_automation_record r " +
+            "ON r.xianyu_account_id = o.xianyu_account_id AND r.order_id = o.order_id " +
+            "WHERE o.xianyu_account_id = #{accountId} " +
+            "AND o.confirm_state = 1 AND o.order_id IS NOT NULL AND o.order_id <> '' " +
+            RECENT_MANAGED_ORDER_CONDITION +
+            "AND (r.red_flower_status IS NULL OR r.red_flower_status <> 1) " +
+            "ORDER BY " + ORDER_TIME_SQL + " DESC, o.id DESC LIMIT #{limit}")
+    List<XianyuGoodsOrder> findManualRedFlowerCandidates(@Param("accountId") Long accountId,
+                                                          @Param("limit") int limit);
+
     /** 批量检查/评价使用的本地候选订单；只处理近 30 天的正常交易。 */
     @Select("SELECT o.order_id FROM xianyu_goods_order o " +
             "INNER JOIN xianyu_account a ON a.id = o.xianyu_account_id " +

@@ -121,7 +121,7 @@ class OrderAutomationServiceTest {
         XianyuGoodsOrder order = new XianyuGoodsOrder();
         order.setOrderId("trade-8");
         when(accountMapper.selectById(8L)).thenReturn(account);
-        when(automationRecordMapper.findRedFlowerCandidates(8L, 30, 50)).thenReturn(List.of(order));
+        when(automationRecordMapper.findManualRedFlowerCandidates(8L, 50)).thenReturn(List.of(order));
         when(redFlowerService.retryRedFlower(8L, "trade-8")).thenReturn(true);
 
         OrderAutomationBatchRespDTO result = service().batchRedFlower(8L);
