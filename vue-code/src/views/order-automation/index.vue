@@ -109,8 +109,8 @@ const retry = async (record: OrderAutomationRecord, action: AutomationAction) =>
 const batchRate = async (action: 'CHECK' | 'RATE') => {
   const scope = selectedAccountId.value ? '当前账号' : '全部已启用账号'
   const message = action === 'RATE'
-    ? `将先核验${scope}的待评价订单，只评价闲鱼明确显示“待评价”的订单。确认继续吗？`
-    : `将核验${scope}近三个月订单是否已进入闲鱼待评价列表。未进入的订单会标记为等待买家确认收货。确认继续吗？`
+    ? `将核验${scope}的待评价订单；列表未匹配时会由平台评价接口再次确认，只处理平台允许评价的订单。确认继续吗？`
+    : `将核验${scope}近三个月订单是否进入闲鱼待评价列表。未匹配的订单只会标记为“待评价状态待核验”，不会直接判定买家未确认。确认继续吗？`
   try {
     await showConfirm(message, action === 'RATE' ? '一键评价' : '一键检查')
   } catch {
@@ -140,8 +140,16 @@ const statusText = (enabled: number, status: number) => {
   if (status === 1) return '成功'
   if (status === 2) return '失败'
   if (status === 3) return '无需评价'
-  if (status === 4) return '等待买家确认'
+  if (status === 4) return '待评价待核验'
   return '待执行'
+}
+
+const rateStatusText = (record: OrderAutomationRecord) => {
+  if (record.rateEnabled !== 1) return '未开启'
+  if (record.rateStatus === 4 && /订单暂未完成|未完成交易|交易未完成/.test(record.rateError || '')) {
+    return '等待买家确认'
+  }
+  return statusText(record.rateEnabled, record.rateStatus)
 }
 
 const statusClass = (enabled: number, status: number) => {
@@ -252,7 +260,7 @@ onMounted(async () => {
     </div>
 
     <div class="hint">
-      在订单管理点击“同步订单”后，刷新本页即可看到同一批近三个月订单。小红花只会在确认发货成功后处理；自动评价只会在闲鱼待评价列表确认可评后提交，未完成交易会显示为“等待买家确认”，不会进入异常中心。
+      在订单管理点击“同步订单”后，刷新本页即可看到同一批近三个月订单。小红花只会在确认发货成功后处理；自动评价先查询待评价列表，再由平台评价接口最终核验。只有平台明确提示“订单未完成”才会显示“等待买家确认”。
     </div>
 
     <div class="table-card">
@@ -282,10 +290,11 @@ onMounted(async () => {
               </td>
               <td>
                 <span class="status" :class="statusClass(record.rateEnabled, record.rateStatus)">
-                  {{ statusText(record.rateEnabled, record.rateStatus) }}
+                  {{ rateStatusText(record) }}
                 </span>
                 <p v-if="record.rateTime" class="cell-time">{{ formatTime(record.rateTime) }}</p>
                 <p v-if="record.rateError && record.rateStatus === 3" class="cell-time" :title="record.rateError">{{ record.rateError }}</p>
+                <p v-else-if="record.rateError && record.rateStatus === 4" class="status-note" :title="record.rateError">{{ record.rateError }}</p>
                 <p v-else-if="record.rateError" class="error-text" :title="record.rateError">{{ record.rateError }}</p>
               </td>
               <td>
@@ -374,6 +383,7 @@ tbody tr:last-child td { border-bottom:0; }
 .status--pending { color:#b54708; background:#fffaeb; }
 .status--waiting { color:#475467; background:#f2f4f7; }
 .status--disabled { color:#667085; background:#f2f4f7; }
+.status-note { color:#667085; font-size:12px; line-height:18px; max-width:240px; margin:7px 0 0; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 .error-text { color:#b42318; font-size:12px; line-height:18px; max-width:220px; margin:7px 0 0; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 .retry-time { color:#b54708; font-size:12px; line-height:18px; }
 .actions { display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:102px; }

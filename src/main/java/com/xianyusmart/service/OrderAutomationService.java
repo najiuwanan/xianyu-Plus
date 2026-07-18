@@ -29,6 +29,8 @@ public class OrderAutomationService {
     private static final int MAX_PAGE_SIZE = 100;
     private static final int BATCH_RATE_LIMIT_PER_ACCOUNT = 50;
     private static final String DEFAULT_RATE_TEXT = "不错的买家！";
+    private static final String RATE_LIST_UNMATCHED_REASON =
+            "待评价状态待核验：未在闲鱼待评价列表中匹配到订单，可点击检查并评价再次核验";
 
     private final OrderAutomationRecordMapper automationRecordMapper;
     private final XianyuAccountMapper accountMapper;
@@ -50,6 +52,7 @@ public class OrderAutomationService {
         int pageSize = request.getPageSize() == null || request.getPageSize() < 1
                 ? DEFAULT_PAGE_SIZE : Math.min(request.getPageSize(), MAX_PAGE_SIZE);
         String status = normalizeStatus(request.getStatus());
+        automationRecordMapper.normalizePendingRateLabels(request.getAccountId());
         automationRecordMapper.resolveWaitingRateFailures(request.getAccountId());
         automationRecordMapper.resolveTerminalRateFailures(request.getAccountId());
 
@@ -105,6 +108,7 @@ public class OrderAutomationService {
             return result;
         }
 
+        automationRecordMapper.normalizePendingRateLabels(accountId);
         automationRecordMapper.resolveWaitingRateFailures(accountId);
         automationRecordMapper.resolveTerminalRateFailures(accountId);
         OrderAutomationRecordDTO state = automationRecordMapper.findTimelineState(accountId, orderId);
@@ -114,8 +118,16 @@ public class OrderAutomationService {
             result.setRateReason("该订单已完成评价或无需评价");
         } else {
             RateService.PendingRateOrderCheck check = rateService.checkOrderReadyForRate(accountId, orderId);
-            result.setRateAvailable(check.ready());
-            result.setRateReason(check.message());
+            if (check.ready()) {
+                result.setRateAvailable(true);
+                result.setRateReason(check.message());
+            } else if (isPendingRateLookupFailure(check.message())) {
+                result.setRateReason(check.message());
+            } else {
+                // 待评价列表没有命中不等于买家没有确认；交由评价接口做最终核验。
+                result.setRateAvailable(true);
+                result.setRateReason("待评价列表未匹配，点击后将由平台评价接口再次核验");
+            }
         }
 
         if (automationRecordMapper.countConfirmedShipmentOrder(accountId, orderId) <= 0) {
@@ -187,17 +199,14 @@ public class OrderAutomationService {
                 if (pendingOrderIds.contains(orderId)) {
                     result.setReadyCount(result.getReadyCount() + 1);
                     if ("RATE".equals(action)) {
-                        String feedback = StringUtils.hasText(account.getAutoRateText())
-                                ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
-                        if (rateService.rateBuyer(account.getId(), orderId, feedback)) {
-                            result.setRatedCount(result.getRatedCount() + 1);
-                        } else {
-                            result.setFailedCount(result.getFailedCount() + 1);
-                        }
+                        processRateAttempt(result, account, orderId);
                     }
+                } else if ("RATE".equals(action)) {
+                    // 某些页面版本的待评价列表不会返回全部订单。由评价接口做最终判断：
+                    // 已评价会归为正常，未完成会保持等待，只有真实接口错误才进入异常中心。
+                    processRateAttempt(result, account, orderId);
                 } else {
-                    automationRecordMapper.markRateWaiting(account.getId(), orderId,
-                            "订单暂未进入闲鱼待评价列表，等待买家确认收货后再评价");
+                    automationRecordMapper.markRateWaiting(account.getId(), orderId, RATE_LIST_UNMATCHED_REASON);
                     result.setWaitingCount(result.getWaitingCount() + 1);
                 }
             }
@@ -207,12 +216,17 @@ public class OrderAutomationService {
         String suffix = scanFailedAccounts > 0
                 ? "；" + scanFailedAccounts + " 个账号待评价列表查询失败，请查看实时日志" : "";
         result.setMessage(operation + "完成：检查 " + result.getCheckedCount() + " 笔，可评价 "
-                + result.getReadyCount() + " 笔，等待确认 " + result.getWaitingCount() + " 笔"
-                + ("RATE".equals(action) ? "，已评价 " + result.getRatedCount() + " 笔" : "") + suffix);
+                + result.getReadyCount() + " 笔，待核验 " + result.getWaitingCount() + " 笔"
+                + ("RATE".equals(action)
+                ? "，已完成或已评价 " + result.getRatedCount() + " 笔，无需评价 " + result.getSkippedCount() + " 笔"
+                : "") + suffix);
         return result;
     }
 
-    /** 仅在闲鱼待评价列表明确包含该订单时才提交评价。 */
+    /**
+     * 评价列表用于快速筛选；最终资格仍以评价接口的响应为准。
+     * 这样“列表未匹配”不会被误写成“买家未确认”，也能把已评价订单归为正常状态。
+     */
     private OrderAutomationRetryRespDTO checkAndRate(Long accountId, String orderId) {
         XianyuAccount account = accountMapper.selectById(accountId);
         if (account == null) {
@@ -223,19 +237,34 @@ public class OrderAutomationService {
             if (isPendingRateLookupFailure(check.message())) {
                 return new OrderAutomationRetryRespDTO(false, "RATE_CHECK", check.message());
             }
-            automationRecordMapper.markRateWaiting(accountId, orderId,
-                    "订单暂未进入闲鱼待评价列表，等待买家确认收货后再评价");
-            return new OrderAutomationRetryRespDTO(true, "RATE_CHECK",
-                    "订单暂未进入待评价列表，已标记为等待买家确认收货");
         }
         String feedback = StringUtils.hasText(account.getAutoRateText())
                 ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
         boolean success = rateService.rateBuyer(accountId, orderId, feedback);
+        if (success && isRateWaiting(accountId, orderId)) {
+            return new OrderAutomationRetryRespDTO(true, "RATE_CHECK", "平台确认订单暂未完成，已保留等待评价状态");
+        }
         if (success && isRateSkipped(accountId, orderId)) {
             return new OrderAutomationRetryRespDTO(true, "RATE_CHECK", "当前订单无需评价，已从待处理事项移除");
         }
         return new OrderAutomationRetryRespDTO(success, "RATE_CHECK",
-                success ? "订单已进入待评价列表，自动评价成功" : "订单已进入待评价列表，但评价失败，失败原因已更新");
+                success ? "平台已完成评价核验：订单已评价或评价成功" : "平台评价失败，失败原因已更新");
+    }
+
+    private void processRateAttempt(OrderAutomationBatchRespDTO result, XianyuAccount account, String orderId) {
+        String feedback = StringUtils.hasText(account.getAutoRateText())
+                ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
+        if (!rateService.rateBuyer(account.getId(), orderId, feedback)) {
+            result.setFailedCount(result.getFailedCount() + 1);
+            return;
+        }
+        if (isRateWaiting(account.getId(), orderId)) {
+            result.setWaitingCount(result.getWaitingCount() + 1);
+        } else if (isRateSkipped(account.getId(), orderId)) {
+            result.setSkippedCount(result.getSkippedCount() + 1);
+        } else {
+            result.setRatedCount(result.getRatedCount() + 1);
+        }
     }
 
     private OrderAutomationRetryRespDTO retryRedFlower(Long accountId, String orderId) {
@@ -262,6 +291,11 @@ public class OrderAutomationService {
     private boolean isRateSkipped(Long accountId, String orderId) {
         OrderAutomationRecordDTO state = automationRecordMapper.findTimelineState(accountId, orderId);
         return state != null && Integer.valueOf(3).equals(state.getRateStatus());
+    }
+
+    private boolean isRateWaiting(Long accountId, String orderId) {
+        OrderAutomationRecordDTO state = automationRecordMapper.findTimelineState(accountId, orderId);
+        return state != null && Integer.valueOf(4).equals(state.getRateStatus());
     }
 
     private boolean isPendingRateLookupFailure(String message) {

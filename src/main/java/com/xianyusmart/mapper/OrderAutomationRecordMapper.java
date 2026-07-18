@@ -303,13 +303,26 @@ public interface OrderAutomationRecordMapper {
     int markRateSkipped(@Param("accountId") Long accountId, @Param("orderId") String orderId,
                         @Param("reason") String reason);
 
-    /** 订单尚未进入待评价列表时，保持等待状态而不是记录为异常。 */
+    /** 待评价资格尚未核验完成时，保持等待状态而不是记录为异常。 */
     @Insert("INSERT INTO xianyu_order_automation_record " +
             "(xianyu_account_id, order_id, rate_status, rate_time, rate_error) " +
             "VALUES (#{accountId}, #{orderId}, 4, NULL, #{reason}) " +
             "ON DUPLICATE KEY UPDATE rate_status = 4, rate_time = NULL, rate_error = #{reason}")
     int markRateWaiting(@Param("accountId") Long accountId, @Param("orderId") String orderId,
                         @Param("reason") String reason);
+
+    /**
+     * 旧版本把“待评价列表未匹配”直接写成“等待买家确认”，两者并不等价。
+     * 只迁移这类列表匹配结果；平台明确返回“交易未完成”的记录仍保留原始原因。
+     */
+    @Update("<script>" +
+            "UPDATE xianyu_order_automation_record " +
+            "SET rate_error = '待评价状态待核验：未在闲鱼待评价列表中匹配到订单，可点击检查并评价再次核验' " +
+            "WHERE rate_status = 4 AND (COALESCE(rate_error, '') LIKE '%暂未进入闲鱼待评价列表%' " +
+            "OR COALESCE(rate_error, '') LIKE '%未进入待评价列表%') " +
+            "<if test='accountId != null'>AND xianyu_account_id = #{accountId}</if>" +
+            "</script>")
+    int normalizePendingRateLabels(@Param("accountId") Long accountId);
 
     @Insert("INSERT INTO xianyu_order_automation_record " +
             "(xianyu_account_id, order_id, rate_status, rate_error) " +

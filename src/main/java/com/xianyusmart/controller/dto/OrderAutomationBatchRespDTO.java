@@ -13,6 +13,8 @@ public class OrderAutomationBatchRespDTO {
     private int checkedCount;
     private int readyCount;
     private int ratedCount;
+    /** 平台已明确无需评价的订单数，例如已评价或不可评价。 */
+    private int skippedCount;
     private int waitingCount;
     private int failedCount;
     private String message;
