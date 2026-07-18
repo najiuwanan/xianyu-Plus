@@ -160,11 +160,11 @@ const runMenuAction = (event: MouseEvent, action: () => void) => {
 }
 
 const getStatusColor = (state: number) => {
-  return state === 1 ? '#30D158' : '#FF453A'
+  return state === 1 ? '#168b49' : '#d83c32'
 }
 
 const getStatusBg = (state: number) => {
-  return state === 1 ? 'rgba(48,209,88,.2)' : 'rgba(255,69,58,.15)'
+  return state === 1 ? '#e3f8eb' : '#fff0ef'
 }
 
 const getStatusText = (state: number) => {
@@ -179,30 +179,30 @@ const getDeliveryText = (state: number, deliveryStatus?: string) => {
 }
 
 const getDeliveryColor = (state: number, deliveryStatus?: string) => {
-  if (deliveryStatus === 'SKIPPED') return 'rgba(28,28,30,.55)'
-  if (state === 1) return '#30D158'
+  if (deliveryStatus === 'SKIPPED') return '#637085'
+  if (state === 1) return '#168b49'
   if (state === 0) return '#FF9F0A'
   return '#FF453A'
 }
 
 const getDeliveryBg = (state: number, deliveryStatus?: string) => {
   if (deliveryStatus === 'SKIPPED') return 'rgba(120,120,128,.12)'
-  if (state === 1) return 'rgba(48,209,88,.2)'
+  if (state === 1) return '#e3f8eb'
   if (state === 0) return 'rgba(255,159,10,.18)'
   return 'rgba(255,69,58,.15)'
 }
 
 const getTradeStatusColor = (status?: string) => {
-  if (status === 'COMPLETED') return '#30D158'
+  if (status === 'COMPLETED') return '#168b49'
   if (status === 'REFUNDING') return '#FF9F0A'
   if (status === 'REFUNDED') return '#FF453A'
   if (status === 'PENDING_PAYMENT' || status === 'PENDING_SHIPMENT') return '#FF9F0A'
   if (status === 'SHIPPED') return '#007AFF'
-  return 'rgba(28,28,30,.55)'
+  return '#637085'
 }
 
 const getTradeStatusBg = (status?: string) => {
-  if (status === 'COMPLETED') return 'rgba(48,209,88,.2)'
+  if (status === 'COMPLETED') return '#e3f8eb'
   if (status === 'REFUNDING' || status === 'PENDING_PAYMENT' || status === 'PENDING_SHIPMENT') return 'rgba(255,159,10,.18)'
   if (status === 'REFUNDED') return 'rgba(255,69,58,.15)'
   if (status === 'SHIPPED') return 'rgba(0,122,255,.12)'
@@ -285,11 +285,11 @@ const getConfirmText = (state: number) => {
 }
 
 const getConfirmColor = (state: number) => {
-  return state === 1 ? '#30D158' : 'rgba(28,28,30,.55)'
+  return state === 1 ? '#168b49' : '#637085'
 }
 
 const getConfirmBg = (state: number) => {
-  return state === 1 ? 'rgba(48,209,88,.2)' : 'rgba(120,120,128,.12)'
+  return state === 1 ? '#e3f8eb' : 'rgba(120,120,128,.12)'
 }
 
 type StatusPresentation = {
@@ -718,11 +718,11 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
   --c-border: rgba(255,255,255,0.75);
   --c-border-strong: rgba(60,60,67,.12);
   --c-text-1: #1c1c1e;
-  --c-text-2: rgba(28,28,30,.55);
-  --c-text-3: rgba(28,28,30,.55);
+  --c-text-2: #536179;
+  --c-text-3: #68778d;
   --c-accent: #0A84FF;
   --c-danger: #FF453A;
-  --c-success: #30D158;
+  --c-success: #168b49;
   --c-r-sm: 10px;
   --c-r-md: 14px;
   --c-ease: 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
@@ -993,9 +993,11 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
 }
 
 .order-id {
-  font-size: 12px;
+  font-size: 12.5px;
   font-family: 'SF Mono', 'Menlo', monospace;
-  color: var(--c-text-2);
+  color: #3c4d65;
+  font-weight: 620;
+  font-variant-numeric: tabular-nums;
 }
 
 .order-cell,
@@ -1011,8 +1013,9 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
 .order-title-cell__meta,
 .delivery-cell__method {
   overflow: hidden;
-  color: var(--c-text-3);
+  color: #607089;
   font-size: 11px;
+  font-weight: 540;
   line-height: 1.45;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1066,7 +1069,7 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
   display: inline-flex;
   align-items: center;
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 650;
   padding: 3px 10px;
   border-radius: 20px;
   line-height: 1;
@@ -1090,7 +1093,7 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
   white-space: nowrap;
 }
 
-.status-chip--success { color: #168b49; background: rgba(48, 209, 88, .16); }
+.status-chip--success { color: #147f43; background: #e3f8eb; }
 .status-chip--warning { color: #a46600; background: rgba(255, 159, 10, .16); }
 .status-chip--danger { color: #d83c32; background: rgba(255, 69, 58, .13); }
 .status-chip--muted { color: #667085; background: rgba(120, 120, 128, .12); }
