@@ -95,7 +95,7 @@ const handleManualUpdate = () => {
       <div class="modal-container" @click.stop>
         <!-- Header -->
         <div class="modal-header">
-          <h2 class="modal-title">凭证详情</h2>
+          <h2 class="modal-title">凭证更新</h2>
           <button class="modal-close" @click="handleClose">
             <IconClose />
           </button>

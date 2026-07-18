@@ -203,7 +203,7 @@ onBeforeUnmount(() => {
               <span class="status-card__desc">{{ canSyncGoods ? '有效' : '无效' }}</span>
             </div>
             <button class="btn btn--ghost btn--small" @click="showCredentialDialog = true">
-              <IconKey /><span>凭证详情</span>
+              <IconKey /><span>凭证更新</span>
             </button>
           </div>
 
