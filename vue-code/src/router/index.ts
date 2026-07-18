@@ -41,7 +41,7 @@ const router = createRouter({
       path: '/goods',
       name: 'goods',
       component: () => import('@/views/goods/index.vue'),
-      meta: { title: '商品管理', icon: '📦' }
+      meta: { title: '商品配置中心', icon: '📦' }
     },
     {
       path: '/orders',
@@ -99,7 +99,7 @@ const router = createRouter({
       path: '/auto-reply',
       name: 'auto-reply',
       component: () => import('@/views/auto-reply/index.vue'),
-      meta: { title: '自动回复', icon: '💭' }
+      meta: { title: '关键词回复', icon: '💭' }
     },
     {
       path: '/operation-log',

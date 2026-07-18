@@ -22,7 +22,7 @@ interface Emits {
   (e: 'sync', xyGoodId: string): void
   (e: 'toggleAutoDelivery', item: GoodsItemWithConfig, value: boolean): void
   (e: 'toggleAutoReply', item: GoodsItemWithConfig, value: boolean): void
-  (e: 'configAutoDelivery', item: GoodsItemWithConfig): void
+  (e: 'configure', item: GoodsItemWithConfig): void
   (e: 'delete', xyGoodId: string, title: string): void
   (e: 'toggleSelect', xyGoodId: string, selected: boolean): void
   (e: 'toggleSelectPage', selected: boolean): void
@@ -138,7 +138,7 @@ const handleImgError = (e: Event) => {
       <div class="goods-card__actions">
         <button
           class="goods-card__action goods-card__action--config"
-          @click.stop="emit('configAutoDelivery', item)"
+          @click.stop="emit('configure', item)"
         >
           <IconSparkle />
           <span>配置</span>
@@ -245,6 +245,10 @@ const handleImgError = (e: Event) => {
             </div>
           </td>
           <td class="table__td table__td--actions">
+            <button class="table__action table__action--sync" @click="emit('configure', item)">
+              <IconSparkle />
+              <span>配置</span>
+            </button>
             <button class="table__action table__action--detail" @click="emit('view', item.item.xyGoodId)">
               <IconCheck />
               <span>详情</span>

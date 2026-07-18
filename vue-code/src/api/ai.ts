@@ -59,7 +59,7 @@ export function getAIStatus(): Promise<Response> {
 }
 
 // 保存固定资料
-export function saveFixedMaterial(data: { accountId: number; goodsId: string; fixedMaterial: string }): Promise<Response> {
+export function saveFixedMaterial(data: { accountId: number; goodsId: string; fixedMaterial: string; aiPrompt?: string }): Promise<Response> {
   return fetch('/ai/saveFixedMaterial', {
     method: 'POST',
     headers: authHeaders(),

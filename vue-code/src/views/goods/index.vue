@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref, reactive, computed, inject, defineComponent, h } from 'vue'
+import { useRouter } from 'vue-router'
 import { useGoodsManager } from './useGoodsManager'
 import { getKamiConfigs } from '@/api/kami-config'
 import type { KamiConfig } from '@/api/kami-config'
+import type { GoodsItemWithConfig } from '@/api/goods'
 import './goods.css'
 import '@/styles/header-selectors.css'
 
@@ -15,6 +17,9 @@ import IconChevronRight from '@/components/icons/IconChevronRight.vue'
 
 import GoodsTable from './components/GoodsTable.vue'
 import GoodsDetail from './components/GoodsDetail.vue'
+import GoodsConfigDialog from './components/GoodsConfigDialog.vue'
+
+const router = useRouter()
 
 const {
   loading,
@@ -46,7 +51,6 @@ const {
   handleStatusFilter,
   handlePageChange,
   viewDetail,
-  configAutoDelivery,
   toggleAutoDelivery,
   toggleAutoReply,
   confirmDelete,
@@ -56,6 +60,32 @@ const {
   formatTime,
   syncSingleGoods
 } = useGoodsManager()
+
+// 商品页是配置入口：每个商品的发货、AI 与关键词开关都从这里统一进入。
+const configDialogVisible = ref(false)
+const configTarget = ref<GoodsItemWithConfig | null>(null)
+
+const openGoodsConfig = (item: GoodsItemWithConfig) => {
+  configTarget.value = item
+  configDialogVisible.value = true
+}
+
+const handleGoodsConfigSaved = () => {
+  void loadGoods()
+}
+
+const openKeywordRules = () => {
+  const item = configTarget.value
+  if (!item || !selectedAccountId.value) return
+  configDialogVisible.value = false
+  router.push({
+    path: '/auto-reply',
+    query: {
+      accountId: String(selectedAccountId.value),
+      goodsId: item.item.xyGoodId
+    }
+  })
+}
 
 // 下拉刷新相关状态
 const pullRefreshState = ref<'idle' | 'pulling' | 'ready' | 'refreshing'>('idle')
@@ -209,6 +239,7 @@ const kamiConfigs = ref<KamiConfig[]>([])
 const batchForm = reactive({
   xianyuAutoDeliveryOn: '' as '' | '1' | '0',
   xianyuAutoReplyOn: '' as '' | '1' | '0',
+  xianyuKeywordReplyOn: '' as '' | '1' | '0',
   kamiConfigId: '' as '' | number
 })
 
@@ -225,6 +256,7 @@ const sourceTypeText = (config: KamiConfig) => {
 const resetBatchForm = () => {
   batchForm.xianyuAutoDeliveryOn = ''
   batchForm.xianyuAutoReplyOn = ''
+  batchForm.xianyuKeywordReplyOn = ''
   batchForm.kamiConfigId = ''
 }
 
@@ -252,6 +284,7 @@ const handleBatchKamiChange = () => {
 const submitBatchUpdate = async () => {
   const hasOperation = batchForm.xianyuAutoDeliveryOn !== ''
     || batchForm.xianyuAutoReplyOn !== ''
+    || batchForm.xianyuKeywordReplyOn !== ''
     || batchForm.kamiConfigId !== ''
   if (!hasOperation) return
 
@@ -262,6 +295,9 @@ const submitBatchUpdate = async () => {
     xianyuAutoReplyOn: batchForm.xianyuAutoReplyOn === ''
       ? undefined
       : Number(batchForm.xianyuAutoReplyOn),
+    xianyuKeywordReplyOn: batchForm.xianyuKeywordReplyOn === ''
+      ? undefined
+      : Number(batchForm.xianyuKeywordReplyOn),
     kamiConfigId: batchForm.kamiConfigId === '' ? undefined : Number(batchForm.kamiConfigId)
   })
   if (updated) {
@@ -278,7 +314,7 @@ const submitBatchUpdate = async () => {
         <div class="goods__title-icon">
           <IconShoppingBag />
         </div>
-        <h1 class="goods__title">商品管理</h1>
+        <h1 class="goods__title">商品配置中心</h1>
       </div>
 
       <div class="goods__actions">
@@ -391,7 +427,7 @@ const submitBatchUpdate = async () => {
           @sync="syncSingleGoods"
           @toggle-auto-delivery="toggleAutoDelivery"
           @toggle-auto-reply="toggleAutoReply"
-          @config-auto-delivery="configAutoDelivery"
+          @configure="openGoodsConfig"
           @delete="confirmDelete"
           @toggle-select="toggleGoodsSelection"
           @toggle-select-page="togglePageSelection"
@@ -436,6 +472,14 @@ const submitBatchUpdate = async () => {
       :goods-id="selectedGoodsId"
       :account-id="selectedAccountId"
       @refresh="loadGoods"
+    />
+
+    <GoodsConfigDialog
+      v-model="configDialogVisible"
+      :item="configTarget"
+      :account-id="selectedAccountId"
+      @saved="handleGoodsConfigSaved"
+      @open-keyword-rules="openKeywordRules"
     />
 
 
@@ -486,8 +530,16 @@ const submitBatchUpdate = async () => {
               </select>
             </label>
             <label class="goods__batch-field">
-              <span>AI 自动回复</span>
+              <span>商品专属 AI</span>
               <select v-model="batchForm.xianyuAutoReplyOn">
+                <option value="">保持不变</option>
+                <option value="1">开启</option>
+                <option value="0">关闭</option>
+              </select>
+            </label>
+            <label class="goods__batch-field">
+              <span>关键词回复</span>
+              <select v-model="batchForm.xianyuKeywordReplyOn">
                 <option value="">保持不变</option>
                 <option value="1">开启</option>
                 <option value="0">关闭</option>
@@ -516,7 +568,7 @@ const submitBatchUpdate = async () => {
             <button class="goods__dialog-btn goods__dialog-btn--cancel" :disabled="batchUpdating" @click="batchDialogVisible = false">取消</button>
             <button
               class="goods__dialog-btn goods__dialog-btn--confirm"
-              :disabled="batchUpdating || (batchForm.xianyuAutoDeliveryOn === '' && batchForm.xianyuAutoReplyOn === '' && batchForm.kamiConfigId === '')"
+              :disabled="batchUpdating || (batchForm.xianyuAutoDeliveryOn === '' && batchForm.xianyuAutoReplyOn === '' && batchForm.xianyuKeywordReplyOn === '' && batchForm.kamiConfigId === '')"
               @click="submitBatchUpdate"
             >
               {{ batchUpdating ? '保存中…' : '确认配置' }}

@@ -29,6 +29,9 @@ export interface GoodsItemWithConfig {
   humanInterventionMinutes: number;
   autoDeliveryType?: number;
   autoDeliveryContent?: string;
+  kamiConfigId?: number;
+  /** 商品专属 AI 回复规则，通过 /ai/getFixedMaterial 按需获取。 */
+  aiPrompt?: string;
 }
 
 // 商品列表响应
@@ -268,6 +271,7 @@ export interface BatchUpdateGoodsConfigReq {
   xyGoodsIds: string[];
   xianyuAutoDeliveryOn?: number;
   xianyuAutoReplyOn?: number;
+  xianyuKeywordReplyOn?: number;
   kamiConfigId?: number;
 }
 

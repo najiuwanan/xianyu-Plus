@@ -57,6 +57,11 @@ public class XianyuGoodsConfig {
      * 固定资料（用于AI自动回复）
      */
     private String fixedMaterial;
+
+    /**
+     * 商品专属 AI 回复规则。启用商品 AI 回复后，会优先于全局兜底规则使用。
+     */
+    private String aiPrompt;
     
     /**
      * 创建时间

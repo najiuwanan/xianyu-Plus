@@ -23,4 +23,9 @@ public class ItemWithConfigDTO {
     private Integer autoDeliveryType;
     
     private String autoDeliveryContent;
+
+    /**
+     * 默认关联的卡券来源。多规格发货仍由原有规则单独处理。
+     */
+    private Long kamiConfigId;
 }

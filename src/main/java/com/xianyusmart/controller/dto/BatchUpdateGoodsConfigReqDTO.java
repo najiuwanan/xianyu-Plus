@@ -23,6 +23,9 @@ public class BatchUpdateGoodsConfigReqDTO {
     /** 0=关闭，1=开启，null=不修改。 */
     private Integer xianyuAutoReplyOn;
 
+    /** 0=关闭，1=开启，null=不修改。商品关键词规则的总开关。 */
+    private Integer xianyuKeywordReplyOn;
+
     /**
      * 指定后将所选商品的默认发货来源改为该卡券；同时自动开启自动发货。
      * null 表示不修改卡券关联。

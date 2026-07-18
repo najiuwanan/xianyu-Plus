@@ -18,7 +18,7 @@ const updateChecking = ref(false)
 const pageTitleMap: Record<string, string> = {
   '/dashboard': '运营总览',
   '/accounts': '账号管理',
-  '/goods': '商品管理',
+  '/goods': '商品配置中心',
   '/orders': '订单管理',
   '/messages': '在线客服',
   '/notifications': '通知渠道',
@@ -26,7 +26,7 @@ const pageTitleMap: Record<string, string> = {
   '/auto-delivery': '自动发货',
   '/item-polish': '一键擦亮',
   '/order-automation': '自动化执行中心',
-  '/auto-reply': '自动回复',
+  '/auto-reply': '关键词回复',
   '/operation-log': '操作日志',
   '/runtime-log': '实时日志',
   '/system-check': '系统自检',

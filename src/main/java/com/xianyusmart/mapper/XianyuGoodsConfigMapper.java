@@ -21,8 +21,8 @@ public interface XianyuGoodsConfigMapper {
     /**
      * 插入配置
      */
-    @Insert("INSERT INTO xianyu_goods_config (xianyu_account_id, xianyu_goods_id, xy_goods_id, xianyu_auto_delivery_on, xianyu_auto_reply_on, xianyu_auto_reply_context_on, xianyu_keyword_reply_on, human_intervention_on, human_intervention_minutes, fixed_material) " +
-            "VALUES (#{xianyuAccountId}, #{xianyuGoodsId}, #{xyGoodsId}, #{xianyuAutoDeliveryOn}, #{xianyuAutoReplyOn}, #{xianyuAutoReplyContextOn}, #{xianyuKeywordReplyOn}, #{humanInterventionOn}, #{humanInterventionMinutes}, #{fixedMaterial})")
+    @Insert("INSERT INTO xianyu_goods_config (xianyu_account_id, xianyu_goods_id, xy_goods_id, xianyu_auto_delivery_on, xianyu_auto_reply_on, xianyu_auto_reply_context_on, xianyu_keyword_reply_on, human_intervention_on, human_intervention_minutes, fixed_material, ai_prompt) " +
+            "VALUES (#{xianyuAccountId}, #{xianyuGoodsId}, #{xyGoodsId}, #{xianyuAutoDeliveryOn}, #{xianyuAutoReplyOn}, #{xianyuAutoReplyContextOn}, #{xianyuKeywordReplyOn}, #{humanInterventionOn}, #{humanInterventionMinutes}, #{fixedMaterial}, #{aiPrompt})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(XianyuGoodsConfig config);
     
@@ -35,7 +35,8 @@ public interface XianyuGoodsConfigMapper {
             "xianyu_keyword_reply_on = #{xianyuKeywordReplyOn}, " +
             "human_intervention_on = #{humanInterventionOn}, " +
             "human_intervention_minutes = #{humanInterventionMinutes}, " +
-            "fixed_material = #{fixedMaterial} WHERE id = #{id}")
+            "fixed_material = #{fixedMaterial}, " +
+            "ai_prompt = #{aiPrompt} WHERE id = #{id}")
     int update(XianyuGoodsConfig config);
     
     /**
@@ -43,6 +44,16 @@ public interface XianyuGoodsConfigMapper {
      */
     @Update("UPDATE xianyu_goods_config SET fixed_material = #{fixedMaterial} WHERE xianyu_account_id = #{accountId} AND xy_goods_id = #{xyGoodsId}")
     int updateFixedMaterial(@Param("accountId") Long accountId, @Param("xyGoodsId") String xyGoodsId, @Param("fixedMaterial") String fixedMaterial);
+
+    /**
+     * 保存商品专属 AI 规则与固定资料。
+     */
+    @Update("UPDATE xianyu_goods_config SET fixed_material = #{fixedMaterial}, ai_prompt = #{aiPrompt} " +
+            "WHERE xianyu_account_id = #{accountId} AND xy_goods_id = #{xyGoodsId}")
+    int updateProductAiConfig(@Param("accountId") Long accountId,
+                              @Param("xyGoodsId") String xyGoodsId,
+                              @Param("fixedMaterial") String fixedMaterial,
+                              @Param("aiPrompt") String aiPrompt);
     
     /**
      * 根据账号ID删除配置

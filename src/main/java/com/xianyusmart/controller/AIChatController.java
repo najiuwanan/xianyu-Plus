@@ -9,6 +9,7 @@ import com.xianyusmart.service.ItemDetailSyncService;
 import com.xianyusmart.controller.dto.SyncSingleItemRespDTO;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.entity.XianyuGoodsConfig;
+import com.xianyusmart.service.reply.ProductAiContextBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -38,6 +39,9 @@ public class AIChatController {
     @Autowired
     private XianyuGoodsConfigMapper goodsConfigMapper;
 
+    @Autowired
+    private ProductAiContextBuilder productAiContextBuilder;
+
     /**
      * AI对话（流式返回）
      * 未配置API Key时返回降级提示
@@ -59,7 +63,7 @@ public class AIChatController {
         if (req.getAccountId() != null && req.getGoodsId() != null) {
             XianyuGoodsConfig config = goodsConfigMapper.selectByAccountAndGoodsId(req.getAccountId(), req.getGoodsId());
             if (config != null) {
-                fixedMaterial = config.getFixedMaterial();
+                fixedMaterial = productAiContextBuilder.build(config);
             }
             
             String detailInfo = goodsInfoService.getDetailInfoByGoodsId(req.getGoodsId());
@@ -92,7 +96,7 @@ public class AIChatController {
 
     @PostMapping("/saveFixedMaterial")
     public ResultObject<?> saveFixedMaterial(@RequestBody FixedMaterialReqDTO req) {
-        goodsConfigMapper.updateFixedMaterial(req.getAccountId(), req.getGoodsId(), req.getFixedMaterial());
+        goodsConfigMapper.updateProductAiConfig(req.getAccountId(), req.getGoodsId(), req.getFixedMaterial(), req.getAiPrompt());
         return ResultObject.success(null);
     }
 
@@ -102,6 +106,7 @@ public class AIChatController {
         FixedMaterialRespDTO resp = new FixedMaterialRespDTO();
         if (config != null) {
             resp.setFixedMaterial(config.getFixedMaterial());
+            resp.setAiPrompt(config.getAiPrompt());
         }
         return ResultObject.success(resp);
     }
@@ -141,6 +146,7 @@ public class AIChatController {
         private Long accountId;
         private String goodsId;
         private String fixedMaterial;
+        private String aiPrompt;
 
         public Long getAccountId() { return accountId; }
         public void setAccountId(Long accountId) { this.accountId = accountId; }
@@ -148,15 +154,20 @@ public class AIChatController {
         public void setGoodsId(String goodsId) { this.goodsId = goodsId; }
         public String getFixedMaterial() { return fixedMaterial; }
         public void setFixedMaterial(String fixedMaterial) { this.fixedMaterial = fixedMaterial; }
+        public String getAiPrompt() { return aiPrompt; }
+        public void setAiPrompt(String aiPrompt) { this.aiPrompt = aiPrompt; }
     }
 
     public static class FixedMaterialRespDTO {
         private String fixedMaterial;
+        private String aiPrompt;
         private boolean verificationRequired;
         private String captchaUrl;
 
         public String getFixedMaterial() { return fixedMaterial; }
         public void setFixedMaterial(String fixedMaterial) { this.fixedMaterial = fixedMaterial; }
+        public String getAiPrompt() { return aiPrompt; }
+        public void setAiPrompt(String aiPrompt) { this.aiPrompt = aiPrompt; }
         public boolean isVerificationRequired() { return verificationRequired; }
         public void setVerificationRequired(boolean verificationRequired) { this.verificationRequired = verificationRequired; }
         public String getCaptchaUrl() { return captchaUrl; }

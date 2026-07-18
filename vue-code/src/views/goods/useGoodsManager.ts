@@ -215,8 +215,11 @@ export function useGoodsManager() {
     selectedGoodsIds.value = []
   }
 
-  const updateSelectedGoodsConfig = async (options: Omit<BatchUpdateGoodsConfigReq, 'xianyuAccountId' | 'xyGoodsIds'>) => {
-    if (!selectedAccountId.value || selectedGoodsIds.value.length === 0) {
+  const updateSelectedGoodsConfig = async (
+    options: Omit<BatchUpdateGoodsConfigReq, 'xianyuAccountId' | 'xyGoodsIds'>,
+    targetGoodsIds = selectedGoodsIds.value
+  ) => {
+    if (!selectedAccountId.value || targetGoodsIds.length === 0) {
       showInfo('请先选择要批量配置的商品')
       return false
     }
@@ -225,7 +228,7 @@ export function useGoodsManager() {
     try {
       const response = await batchUpdateGoodsConfig({
         xianyuAccountId: selectedAccountId.value,
-        xyGoodsIds: selectedGoodsIds.value,
+        xyGoodsIds: targetGoodsIds,
         ...options
       })
       if (response.code !== 0 && response.code !== 200) {

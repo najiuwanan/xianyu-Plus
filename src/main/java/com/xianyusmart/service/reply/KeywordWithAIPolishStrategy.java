@@ -39,6 +39,9 @@ public class KeywordWithAIPolishStrategy implements ReplyStrategy {
     @Autowired
     private XianyuGoodsInfoMapper goodsInfoMapper;
 
+    @Autowired
+    private ProductAiContextBuilder productAiContextBuilder;
+
     @Override
     public ReplyResult execute(List<ChatMessageData> messageList) {
         ChatMessageData lastMessage = messageList.get(messageList.size() - 1);
@@ -121,7 +124,7 @@ public class KeywordWithAIPolishStrategy implements ReplyStrategy {
     private ReplyResult executeAIReply(Long accountId, String xyGoodsId, String buyerMessage) {
         try {
             XianyuGoodsConfig goodsConfig = goodsConfigMapper.selectByAccountAndGoodsId(accountId, xyGoodsId);
-            String fixedMaterial = goodsConfig != null ? goodsConfig.getFixedMaterial() : null;
+            String fixedMaterial = productAiContextBuilder.build(goodsConfig);
 
             XianyuGoodsInfo goodsInfo = goodsInfoMapper.selectOne(
                     new LambdaQueryWrapper<XianyuGoodsInfo>().eq(XianyuGoodsInfo::getXyGoodId, xyGoodsId)

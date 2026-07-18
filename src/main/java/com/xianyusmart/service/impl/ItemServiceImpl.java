@@ -529,6 +529,15 @@ public class ItemServiceImpl implements ItemService {
             if (deliveryConfig != null) {
                 itemWithConfig.setAutoDeliveryType(deliveryConfig.getDeliveryMode());
                 itemWithConfig.setAutoDeliveryContent(deliveryConfig.getAutoDeliveryContent());
+                String kamiConfigIds = deliveryConfig.getKamiConfigIds();
+                if (kamiConfigIds != null && !kamiConfigIds.isBlank()) {
+                    try {
+                        // 商品配置中心展示默认来源；多规格规则仍按原有逗号列表完整保留。
+                        itemWithConfig.setKamiConfigId(Long.parseLong(kamiConfigIds.split(",")[0].trim()));
+                    } catch (NumberFormatException e) {
+                        log.warn("商品 {} 的卡券来源配置格式异常: {}", item.getXyGoodId(), kamiConfigIds);
+                    }
+                }
             }
         } else {
             itemWithConfig.setXianyuAutoDeliveryOn(0);
@@ -1185,6 +1194,9 @@ public class ItemServiceImpl implements ItemService {
                 if (reqDTO.getXianyuAutoReplyOn() != null) {
                     config.setXianyuAutoReplyOn(reqDTO.getXianyuAutoReplyOn());
                 }
+                if (reqDTO.getXianyuKeywordReplyOn() != null) {
+                    config.setXianyuKeywordReplyOn(reqDTO.getXianyuKeywordReplyOn());
+                }
                 if (kamiConfig != null) {
                     // 关联卡券意味着该商品需要实际参与自动发货，优先于同次提交的关闭开关。
                     config.setXianyuAutoDeliveryOn(1);
@@ -1216,11 +1228,14 @@ public class ItemServiceImpl implements ItemService {
         if (reqDTO.getXyGoodsIds() == null || reqDTO.getXyGoodsIds().isEmpty()) {
             return "请至少选择一个商品";
         }
-        if (!isSwitchValue(reqDTO.getXianyuAutoDeliveryOn()) || !isSwitchValue(reqDTO.getXianyuAutoReplyOn())) {
+        if (!isSwitchValue(reqDTO.getXianyuAutoDeliveryOn())
+                || !isSwitchValue(reqDTO.getXianyuAutoReplyOn())
+                || !isSwitchValue(reqDTO.getXianyuKeywordReplyOn())) {
             return "自动化开关只能选择开启、关闭或保持不变";
         }
         if (reqDTO.getXianyuAutoDeliveryOn() == null
                 && reqDTO.getXianyuAutoReplyOn() == null
+                && reqDTO.getXianyuKeywordReplyOn() == null
                 && reqDTO.getKamiConfigId() == null) {
             return "请至少选择一项要批量修改的配置";
         }
@@ -1282,6 +1297,9 @@ public class ItemServiceImpl implements ItemService {
         }
         if (reqDTO.getXianyuAutoReplyOn() != null) {
             actions.add(reqDTO.getXianyuAutoReplyOn() == 1 ? "开启自动回复" : "关闭自动回复");
+        }
+        if (reqDTO.getXianyuKeywordReplyOn() != null) {
+            actions.add(reqDTO.getXianyuKeywordReplyOn() == 1 ? "开启关键词回复" : "关闭关键词回复");
         }
         if (kamiConfig != null) {
             actions.add("关联卡券「" + kamiConfig.getAliasName() + "」并开启自动发货");
