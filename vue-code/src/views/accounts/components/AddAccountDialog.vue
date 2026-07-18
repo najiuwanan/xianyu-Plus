@@ -33,8 +33,9 @@ const formData = ref({
 })
 
 const polishConfigLoading = ref(false)
-const activeSection = ref<AccountEditorSection>('profile')
+const selectedSection = ref<AccountEditorSection>('profile')
 let polishConfigRequest = 0
+const errorMessage = (error: unknown) => error instanceof Error ? error.message : ''
 
 const loadPolishConfig = async (accountId: number) => {
   const requestId = ++polishConfigRequest
@@ -45,9 +46,9 @@ const loadPolishConfig = async (accountId: number) => {
     if (requestId !== polishConfigRequest) return
     formData.value.itemPolishEnabled = response.data?.config?.enabled === 1 ? 1 : 0
     formData.value.itemPolishScheduleTime = response.data?.config?.scheduleTime || '09:00'
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (requestId === polishConfigRequest) {
-      showError(`加载自动擦亮设置失败：${error.message || '未知错误'}`)
+      showError(`加载自动擦亮设置失败：${errorMessage(error) || '未知错误'}`)
     }
   } finally {
     if (requestId === polishConfigRequest) polishConfigLoading.value = false
@@ -84,7 +85,7 @@ watch(() => props.account, (newAccount) => {
 }, { immediate: true })
 
 watch(() => props.activeSection, (section) => {
-  activeSection.value = section || 'profile'
+  selectedSection.value = section || 'profile'
 }, { immediate: true })
 
 const handleClose = () => {
@@ -121,9 +122,9 @@ const handleSubmit = async () => {
     } else {
       throw new Error(response.msg || '保存失败')
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('保存失败:', error)
-    showError(`保存失败：${error.message || '请稍后重试'}`)
+    showError(`保存失败：${errorMessage(error) || '请稍后重试'}`)
   }
 }
 </script>
@@ -139,13 +140,13 @@ const handleSubmit = async () => {
 
         <div class="modal-body">
           <nav class="editor-tabs" aria-label="账号配置分类">
-            <button type="button" :class="{ active: activeSection === 'profile' }" @click="activeSection = 'profile'">账号资料</button>
-            <button type="button" :class="{ active: activeSection === 'rate' }" @click="activeSection = 'rate'">自动评价</button>
-            <button type="button" :class="{ active: activeSection === 'flower' }" @click="activeSection = 'flower'">自动小红花</button>
-            <button type="button" :class="{ active: activeSection === 'polish' }" @click="activeSection = 'polish'">每日擦亮</button>
+            <button type="button" :class="{ active: selectedSection === 'profile' }" @click="selectedSection = 'profile'">账号资料</button>
+            <button type="button" :class="{ active: selectedSection === 'rate' }" @click="selectedSection = 'rate'">自动评价</button>
+            <button type="button" :class="{ active: selectedSection === 'flower' }" @click="selectedSection = 'flower'">自动小红花</button>
+            <button type="button" :class="{ active: selectedSection === 'polish' }" @click="selectedSection = 'polish'">每日擦亮</button>
           </nav>
 
-          <section v-if="activeSection === 'profile'" class="profile-section">
+          <section v-if="selectedSection === 'profile'" class="profile-section">
             <label class="field-label" for="account-note">账号备注</label>
             <input
               id="account-note"
@@ -159,11 +160,11 @@ const handleSubmit = async () => {
 
           <div v-else class="automation-section automation-section--tab">
             <div class="automation-section__header">
-              <h3>{{ activeSection === 'rate' ? '自动评价' : activeSection === 'flower' ? '自动小红花' : '每日自动擦亮' }}</h3>
+              <h3>{{ selectedSection === 'rate' ? '自动评价' : selectedSection === 'flower' ? '自动小红花' : '每日自动擦亮' }}</h3>
               <p>按账号分别保存，不会影响其他账号。</p>
             </div>
 
-            <section v-if="activeSection === 'rate'" class="automation-card" :class="{ 'automation-card--enabled': formData.autoRateEnabled === 1 }">
+            <section v-if="selectedSection === 'rate'" class="automation-card" :class="{ 'automation-card--enabled': formData.autoRateEnabled === 1 }">
               <div class="automation-card__row">
                 <span class="automation-card__icon automation-card__icon--rate">评</span>
                 <div class="automation-card__info">
@@ -186,7 +187,7 @@ const handleSubmit = async () => {
               </div>
             </section>
 
-            <section v-if="activeSection === 'flower'" class="automation-card" :class="{ 'automation-card--enabled': formData.autoAskFlower === 1 }">
+            <section v-if="selectedSection === 'flower'" class="automation-card" :class="{ 'automation-card--enabled': formData.autoAskFlower === 1 }">
               <div class="automation-card__row">
                 <span class="automation-card__icon automation-card__icon--flower">花</span>
                 <div class="automation-card__info">
@@ -203,7 +204,7 @@ const handleSubmit = async () => {
               </p>
             </section>
 
-            <section v-if="activeSection === 'polish'" class="automation-card" :class="{ 'automation-card--enabled': formData.itemPolishEnabled === 1 }">
+            <section v-if="selectedSection === 'polish'" class="automation-card" :class="{ 'automation-card--enabled': formData.itemPolishEnabled === 1 }">
               <div class="automation-card__row">
                 <span class="automation-card__icon automation-card__icon--polish">亮</span>
                 <div class="automation-card__info">

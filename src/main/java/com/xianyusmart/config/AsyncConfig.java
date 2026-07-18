@@ -26,6 +26,9 @@ public class AsyncConfig {
 
     @Value("${app.executor.queue-capacity:500}")
     private int queueCapacity;
+
+    @Value("${app.scheduler.pool-size:4}")
+    private int schedulerPoolSize;
     
     /**
      * 自定义异步任务线程池
@@ -84,7 +87,8 @@ public class AsyncConfig {
     @Bean(name = "taskScheduler")
     public ThreadPoolTaskScheduler taskScheduler() {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
-        scheduler.setPoolSize(2);
+        // Business scans are dispatched to taskExecutor; this pool only coordinates lightweight ticks.
+        scheduler.setPoolSize(Math.max(4, schedulerPoolSize));
         scheduler.setThreadNamePrefix("xys-schedule-");
         scheduler.setWaitForTasksToCompleteOnShutdown(true);
         scheduler.setAwaitTerminationSeconds(30);

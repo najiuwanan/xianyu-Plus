@@ -1,28 +1,45 @@
 package com.xianyusmart.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/**
- * 小红花任务与自动发货解耦，服务重启后仍可从订单记录继续处理。
- */
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/** Schedules red flower requests without occupying a scheduler thread during network calls. */
 @Slf4j
 @Component
 public class RedFlowerTaskScheduler {
 
     private final RedFlowerService redFlowerService;
+    private final AutomationScheduleService automationScheduleService;
+    private final Executor taskExecutor;
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
-    public RedFlowerTaskScheduler(RedFlowerService redFlowerService) {
+    public RedFlowerTaskScheduler(RedFlowerService redFlowerService,
+                                  AutomationScheduleService automationScheduleService,
+                                  @Qualifier("taskExecutor") Executor taskExecutor) {
         this.redFlowerService = redFlowerService;
+        this.automationScheduleService = automationScheduleService;
+        this.taskExecutor = taskExecutor;
     }
 
-    @Scheduled(fixedDelayString = "${app.red-flower.interval-ms:300000}", initialDelayString = "${app.red-flower.initial-delay-ms:90000}")
+    @Scheduled(fixedDelay = 1000, initialDelay = 90000)
     public void processPendingRedFlowers() {
-        try {
-            redFlowerService.processPendingRedFlowers();
-        } catch (Exception e) {
-            log.error("定时求小红花任务执行异常", e);
+        if (!automationScheduleService.tryAcquire(AutomationScheduleService.RED_FLOWER)
+                || !running.compareAndSet(false, true)) {
+            return;
         }
+        taskExecutor.execute(() -> {
+            try {
+                redFlowerService.processPendingRedFlowers();
+            } catch (Exception exception) {
+                log.error("定时求小红花任务执行异常", exception);
+            } finally {
+                running.set(false);
+            }
+        });
     }
 }

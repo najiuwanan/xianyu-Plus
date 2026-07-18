@@ -1,27 +1,45 @@
 package com.xianyusmart.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-/** 每半分钟检查一次到期的每日擦亮计划。 */
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+/** Checks due item-polish plans without blocking the shared scheduler pool. */
 @Slf4j
 @Component
 public class ItemPolishTaskScheduler {
 
     private final ItemPolishService itemPolishService;
+    private final AutomationScheduleService automationScheduleService;
+    private final Executor taskExecutor;
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
-    public ItemPolishTaskScheduler(ItemPolishService itemPolishService) {
+    public ItemPolishTaskScheduler(ItemPolishService itemPolishService,
+                                   AutomationScheduleService automationScheduleService,
+                                   @Qualifier("taskExecutor") Executor taskExecutor) {
         this.itemPolishService = itemPolishService;
+        this.automationScheduleService = automationScheduleService;
+        this.taskExecutor = taskExecutor;
     }
 
-    @Scheduled(fixedDelayString = "${app.item-polish.scan-delay-ms:30000}",
-            initialDelayString = "${app.item-polish.initial-delay-ms:90000}")
+    @Scheduled(fixedDelay = 1000, initialDelay = 90000)
     public void processDueSchedules() {
-        try {
-            itemPolishService.runDueSchedules();
-        } catch (Exception e) {
-            log.error("自动擦亮定时检查异常", e);
+        if (!automationScheduleService.tryAcquire(AutomationScheduleService.ITEM_POLISH)
+                || !running.compareAndSet(false, true)) {
+            return;
         }
+        taskExecutor.execute(() -> {
+            try {
+                itemPolishService.runDueSchedules();
+            } catch (Exception exception) {
+                log.error("自动擦亮定时检查异常", exception);
+            } finally {
+                running.set(false);
+            }
+        });
     }
 }

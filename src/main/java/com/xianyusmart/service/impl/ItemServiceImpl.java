@@ -13,6 +13,7 @@ import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.mapper.XianyuKamiConfigMapper;
 import com.xianyusmart.service.ItemService;
 import com.xianyusmart.utils.XianyuApiUtils;
+import com.xianyusmart.utils.XianyuApiCallUtils;
 import com.xianyusmart.utils.XianyuSignUtils;
 import com.xianyusmart.utils.ItemDetailUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +59,9 @@ public class ItemServiceImpl implements ItemService {
 
     @Autowired
     private XianyuKamiConfigMapper kamiConfigMapper;
+
+    @Autowired
+    private XianyuApiCallUtils xianyuApiCallUtils;
 
     /**
      * 获取指定页的商品信息（内部方法）
@@ -575,7 +579,7 @@ public class ItemServiceImpl implements ItemService {
             log.info("Cookie获取成功，准备调用API: itemId={}", itemId);
             
             // 3. 首选方式：通过闲鱼API获取商品详情
-            String detailJson = fetchDetailFromApi(itemId, cookiesStr);
+            String detailJson = fetchDetailFromApi(itemId, cookiesStr, getAccountIdFromCookieId(cookieId));
             
             if (detailJson != null && !detailJson.isEmpty()) {
                 log.info("通过API获取商品详情成功: itemId={}, 详情长度={}", itemId, detailJson.length());
@@ -607,7 +611,7 @@ public class ItemServiceImpl implements ItemService {
      * @param cookiesStr Cookie字符串
      * @return 商品详情JSON字符串
      */
-    private String fetchDetailFromApi(String itemId, String cookiesStr) {
+    private String fetchDetailFromApi(String itemId, String cookiesStr, Long accountId) {
         try {
             log.info("调用闲鱼API获取商品详情: itemId={}", itemId);
             
@@ -616,11 +620,19 @@ public class ItemServiceImpl implements ItemService {
             dataMap.put("itemId", itemId);
             
             // 调用闲鱼API
-            String response = XianyuApiUtils.callApi(
-                "mtop.taobao.idle.pc.detail",
-                dataMap,
-                cookiesStr
-            );
+            String response;
+            if (accountId != null) {
+                XianyuApiCallUtils.ApiCallResult result = xianyuApiCallUtils.callApiWithRetry(
+                        accountId, "mtop.taobao.idle.pc.detail", dataMap, cookiesStr);
+                if (!result.isSuccess()) {
+                    log.warn("商品详情接口调用失败，已完成自动刷新/重试: itemId={}, error={}",
+                            itemId, result.getErrorMessage());
+                    return null;
+                }
+                response = result.getResponse();
+            } else {
+                response = XianyuApiUtils.callApi("mtop.taobao.idle.pc.detail", dataMap, cookiesStr);
+            }
             
             if (response == null) {
                 log.error("API调用失败：响应为空, itemId={}", itemId);

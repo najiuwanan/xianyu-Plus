@@ -9,6 +9,7 @@ import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.xianyusmart.mapper.XianyuGoodsAutoReplyRecordMapper;
 import com.xianyusmart.service.AutoReplyDelayService;
 import com.xianyusmart.service.AutoReplyService;
+import com.xianyusmart.service.AutomationScheduleService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -66,6 +67,9 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
 
     @Autowired
     private XianyuAccountMapper accountMapper;
+
+    @Autowired
+    private AutomationScheduleService automationScheduleService;
 
     @Autowired
     @Qualifier("taskExecutor")
@@ -247,6 +251,9 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
 
     @Scheduled(fixedDelay = 1000, initialDelay = 5000)
     public void recoverDueTasks() {
+        if (!automationScheduleService.tryAcquire(AutomationScheduleService.DELAYED_REPLY)) {
+            return;
+        }
         for (XianyuGoodsAutoReplyRecord record : autoReplyRecordMapper.findDue(20)) {
             try {
                 List<ChatMessageData> messages = objectMapper.readValue(

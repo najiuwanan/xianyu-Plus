@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import org.springframework.scheduling.TaskScheduler;
@@ -38,7 +39,9 @@ public class DeliveryTaskScheduler {
     private final WebSocketService webSocketService;
     private final Executor taskExecutor;
     private final TaskScheduler taskScheduler;
+    private final AutomationScheduleService automationScheduleService;
     private final String workerId = buildWorkerId();
+    private final AtomicBoolean discoveringOrders = new AtomicBoolean(false);
 
     @Autowired(required = false)
     private AutomationRiskGuardService automationRiskGuardService;
@@ -58,7 +61,8 @@ public class DeliveryTaskScheduler {
                                  PendingOrderPollService pendingOrderPollService,
                                  WebSocketService webSocketService,
                                  @Qualifier("taskExecutor") Executor taskExecutor,
-                                 @Qualifier("taskScheduler") TaskScheduler taskScheduler) {
+                                 @Qualifier("taskScheduler") TaskScheduler taskScheduler,
+                                 AutomationScheduleService automationScheduleService) {
         this.deliveryTaskService = deliveryTaskService;
         this.autoDeliveryService = autoDeliveryService;
         this.orderMapper = orderMapper;
@@ -69,16 +73,34 @@ public class DeliveryTaskScheduler {
         this.webSocketService = webSocketService;
         this.taskExecutor = taskExecutor;
         this.taskScheduler = taskScheduler;
+        this.automationScheduleService = automationScheduleService;
     }
 
-    @Scheduled(fixedDelayString = "${app.delivery.dispatch-delay-ms:1000}", initialDelay = 5000)
+    @Scheduled(fixedDelay = 1000, initialDelay = 5000)
     public void dispatchDueTasks() {
+        if (!automationScheduleService.tryAcquire(AutomationScheduleService.DELIVERY_DISPATCH)) {
+            return;
+        }
         deliveryTaskService.claimDueTasks(workerId, claimBatchSize)
                 .forEach(task -> taskExecutor.execute(() -> executeTask(task)));
     }
 
-    @Scheduled(fixedDelay = 25000, initialDelay = 60000)
+    @Scheduled(fixedDelay = 1000, initialDelay = 60000)
     public void discoverOrdersFromApi() {
+        if (!automationScheduleService.tryAcquire(AutomationScheduleService.ORDER_DISCOVERY)
+                || !discoveringOrders.compareAndSet(false, true)) {
+            return;
+        }
+        taskExecutor.execute(() -> {
+            try {
+                discoverOrders();
+            } finally {
+                discoveringOrders.set(false);
+            }
+        });
+    }
+
+    private void discoverOrders() {
         List<XianyuAccount> accounts = accountMapper.selectList(new LambdaQueryWrapper<XianyuAccount>()
                 .eq(XianyuAccount::getStatus, 1));
         if (accounts == null) {

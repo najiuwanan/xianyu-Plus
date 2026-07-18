@@ -4,90 +4,70 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.mapper.XianyuAccountMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * 自动评价定时任务
- */
+/** Periodically evaluates only managed, recent orders that are truly pending on Xianyu. */
 @Slf4j
 @Component
 public class RateTaskScheduler {
 
-    @Autowired
-    private XianyuAccountMapper accountMapper;
+    private static final int RATE_REQUEST_INTERVAL_SECONDS = 2;
 
-    @Autowired
-    private RateService rateService;
+    private final XianyuAccountMapper accountMapper;
+    private final OrderAutomationService orderAutomationService;
+    private final AutomationRiskGuardService automationRiskGuardService;
+    private final AutomationScheduleService automationScheduleService;
+    private final Executor taskExecutor;
+    private final ConcurrentHashMap<Long, AtomicBoolean> accountRunning = new ConcurrentHashMap<>();
 
-    @Autowired
-    private AutomationRiskGuardService automationRiskGuardService;
+    public RateTaskScheduler(XianyuAccountMapper accountMapper,
+                             OrderAutomationService orderAutomationService,
+                             AutomationRiskGuardService automationRiskGuardService,
+                             AutomationScheduleService automationScheduleService,
+                             @Qualifier("taskExecutor") Executor taskExecutor) {
+        this.accountMapper = accountMapper;
+        this.orderAutomationService = orderAutomationService;
+        this.automationRiskGuardService = automationRiskGuardService;
+        this.automationScheduleService = automationScheduleService;
+        this.taskExecutor = taskExecutor;
+    }
 
-    /**
-     * 默认每两分钟扫描一次。买家确认收货后，闲鱼把订单放入待评价列表即可处理；
-     * 间隔可通过 app.automation.rate-scan-delay-ms 配置调整。
-     */
-    @Scheduled(fixedDelayString = "${app.automation.rate-scan-delay-ms:120000}",
-            initialDelayString = "${app.automation.rate-scan-initial-delay-ms:30000}")
+    /** The lightweight tick is fixed; the in-memory configured interval takes effect immediately. */
+    @Scheduled(fixedDelay = 1000, initialDelay = 30000)
     public void scheduleAutoRate() {
-        log.info("【自动评价任务】开始执行定时扫描...");
-        
-        // 查找所有状态正常且开启了自动评价的账号
-        List<XianyuAccount> accounts = accountMapper.selectList(new QueryWrapper<XianyuAccount>()
-                .eq("status", 1)
-                .eq("auto_rate_enabled", 1));
-
-        if (accounts.isEmpty()) {
-            log.info("【自动评价任务】没有开启自动评价的账号");
+        if (!automationScheduleService.tryAcquire(AutomationScheduleService.AUTO_RATE)) {
             return;
         }
 
+        List<XianyuAccount> accounts = accountMapper.selectList(new QueryWrapper<XianyuAccount>()
+                .eq("status", 1)
+                .eq("auto_rate_enabled", 1));
         for (XianyuAccount account : accounts) {
             if (automationRiskGuardService.isPaused(account.getId())) {
-                log.warn("【自动评价任务】账号 {} 已被自动化保护暂停", account.getId());
                 continue;
             }
-            processAutoRateForAccount(account);
-        }
-        log.info("【自动评价任务】执行完毕。");
-    }
-
-    private void processAutoRateForAccount(XianyuAccount account) {
-        try {
-            Long accountId = account.getId();
-            log.info("【自动评价任务】正在扫描账号 {}", accountId);
-
-            List<Map<String, Object>> pendingList = rateService.getPendingRateList(accountId);
-            if (pendingList == null || pendingList.isEmpty()) {
-                log.info("【自动评价任务】账号 {} 没有待评价订单", accountId);
-                return;
+            AtomicBoolean running = accountRunning.computeIfAbsent(account.getId(), ignored -> new AtomicBoolean(false));
+            if (!running.compareAndSet(false, true)) {
+                log.info("自动评价仍在处理，跳过本轮重复调度：accountId={}", account.getId());
+                continue;
             }
-
-            String feedbackText = StringUtils.hasText(account.getAutoRateText()) 
-                    ? account.getAutoRateText() 
-                    : "不错的买家！";
-
-            for (Map<String, Object> item : pendingList) {
-                if (automationRiskGuardService.isPaused(accountId)) {
-                    log.warn("【自动评价任务】账号 {} 已被自动化保护暂停，停止本轮扫描", accountId);
-                    break;
+            taskExecutor.execute(() -> {
+                try {
+                    orderAutomationService.runScheduledRateForAccount(
+                            account.getId(), RATE_REQUEST_INTERVAL_SECONDS);
+                } catch (Exception exception) {
+                    log.error("自动评价任务执行失败：accountId={}", account.getId(), exception);
+                } finally {
+                    running.set(false);
                 }
-                String tradeId = rateService.extractTradeId(item);
-                if (tradeId != null) {
-                    // 执行评价
-                    rateService.rateBuyer(accountId, tradeId, feedbackText);
-                    // 每次评价间隔 2 秒，防止过快被限制
-                    Thread.sleep(2000);
-                }
-            }
-        } catch (Exception e) {
-            log.error("【自动评价任务】账号 {} 处理失败: {}", account.getId(), e.getMessage());
+            });
         }
     }
-
 }

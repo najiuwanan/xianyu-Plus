@@ -11,6 +11,7 @@ import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.mapper.OrderAutomationRecordMapper;
 import com.xianyusmart.mapper.XianyuAccountMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -23,6 +24,7 @@ import java.util.Set;
 /**
  * 自动评价和小红花的执行记录查询与人工补偿服务。
  */
+@Slf4j
 @Service
 public class OrderAutomationService {
 
@@ -302,6 +304,68 @@ public class OrderAutomationService {
         }
         return new OrderAutomationRetryRespDTO(success, "RATE_CHECK",
                 success ? "平台已完成评价核验：订单已评价或评价成功" : "平台评价失败，失败原因已更新");
+    }
+
+    /**
+     * Scheduled auto-rating entry point.
+     *
+     * <p>Unlike the historic scheduler, this starts from local managed orders and therefore never
+     * turns the complete Xianyu pending-rating list into work. Only recent candidates are compared
+     * with the platform list, then requests are sent one by one with a safe delay.</p>
+     */
+    public void runScheduledRateForAccount(Long accountId, int requestIntervalSeconds) {
+        if (accountId == null) {
+            return;
+        }
+        XianyuAccount account = accountMapper.selectById(accountId);
+        if (account == null || !Integer.valueOf(1).equals(account.getStatus())
+                || !Integer.valueOf(1).equals(account.getAutoRateEnabled())) {
+            return;
+        }
+
+        List<String> candidates = automationRecordMapper.findRateCandidateOrderIds(
+                accountId, BATCH_RATE_LIMIT_PER_ACCOUNT);
+        if (candidates.isEmpty()) {
+            return;
+        }
+
+        RateService.PendingRateListScan scan = rateService.scanPendingRateList(accountId);
+        if (!scan.success()) {
+            log.warn("自动评价待评价列表核验失败，保留到下一轮：accountId={}, reason={}",
+                    accountId, scan.message());
+            return;
+        }
+
+        Set<String> pendingOrderIds = new HashSet<>();
+        for (Map<String, Object> item : scan.items()) {
+            String tradeId = rateService.extractTradeId(item);
+            if (StringUtils.hasText(tradeId)) {
+                pendingOrderIds.add(tradeId);
+            }
+        }
+
+        String feedback = StringUtils.hasText(account.getAutoRateText())
+                ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
+        for (String orderId : candidates) {
+            if (!pendingOrderIds.contains(orderId)) {
+                automationRecordMapper.markRateWaiting(accountId, orderId, RATE_LIST_UNMATCHED_REASON);
+                continue;
+            }
+            rateService.rateBuyer(accountId, orderId, feedback);
+            if (!sleepBetweenRateRequests(requestIntervalSeconds)) {
+                return;
+            }
+        }
+    }
+
+    private boolean sleepBetweenRateRequests(int requestIntervalSeconds) {
+        try {
+            Thread.sleep(Math.max(1, requestIntervalSeconds) * 1000L);
+            return true;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
     }
 
     private void processRateAttempt(OrderAutomationBatchRespDTO result, XianyuAccount account, String orderId) {

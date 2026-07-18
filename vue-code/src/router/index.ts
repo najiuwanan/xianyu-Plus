@@ -80,6 +80,12 @@ const router = createRouter({
       meta: { title: '自动化执行中心', icon: '✨' }
     },
     {
+      path: '/automation-schedule',
+      name: 'automation-schedule',
+      component: () => import('@/views/automation-schedule/index.vue'),
+      meta: { title: '定时任务', icon: '⏱️' }
+    },
+    {
       path: '/exception-center',
       redirect: '/order-automation'
     },
