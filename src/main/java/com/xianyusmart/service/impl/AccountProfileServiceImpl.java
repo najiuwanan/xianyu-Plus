@@ -56,13 +56,14 @@ public class AccountProfileServiceImpl implements AccountProfileService {
         }
 
         try {
-            String response = XianyuApiUtils.callApi(
+            String response = XianyuApiUtils.callApiOnAcsGateway(
                     "mtop.idle.user.page.my.adapter",
                     Collections.emptyMap(),
                     cookieText
             );
             if (!XianyuApiUtils.isSuccess(response)) {
-                log.info("账号头像未刷新：闲鱼资料接口未返回成功，accountId={}", accountId);
+                log.info("账号头像未刷新：闲鱼资料接口未返回成功，accountId={}, reason={}",
+                        accountId, XianyuApiUtils.extractError(response));
                 return account.getAvatarUrl();
             }
 

@@ -20,6 +20,12 @@ public class XianyuApiUtils {
      * 闲鱼API基础URL
      */
     private static final String BASE_URL = "https://h5api.m.goofish.com/h5/";
+
+    /**
+     * 闲鱼“我的”页面等部分 Web 接口使用的网关。
+     * <p>它与通用 H5 网关不是同一个入口，不能直接复用 {@link #BASE_URL}。</p>
+     */
+    private static final String ACS_GATEWAY_BASE_URL = "https://acs.m.goofish.com/gw/";
     
     /**
      * 应用Key
@@ -103,6 +109,19 @@ public class XianyuApiUtils {
      */
     public static String callApi(String apiName, Map<String, Object> dataMap, String cookiesStr,
                                   String spmCnt, String spmPre) {
+        return callApiThroughGateway(apiName, dataMap, cookiesStr, spmCnt, spmPre, BASE_URL);
+    }
+
+    /**
+     * 调用需要通过 acs.m.goofish.com/gw 网关访问的闲鱼 Web API。
+     * <p>例如“我的”页面资料接口；其它业务接口仍应继续使用 {@link #callApi}。</p>
+     */
+    public static String callApiOnAcsGateway(String apiName, Map<String, Object> dataMap, String cookiesStr) {
+        return callApiThroughGateway(apiName, dataMap, cookiesStr, null, null, ACS_GATEWAY_BASE_URL);
+    }
+
+    private static String callApiThroughGateway(String apiName, Map<String, Object> dataMap, String cookiesStr,
+                                                String spmCnt, String spmPre, String gatewayBaseUrl) {
         try {
             // 1. 解析Cookie获取token
             Map<String, String> cookies = XianyuSignUtils.parseCookies(cookiesStr);
@@ -131,7 +150,7 @@ public class XianyuApiUtils {
             }
 
             // 7. 构建完整URL
-            String url = buildUrl(apiName, params);
+            String url = buildGatewayUrl(gatewayBaseUrl, apiName, params, "1.0");
 
             // 8. 构建请求头
             Map<String, String> headers = buildStandardHeaders(cookiesStr);
@@ -308,7 +327,12 @@ public class XianyuApiUtils {
     }
 
     private static String buildUrl(String apiName, Map<String, String> params, String endpointVersion) {
-        StringBuilder url = new StringBuilder(BASE_URL);
+        return buildGatewayUrl(BASE_URL, apiName, params, endpointVersion);
+    }
+
+    private static String buildGatewayUrl(String gatewayBaseUrl, String apiName, Map<String, String> params,
+                                          String endpointVersion) {
+        StringBuilder url = new StringBuilder(gatewayBaseUrl);
         // API名称保持原样，不要替换点号
         url.append(apiName).append("/")
                 .append(endpointVersion == null || endpointVersion.isBlank() ? "1.0" : endpointVersion)

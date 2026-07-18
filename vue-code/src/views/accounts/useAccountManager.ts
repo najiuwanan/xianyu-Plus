@@ -112,7 +112,11 @@ export function useAccountManager() {
     }
   }
 
+  const refreshingAvatarIds = new Set<number>()
+
   const refreshAccountAvatar = async (account: Account) => {
+    if (refreshingAvatarIds.has(account.id)) return
+    refreshingAvatarIds.add(account.id)
     try {
       const response = await refreshAccountAvatarApi({ accountId: account.id })
       if (response.code !== 0 && response.code !== 200) {
@@ -124,6 +128,8 @@ export function useAccountManager() {
       if (!error?.messageShown) {
         showError(error?.message || '暂时无法获取闲鱼头像，已保留文字头像')
       }
+    } finally {
+      refreshingAvatarIds.delete(account.id)
     }
   }
 
