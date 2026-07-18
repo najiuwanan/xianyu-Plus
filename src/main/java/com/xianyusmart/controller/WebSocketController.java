@@ -4,7 +4,6 @@ import com.xianyusmart.common.ResultObject;
 import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.controller.dto.UpdateCookieReqDTO;
 import com.xianyusmart.controller.dto.UpdateCookieRespDTO;
-import com.xianyusmart.service.CaptchaSessionService;
 import com.xianyusmart.service.CookieRefreshService;
 import com.xianyusmart.service.WebSocketService;
 import lombok.Data;
@@ -32,9 +31,6 @@ public class WebSocketController {
     @Autowired
     private CookieRefreshService cookieRefreshService;
 
-    @Autowired
-    private CaptchaSessionService captchaSessionService;
-    
     @Autowired
     private com.xianyusmart.service.SentMessageSaveService sentMessageSaveService;
 
@@ -79,6 +75,12 @@ public class WebSocketController {
             }
             
         } catch (com.xianyusmart.exception.CaptchaRequiredException e) {
+            CaptchaInfoDTO captchaInfo = new CaptchaInfoDTO();
+            captchaInfo.setNeedCaptcha(true);
+            captchaInfo.setCaptchaUrl(null);
+            captchaInfo.setMessage("检测到闲鱼安全验证，请在闲鱼客户端确认账号状态后，在账号管理中使用“凭证更新”重新扫码，再重新连接。");
+            return new ResultObject<>(1001, "需要安全验证", captchaInfo);
+            /*
             log.warn("⚠️ 需要滑块验证: accountId={}, url={}", reqDTO.getXianyuAccountId(), e.getCaptchaUrl());
             CaptchaInfoDTO captchaInfo = new CaptchaInfoDTO();
             captchaInfo.setNeedCaptcha(true);
@@ -92,12 +94,15 @@ public class WebSocketController {
             
             ResultObject<CaptchaInfoDTO> result = new ResultObject<>(1001, "需要滑块验证", captchaInfo);
             return result;
-        } catch (com.xianyusmart.exception.CookieNotFoundException e) {
+        */ } catch (com.xianyusmart.exception.CookieNotFoundException e) {
             log.error("Cookie未找到: accountId={}", reqDTO.getXianyuAccountId());
             return ResultObject.failed("WebSocket连接启动失败：" + e.getMessage());
         } catch (com.xianyusmart.exception.CookieExpiredException e) {
+            return ResultObject.failed("账号凭证已失效或触发安全验证，请在闲鱼客户端确认账号状态后，在账号管理中使用“凭证更新”重新扫码，再重新连接。");
+            /*
             log.error("Cookie已过期: accountId={}", reqDTO.getXianyuAccountId());
             return ResultObject.failed("WebSocket连接启动失败：" + e.getMessage());
+            */
         } catch (com.xianyusmart.exception.TokenInvalidException e) {
             log.error("Token无效: accountId={}", reqDTO.getXianyuAccountId());
             return ResultObject.failed("WebSocket连接启动失败：" + e.getMessage());
@@ -459,6 +464,7 @@ public class WebSocketController {
     /**
      * 创建服务器滑块验证会话
      */
+    /*
     @PostMapping("/captcha/session/start")
     public ResultObject<CaptchaSessionService.CaptchaSessionResult> startCaptchaSession(
             @RequestBody StartCaptchaSessionReqDTO reqDTO) {
@@ -474,7 +480,7 @@ public class WebSocketController {
 
     /**
      * 回放滑块拖动轨迹并同步验证Cookie
-     */
+     * /
     @PostMapping("/captcha/session/drag")
     public ResultObject<CaptchaSessionService.CaptchaSessionResult> replayCaptchaDrag(
             @RequestBody ReplayCaptchaDragReqDTO reqDTO) {
@@ -496,7 +502,7 @@ public class WebSocketController {
 
     /**
      * 刷新同一滑块验证会话的预览图，避免首次截图仍处于页面骨架屏。
-     */
+     * /
     @PostMapping("/captcha/session/preview")
     public ResultObject<CaptchaSessionService.CaptchaSessionResult> refreshCaptchaPreview(
             @RequestBody CloseCaptchaSessionReqDTO reqDTO) {
@@ -512,7 +518,7 @@ public class WebSocketController {
 
     /**
      * 释放服务器滑块验证会话
-     */
+     * /
     @PostMapping("/captcha/session/close")
     public ResultObject<String> closeCaptchaSession(@RequestBody CloseCaptchaSessionReqDTO reqDTO) {
         captchaSessionService.closeSession(reqDTO.getXianyuAccountId(), reqDTO.getSessionId());
@@ -521,7 +527,8 @@ public class WebSocketController {
 
     /**
      * 更新Cookie
-     */
+     * /
+    */
     @PostMapping("/updateCookie")
     public ResultObject<UpdateCookieRespDTO> updateCookie(@RequestBody UpdateCookieReqDTO reqDTO) {
         try {

@@ -15,7 +15,6 @@ import IconCheck from '@/components/icons/IconCheck.vue'
 import IconPackage from '@/components/icons/IconPackage.vue'
 
 import GoodsDetailDialog from '../goods/components/GoodsDetailDialog.vue'
-import CaptchaGuideDialog from '../connection/components/CaptchaGuideDialog.vue'
 import ImageUploader from '@/components/ImageUploader.vue'
 
 const goodsPanelCollapsed = ref(true)
@@ -38,7 +37,6 @@ const {
   fixedMaterialSaving,
   fixedMaterialSyncing,
   fixedMaterialExpanded,
-  captchaGuide,
   chatMessages,
   chatInput,
   chatSending,
@@ -85,7 +83,6 @@ const {
   parseTriggerContext,
   handleSaveFixedMaterial,
   handleSyncDetailToFixedMaterial,
-  handleDetailCaptchaVerified,
   toggleFixedMaterialExpanded,
   keywordRules, newKeyword, newContentText, newContentImage,
   toggleKeywordReply, toggleHumanIntervention, updateHumanInterventionMinutes, handleAddKeyword, handleDeleteRule, handleUpdateKeyword, handleAddContent, handleDeleteContent,
@@ -778,12 +775,6 @@ onMounted(() => {
       :account-id="selectedAccountId"
     />
 
-    <CaptchaGuideDialog
-      v-model="captchaGuide.visible"
-      :account-id="captchaGuide.accountId"
-      :captcha-url="captchaGuide.captchaUrl"
-      @success="handleDetailCaptchaVerified"
-    />
 
     <!-- Records List Dialog -->
     <Transition name="overlay-fade">

@@ -15,14 +15,12 @@ import IconChevronRight from '@/components/icons/IconChevronRight.vue'
 
 import GoodsTable from './components/GoodsTable.vue'
 import GoodsDetail from './components/GoodsDetail.vue'
-import CaptchaGuideDialog from '../connection/components/CaptchaGuideDialog.vue'
 
 const {
   loading,
   refreshing,
   syncing,
   syncProgress,
-  captchaGuide,
   accounts,
   selectedAccountId,
   statusFilter,
@@ -56,8 +54,7 @@ const {
   getGoodsStatusText,
   formatPrice,
   formatTime,
-  syncSingleGoods,
-  handleCaptchaVerified
+  syncSingleGoods
 } = useGoodsManager()
 
 // 下拉刷新相关状态
@@ -441,12 +438,6 @@ const submitBatchUpdate = async () => {
       @refresh="loadGoods"
     />
 
-    <CaptchaGuideDialog
-      v-model="captchaGuide.visible"
-      :account-id="captchaGuide.accountId"
-      :captcha-url="captchaGuide.captchaUrl"
-      @success="handleCaptchaVerified"
-    />
 
     <!-- Delete Confirm -->
     <Transition name="overlay-fade">

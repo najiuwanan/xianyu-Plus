@@ -45,30 +45,7 @@ export function useGoodsManager() {
 
   const syncProgress = ref<SyncProgressResponse | null>(null)
   const syncing = ref(false)
-  const captchaGuide = reactive({
-    visible: false,
-    accountId: 0,
-    captchaUrl: ''
-  })
-  let captchaRetryAction: (() => Promise<void>) | null = null
   let syncProgressTimer: ReturnType<typeof setInterval> | null = null
-
-  const openCaptchaGuide = (captchaUrl: string, retryAction: () => Promise<void>) => {
-    if (!selectedAccountId.value || !captchaUrl) return
-    captchaRetryAction = retryAction
-    captchaGuide.accountId = selectedAccountId.value
-    captchaGuide.captchaUrl = captchaUrl
-    captchaGuide.visible = true
-  }
-
-  const handleCaptchaVerified = async () => {
-    const retryAction = captchaRetryAction
-    captchaRetryAction = null
-    captchaGuide.visible = false
-    if (!retryAction) return
-    showInfo('验证完成，正在重新同步商品详情')
-    await retryAction()
-  }
 
   const stopSyncPolling = () => {
     if (syncProgressTimer) {
@@ -88,14 +65,7 @@ export function useGoodsManager() {
             syncing.value = false
             refreshing.value = false
             if (response.data.verificationRequired) {
-              if (response.data.captchaUrl) {
-                openCaptchaGuide(response.data.captchaUrl, async () => {
-                  await handleRefresh()
-                })
-                showInfo('请在验证窗口完成闲鱼安全验证，完成后会自动重新同步商品详情')
-              } else {
-              showInfo(`商品基础信息已同步；闲鱼要求安全验证，${response.data.deferredCount || 1} 个商品详情将稍后再试`)
-              }
+              showInfo(`商品基础信息已同步；闲鱼要求安全验证，${response.data.deferredCount || 1} 个商品详情暂未补充。请在闲鱼客户端确认账号状态后，在账号管理使用“凭证更新”重新扫码，再重试同步。`)
             } else if (response.data.successCount && response.data.successCount > 0) {
               showSuccess(`详情同步完成: 成功${response.data.successCount}个, 失败${response.data.failedCount}个`)
             } else if (response.data.failedCount > 0) {
@@ -374,20 +344,13 @@ export function useGoodsManager() {
     }
   }
 
-  const syncSingleGoods = async (xyGoodId: string, allowCaptchaGuide = true) => {
+  const syncSingleGoods = async (xyGoodId: string) => {
     if (!selectedAccountId.value) return
     try {
       const response = await syncSingleItem({
         xianyuAccountId: selectedAccountId.value,
         xyGoodsId: xyGoodId
       })
-      if ((response.code === 0 || response.code === 200) && response.data?.verificationRequired && response.data.captchaUrl && allowCaptchaGuide) {
-        openCaptchaGuide(response.data.captchaUrl, async () => {
-          await syncSingleGoods(xyGoodId, false)
-        })
-        showInfo('请在验证窗口完成闲鱼安全验证，完成后会自动重新同步商品详情')
-        return
-      }
       if ((response.code === 0 || response.code === 200) && response.data?.success) {
         showSuccess('同步成功')
         loadGoods()
@@ -405,7 +368,6 @@ export function useGoodsManager() {
     refreshing,
     syncing,
     syncProgress,
-    captchaGuide,
     accounts,
     selectedAccountId,
     statusFilter,
@@ -441,7 +403,6 @@ export function useGoodsManager() {
     getGoodsStatusText,
     formatPrice,
     formatTime,
-    syncSingleGoods,
-    handleCaptchaVerified
+    syncSingleGoods
   }
 }

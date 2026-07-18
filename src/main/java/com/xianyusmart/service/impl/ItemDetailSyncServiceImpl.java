@@ -360,6 +360,10 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         if (result.success()) {
             return buildSingleSyncResult(true, false, "商品详情同步成功");
         }
+        if (result.verificationRequired()) {
+            return buildSingleSyncResult(false, true,
+                    "闲鱼要求安全验证，商品基础信息已同步。请在闲鱼客户端确认账号状态后，在账号管理中使用“凭证更新”重新扫码，再重试商品详情同步。");
+        }
         if (result.verificationRequired() && result.captchaUrl() != null && !result.captchaUrl().isBlank()) {
             return buildSingleSyncResult(false, true,
                     "闲鱼要求安全验证，请在页面中完成验证后自动重试", result.captchaUrl());

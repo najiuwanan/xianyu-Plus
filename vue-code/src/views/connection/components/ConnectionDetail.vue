@@ -8,7 +8,6 @@ import { showSuccess, showError, showInfo } from '@/utils'
 import CredentialModal from './CredentialModal.vue'
 import ManualUpdateCookieModal from './ManualUpdateCookieModal.vue'
 import QRUpdateDialog from './QRUpdateDialog.vue'
-import CaptchaGuideDialog from './CaptchaGuideDialog.vue'
 
 import IconKey from '@/components/icons/IconKey.vue'
 import IconPlay from '@/components/icons/IconPlay.vue'
@@ -46,8 +45,6 @@ let statusInterval: number | null = null
 
 const showManualUpdateCookieDialog = ref(false)
 const showQRUpdateDialog = ref(false)
-const showCaptchaGuideDialog = ref(false)
-const captchaUrl = ref('')
 const showCredentialDialog = ref(false)
 const autoConnectOnStartup = ref(props.autoConnectOnStartup !== 0)
 
@@ -101,8 +98,7 @@ const handleStartConnection = async () => {
       await loadConnectionStatus()
       toast.info('1、请勿使用闲鱼网页版进行消息回复，避免触发风控；2、首次运行可能出现短暂掉线或自动刷新失败，请保持服务持续运行后重试。')
     } else if (response.code === 1001 && response.data?.needCaptcha) {
-      captchaUrl.value = response.data.captchaUrl || ''
-      showCaptchaGuideDialog.value = true
+      showInfo('闲鱼要求安全验证。请在闲鱼客户端确认账号状态后，在“凭证更新”中重新扫码，再重新连接。')
     } else {
       throw new Error(response.msg || '启动连接失败')
     }
@@ -150,10 +146,6 @@ const handleManualUpdateCookieSuccess = async () => {
 }
 
 const handleQRUpdateSuccess = async () => {
-  await loadConnectionStatus()
-}
-
-const handleCaptchaSuccess = async () => {
   await loadConnectionStatus()
 }
 
@@ -293,12 +285,6 @@ onBeforeUnmount(() => {
       v-model="showQRUpdateDialog"
       :account-id="accountId || 0"
       @success="handleQRUpdateSuccess"
-    />
-    <CaptchaGuideDialog
-      v-model="showCaptchaGuideDialog"
-      :account-id="props.accountId || 0"
-      :captcha-url="captchaUrl"
-      @success="handleCaptchaSuccess"
     />
   </div>
 </template>

@@ -79,7 +79,7 @@ public interface EmailNotifyService {
     void sendAutoDeliveryFailEmail(String toEmail, String xyGoodsId, String orderId, String failReason);
 
     /**
-     * 发送风控验证通知邮件（触发滑块验证）
+     * 发送闲鱼安全验证通知邮件
      *
      * @param accountId 闲鱼账号ID
      * @param accountNote 账号备注
