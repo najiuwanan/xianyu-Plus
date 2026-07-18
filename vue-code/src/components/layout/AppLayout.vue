@@ -23,7 +23,6 @@ const pageTitleMap: Record<string, string> = {
   '/auto-delivery': '自动发货',
   '/item-polish': '一键擦亮',
   '/order-automation': '自动化执行中心',
-  '/exception-center': '异常中心',
   '/auto-reply': '自动回复',
   '/operation-log': '操作日志',
   '/runtime-log': '实时日志',

@@ -66,7 +66,7 @@ const deleteRecord = async (record: ItemPolishRecord) => {
   if (!selectedAccountId.value || deletingRecordId.value !== null) return
   try {
     await showConfirm(
-      `确定删除「${record.goodsTitle || '未命名商品'}」的这条擦亮记录吗？删除后，异常中心中的对应记录也会一并移除。`,
+      `确定删除「${record.goodsTitle || '未命名商品'}」的这条擦亮记录吗？删除后，自动化执行中心中的对应待处理记录也会一并移除。`,
       '删除执行记录'
     )
   } catch {

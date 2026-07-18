@@ -55,7 +55,7 @@ export function runItemPolish(accountId: number) {
   })
 }
 
-/** 删除一条擦亮执行记录；对应的异常中心记录会同时消失。 */
+/** 删除一条擦亮执行记录；对应的自动化待处理记录会同时消失。 */
 export function deleteItemPolishRecord(accountId: number, recordId: number) {
   return request<void>({
     url: `/item-polish/records/${recordId}`,

@@ -81,9 +81,7 @@ const router = createRouter({
     },
     {
       path: '/exception-center',
-      name: 'exception-center',
-      component: () => import('@/views/exception-center/index.vue'),
-      meta: { title: '异常中心', icon: '⚠️' }
+      redirect: '/order-automation'
     },
     {
       path: '/kami-config',

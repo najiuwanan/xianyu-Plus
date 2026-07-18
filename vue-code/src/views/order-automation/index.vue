@@ -11,15 +11,25 @@ import {
   type OrderAutomationRecord,
   type OrderAutomationSummary
 } from '@/api/order-automation'
+import {
+  queryExceptionCenter,
+  retryExceptionCenter,
+  type ExceptionCenterRecord,
+  type ExceptionCenterSummary,
+  type ExceptionType
+} from '@/api/exception-center'
 import { showConfirm, showError, showSuccess } from '@/utils'
 import type { Account } from '@/types'
 
 const loading = ref(false)
 const retryingKey = ref('')
+const exceptionRetryingKey = ref('')
 const batchAction = ref<'CHECK' | 'RATE' | 'RED_FLOWER' | ''>('')
 const accounts = ref<Account[]>([])
 const records = ref<OrderAutomationRecord[]>([])
+const exceptionRecords = ref<ExceptionCenterRecord[]>([])
 const total = ref(0)
+const exceptionTotal = ref(0)
 const page = ref(1)
 const pageSize = 20
 const selectedAccountId = ref<number | undefined>()
@@ -33,7 +43,17 @@ const summary = ref<OrderAutomationSummary>({
   redFlowerSuccess: 0
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
+const exceptionSummary = ref<ExceptionCenterSummary>({
+  total: 0,
+  delivery: 0,
+  rate: 0,
+  redFlower: 0,
+  polish: 0,
+  reviewRequired: 0
+})
+
+const displayedTotal = computed(() => selectedStatus.value === 'FAILED' ? exceptionTotal.value : total.value)
+const totalPages = computed(() => Math.max(1, Math.ceil(displayedTotal.value / pageSize)))
 
 const loadAccounts = async () => {
   try {
@@ -49,18 +69,32 @@ const loadAccounts = async () => {
 const loadRecords = async () => {
   loading.value = true
   try {
-    const response = await queryOrderAutomation({
-      accountId: selectedAccountId.value,
-      status: selectedStatus.value,
-      page: page.value,
-      pageSize
-    })
-    if (response.code !== 0 && response.code !== 200) {
-      throw new Error(response.msg || '加载执行记录失败')
+    const [automationResponse, exceptionResponse] = await Promise.all([
+      queryOrderAutomation({
+        accountId: selectedAccountId.value,
+        status: selectedStatus.value,
+        page: page.value,
+        pageSize
+      }),
+      queryExceptionCenter({
+        accountId: selectedAccountId.value,
+        type: 'ALL',
+        page: page.value,
+        pageSize
+      })
+    ])
+    if (automationResponse.code !== 0 && automationResponse.code !== 200) {
+      throw new Error(automationResponse.msg || '加载自动化记录失败')
     }
-    records.value = response.data?.records || []
-    total.value = response.data?.total || 0
-    summary.value = response.data?.summary || summary.value
+    if (exceptionResponse.code !== 0 && exceptionResponse.code !== 200) {
+      throw new Error(exceptionResponse.msg || '加载待处理异常失败')
+    }
+    records.value = automationResponse.data?.records || []
+    total.value = automationResponse.data?.total || 0
+    summary.value = automationResponse.data?.summary || summary.value
+    exceptionRecords.value = exceptionResponse.data?.records || []
+    exceptionTotal.value = exceptionResponse.data?.total || 0
+    exceptionSummary.value = exceptionResponse.data?.summary || exceptionSummary.value
   } catch (error: any) {
     if (!error.messageShown) {
       showError(error.message || '加载执行记录失败')
@@ -103,6 +137,27 @@ const retry = async (record: OrderAutomationRecord, action: AutomationAction) =>
     }
   } finally {
     retryingKey.value = ''
+    loadRecords()
+  }
+}
+
+const exceptionRecordKey = (record: ExceptionCenterRecord) => `${record.type}:${record.accountId}:${record.recordId}`
+
+const retryException = async (record: ExceptionCenterRecord) => {
+  if (!record.retryable) return
+  const key = exceptionRecordKey(record)
+  exceptionRetryingKey.value = key
+  try {
+    const response = await retryExceptionCenter({
+      accountId: record.accountId,
+      type: record.type,
+      recordId: record.recordId
+    })
+    showSuccess(response.data?.message || '已提交重试')
+  } catch (error: any) {
+    if (!error.messageShown) showError(error.message || '重试失败')
+  } finally {
+    exceptionRetryingKey.value = ''
     loadRecords()
   }
 }
@@ -201,6 +256,22 @@ const redFlowerStatusClass = (record: OrderAutomationRecord) => {
 const canRetryRedFlower = (record: OrderAutomationRecord) =>
   record.redFlowerEnabled === 1 && record.confirmState === 1 && record.redFlowerStatus === 2
 
+const exceptionTypeMeta = (type: ExceptionType) => ({
+  DELIVERY: { label: '自动发货', className: 'failure-type--delivery' },
+  RATE: { label: '自动评价', className: 'failure-type--rate' },
+  RED_FLOWER: { label: '小红花', className: 'failure-type--flower' },
+  POLISH: { label: '商品擦亮', className: 'failure-type--polish' },
+  ALL: { label: '待处理异常', className: 'failure-type--all' }
+}[type])
+
+const exceptionOperationName = (record: ExceptionCenterRecord) => {
+  if (!record.retryable && record.status === 'REVIEW_REQUIRED') return '需人工核对'
+  if (record.type === 'DELIVERY') return '重试发货'
+  if (record.type === 'RATE') return '重试评价'
+  if (record.type === 'RED_FLOWER') return '重试小红花'
+  return '重试擦亮'
+}
+
 const formatTime = (value?: string) => {
   if (!value) return '-'
   const date = new Date(value)
@@ -226,7 +297,7 @@ onMounted(async () => {
     <header class="page-header">
       <div>
         <h1>自动化执行中心</h1>
-        <p>与订单管理共享近 30 天的非退款订单；查看自动评价和小红花的执行状态，失败记录可立即补执行。</p>
+        <p>与订单管理共享近 30 天的非退款订单；查看任务进度，并在“待处理异常”中统一重试发货、评价、小红花和擦亮。</p>
       </div>
       <div class="page-actions">
         <button class="refresh-button" :disabled="loading || !!batchAction" @click="loadRecords">
@@ -259,7 +330,7 @@ onMounted(async () => {
       </button>
       <button class="summary-card summary-card--danger" :class="{ 'summary-card--active': selectedStatus === 'FAILED' }" @click="changeFilter('FAILED')">
         <span>需要处理</span>
-        <strong>{{ summary.failed }}</strong>
+        <strong>{{ exceptionSummary.total }}</strong>
       </button>
     </div>
 
@@ -278,7 +349,7 @@ onMounted(async () => {
           { value: 'ALL', label: '全部' },
           { value: 'SUCCESS', label: '已完成' },
           { value: 'PENDING', label: '待执行' },
-          { value: 'FAILED', label: '失败' }
+          { value: 'FAILED', label: '待处理异常' }
         ]" :key="item.value" class="filter-status"
           :class="{ 'filter-status--active': selectedStatus === item.value }"
           @click="changeFilter(item.value as AutomationFilterStatus)">
@@ -288,16 +359,54 @@ onMounted(async () => {
     </div>
 
     <div class="hint">
-      在订单管理点击“同步订单”后，刷新本页即可看到同一批近 30 天订单。小红花只会在确认发货成功后处理；自动评价先查询待评价列表，再由平台评价接口最终核验。只有平台明确提示“订单未完成”才会显示“等待买家确认”。
+      在订单管理点击“同步订单”后，刷新本页即可看到同一批近 30 天订单。小红花只会在确认发货成功后处理；自动评价先查询待评价列表，再由平台评价接口最终核验。失败任务统一在“待处理异常”筛选中处理；等待买家确认、已完成或无需处理的订单不会计入异常。
     </div>
 
     <div class="table-card">
       <div v-if="loading" class="loading-state">正在加载执行记录…</div>
-      <div v-else-if="records.length === 0" class="empty-state">
+      <div v-else-if="selectedStatus === 'FAILED' && exceptionRecords.length === 0" class="empty-state">
+        暂无待处理异常
+      </div>
+      <div v-else-if="selectedStatus !== 'FAILED' && records.length === 0" class="empty-state">
         暂无符合条件的自动化订单记录
       </div>
       <div v-else class="table-scroll">
-        <table>
+        <table v-if="selectedStatus === 'FAILED'" class="failure-table">
+          <thead>
+            <tr>
+              <th>类型</th>
+              <th>对象</th>
+              <th>原因</th>
+              <th>发生时间</th>
+              <th>处理</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="record in exceptionRecords" :key="exceptionRecordKey(record)">
+              <td>
+                <span class="failure-type" :class="exceptionTypeMeta(record.type).className">
+                  {{ exceptionTypeMeta(record.type).label }}
+                </span>
+              </td>
+              <td class="failure-target">
+                <strong>{{ record.goodsTitle || record.orderId || '未命名记录' }}</strong>
+                <small>{{ record.accountName || `账号 ${record.accountId}` }}<template v-if="record.buyerUserName"> · {{ record.buyerUserName }}</template></small>
+                <small v-if="record.orderId">订单号：{{ record.orderId }}</small>
+                <small v-else-if="record.xyGoodsId">商品 ID：{{ record.xyGoodsId }}</small>
+              </td>
+              <td class="failure-reason" :title="record.reason">{{ record.reason || '未返回失败原因' }}</td>
+              <td class="failure-time">{{ formatTime(record.occurredAt) }}</td>
+              <td>
+                <button class="retry-button" :class="{ 'retry-button--disabled': !record.retryable }"
+                  :disabled="!record.retryable || exceptionRetryingKey === exceptionRecordKey(record)"
+                  @click="retryException(record)">
+                  {{ exceptionRetryingKey === exceptionRecordKey(record) ? '处理中…' : exceptionOperationName(record) }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <table v-else>
           <thead>
             <tr>
               <th>订单</th>
@@ -361,7 +470,7 @@ onMounted(async () => {
 
     <footer v-if="totalPages > 1" class="pagination">
       <button :disabled="page <= 1" @click="changePage(page - 1)">上一页</button>
-      <span>第 {{ page }} / {{ totalPages }} 页，共 {{ total }} 条</span>
+      <span>第 {{ page }} / {{ totalPages }} 页，共 {{ displayedTotal }} 条</span>
       <button :disabled="page >= totalPages" @click="changePage(page + 1)">下一页</button>
     </footer>
   </section>
@@ -419,6 +528,18 @@ tbody tr:last-child td { border-bottom:0; }
 .actions { display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:102px; }
 .retry-button { border-color:#fdb022; color:#9a6700; background:#fffaeb; padding:6px 10px; }
 .retry-button:hover:not(:disabled) { background:#fff1c2; }
+.retry-button--disabled { border-color:#e4e7ec; color:#98a2b3; background:#f9fafb; }
+.failure-type { display:inline-flex; border-radius:999px; padding:4px 9px; font-size:12px; font-weight:600; white-space:nowrap; }
+.failure-type--delivery { color:#b42318; background:#fef3f2; }
+.failure-type--rate { color:#b54708; background:#fffaeb; }
+.failure-type--flower { color:#8c5a00; background:#fff7d6; }
+.failure-type--polish { color:#6941c6; background:#f4f3ff; }
+.failure-target { min-width:220px; max-width:310px; }
+.failure-target strong, .failure-target small { display:block; }
+.failure-target strong { color:#1d2939; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.failure-target small { margin-top:5px; color:#667085; font-size:12px; }
+.failure-reason { max-width:340px; color:#b42318; line-height:19px; word-break:break-word; }
+.failure-time { color:#667085; white-space:nowrap; font-size:12px; }
 .muted { color:#98a2b3; font-size:12px; }
 .loading-state, .empty-state { min-height:250px; display:flex; align-items:center; justify-content:center; color:#98a2b3; font-size:14px; }
 .pagination { display:flex; align-items:center; justify-content:center; gap:14px; padding:18px 0; color:#667085; font-size:13px; }

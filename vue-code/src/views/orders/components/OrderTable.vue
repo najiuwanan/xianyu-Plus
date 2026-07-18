@@ -59,9 +59,9 @@ const loadTimeline = async (order: DeliveryRecordItem) => {
   }
 }
 
-const openExceptionCenter = async () => {
+const openAutomationCenter = async () => {
   detailVisible.value = false
-  await router.push('/exception-center')
+  await router.push('/order-automation')
 }
 
 const handleViewDetail = async (order: DeliveryRecordItem, fromServer: boolean = false) => {
@@ -640,7 +640,7 @@ const getConfirmBg = (state: number) => {
                       <p v-if="event.description">{{ event.description }}</p>
                       <div class="order-timeline__meta">
                         <time v-if="event.occurredAt">{{ event.occurredAt }}</time>
-                        <button v-if="event.retryable" type="button" @click="openExceptionCenter">去异常中心处理</button>
+                        <button v-if="event.retryable" type="button" @click="openAutomationCenter">去自动化中心处理</button>
                       </div>
                     </div>
                   </article>
