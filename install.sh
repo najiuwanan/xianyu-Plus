@@ -41,6 +41,7 @@ if [ ! -f .env ]; then
     chmod 600 .env
 fi
 
+export APP_GIT_SHA="$(git rev-parse --verify HEAD 2>/dev/null || echo unknown)"
 docker compose up -d --build
 docker compose ps
 

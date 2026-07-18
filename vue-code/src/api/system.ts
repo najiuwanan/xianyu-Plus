@@ -1,5 +1,16 @@
 import { request } from '@/utils/request'
 
+export interface SystemUpdateStatus {
+  versionTracked: boolean
+  updateAvailable: boolean
+  message: string
+  currentCommit?: string
+  latestCommit?: string
+  latestMessage?: string
+  updateUrl?: string
+  checkedAt?: string
+}
+
 /** 获取当前用户信息 */
 export function getCurrentUser() {
   return request<{ username: string; lastLoginTime: string }>({
@@ -14,6 +25,14 @@ export function changePassword(data: { oldPassword: string; newPassword: string;
     url: '/system/changePassword',
     method: 'post',
     data
+  })
+}
+
+/** 检查当前容器相对于 GitHub main 分支是否有更新。 */
+export function getSystemUpdateStatus(refresh = false) {
+  return request<SystemUpdateStatus>({
+    url: `/system/update-status${refresh ? '?refresh=true' : ''}`,
+    method: 'get'
   })
 }
 

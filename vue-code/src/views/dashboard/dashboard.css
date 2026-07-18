@@ -14,6 +14,19 @@
 .button--primary { border-color: var(--xy-amber); background: var(--xy-amber); color: #192d4d; }
 .button--primary:hover { background: #e8aa00; border-color: #e8aa00; }
 
+.update-notice { min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid #dce7f7; border-radius: 10px; background: #f7fbff; color: #47627f; }
+.update-notice--available { border-color: #efd07a; background: #fffbec; color: #77590a; }
+.update-notice__icon { width: 25px; height: 25px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: #e7f1ff; color: #2672cf; font-size: 14px; font-weight: 800; }
+.update-notice--available .update-notice__icon { background: #fff0bd; color: #a66d00; }
+.update-notice__content { min-width: 0; flex: 1; display: flex; align-items: baseline; gap: 8px; overflow: hidden; font-size: 12px; }
+.update-notice__content strong { flex: 0 0 auto; color: var(--xy-ink); font-size: 13px; }
+.update-notice__content span, .update-notice__content small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.update-notice__content small { color: var(--xy-muted); }
+.update-notice__actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.update-notice__actions a, .update-notice__actions button { min-height: 29px; padding: 0 10px; border: 1px solid #ccd8e7; border-radius: 6px; background: var(--xy-surface); color: #385879; font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.update-notice__actions a { border-color: #e4bd47; background: var(--xy-amber); color: #583f00; }
+.update-notice__actions button:disabled { cursor: not-allowed; opacity: .6; }
+
 .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 0; }
 .metric-card, .dashboard-panel { border: 1px solid var(--xy-border); border-radius: 12px; background: var(--xy-surface); }
 .metric-card { min-height: 112px; display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 13px; padding: 16px 18px; transition: box-shadow .16s ease, transform .16s ease; }
@@ -57,4 +70,4 @@
 .trend-chart__label--hidden { visibility: hidden; }
 
 @media (max-width: 1240px) { .merchant-dashboard { grid-template-rows: auto auto minmax(300px, 1fr); } .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 700px) { .merchant-dashboard__header { align-items: flex-start; flex-direction: column; }.dashboard-header__actions { width: 100%; }.dashboard-header__actions .button { flex: 1; }.metric-grid { grid-template-columns: 1fr; }.metric-card { min-height: 106px; }.todo-table { overflow-x: auto; }.todo-table__head, .todo-row { min-width: 560px; }.panel-heading--chart { align-items: stretch; flex-direction: column; }.chart-actions { width: 100%; align-items: stretch; flex-direction: column; }.trend-period-toggle { align-self: flex-start; }.chart-summary { width: 100%; }.chart-summary span { flex: 1; min-width: 0; }.chart-legend span:last-child { display: none; }.trend-chart { height: 210px; gap: 7px; padding-left: 0; padding-right: 0; }.trend-chart--30 { gap: 2px; }.trend-chart--30 .trend-chart__item strong { visibility: hidden; } }
+@media (max-width: 700px) { .merchant-dashboard__header { align-items: flex-start; flex-direction: column; }.dashboard-header__actions { width: 100%; }.dashboard-header__actions .button { flex: 1; }.update-notice { align-items: flex-start; }.update-notice__content { align-items: flex-start; flex-direction: column; gap: 1px; }.update-notice__content small { display: none; }.update-notice__actions { align-self: center; }.update-notice__actions a { display: none; }.metric-grid { grid-template-columns: 1fr; }.metric-card { min-height: 106px; }.todo-table { overflow-x: auto; }.todo-table__head, .todo-row { min-width: 560px; }.panel-heading--chart { align-items: stretch; flex-direction: column; }.chart-actions { width: 100%; align-items: stretch; flex-direction: column; }.trend-period-toggle { align-self: flex-start; }.chart-summary { width: 100%; }.chart-summary span { flex: 1; min-width: 0; }.chart-legend span:last-child { display: none; }.trend-chart { height: 210px; gap: 7px; padding-left: 0; padding-right: 0; }.trend-chart--30 { gap: 2px; }.trend-chart--30 .trend-chart__item strong { visibility: hidden; } }

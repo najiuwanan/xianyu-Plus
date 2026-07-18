@@ -1,0 +1,157 @@
+package com.xianyusmart.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xianyusmart.controller.dto.SystemUpdateStatusRespDTO;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.regex.Pattern;
+
+/**
+ * 通过 GitHub Compare API 比较当前容器构建提交与 main 分支，避免运行时依赖 git 命令。
+ */
+@Slf4j
+@Service
+public class SystemUpdateService {
+
+    private static final Pattern REPOSITORY_PATTERN = Pattern.compile("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$");
+    private static final Pattern COMMIT_PATTERN = Pattern.compile("^[0-9a-fA-F]{7,64}$");
+
+    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
+
+    @Value("${UPDATE_GITHUB_REPOSITORY:najiuwanan/xianyu-Plus}")
+    private String repository;
+
+    @Value("${APP_GIT_SHA:unknown}")
+    private String currentCommit;
+
+    @Value("${UPDATE_CHECK_CACHE_MINUTES:60}")
+    private long cacheMinutes;
+
+    private volatile SystemUpdateStatusRespDTO cachedStatus;
+    private volatile Instant cachedAt;
+
+    public SystemUpdateService(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(5))
+                .followRedirects(HttpClient.Redirect.NORMAL)
+                .build();
+    }
+
+    public SystemUpdateStatusRespDTO checkStatus(boolean forceRefresh) {
+        SystemUpdateStatusRespDTO cached = cachedStatus;
+        if (!forceRefresh && cached != null && cachedAt != null
+                && cachedAt.plus(Duration.ofMinutes(Math.max(5, cacheMinutes))).isAfter(Instant.now())) {
+            return cached;
+        }
+
+        synchronized (this) {
+            cached = cachedStatus;
+            if (!forceRefresh && cached != null && cachedAt != null
+                    && cachedAt.plus(Duration.ofMinutes(Math.max(5, cacheMinutes))).isAfter(Instant.now())) {
+                return cached;
+            }
+
+            SystemUpdateStatusRespDTO status = fetchStatus();
+            cachedStatus = status;
+            cachedAt = Instant.now();
+            return status;
+        }
+    }
+
+    private SystemUpdateStatusRespDTO fetchStatus() {
+        SystemUpdateStatusRespDTO status = new SystemUpdateStatusRespDTO();
+        status.setCheckedAt(Instant.now().toString());
+        status.setCurrentCommit(shortCommit(currentCommit));
+
+        String normalizedRepository = repository == null ? "" : repository.trim();
+        if (!REPOSITORY_PATTERN.matcher(normalizedRepository).matches()) {
+            status.setMessage("更新仓库配置无效，暂不检查更新");
+            return status;
+        }
+
+        String normalizedCommit = currentCommit == null ? "" : currentCommit.trim();
+        if (!COMMIT_PATTERN.matcher(normalizedCommit).matches()) {
+            status.setMessage("版本检查将在下次通过更新脚本升级后自动启用");
+            status.setUpdateUrl("https://github.com/" + normalizedRepository + "/commits/main");
+            return status;
+        }
+
+        try {
+            String compareUrl = "https://api.github.com/repos/" + normalizedRepository
+                    + "/compare/" + normalizedCommit + "...main";
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(compareUrl))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Accept", "application/vnd.github+json")
+                    .header("User-Agent", "XianYuPlus-Update-Checker")
+                    .GET()
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                log.warn("GitHub 更新检查失败: status={}", response.statusCode());
+                status.setMessage("暂时无法检查 GitHub 更新，将稍后自动重试");
+                status.setUpdateUrl("https://github.com/" + normalizedRepository + "/commits/main");
+                return status;
+            }
+
+            JsonNode root = objectMapper.readTree(response.body());
+            JsonNode headCommit = root.path("head_commit");
+            String compareStatus = root.path("status").asText("");
+            String latestCommit = headCommit.path("sha").asText("");
+            String latestMessage = headCommit.path("commit").path("message").asText("");
+            String updateUrl = root.path("html_url").asText("");
+
+            status.setVersionTracked(true);
+            status.setLatestCommit(shortCommit(latestCommit));
+            status.setLatestMessage(firstLine(latestMessage));
+            status.setUpdateUrl(updateUrl.isBlank()
+                    ? "https://github.com/" + normalizedRepository + "/commits/main"
+                    : updateUrl);
+
+            if ("behind".equals(compareStatus)) {
+                status.setUpdateAvailable(true);
+                int aheadBy = root.path("ahead_by").asInt(0);
+                status.setMessage("发现 GitHub 更新" + (aheadBy > 0 ? "，包含 " + aheadBy + " 个提交" : ""));
+            } else if ("identical".equals(compareStatus)) {
+                status.setMessage("当前已是 GitHub 最新版本");
+            } else if ("ahead".equals(compareStatus)) {
+                status.setMessage("当前版本包含尚未推送的提交");
+            } else if ("diverged".equals(compareStatus)) {
+                status.setMessage("本地版本与 GitHub 主分支存在分叉，请先在服务器检查更新");
+            } else {
+                status.setMessage("当前已完成更新检查");
+            }
+        } catch (Exception e) {
+            log.warn("GitHub 更新检查异常", e);
+            status.setMessage("暂时无法检查 GitHub 更新，将稍后自动重试");
+            status.setUpdateUrl("https://github.com/" + normalizedRepository + "/commits/main");
+        }
+        return status;
+    }
+
+    private String shortCommit(String commit) {
+        if (commit == null || commit.isBlank() || "unknown".equalsIgnoreCase(commit)) {
+            return "";
+        }
+        return commit.substring(0, Math.min(7, commit.length()));
+    }
+
+    private String firstLine(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        String firstLine = value.split("\\R", 2)[0].trim();
+        return firstLine.length() <= 90 ? firstLine : firstLine.substring(0, 90) + "…";
+    }
+}

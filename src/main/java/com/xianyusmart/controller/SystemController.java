@@ -8,9 +8,11 @@ import com.xianyusmart.controller.dto.CurrentUserRespDTO;
 import com.xianyusmart.controller.dto.FetchModelsReqDTO;
 import com.xianyusmart.controller.dto.FetchModelsRespDTO;
 import com.xianyusmart.controller.dto.TestAiReqDTO;
+import com.xianyusmart.controller.dto.SystemUpdateStatusRespDTO;
 import com.xianyusmart.entity.SysUser;
 import com.xianyusmart.exception.BusinessException;
 import com.xianyusmart.service.AuthService;
+import com.xianyusmart.service.SystemUpdateService;
 import com.xianyusmart.service.bo.ChangePasswordReqBO;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +38,9 @@ public class SystemController {
 
     @Autowired
     private AuthService authService;
+
+    @Autowired
+    private SystemUpdateService systemUpdateService;
 
     /**
      * 获取当前用户信息
@@ -98,6 +103,16 @@ public class SystemController {
             log.error("修改密码失败", e);
             return ResultObject.failed("修改密码失败");
         }
+    }
+
+    /**
+     * 返回当前镜像与 GitHub main 分支的提交比较结果。
+     * 检查有缓存，仪表盘频繁打开时不会持续请求 GitHub。
+     */
+    @GetMapping("/update-status")
+    public ResultObject<SystemUpdateStatusRespDTO> getUpdateStatus(
+            @RequestParam(value = "refresh", defaultValue = "false") boolean refresh) {
+        return ResultObject.success(systemUpdateService.checkStatus(refresh));
     }
 
     @PostMapping("/fetchModels")

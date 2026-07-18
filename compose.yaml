@@ -34,6 +34,8 @@ services:
   app:
     build:
       context: .
+      args:
+        APP_GIT_SHA: ${APP_GIT_SHA:-unknown}
     image: ${APP_IMAGE:-xianyusmart:1.0.0}
     restart: unless-stopped
     depends_on:
@@ -51,6 +53,8 @@ services:
       DB_POOL_MIN_IDLE: ${DB_POOL_MIN_IDLE:-2}
       JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=20 -XX:+ExitOnOutOfMemoryError}
       TZ: ${TZ:-Asia/Shanghai}
+      UPDATE_GITHUB_REPOSITORY: ${UPDATE_GITHUB_REPOSITORY:-najiuwanan/xianyu-Plus}
+      UPDATE_CHECK_CACHE_MINUTES: ${UPDATE_CHECK_CACHE_MINUTES:-60}
     ports:
       - "12400:12400"
     logging:

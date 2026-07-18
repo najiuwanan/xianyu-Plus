@@ -42,6 +42,8 @@ RUN --mount=type=cache,target=/root/.m2/repository ./mvnw dependency:build-class
 # 阶段3: 运行时镜像
 FROM eclipse-temurin:21-jre-jammy
 
+ARG APP_GIT_SHA=unknown
+
 LABEL org.opencontainers.image.title="XianYuPlus"
 LABEL org.opencontainers.image.description="单商家私有化闲鱼虚拟商品经营助手"
 LABEL org.opencontainers.image.version="1.0.0"
@@ -75,6 +77,7 @@ EXPOSE 12400
 ENV JAVA_OPTS="-XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=20 -XX:+ExitOnOutOfMemoryError"
 ENV SERVER_PORT=12400
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/ms-playwright
+ENV APP_GIT_SHA=${APP_GIT_SHA}
 
 USER xianyusmart
 
