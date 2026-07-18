@@ -58,6 +58,25 @@ const unreadTotal = computed(() => sessions.value.reduce((total, session) => tot
 
 const selectedSessionTags = computed(() => getSessionTags(selectedSession.value))
 
+const getBuyerDisplayName = (session?: ChatSession | null) => {
+  const buyerName = String(session?.buyerUserName || '').trim()
+  const lastMessage = String(session?.lastMessage || '').trim()
+  if (buyerName && buyerName !== '未知买家' && buyerName !== lastMessage && buyerName.length <= 40) {
+    return buyerName
+  }
+  const buyerId = String(session?.buyerUserId || '').trim()
+  return buyerId ? `买家 ${buyerId}` : '未知买家'
+}
+
+const getMessageSenderName = (message: ChatMessage) => {
+  if (isMine(message)) return '我'
+  const senderName = String(message.senderUserName || '').trim()
+  if (senderName && senderName !== String(message.msgContent || '').trim() && senderName.length <= 40) {
+    return senderName
+  }
+  return getBuyerDisplayName(selectedSession.value)
+}
+
 const filteredSessions = computed(() => {
   const keyword = searchText.value.trim().toLowerCase()
   return sessions.value.filter(session => {
@@ -453,10 +472,10 @@ onBeforeUnmount(() => {
             :class="{ 'session-item--active': selectedSession?.sid === session.sid }"
             @click="selectSession(session)"
           >
-            <div class="session-item__avatar">{{ (session.buyerUserName || '买').slice(0, 1) }}</div>
+            <div class="session-item__avatar">{{ getBuyerDisplayName(session).slice(0, 1) }}</div>
             <div class="session-item__body">
               <div class="session-item__top">
-                <strong>{{ session.buyerUserName || '未知买家' }}</strong>
+                <strong>{{ getBuyerDisplayName(session) }}</strong>
                 <span class="session-item__right">
                   <time>{{ formatTime(session.lastMessageTime) }}</time>
                   <b v-if="Number(session.unreadCount || 0) > 0" class="session-item__unread">{{ session.unreadCount }}</b>
@@ -477,9 +496,9 @@ onBeforeUnmount(() => {
         <template v-if="selectedSession">
           <header class="chat-panel__header">
             <div class="chat-panel__buyer">
-              <div class="chat-panel__avatar">{{ (selectedSession.buyerUserName || '买').slice(0, 1) }}</div>
+              <div class="chat-panel__avatar">{{ getBuyerDisplayName(selectedSession).slice(0, 1) }}</div>
               <div>
-                <h2>{{ selectedSession.buyerUserName || '未知买家' }}</h2>
+                <h2>{{ getBuyerDisplayName(selectedSession) }}</h2>
                 <p>{{ hasActiveTakeover ? `人工接管至 ${formatTakeoverEnd(selectedSession.takeoverEndTime)}` : 'AI 自动回复可按商品设置执行' }}</p>
               </div>
             </div>
@@ -503,7 +522,7 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="chat-message__content">
                   <div class="chat-message__meta">
-                    <span>{{ isMine(message) ? '我' : message.senderUserName || '买家' }}</span>
+                  <span>{{ getMessageSenderName(message) }}</span>
                     <time>{{ formatTime(message.messageTime) }}</time>
                   </div>
                   <img v-if="isImageMessage(message) && getImageUrl(message)" :src="getImageUrl(message)" class="chat-message__image" alt="聊天图片">
@@ -547,7 +566,7 @@ onBeforeUnmount(() => {
           <section>
             <h3>会话信息</h3>
             <dl>
-              <div><dt>买家</dt><dd>{{ selectedSession.buyerUserName || '未知买家' }}</dd></div>
+              <div><dt>买家</dt><dd>{{ getBuyerDisplayName(selectedSession) }}</dd></div>
               <div><dt>买家 ID</dt><dd>{{ buyerUserId || '-' }}</dd></div>
               <div><dt>商品 ID</dt><dd>{{ selectedSession.xyGoodsId || '-' }}</dd></div>
               <div><dt>当前账号</dt><dd>{{ selectedAccount?.accountNote || selectedAccount?.unb || '-' }}</dd></div>
@@ -612,7 +631,7 @@ h1 { font-size:24px; line-height:1.2; }
 .customer-service__refresh-button.is-loading svg { animation:customer-service-spin .72s linear infinite; }
 @keyframes customer-service-spin { to { transform:rotate(360deg); } }
 .customer-service__workspace { min-height:0; flex:1; display:grid; grid-template-columns:280px minmax(360px, 1fr) 260px; overflow:hidden; background:rgba(255,255,255,.9); border:1px solid rgba(60,60,67,.12); border-radius:16px; box-shadow:0 7px 28px rgba(0,0,0,.05); }
-.session-panel, .detail-panel { background:rgba(248,249,251,.75); min-width:0; }
+.session-panel, .chat-panel, .detail-panel { min-height:0; background:rgba(248,249,251,.75); min-width:0; }
 .session-panel { display:flex; flex-direction:column; border-right:1px solid rgba(60,60,67,.1); }
 .session-panel__search { padding:14px 13px 9px; }
 .session-panel__search input { width:100%; height:36px; box-sizing:border-box; border:1px solid rgba(60,60,67,.14); border-radius:9px; background:#fff; padding:0 10px; outline:none; font:inherit; font-size:13px; }
@@ -640,7 +659,7 @@ h1 { font-size:24px; line-height:1.2; }
 .session-item__tag { display:inline-block; max-width:92px; overflow:hidden; padding:1px 6px; border-radius:999px; color:#52606d; background:rgba(60,60,67,.1); font-size:10px; text-overflow:ellipsis; }
 .session-item__tag--manual { color:#b55f00; background:rgba(255,149,0,.14); }
 .session-panel__empty, .chat-panel__placeholder, .detail-panel__empty { padding:32px 16px; color:rgba(28,28,30,.45); font-size:13px; text-align:center; }
-.chat-panel { min-width:0; display:flex; flex-direction:column; background:linear-gradient(180deg, #fff 0%, #f7f9fc 100%); }
+.chat-panel { display:flex; flex-direction:column; background:linear-gradient(180deg, #fff 0%, #f7f9fc 100%); }
 .chat-panel__header { display:flex; min-height:66px; padding:0 20px; align-items:center; justify-content:space-between; gap:12px; border-bottom:1px solid rgba(60,60,67,.1); }
 .chat-panel__buyer { gap:10px; min-width:0; }
 .chat-panel__avatar { width:38px; height:38px; }
@@ -648,7 +667,7 @@ h1 { font-size:24px; line-height:1.2; }
 .chat-panel__buyer p { margin-top:3px; color:rgba(28,28,30,.5); font-size:12px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
 .chat-panel__state { flex-shrink:0; padding:4px 9px; border-radius:999px; background:rgba(48,209,88,.14); color:#16813a; font-size:12px; }
 .chat-panel__state--manual { background:rgba(255,149,0,.14); color:#b55f00; }
-.chat-panel__messages { flex:1; overflow-y:auto; padding:22px; }
+.chat-panel__messages { min-height:0; flex:1; overflow-y:auto; padding:22px; }
 .chat-panel__loading, .chat-panel__empty { height:100%; display:grid; place-items:center; color:rgba(28,28,30,.48); font-size:13px; }
 .chat-message { display:flex; align-items:flex-end; gap:8px; margin-bottom:16px; }
 .chat-message--mine { flex-direction:row-reverse; }
@@ -663,7 +682,7 @@ h1 { font-size:24px; line-height:1.2; }
 .chat-message--mine .chat-message__content p { border-radius:13px 13px 3px 13px; background:#dff5e5; }
 .chat-message--system .chat-message__content p { border-radius:999px; background:rgba(60,60,67,.08); box-shadow:none; color:rgba(28,28,30,.55); font-size:11px; }
 .chat-message__image { display:block; max-width:240px; max-height:200px; border-radius:10px; object-fit:cover; }
-.chat-panel__composer { padding:11px 14px; border-top:1px solid rgba(60,60,67,.1); background:#fff; }
+.chat-panel__composer { flex-shrink:0; padding:11px 14px; border-top:1px solid rgba(60,60,67,.1); background:#fff; }
 .chat-panel__uploader { margin-bottom:8px; }
 .chat-panel__composer-row { align-items:stretch; gap:9px; }
 .chat-panel__composer textarea { min-width:0; flex:1; resize:none; border:1px solid rgba(60,60,67,.16); border-radius:10px; padding:8px 10px; font:inherit; font-size:13px; outline:none; }

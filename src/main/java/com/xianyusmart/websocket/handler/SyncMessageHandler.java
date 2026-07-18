@@ -232,21 +232,10 @@ public class SyncMessageHandler extends AbstractLwpHandler {
                 
                 // 提取各个字段
                 message.setMsgContent(extractString(field10Map, "reminderContent"));
-                String reminderTitle = extractString(field10Map, "reminderTitle");
                 String reminderContent = extractString(field10Map, "reminderContent");
-                String senderUserName = reminderTitle;
-                if (reminderContent != null && !reminderContent.isEmpty()) {
-                    int nameEnd = reminderContent.indexOf(" 向你发送了一条新消息");
-                    if (nameEnd > 0) {
-                        senderUserName = reminderContent.substring(0, nameEnd);
-                    } else {
-                        nameEnd = reminderContent.indexOf(" ：");
-                        if (nameEnd > 0 && nameEnd < 20) {
-                            senderUserName = reminderContent.substring(0, nameEnd);
-                        }
-                    }
-                }
-                message.setSenderUserName(senderUserName);
+                // reminderTitle 在部分消息类型中是消息正文（例如“我完成了评价”），不是买家昵称。
+                // 只使用协议中的昵称字段或明确的“昵称 向你发送了一条新消息”通知格式，避免把正文展示成买家名。
+                message.setSenderUserName(extractSenderNickname(field10Map, messageInfo, reminderContent));
                 message.setSenderUserId(extractString(field10Map, "senderUserId"));
                 
                 // 提取reminderUrl并解析商品ID
@@ -564,6 +553,77 @@ public class SyncMessageHandler extends AbstractLwpHandler {
     private String extractString(Map<String, Object> map, String key) {
         Object value = map.get(key);
         return value != null ? value.toString() : null;
+    }
+
+    /**
+     * 从闲鱼同步消息中读取买家昵称。不同端的字段名称不完全一致，因此先检查常见字段，
+     * 再在嵌套数据中查找；没有可靠昵称时返回空，前端会回退为“买家 + ID”。
+     */
+    private String extractSenderNickname(Map<String, Object> reminderData,
+                                         Map<String, Object> messageData,
+                                         String messageContent) {
+        String nickname = findNickname(reminderData, messageContent, 0);
+        if (nickname != null) {
+            return nickname;
+        }
+        nickname = findNickname(messageData, messageContent, 0);
+        if (nickname != null) {
+            return nickname;
+        }
+
+        // 这一种通知文本的前缀由闲鱼生成，前缀可确认是发送者昵称。
+        if (messageContent != null) {
+            int nameEnd = messageContent.indexOf(" 向你发送了一条新消息");
+            if (nameEnd > 0) {
+                return normalizeNickname(messageContent.substring(0, nameEnd), messageContent);
+            }
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private String findNickname(Object source, String messageContent, int depth) {
+        if (!(source instanceof Map) || depth > 3) {
+            return null;
+        }
+        Map<String, Object> data = (Map<String, Object>) source;
+        for (Map.Entry<String, Object> entry : data.entrySet()) {
+            String key = entry.getKey() == null ? "" : entry.getKey().replace("_", "").toLowerCase();
+            Object value = entry.getValue();
+            if (isNicknameKey(key) && value instanceof String) {
+                String nickname = normalizeNickname((String) value, messageContent);
+                if (nickname != null) {
+                    return nickname;
+                }
+            }
+        }
+        for (Object value : data.values()) {
+            String nickname = findNickname(value, messageContent, depth + 1);
+            if (nickname != null) {
+                return nickname;
+            }
+        }
+        return null;
+    }
+
+    private boolean isNicknameKey(String key) {
+        return "sendernick".equals(key) || "sendernickname".equals(key)
+                || "senderusername".equals(key) || "sendername".equals(key)
+                || "usernick".equals(key) || "usernickname".equals(key)
+                || "username".equals(key) || "nickname".equals(key)
+                || "displayname".equals(key);
+    }
+
+    private String normalizeNickname(String candidate, String messageContent) {
+        if (candidate == null) {
+            return null;
+        }
+        String nickname = candidate.trim();
+        if (nickname.isEmpty() || nickname.length() > 40 || nickname.contains("\n") || nickname.contains("\r")
+                || nickname.startsWith("{") || nickname.equals(messageContent == null ? "" : messageContent.trim())) {
+            return null;
+        }
+        return nickname;
     }
     
     /**

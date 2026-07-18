@@ -155,7 +155,7 @@ public interface XianyuChatMessageMapper {
      */
     @Select("<script>" +
             "SELECT m.s_id AS sid, " +
-            "COALESCE(NULLIF(b.sender_user_name, ''), NULLIF(m.sender_user_name, ''), '未知买家') AS buyer_user_name, " +
+            "COALESCE(NULLIF(n.sender_user_name, ''), '未知买家') AS buyer_user_name, " +
             "COALESCE(NULLIF(b.sender_user_id, ''), NULLIF(m.sender_user_id, '')) AS buyer_user_id, " +
             "m.xy_goods_id AS xy_goods_id, m.msg_content AS last_message, " +
             "m.message_time AS last_message_time, m.content_type AS last_content_type, " +
@@ -164,7 +164,8 @@ public interface XianyuChatMessageMapper {
             "WHERE u.xianyu_account_id = m.xianyu_account_id AND u.s_id = m.s_id " +
             "AND u.id > COALESCE(r.last_read_message_id, 0) " +
             "AND u.sender_user_id IS NOT NULL AND u.sender_user_id != '' " +
-            "AND u.sender_user_id != #{sellerUserId}), 0) AS unread_count, " +
+            "AND u.sender_user_id != #{sellerUserId} " +
+            "AND (u.content_type IS NULL OR u.content_type NOT IN (999, 997, 888, 887))), 0) AS unread_count, " +
             "(SELECT GROUP_CONCAT(t.tag_name ORDER BY t.tag_name SEPARATOR ',') " +
             "FROM xianyu_chat_buyer_tag t WHERE t.xianyu_account_id = m.xianyu_account_id " +
             "AND t.buyer_user_id = COALESCE(NULLIF(b.sender_user_id, ''), NULLIF(m.sender_user_id, ''))) " +
@@ -179,7 +180,17 @@ public interface XianyuChatMessageMapper {
             "WHERE b2.xianyu_account_id = m.xianyu_account_id AND b2.s_id = m.s_id " +
             "AND b2.sender_user_id IS NOT NULL AND b2.sender_user_id != '' " +
             "AND b2.sender_user_id != #{sellerUserId} " +
+            "AND (b2.content_type IS NULL OR b2.content_type NOT IN (999, 997, 888, 887)) " +
             "ORDER BY b2.message_time DESC, b2.id DESC LIMIT 1) " +
+            "LEFT JOIN xianyu_chat_message n ON n.id = (" +
+            "SELECT n2.id FROM xianyu_chat_message n2 " +
+            "WHERE n2.xianyu_account_id = m.xianyu_account_id AND n2.s_id = m.s_id " +
+            "AND n2.sender_user_id IS NOT NULL AND n2.sender_user_id != '' " +
+            "AND n2.sender_user_id != #{sellerUserId} " +
+            "AND (n2.content_type IS NULL OR n2.content_type NOT IN (999, 997, 888, 887)) " +
+            "AND n2.sender_user_name IS NOT NULL AND n2.sender_user_name != '' " +
+            "AND n2.sender_user_name != n2.msg_content " +
+            "ORDER BY n2.message_time DESC, n2.id DESC LIMIT 1) " +
             "WHERE m.xianyu_account_id = #{accountId} AND m.s_id IS NOT NULL AND m.s_id != '' " +
             "AND m.id = (SELECT l.id FROM xianyu_chat_message l " +
             "WHERE l.xianyu_account_id = m.xianyu_account_id AND l.s_id = m.s_id " +
@@ -201,6 +212,7 @@ public interface XianyuChatMessageMapper {
             "WHERE m.s_id IS NOT NULL AND m.s_id <> '' " +
             "AND m.sender_user_id IS NOT NULL AND m.sender_user_id <> '' " +
             "AND m.sender_user_id <> a.unb " +
+            "AND (m.content_type IS NULL OR m.content_type NOT IN (999, 997, 888, 887)) " +
             "AND m.id > COALESCE(r.last_read_message_id, 0) " +
             "GROUP BY m.xianyu_account_id")
     List<DashboardUnreadCountDTO> countUnreadMessagesByAccount();
