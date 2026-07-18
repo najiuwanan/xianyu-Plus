@@ -47,7 +47,7 @@ class RedFlowerServiceTest {
         when(accountMapper.selectList(any())).thenReturn(List.of(account));
         when(accountMapper.selectById(7L)).thenReturn(account);
         when(accountService.getCookieByAccountId(7L)).thenReturn("_m_h5_tk=token_123");
-        when(automationRecordMapper.findRedFlowerCandidates(7L, 10, 50)).thenReturn(List.of(order));
+        when(automationRecordMapper.findRedFlowerCandidates(7L, 30, 50)).thenReturn(List.of(order));
         when(xianyuApiCallUtils.callApiWithRetry(eq(7L),
                 eq("mtop.taobao.idlemessage.red.flower"), anyMap(), any(), eq("1.0"), anyMap(), anyMap()))
                 .thenReturn(new XianyuApiCallUtils.ApiCallResult(true, "{}", null, false));
@@ -76,7 +76,7 @@ class RedFlowerServiceTest {
 
         when(accountMapper.selectList(any())).thenReturn(List.of(account));
         when(accountMapper.selectById(7L)).thenReturn(account);
-        when(automationRecordMapper.findRedFlowerCandidates(7L, 10, 50)).thenReturn(List.of(order));
+        when(automationRecordMapper.findRedFlowerCandidates(7L, 30, 50)).thenReturn(List.of(order));
         when(accountService.getCookieByAccountId(7L)).thenReturn(null);
 
         new RedFlowerService(accountMapper, accountService, automationRecordMapper, xianyuApiCallUtils)
