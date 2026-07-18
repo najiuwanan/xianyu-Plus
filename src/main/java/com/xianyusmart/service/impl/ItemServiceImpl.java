@@ -675,12 +675,12 @@ public class ItemServiceImpl implements ItemService {
             List<XianyuGoodsSku> skuList = ItemDetailUtils.extractSkuList(detailJson);
             if (!skuList.isEmpty()) {
                 XianyuGoodsInfo goodsInfo = goodsInfoService.getByXyGoodId(itemId);
-                Long accountId = goodsInfo != null ? goodsInfo.getXianyuAccountId() : null;
-                goodsSkuService.saveSkus(itemId, accountId, skuList);
+                Long skuAccountId = goodsInfo != null ? goodsInfo.getXianyuAccountId() : accountId;
+                goodsSkuService.saveSkus(itemId, skuAccountId, skuList);
                 goodsInfoService.updateSkuCount(itemId, skuList.size());
                 List<XianyuGoodsSkuProperty> propertyList = ItemDetailUtils.extractSkuPropertyList(detailJson);
                 if (!propertyList.isEmpty()) {
-                    goodsSkuPropertyService.saveProperties(itemId, accountId, propertyList);
+                    goodsSkuPropertyService.saveProperties(itemId, skuAccountId, propertyList);
                 }
             }
             
