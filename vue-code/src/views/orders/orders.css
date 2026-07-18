@@ -700,11 +700,57 @@
 .orders__pagination {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
   gap: var(--d-space-2);
   padding: var(--d-space-3) var(--d-space-4);
   border-top: 1px solid var(--d-border);
   flex-shrink: 0;
+}
+
+.orders__pagination-summary,
+.orders__pagination-controls,
+.orders__page-buttons,
+.orders__page-size {
+  display: flex;
+  align-items: center;
+}
+
+.orders__pagination-summary {
+  gap: 10px;
+  color: #5f6f86;
+  font-size: 12px;
+  font-weight: 550;
+}
+
+.orders__pagination-summary span + span {
+  padding-left: 10px;
+  border-left: 1px solid #dfe6ee;
+  color: #8390a2;
+  font-weight: 500;
+}
+
+.orders__pagination-controls { gap: 12px; }
+.orders__page-buttons { gap: var(--d-space-2); }
+
+.orders__page-size { gap: 7px; color: #6c7a8d; font-size: 12px; }
+
+.orders__page-size select {
+  height: 32px;
+  min-width: 74px;
+  padding: 0 26px 0 10px;
+  color: #31445f;
+  font: inherit;
+  font-weight: 600;
+  background: #fff;
+  border: 1px solid #d7e1ed;
+  border-radius: 9px;
+  cursor: pointer;
+  outline: none;
+}
+
+.orders__page-size select:focus {
+  border-color: #2e90fa;
+  box-shadow: 0 0 0 3px rgba(46, 144, 250, .12);
 }
 
 .orders__page-btn {
@@ -1017,9 +1063,13 @@
 
   .orders__count { font-size: 12px; }
 
-  .orders__pagination { padding: 8px 12px; gap: 4px; }
+  .orders__pagination { padding: 10px 12px; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .orders__pagination-summary,
+  .orders__pagination-controls { justify-content: center; }
+  .orders__pagination-controls { gap: 8px; }
+  .orders__page-buttons { gap: 4px; }
   .orders__page-btn { min-width: 32px; height: 32px; font-size: 12px; border-radius: 8px; }
-  .orders__page-info { font-size: 11px; }
+  .orders__page-size select { height: 30px; min-width: 68px; }
 }
 
 /* Small phone (< 480px) */

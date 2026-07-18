@@ -29,6 +29,7 @@ const {
   handleAccountChange,
   handleReset,
   handlePageChange,
+  handleSizeChange,
   copySId,
   handleConfirmShipment,
   handleRuleDelivery
@@ -130,6 +131,11 @@ const getPageButtons = () => {
   return buttons
 }
 
+const changePageSize = (event: Event) => {
+  const size = Number((event.target as HTMLSelectElement).value)
+  if ([20, 50, 100].includes(size)) handleSizeChange(size)
+}
+
 const openConfirmDialog = (order: any) => {
   confirmTargetOrder.value = order
   showConfirmDialog.value = true
@@ -203,13 +209,28 @@ const executeRuleDelivery = async () => {
             @refresh="loadOrders"
           />
         </div>
-        <div v-if="totalPages > 1" class="orders__pagination">
-          <button class="orders__page-btn" :class="{ 'orders__page-btn--disabled': queryParams.pageNum! <= 1 }" @click="handlePageChange(queryParams.pageNum! - 1)"><IconChevronLeft /></button>
-          <template v-for="page in getPageButtons()" :key="page">
-            <button class="orders__page-btn" :class="{ 'orders__page-btn--active': page === queryParams.pageNum }" @click="handlePageChange(page)">{{ page }}</button>
-          </template>
-          <button class="orders__page-btn" :class="{ 'orders__page-btn--disabled': queryParams.pageNum! >= totalPages }" @click="handlePageChange(queryParams.pageNum! + 1)"><IconChevronRight /></button>
-          <span class="orders__page-info">{{ queryParams.pageNum }} / {{ totalPages }}</span>
+        <div v-if="total > 0" class="orders__pagination">
+          <div class="orders__pagination-summary">
+            <span>共 {{ total }} 条订单</span>
+            <span>第 {{ queryParams.pageNum }} / {{ totalPages || 1 }} 页</span>
+          </div>
+          <div class="orders__pagination-controls">
+            <label class="orders__page-size">
+              <span>每页</span>
+              <select :value="queryParams.pageSize" @change="changePageSize">
+                <option :value="20">20 条</option>
+                <option :value="50">50 条</option>
+                <option :value="100">100 条</option>
+              </select>
+            </label>
+            <div v-if="totalPages > 1" class="orders__page-buttons">
+              <button class="orders__page-btn" :class="{ 'orders__page-btn--disabled': queryParams.pageNum! <= 1 }" @click="handlePageChange(queryParams.pageNum! - 1)"><IconChevronLeft /></button>
+              <template v-for="page in getPageButtons()" :key="page">
+                <button class="orders__page-btn" :class="{ 'orders__page-btn--active': page === queryParams.pageNum }" @click="handlePageChange(page)">{{ page }}</button>
+              </template>
+              <button class="orders__page-btn" :class="{ 'orders__page-btn--disabled': queryParams.pageNum! >= totalPages }" @click="handlePageChange(queryParams.pageNum! + 1)"><IconChevronRight /></button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
