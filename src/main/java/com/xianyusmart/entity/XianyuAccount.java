@@ -2,6 +2,7 @@ package com.xianyusmart.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
@@ -32,6 +33,14 @@ public class XianyuAccount {
 
     /** 闲鱼账号头像地址；无法获取时前端使用文字头像兜底 */
     private String avatarUrl;
+
+    /** 账号级自动擦亮状态，仅用于账号列表展示，不写入 xianyu_account 表。 */
+    @TableField(exist = false)
+    private Integer itemPolishEnabled;
+
+    /** 自动擦亮每日计划时间，仅用于账号列表展示。 */
+    @TableField(exist = false)
+    private String itemPolishScheduleTime;
     
     /**
      * 设备ID（UUID格式-用户ID，用于WebSocket连接）

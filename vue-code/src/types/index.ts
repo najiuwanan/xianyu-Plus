@@ -19,6 +19,8 @@ export interface Account {
   autoRateText?: string
   autoAskFlower?: number
   autoAskFlowerText?: string
+  itemPolishEnabled?: number
+  itemPolishScheduleTime?: string
   autoConnectOnStartup?: number
   automationRiskPaused?: number
   automationRiskPauseReason?: string

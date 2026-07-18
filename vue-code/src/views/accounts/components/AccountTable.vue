@@ -108,6 +108,10 @@ const getStatusDescription = (status: number) => {
 const isEnabled = (value?: number) => value === 1
 const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
 const canToggleEnabled = (account: Account) => account.status === 1 || account.status === 0
+const getItemPolishStatus = (account: Account) => {
+  if (!isEnabled(account.itemPolishEnabled)) return '关闭'
+  return account.itemPolishScheduleTime ? `开启 · ${account.itemPolishScheduleTime}` : '开启'
+}
 const canShowAvatar = (account: Account) => Boolean(account.avatarUrl) && !failedAvatarIds.value.has(account.id)
 
 const hideAvatar = (accountId: number) => {
@@ -181,6 +185,9 @@ const refreshAvatar = (account: Account) => {
           </span>
           <span class="automation-chip" :class="{ 'automation-chip--on': isEnabled(account.autoAskFlower) }">
             自动求花 {{ isEnabled(account.autoAskFlower) ? '已开启' : '已关闭' }}
+          </span>
+          <span class="automation-chip" :class="{ 'automation-chip--on': isEnabled(account.itemPolishEnabled) }">
+            每日擦亮 {{ getItemPolishStatus(account) }}
           </span>
           <span v-if="isRiskPaused(account)" class="automation-chip automation-chip--risk" :title="account.automationRiskPauseReason">
             自动化已保护暂停
@@ -265,6 +272,7 @@ const refreshAvatar = (account: Account) => {
             <div class="account-overview-card__automation-items">
               <span :class="{ 'account-overview-card__automation-item--on': isEnabled(account.autoRateEnabled) }">评价 <b>{{ isEnabled(account.autoRateEnabled) ? '开启' : '关闭' }}</b></span>
               <span :class="{ 'account-overview-card__automation-item--on': isEnabled(account.autoAskFlower) }">小红花 <b>{{ isEnabled(account.autoAskFlower) ? '开启' : '关闭' }}</b></span>
+              <span :class="{ 'account-overview-card__automation-item--on': isEnabled(account.itemPolishEnabled) }">擦亮 <b>{{ getItemPolishStatus(account) }}</b></span>
             </div>
             <small v-if="isRiskPaused(account)" class="account-overview-card__risk" :title="account.automationRiskPauseReason">自动化已保护暂停</small>
           </section>

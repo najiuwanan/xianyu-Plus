@@ -2,7 +2,9 @@ package com.xianyusmart.controller;
 
 import com.xianyusmart.common.ResultObject;
 import com.xianyusmart.entity.XianyuAccount;
+import com.xianyusmart.entity.XianyuItemPolishConfig;
 import com.xianyusmart.mapper.XianyuAccountMapper;
+import com.xianyusmart.mapper.XianyuItemPolishConfigMapper;
 import com.xianyusmart.controller.dto.AccountReqDTO;
 import com.xianyusmart.controller.dto.AddAccountRespDTO;
 import com.xianyusmart.controller.dto.DeleteAccountReqDTO;
@@ -24,6 +26,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * 账号管理控制器
@@ -35,6 +39,9 @@ public class AccountController {
 
     @Autowired
     private XianyuAccountMapper accountMapper;
+
+    @Autowired
+    private XianyuItemPolishConfigMapper itemPolishConfigMapper;
     
     @Autowired
     private AccountService accountService;
@@ -61,6 +68,17 @@ public class AccountController {
     public ResultObject<GetAccountListRespDTO> getAccountList() {
         try {
             List<XianyuAccount> accounts = accountMapper.selectList(null);
+            Map<Long, XianyuItemPolishConfig> polishConfigs = new HashMap<>();
+            for (XianyuItemPolishConfig config : itemPolishConfigMapper.selectList(null)) {
+                if (config.getXianyuAccountId() != null) {
+                    polishConfigs.put(config.getXianyuAccountId(), config);
+                }
+            }
+            for (XianyuAccount account : accounts) {
+                XianyuItemPolishConfig config = polishConfigs.get(account.getId());
+                account.setItemPolishEnabled(config == null || config.getEnabled() == null ? 0 : config.getEnabled());
+                account.setItemPolishScheduleTime(config == null ? null : config.getScheduleTime());
+            }
             GetAccountListRespDTO respDTO = new GetAccountListRespDTO();
             respDTO.setAccounts(accounts);
             return ResultObject.success(respDTO);
