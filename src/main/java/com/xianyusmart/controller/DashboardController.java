@@ -128,7 +128,7 @@ public class DashboardController {
         try {
             return orderMapper.selectRecentDeliveryTrend();
         } catch (Exception e) {
-            log.warn("读取仪表盘近七日交付趋势失败，将暂不展示趋势", e);
+            log.warn("读取仪表盘近三十日交付趋势失败，将暂不展示趋势", e);
             return List.of();
         }
     }

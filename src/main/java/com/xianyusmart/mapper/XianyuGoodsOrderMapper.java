@@ -58,12 +58,12 @@ public interface XianyuGoodsOrderMapper {
             """)
     DashboardStatsRespDTO selectDashboardStats();
 
-    /** 近七天已成功交付订单与金额，用于运营首页趋势图。 */
+    /** 近三十天已成功交付订单与金额，用于运营首页 7/30 日趋势图。 */
     @Select("SELECT DATE_FORMAT(DATE(" + ORDER_TIME_SQL + "), '%Y-%m-%d') AS date_key, " +
             "COUNT(*) AS order_count, " +
             "COALESCE(SUM(CAST(total_price AS DECIMAL(12, 2))), 0) AS revenue " +
             "FROM xianyu_goods_order r " +
-            "WHERE state = 1 AND " + ORDER_TIME_SQL + " >= DATE_SUB(CURRENT_DATE, INTERVAL 6 DAY) " +
+            "WHERE state = 1 AND " + ORDER_TIME_SQL + " >= DATE_SUB(CURRENT_DATE, INTERVAL 29 DAY) " +
             "GROUP BY date_key " +
             "ORDER BY date_key ASC")
     List<DashboardTrendPointDTO> selectRecentDeliveryTrend();
