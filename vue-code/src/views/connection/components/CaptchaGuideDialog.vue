@@ -31,15 +31,19 @@ const loading = ref(false);
 const submitting = ref(false);
 const previewReady = ref(false);
 const previewRefreshing = ref(false);
-const dragFeedback = ref({ visible: false, left: 0, top: 0, distance: 0 });
+const dragFeedback = ref({ visible: false, left: 0, top: 0, startLeft: 0, startTop: 0, distance: 0 });
 let dragging = false;
 let dragPoints: CaptchaDragPoint[] = [];
 let lastPointTime = 0;
 let requestSequence = 0;
 let previewTimer: ReturnType<typeof setTimeout> | undefined;
 let dragStartClientX = 0;
+let dragStartClientY = 0;
 const MIN_HORIZONTAL_DRAG_DISTANCE = 36;
 const AUTO_PREVIEW_REFRESH_COUNT = 2;
+const MAX_DRAG_POINTS = 72;
+const MIN_POINT_DISTANCE = 4;
+const MIN_POINT_INTERVAL_MS = 14;
 
 const getErrorMessage = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback;
 
@@ -51,7 +55,7 @@ const clearPreviewTimer = () => {
 };
 
 const resetDragFeedback = () => {
-  dragFeedback.value = { visible: false, left: 0, top: 0, distance: 0 };
+  dragFeedback.value = { visible: false, left: 0, top: 0, startLeft: 0, startTop: 0, distance: 0 };
 };
 
 const releaseSession = () => {
@@ -81,6 +85,9 @@ const loadCaptchaSession = async () => {
     if ((response.code === 0 || response.code === 200) && response.data) {
       sessionId.value = response.data.sessionId;
       screenshot.value = response.data.screenshot || '';
+      // 首帧常常还是闲鱼页面的骨架屏，等待一次快速预览后再开放拖动，
+      // 避免用户在页面尚未渲染完成时误触提交。
+      previewReady.value = false;
       statusText.value = response.data.message || '验证页面正在加载，请稍候，画面会自动刷新';
       schedulePreviewRefresh(currentSequence);
     } else {
@@ -100,15 +107,13 @@ const refreshPreview = async (automatic = false) => {
   if (!sessionId.value || submitting.value || dragging) return;
   const activeSessionId = sessionId.value;
   previewRefreshing.value = true;
-  if (automatic) {
-    statusText.value = '正在刷新验证画面，请稍候...';
-  }
+  if (!automatic) statusText.value = '正在刷新验证画面...';
   try {
     const response = await refreshCaptchaPreview(props.accountId, sessionId.value);
     if ((response.code === 0 || response.code === 200) && response.data
       && activeSessionId === sessionId.value && props.modelValue) {
       screenshot.value = response.data.screenshot || screenshot.value;
-      previewReady.value = true;
+      previewReady.value = Boolean(screenshot.value);
       statusText.value = response.data.message || '请确认滑块出现后按住向右拖动，松开后提交验证';
     } else {
       throw new Error(response.msg || '刷新验证画面失败');
@@ -129,7 +134,7 @@ const schedulePreviewRefresh = (currentSequence: number, attempt = 0) => {
     if (currentSequence === requestSequence && props.modelValue && !dragging && !submitting.value) {
       schedulePreviewRefresh(currentSequence, attempt + 1);
     }
-  }, 900 + attempt * 700);
+  }, 350 + attempt * 450);
 };
 
 const handlePreviewRefresh = () => {
@@ -148,13 +153,16 @@ const getDragPoint = (event: PointerEvent): CaptchaDragPoint | null => {
   if (!rect.width || !rect.height || !image.naturalWidth || !image.naturalHeight) return null;
 
   const now = performance.now();
-  const point = {
+  return {
     x: Math.max(0, Math.min(image.naturalWidth, (event.clientX - rect.left) * image.naturalWidth / rect.width)),
     y: Math.max(0, Math.min(image.naturalHeight, (event.clientY - rect.top) * image.naturalHeight / rect.height)),
     delayMs: lastPointTime ? Math.max(0, Math.min(40, Math.round(now - lastPointTime))) : 0
   };
-  lastPointTime = now;
-  return point;
+};
+
+const appendDragPoint = (point: CaptchaDragPoint) => {
+  dragPoints.push(point);
+  lastPointTime = performance.now();
 };
 
 const updateDragFeedback = (event: PointerEvent) => {
@@ -165,6 +173,8 @@ const updateDragFeedback = (event: PointerEvent) => {
     visible: true,
     left: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
     top: Math.max(0, Math.min(rect.height, event.clientY - rect.top)),
+    startLeft: Math.max(0, Math.min(rect.width, dragStartClientX - rect.left)),
+    startTop: Math.max(0, Math.min(rect.height, dragStartClientY - rect.top)),
     distance: Math.max(0, Math.round(event.clientX - dragStartClientX))
   };
 };
@@ -180,18 +190,23 @@ const handlePointerDown = (event: PointerEvent) => {
 
   dragging = true;
   dragStartClientX = event.clientX;
-  dragPoints = [point];
+  dragStartClientY = event.clientY;
+  dragPoints = [];
+  lastPointTime = 0;
+  appendDragPoint(point);
   updateDragFeedback(event);
   statusText.value = '正在记录拖动轨迹，松开后会提交到服务器验证';
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 };
 
 const handlePointerMove = (event: PointerEvent) => {
-  if (!dragging || dragPoints.length >= 159) return;
+  if (!dragging || dragPoints.length >= MAX_DRAG_POINTS - 1) return;
   const point = getDragPoint(event);
   const previous = dragPoints[dragPoints.length - 1];
-  if (!point || !previous || (Math.abs(point.x - previous.x) < 1 && Math.abs(point.y - previous.y) < 1)) return;
-  dragPoints.push(point);
+  if (!point || !previous) return;
+  const distance = Math.hypot(point.x - previous.x, point.y - previous.y);
+  if (distance < MIN_POINT_DISTANCE && point.delayMs < MIN_POINT_INTERVAL_MS) return;
+  appendDragPoint(point);
   updateDragFeedback(event);
 };
 
@@ -201,10 +216,10 @@ const handlePointerUp = async (event: PointerEvent) => {
   updateDragFeedback(event);
   const finalPoint = getDragPoint(event);
   if (finalPoint) {
-    if (dragPoints.length >= 160) {
-      dragPoints[159] = finalPoint;
+    if (dragPoints.length >= MAX_DRAG_POINTS) {
+      dragPoints[MAX_DRAG_POINTS - 1] = finalPoint;
     } else {
-      dragPoints.push(finalPoint);
+      appendDragPoint(finalPoint);
     }
   }
   if (dragPoints.length < 2 || !sessionId.value) return;
@@ -295,7 +310,7 @@ onUnmounted(() => {
             <div
               v-else-if="screenshot"
               class="captcha-viewer"
-              :class="{ 'is-submitting': submitting, 'is-loading-preview': !previewReady }"
+              :class="{ 'is-submitting': submitting, 'is-loading-preview': previewRefreshing }"
             >
               <img
                 ref="imageRef"
@@ -312,6 +327,15 @@ onUnmounted(() => {
                 <span class="captcha-loading-spinner" />
                 <span>验证组件正在打开，画面准备好后即可拖动</span>
               </div>
+              <div
+                v-if="dragFeedback.visible && dragFeedback.distance > 0"
+                class="captcha-drag-track"
+                :style="{
+                  left: `${dragFeedback.startLeft}px`,
+                  top: `${dragFeedback.startTop}px`,
+                  width: `${dragFeedback.distance}px`
+                }"
+              />
               <div
                 v-if="dragFeedback.visible"
                 class="captcha-drag-indicator"
@@ -480,6 +504,17 @@ onUnmounted(() => {
   line-height: 1;
   pointer-events: none;
   transform: translate(8px, calc(-100% - 8px));
+}
+
+.captcha-drag-track {
+  position: absolute;
+  z-index: 1;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(37, 99, 235, 0.35), rgba(37, 99, 235, 0.92));
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  pointer-events: none;
+  transform: translateY(-1px);
 }
 
 .captcha-drag-dot {

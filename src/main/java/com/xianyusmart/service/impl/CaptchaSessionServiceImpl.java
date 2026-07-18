@@ -44,7 +44,14 @@ import java.util.concurrent.TimeoutException;
 public class CaptchaSessionServiceImpl implements CaptchaSessionService {
 
     private static final long SESSION_TTL_MS = Duration.ofMinutes(2).toMillis();
-    private static final int MAX_DRAG_POINTS = 160;
+    /**
+     * 前端会先对鼠标轨迹采样；限制回放点数可减少服务端逐点拖动的等待，
+     * 同时保留足够的自然移动轨迹。
+     */
+    private static final int MAX_DRAG_POINTS = 80;
+    private static final int CAPTCHA_VIEWPORT_WIDTH = 1080;
+    private static final int CAPTCHA_VIEWPORT_HEIGHT = 720;
+    private static final int CAPTCHA_SCREENSHOT_QUALITY = 65;
     private static final String GOOFISH_COOKIE_DOMAIN = ".goofish.com";
     private static final String TAOBAO_COOKIE_DOMAIN = ".taobao.com";
     private static final List<String> TRUSTED_CAPTCHA_DOMAINS = List.of(
@@ -139,6 +146,7 @@ public class CaptchaSessionServiceImpl implements CaptchaSessionService {
             context = playwrightManager.createContext();
             context.addCookies(buildBrowserCookies(existingCookies));
             Page page = context.newPage();
+            page.setViewportSize(CAPTCHA_VIEWPORT_WIDTH, CAPTCHA_VIEWPORT_HEIGHT);
             // 隐藏自动化标记，避免人工验证页面直接拒绝服务器浏览器
             page.addInitScript("Object.defineProperty(navigator, 'webdriver', { get: () => undefined });");
             page.navigate(captchaUrl, new Page.NavigateOptions()
@@ -149,7 +157,7 @@ public class CaptchaSessionServiceImpl implements CaptchaSessionService {
             }
             // 先尽快返回首帧，再由前端在同一浏览器会话中刷新预览。
             // 闲鱼页面经常先渲染骨架屏，固定等待较久既不可靠，也会让用户误以为页面卡死。
-            page.waitForTimeout(250);
+            page.waitForTimeout(100);
 
             String sessionId = UUID.randomUUID().toString();
             CaptchaSession session = new CaptchaSession(
@@ -335,8 +343,10 @@ public class CaptchaSessionServiceImpl implements CaptchaSessionService {
     }
 
     private String captureScreenshot(Page page) {
-        byte[] screenshot = page.screenshot(new Page.ScreenshotOptions().setType(ScreenshotType.PNG));
-        return "data:image/png;base64," + Base64.getEncoder().encodeToString(screenshot);
+        byte[] screenshot = page.screenshot(new Page.ScreenshotOptions()
+                .setType(ScreenshotType.JPEG)
+                .setQuality(CAPTCHA_SCREENSHOT_QUALITY));
+        return "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(screenshot);
     }
 
     @Scheduled(fixedDelay = 60_000, initialDelay = 60_000)
