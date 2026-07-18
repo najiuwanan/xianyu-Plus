@@ -84,6 +84,27 @@ public class OperationLogController {
             return ResultObject.failed("删除失败: " + e.getMessage());
         }
     }
+
+    /**
+     * 删除单条操作记录。
+     */
+    @PostMapping("/delete")
+    public ResultObject<Boolean> deleteLog(@RequestBody DeleteLogReqDTO reqDTO) {
+        try {
+            if (reqDTO.getLogId() == null || reqDTO.getAccountId() == null) {
+                return ResultObject.validateFailed("记录ID和账号ID不能为空");
+            }
+
+            boolean deleted = operationLogService.deleteLog(reqDTO.getLogId(), reqDTO.getAccountId());
+            if (!deleted) {
+                return ResultObject.failed("未找到该操作记录，可能已被删除");
+            }
+            return ResultObject.success(true, "操作记录已删除");
+        } catch (Exception e) {
+            log.error("删除操作记录失败: logId={}", reqDTO.getLogId(), e);
+            return ResultObject.failed("删除失败: " + e.getMessage());
+        }
+    }
     
     /**
      * 查询操作记录请求DTO
@@ -104,5 +125,14 @@ public class OperationLogController {
     @Data
     public static class DeleteOldLogsReqDTO {
         private Integer days;  // 删除多少天之前的日志
+    }
+
+    /**
+     * 删除单条操作记录请求DTO
+     */
+    @Data
+    public static class DeleteLogReqDTO {
+        private Long logId;
+        private Long accountId;
     }
 }

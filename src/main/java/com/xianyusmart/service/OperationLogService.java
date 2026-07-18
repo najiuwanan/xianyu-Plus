@@ -37,4 +37,9 @@ public interface OperationLogService {
      * 删除指定天数之前的日志
      */
     int deleteOldLogs(int days);
+
+    /**
+     * 删除一条指定账号下的操作记录。
+     */
+    boolean deleteLog(Long logId, Long accountId);
 }

@@ -27,10 +27,12 @@ const {
   selectedAccountForMobile,
   detailDialogVisible,
   detailLog,
+  deletingLogId,
   selectAccount,
   handlePageChange,
   handleRefresh,
   viewDetail,
+  handleDeleteLog,
   closeDetail,
   goBackToAccounts,
   getAccountAvatar,
@@ -236,9 +238,16 @@ onMounted(() => {
                     <span class="ol__log-time">{{ formatTime(log.createTime) }}</span>
                   </td>
                   <td>
-                    <button class="ol__log-action-btn" @click="viewDetail(log)">
-                      详情
-                    </button>
+                    <div class="ol__log-action-group">
+                      <button class="ol__log-action-btn" @click="viewDetail(log)">详情</button>
+                      <button
+                        class="ol__log-action-btn ol__log-action-btn--danger"
+                        :disabled="deletingLogId === log.id"
+                        @click="handleDeleteLog(log)"
+                      >
+                        {{ deletingLogId === log.id ? '删除中' : '删除' }}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -285,6 +294,13 @@ onMounted(() => {
                     {{ formatDuration(log.durationMs) }}
                   </span>
                 </div>
+                <button
+                  class="ol__log-card-delete"
+                  :disabled="deletingLogId === log.id"
+                  @click.stop="handleDeleteLog(log)"
+                >
+                  {{ deletingLogId === log.id ? '删除中…' : '删除记录' }}
+                </button>
               </div>
 
               <!-- Empty -->

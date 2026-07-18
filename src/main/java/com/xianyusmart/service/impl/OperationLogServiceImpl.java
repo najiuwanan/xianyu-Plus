@@ -133,4 +133,16 @@ public class OperationLogServiceImpl implements OperationLogService {
             return 0;
         }
     }
+
+    @Override
+    public boolean deleteLog(Long logId, Long accountId) {
+        if (logId == null || accountId == null) {
+            return false;
+        }
+
+        LambdaQueryWrapper<XianyuOperationLog> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(XianyuOperationLog::getId, logId)
+                .eq(XianyuOperationLog::getXianyuAccountId, accountId);
+        return operationLogMapper.delete(queryWrapper) > 0;
+    }
 }

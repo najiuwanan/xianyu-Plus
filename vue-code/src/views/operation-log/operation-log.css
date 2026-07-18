@@ -726,6 +726,29 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.ol__log-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ol__log-action-btn--danger {
+  color: var(--d-danger);
+  background: rgba(255, 69, 58, 0.08);
+}
+
+@media (hover: hover) {
+  .ol__log-action-btn--danger:hover {
+    background: rgba(255, 69, 58, 0.16);
+  }
+}
+
+.ol__log-action-btn:disabled,
+.ol__log-card-delete:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
 @media (hover: hover) {
   .ol__log-action-btn:hover {
     background: rgba(0, 122, 255, 0.14);
@@ -788,6 +811,16 @@
 .ol__log-card-meta-item svg {
   width: 12px;
   height: 12px;
+}
+
+.ol__log-card-delete {
+  margin-top: var(--d-space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--d-danger);
+  font-size: 12px;
+  cursor: pointer;
 }
 
 /* --- Pagination --- */

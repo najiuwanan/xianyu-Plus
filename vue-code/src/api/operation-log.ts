@@ -55,3 +55,12 @@ export function deleteOldLogs(days: number) {
     data: { days }
   });
 }
+
+// 删除单条操作记录
+export function deleteOperationLog(logId: number, accountId: number) {
+  return request<boolean>({
+    url: '/operation-log/delete',
+    method: 'POST',
+    data: { logId, accountId }
+  });
+}

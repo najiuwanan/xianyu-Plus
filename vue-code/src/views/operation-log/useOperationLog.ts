@@ -1,9 +1,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { getAccountList } from '@/api/account'
-import { queryOperationLogs, deleteOldLogs } from '@/api/operation-log'
+import { queryOperationLogs, deleteOldLogs, deleteOperationLog } from '@/api/operation-log'
 import type { OperationLog } from '@/api/operation-log'
 import type { Account } from '@/types'
-import { showSuccess, showError, showInfo } from '@/utils'
+import { showSuccess, showError, showInfo, showConfirm } from '@/utils'
 
 // Operation type config
 const operationTypes = [
@@ -66,6 +66,7 @@ export function useOperationLog() {
   // Delete dialog
   const deleteDialogVisible = ref(false)
   const deleteDays = ref('')
+  const deletingLogId = ref<number | null>(null)
 
   // Check screen size
   const checkScreenSize = () => {
@@ -299,6 +300,38 @@ export function useOperationLog() {
     }
   }
 
+  // 删除单条操作记录
+  const handleDeleteLog = async (log: OperationLog) => {
+    if (!selectedAccountId.value || deletingLogId.value === log.id) return
+
+    try {
+      await showConfirm('确定删除这条操作记录吗？删除后无法恢复。', '删除记录')
+    } catch {
+      return
+    }
+
+    deletingLogId.value = log.id
+    try {
+      const response = await deleteOperationLog(log.id, selectedAccountId.value)
+      if (response.code === 0 || response.code === 200) {
+        showSuccess('操作记录已删除')
+        if (logs.value.length === 1 && page.value > 1) {
+          page.value--
+        }
+        await loadLogs()
+      } else {
+        throw new Error(response.msg || '删除失败')
+      }
+    } catch (error: any) {
+      console.error('删除操作记录失败:', error)
+      if (!error.messageShown) {
+        showError('删除失败: ' + error.message)
+      }
+    } finally {
+      deletingLogId.value = null
+    }
+  }
+
   // Lifecycle
   onMounted(() => {
     loadAccounts()
@@ -330,6 +363,7 @@ export function useOperationLog() {
     detailLog,
     deleteDialogVisible,
     deleteDays,
+    deletingLogId,
     currentAccount,
 
     // Constants
@@ -349,6 +383,7 @@ export function useOperationLog() {
     closeDetail,
     openDeleteDialog,
     confirmDeleteOld,
+    handleDeleteLog,
     goBackToAccounts,
     getAccountAvatar,
     getAccountName,
