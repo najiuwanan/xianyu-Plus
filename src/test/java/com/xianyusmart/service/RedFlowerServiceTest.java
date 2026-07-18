@@ -45,6 +45,7 @@ class RedFlowerServiceTest {
         order.setOrderId("trade-100");
 
         when(accountMapper.selectList(any())).thenReturn(List.of(account));
+        when(accountMapper.selectById(7L)).thenReturn(account);
         when(accountService.getCookieByAccountId(7L)).thenReturn("_m_h5_tk=token_123");
         when(automationRecordMapper.findRedFlowerCandidates(7L, 10, 50)).thenReturn(List.of(order));
         when(xianyuApiCallUtils.callApiWithRetry(eq(7L),
@@ -74,6 +75,7 @@ class RedFlowerServiceTest {
         order.setOrderId("trade-101");
 
         when(accountMapper.selectList(any())).thenReturn(List.of(account));
+        when(accountMapper.selectById(7L)).thenReturn(account);
         when(automationRecordMapper.findRedFlowerCandidates(7L, 10, 50)).thenReturn(List.of(order));
         when(accountService.getCookieByAccountId(7L)).thenReturn(null);
 
