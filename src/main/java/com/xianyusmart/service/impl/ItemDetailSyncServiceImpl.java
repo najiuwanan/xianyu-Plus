@@ -340,7 +340,8 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
     }
 
     private String buildH5ItemUrl(String itemId) {
-        return "https://m.goofish.com/item?id=" + itemId;
+        // m.goofish.com is not a public web host and may not resolve from Docker.
+        return "https://www.goofish.com/item?id=" + itemId;
     }
 
     @Override

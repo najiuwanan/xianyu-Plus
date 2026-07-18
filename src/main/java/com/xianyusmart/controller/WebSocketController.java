@@ -468,7 +468,7 @@ public class WebSocketController {
             return ResultObject.success(result);
         } catch (Exception e) {
             log.error("创建服务器滑块验证会话失败: accountId={}", reqDTO.getXianyuAccountId(), e);
-            return ResultObject.failed(e.getMessage());
+            return ResultObject.failed("验证页面暂时无法加载，请点击重新加载；若仍失败，请稍后重试。");
         }
     }
 
