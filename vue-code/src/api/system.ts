@@ -6,7 +6,10 @@ export interface SystemUpdateStatus {
   message: string
   currentCommit?: string
   latestCommit?: string
+  currentVersion?: string
+  latestVersion?: string
   latestMessage?: string
+  updateHighlights?: string[]
   updateUrl?: string
   checkedAt?: string
 }

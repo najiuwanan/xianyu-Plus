@@ -2,6 +2,9 @@ package com.xianyusmart.controller.dto;
 
 import lombok.Data;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * GitHub 更新检查结果。
  */
@@ -19,7 +22,10 @@ public class SystemUpdateStatusRespDTO {
 
     private String currentCommit;
     private String latestCommit;
+    private String currentVersion;
+    private String latestVersion;
     private String latestMessage;
+    private List<String> updateHighlights = new ArrayList<>();
     private String updateUrl;
     private String checkedAt;
 }

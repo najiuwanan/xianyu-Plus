@@ -14,6 +14,18 @@ const isDesktop = ref(true)
 const drawerVisible = ref(false)
 const updateStatus = ref<SystemUpdateStatus | null>(null)
 const updateChecking = ref(false)
+const versionDialogVisible = ref(false)
+
+const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV]/, '')}` : '未知版本'
+const updateSummary = computed(() => {
+  if (!updateStatus.value) return '正在检查 GitHub 更新…'
+  const current = displayVersion(updateStatus.value.currentVersion)
+  const latest = displayVersion(updateStatus.value.latestVersion)
+  if (updateStatus.value.currentVersion || updateStatus.value.latestVersion) {
+    return `当前 ${current} · 最新 ${latest}${updateStatus.value.updateAvailable ? ' · 可更新' : ''}`
+  }
+  return updateStatus.value.message
+})
 
 const pageTitleMap: Record<string, string> = {
   '/dashboard': '运营总览',
@@ -107,8 +119,8 @@ onUnmounted(() => {
             <div class="workspace-notice" :class="{ 'workspace-notice--available': updateStatus?.updateAvailable }" aria-live="polite">
               <span class="workspace-notice__icon" aria-hidden="true">{{ updateStatus?.updateAvailable ? '↑' : 'i' }}</span>
               <strong>系统公告</strong>
-              <span class="workspace-notice__message">{{ updateStatus?.message || '正在检查 GitHub 更新…' }}</span>
-              <a v-if="updateStatus?.updateAvailable && updateStatus.updateUrl" :href="updateStatus.updateUrl" target="_blank" rel="noopener noreferrer">查看更新</a>
+              <span class="workspace-notice__message" :title="updateStatus?.message">{{ updateSummary }}</span>
+              <button v-if="updateStatus" type="button" class="workspace-notice__detail" @click="versionDialogVisible = true">版本详情</button>
               <button type="button" :disabled="updateChecking" @click="loadUpdateStatus(true)">{{ updateChecking ? '检查中…' : '检查更新' }}</button>
             </div>
             <span class="today-status"><span aria-hidden="true">☼</span> 今天，生意顺利</span>
@@ -149,6 +161,33 @@ onUnmounted(() => {
         </aside>
       </div>
     </transition>
+
+    <div v-if="versionDialogVisible && updateStatus" class="version-mask" @click.self="versionDialogVisible = false">
+      <section class="version-dialog" role="dialog" aria-modal="true" aria-labelledby="version-dialog-title">
+        <header>
+          <div><span>版本更新</span><h2 id="version-dialog-title">XianYuPlus {{ displayVersion(updateStatus.latestVersion) }}</h2></div>
+          <button type="button" aria-label="关闭" @click="versionDialogVisible = false">×</button>
+        </header>
+        <div class="version-dialog__versions">
+          <div><small>当前版本</small><strong>{{ displayVersion(updateStatus.currentVersion) }}</strong><code v-if="updateStatus.currentCommit">{{ updateStatus.currentCommit }}</code></div>
+          <span>→</span>
+          <div class="is-latest"><small>GitHub 最新版本</small><strong>{{ displayVersion(updateStatus.latestVersion) }}</strong><code v-if="updateStatus.latestCommit">{{ updateStatus.latestCommit }}</code></div>
+        </div>
+        <p class="version-dialog__status" :class="{ available: updateStatus.updateAvailable }">{{ updateStatus.message }}</p>
+        <div class="version-dialog__changes">
+          <h3>{{ updateStatus.updateAvailable ? '本次可以更新的内容' : '当前版本主要内容' }}</h3>
+          <ul v-if="updateStatus.updateHighlights?.length">
+            <li v-for="item in updateStatus.updateHighlights" :key="item">{{ item }}</li>
+          </ul>
+          <p v-else>{{ updateStatus.latestMessage || '暂无版本说明' }}</p>
+        </div>
+        <footer>
+          <span>更新命令：<code>cd ~/xianyu-Plus && ./update.sh</code></span>
+          <a v-if="updateStatus.updateUrl" :href="updateStatus.updateUrl" target="_blank" rel="noopener noreferrer">查看 GitHub</a>
+          <button type="button" @click="versionDialogVisible = false">关闭</button>
+        </footer>
+      </section>
+    </div>
   </div>
 </template>
 
@@ -174,10 +213,24 @@ onUnmounted(() => {
 .workspace-notice strong { flex: 0 0 auto; color: var(--xy-ink); font-size: 12px; }
 .workspace-notice__message { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .workspace-notice a, .workspace-notice button { min-height: 24px; padding: 0 7px; border: 1px solid #ccd8e7; border-radius: 999px; background: var(--xy-surface); color: #385879; font-size: 11px; font-weight: 700; line-height: 22px; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.workspace-notice .workspace-notice__detail { border-color: #b9d5f6; color: #1768bd; background: #fff; }
 .workspace-notice a { border-color: #e4bd47; background: var(--xy-amber); color: #583f00; }
 .workspace-notice button:disabled { cursor: not-allowed; opacity: .6; }
 .today-status { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border: 1px solid var(--xy-border); border-radius: 999px; color: #4c5d78; font-size: 13px; white-space: nowrap; }
 .today-status span { color: var(--xy-amber-deep); font-size: 18px; line-height: 14px; }
+.version-mask { position: fixed; inset: 0; z-index: 2000; display: grid; place-items: center; padding: 20px; background: rgba(20, 31, 48, .42); backdrop-filter: blur(3px); }
+.version-dialog { width: min(620px, 100%); overflow: hidden; border: 1px solid rgba(255,255,255,.7); border-radius: 20px; background: #fff; box-shadow: 0 28px 80px rgba(20,31,48,.28); }
+.version-dialog > header { display: flex; align-items: flex-start; justify-content: space-between; padding: 22px 24px 18px; border-bottom: 1px solid #edf0f4; background: linear-gradient(135deg,#f5f9ff,#fffaf0); }
+.version-dialog > header span { color: #2c70c9; font-size: 12px; font-weight: 800; letter-spacing: .08em; }
+.version-dialog > header h2 { margin: 4px 0 0; color: #1b2d49; font-size: 23px; }
+.version-dialog > header button { border: 0; background: transparent; color: #68758a; font-size: 27px; cursor: pointer; }
+.version-dialog__versions { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; padding: 20px 24px 10px; }
+.version-dialog__versions > div { display: grid; gap: 5px; padding: 14px; border: 1px solid #e5eaf1; border-radius: 13px; background: #fafbfd; }
+.version-dialog__versions > div.is-latest { border-color: #f0d27d; background: #fffbec; }
+.version-dialog__versions small { color: #7a8799; }.version-dialog__versions strong { color: #1d3557; font-size: 20px; }.version-dialog__versions code { color: #8190a4; font-size: 11px; }
+.version-dialog__status { margin: 8px 24px 0; padding: 10px 12px; border-radius: 10px; color: #315f91; background: #edf6ff; font-size: 13px; }.version-dialog__status.available { color: #805900; background: #fff4cf; }
+.version-dialog__changes { padding: 18px 24px 20px; }.version-dialog__changes h3 { margin: 0 0 10px; color: #283b57; font-size: 15px; }.version-dialog__changes ul { display: grid; gap: 8px; margin: 0; padding-left: 20px; color: #53627a; font-size: 13px; line-height: 1.55; }.version-dialog__changes p { color: #718096; font-size: 13px; }
+.version-dialog > footer { display: flex; align-items: center; gap: 9px; padding: 14px 24px; border-top: 1px solid #edf0f4; background: #fafbfd; }.version-dialog > footer span { min-width: 0; margin-right: auto; color: #6f7e92; font-size: 11px; }.version-dialog > footer span code { color: #335b87; }.version-dialog > footer a,.version-dialog > footer button { padding: 8px 13px; border: 1px solid #d5deea; border-radius: 9px; background: #fff; color: #315b89; font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer; }
 .workspace-main { flex: 1; min-width: 0; overflow: auto; padding: 28px 32px 36px; background: var(--xy-page); }
 
 .compact-header { height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--xy-border); background: var(--xy-surface); }
