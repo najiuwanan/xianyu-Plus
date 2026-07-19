@@ -1,0 +1,1 @@
+import{k as e}from"./index-neNAYin8.js";function o(t=200){return e({url:"/runtime-log/tail",method:"GET",params:{lines:t}})}function r(){return e({url:"/runtime-log/retention",method:"GET"})}function i(t){return e({url:"/runtime-log/retention",method:"POST",data:{days:t}})}export{r as a,o as g,i as s};

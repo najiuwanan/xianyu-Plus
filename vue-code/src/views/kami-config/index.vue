@@ -60,7 +60,9 @@ const relatedGoods = ref<KamiRelatedGoods[]>([])
 const relatedGoodsLoading = ref(false)
 const relatedGoodsSaving = ref(false)
 const relatedGoodsKeyword = ref('')
+const relatedGoodsAccountFilter = ref('all')
 const selectedRelatedGoodsKeys = ref<string[]>([])
+const initialRelatedGoodsKeys = ref<string[]>([])
 
 const showImportDialog = ref(false)
 const importContent = ref('')
@@ -123,18 +125,54 @@ const canResetKamiItem = (item: KamiItem) => item.status === 1 || item.status ==
 const relatedGoodsKey = (goods: Pick<KamiRelatedGoods, 'xianyuAccountId' | 'xyGoodsId'>) =>
   `${goods.xianyuAccountId}:${goods.xyGoodsId}`
 
+const relatedGoodsAccounts = computed(() => {
+  const accounts = new Map<number, string>()
+  relatedGoods.value.forEach(goods => {
+    accounts.set(goods.xianyuAccountId, goods.accountNote || `账号 ${goods.xianyuAccountId}`)
+  })
+  return Array.from(accounts, ([id, name]) => ({ id, name }))
+    .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
+})
+
 const filteredRelatedGoods = computed(() => {
   const keyword = relatedGoodsKeyword.value.trim().toLowerCase()
-  if (!keyword) return relatedGoods.value
-  return relatedGoods.value.filter(goods =>
-    [goods.goodsTitle, goods.xyGoodsId, goods.accountNote].some(value => value?.toLowerCase().includes(keyword))
-  )
+  return relatedGoods.value.filter(goods => {
+    const accountMatched = relatedGoodsAccountFilter.value === 'all'
+      || String(goods.xianyuAccountId) === relatedGoodsAccountFilter.value
+    const keywordMatched = !keyword
+      || [goods.goodsTitle, goods.xyGoodsId, goods.accountNote].some(value => value?.toLowerCase().includes(keyword))
+    return accountMatched && keywordMatched
+  })
 })
 
 const selectedRelatedGoods = computed(() => {
   const selected = new Set(selectedRelatedGoodsKeys.value)
   return relatedGoods.value.filter(goods => selected.has(relatedGoodsKey(goods)))
 })
+
+const relatedGoodsDirty = computed(() => {
+  const current = [...selectedRelatedGoodsKeys.value].sort()
+  const initial = [...initialRelatedGoodsKeys.value].sort()
+  return current.length !== initial.length || current.some((key, index) => key !== initial[index])
+})
+
+const allFilteredRelatedGoodsSelected = computed(() => filteredRelatedGoods.value.length > 0
+  && filteredRelatedGoods.value.every(goods => selectedRelatedGoodsKeys.value.includes(relatedGoodsKey(goods))))
+
+const toggleFilteredRelatedGoods = () => {
+  const visibleKeys = filteredRelatedGoods.value.map(relatedGoodsKey)
+  const selected = new Set(selectedRelatedGoodsKeys.value)
+  if (allFilteredRelatedGoodsSelected.value) {
+    visibleKeys.forEach(key => selected.delete(key))
+  } else {
+    visibleKeys.forEach(key => selected.add(key))
+  }
+  selectedRelatedGoodsKeys.value = Array.from(selected)
+}
+
+const clearRelatedGoodsSelection = () => {
+  selectedRelatedGoodsKeys.value = []
+}
 
 const contentPreview = (content?: string) => {
   const normalized = (content || '').replace(/\s+/g, ' ').trim()
@@ -323,7 +361,11 @@ const openRelatedGoodsDialog = async () => {
   if (!selectedConfig.value) return
   showRelatedGoodsDialog.value = true
   relatedGoodsLoading.value = true
+  relatedGoods.value = []
   relatedGoodsKeyword.value = ''
+  relatedGoodsAccountFilter.value = 'all'
+  selectedRelatedGoodsKeys.value = []
+  initialRelatedGoodsKeys.value = []
   try {
     const res = await getKamiRelatedGoods(selectedConfig.value.id)
     if (res.code === 200) {
@@ -331,6 +373,7 @@ const openRelatedGoodsDialog = async () => {
       selectedRelatedGoodsKeys.value = relatedGoods.value
         .filter(goods => goods.associated)
         .map(goods => relatedGoodsKey(goods))
+      initialRelatedGoodsKeys.value = [...selectedRelatedGoodsKeys.value]
     } else {
       toast.error(res.msg || '加载关联商品失败')
     }
@@ -1026,42 +1069,62 @@ onUnmounted(() => {
               <div class="related-goods__grid">
                 <section class="related-goods__column">
                   <div class="related-goods__column-head">
-                    <strong>可选商品</strong>
-                    <span>{{ filteredRelatedGoods.length }} 个</span>
+                    <div>
+                      <strong>可选商品</strong>
+                      <span>共 {{ filteredRelatedGoods.length }} 个</span>
+                    </div>
+                    <button class="btn-text btn-sm" :disabled="filteredRelatedGoods.length === 0" @click="toggleFilteredRelatedGoods">
+                      {{ allFilteredRelatedGoodsSelected ? '取消当前全选' : '全选当前结果' }}
+                    </button>
                   </div>
-                  <input v-model="relatedGoodsKeyword" class="form-input related-goods__search" placeholder="搜索商品名、商品 ID 或账号备注" />
-                  <div v-if="relatedGoodsLoading" class="related-goods__empty">加载中…</div>
-                  <div v-else-if="filteredRelatedGoods.length === 0" class="related-goods__empty">没有匹配的商品</div>
-                  <label v-else v-for="goods in filteredRelatedGoods" :key="relatedGoodsKey(goods)" class="related-goods__item">
-                    <input v-model="selectedRelatedGoodsKeys" type="checkbox" :value="relatedGoodsKey(goods)" />
-                    <img v-if="goods.coverPic" :src="goods.coverPic" class="related-goods__cover" alt="" />
-                    <span v-else class="related-goods__cover related-goods__cover--empty">商品</span>
-                    <span class="related-goods__info">
-                      <strong>{{ goods.goodsTitle || `商品 ${goods.xyGoodsId}` }}</strong>
-                      <small>{{ goods.accountNote || '未知账号' }} · ID: {{ goods.xyGoodsId }}<template v-if="goods.soldPrice"> · ¥{{ goods.soldPrice }}</template></small>
-                      <em v-if="goods.willReplace && !goods.associated">已有发货配置，关联后将接管</em>
-                    </span>
-                  </label>
+                  <div class="related-goods__filters">
+                    <input v-model="relatedGoodsKeyword" class="form-input related-goods__search" placeholder="搜索商品名、商品 ID 或账号备注" />
+                    <select v-model="relatedGoodsAccountFilter" class="native-select related-goods__account-filter">
+                      <option value="all">所有账号</option>
+                      <option v-for="account in relatedGoodsAccounts" :key="account.id" :value="String(account.id)">{{ account.name }}</option>
+                    </select>
+                  </div>
+                  <div class="related-goods__list">
+                    <div v-if="relatedGoodsLoading" class="related-goods__empty">加载中…</div>
+                    <div v-else-if="filteredRelatedGoods.length === 0" class="related-goods__empty">没有匹配的商品</div>
+                    <label v-else v-for="goods in filteredRelatedGoods" :key="relatedGoodsKey(goods)" class="related-goods__item">
+                      <input v-model="selectedRelatedGoodsKeys" type="checkbox" :value="relatedGoodsKey(goods)" />
+                      <img v-if="goods.coverPic" :src="goods.coverPic" class="related-goods__cover" alt="" />
+                      <span v-else class="related-goods__cover related-goods__cover--empty">商品</span>
+                      <span class="related-goods__info">
+                        <strong :title="goods.goodsTitle">{{ goods.goodsTitle || `商品 ${goods.xyGoodsId}` }}</strong>
+                        <small><b>{{ goods.accountNote || '未知账号' }}</b> · ID: {{ goods.xyGoodsId }}<template v-if="goods.soldPrice"> · ¥{{ goods.soldPrice }}</template></small>
+                        <em v-if="goods.willReplace && !goods.associated">已有发货配置，关联后将由当前卡券库接管</em>
+                      </span>
+                    </label>
+                  </div>
                 </section>
                 <section class="related-goods__column related-goods__column--selected">
                   <div class="related-goods__column-head">
-                    <strong>已关联商品</strong>
-                    <span>{{ selectedRelatedGoods.length }} 个</span>
+                    <div>
+                      <strong>已选择商品</strong>
+                      <span>共 {{ selectedRelatedGoods.length }} 个</span>
+                    </div>
+                    <button class="btn-text btn-sm" :disabled="selectedRelatedGoods.length === 0" @click="clearRelatedGoodsSelection">清空选择</button>
                   </div>
-                  <div v-if="selectedRelatedGoods.length === 0" class="related-goods__empty">请在左侧勾选商品</div>
-                  <div v-else v-for="goods in selectedRelatedGoods" :key="relatedGoodsKey(goods)" class="related-goods__selected-item">
-                    <span>
-                      <strong>{{ goods.goodsTitle || `商品 ${goods.xyGoodsId}` }}</strong>
-                      <small>{{ goods.accountNote || '未知账号' }} · ID: {{ goods.xyGoodsId }}</small>
-                    </span>
-                    <button class="btn-danger btn-text btn-sm" @click="removeRelatedGoods(goods)">移除</button>
+                  <div class="related-goods__list">
+                    <div v-if="selectedRelatedGoods.length === 0" class="related-goods__empty">请在左侧勾选需要使用当前卡券库发货的商品</div>
+                    <div v-else v-for="goods in selectedRelatedGoods" :key="relatedGoodsKey(goods)" class="related-goods__selected-item">
+                      <img v-if="goods.coverPic" :src="goods.coverPic" class="related-goods__cover" alt="" />
+                      <span v-else class="related-goods__cover related-goods__cover--empty">商品</span>
+                      <span>
+                        <strong :title="goods.goodsTitle">{{ goods.goodsTitle || `商品 ${goods.xyGoodsId}` }}</strong>
+                        <small><b>{{ goods.accountNote || '未知账号' }}</b> · ID: {{ goods.xyGoodsId }}<template v-if="goods.soldPrice"> · ¥{{ goods.soldPrice }}</template></small>
+                      </span>
+                      <button class="btn-danger btn-text btn-sm" @click="removeRelatedGoods(goods)">移除</button>
+                    </div>
                   </div>
                 </section>
               </div>
             </div>
             <div class="modal-footer">
               <button class="btn btn-secondary" @click="showRelatedGoodsDialog = false">取消</button>
-              <button class="btn btn-primary" :class="{ 'is-loading': relatedGoodsSaving }" :disabled="relatedGoodsSaving || relatedGoodsLoading" @click="handleSaveRelatedGoods">保存关联（{{ selectedRelatedGoods.length }} 个商品）</button>
+              <button class="btn btn-primary" :class="{ 'is-loading': relatedGoodsSaving }" :disabled="relatedGoodsSaving || relatedGoodsLoading || !relatedGoodsDirty" @click="handleSaveRelatedGoods">保存关联（{{ selectedRelatedGoods.length }} 个商品）</button>
             </div>
           </div>
         </div>
@@ -1593,7 +1656,8 @@ onUnmounted(() => {
 .related-goods__grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  min-height: 410px;
+  height: min(52vh, 480px);
+  min-height: 360px;
   border: 1px solid rgba(60,60,67,.12);
   border-radius: 12px;
   overflow: hidden;
@@ -1615,12 +1679,36 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 14px 8px;
+  gap: 12px;
+  min-height: 48px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(60,60,67,.08);
   color: #1c1c1e;
   font-size: 13px;
 }
-.related-goods__column-head span { color: #30a857; font-size: 12px; }
-.related-goods__search { margin: 0 12px 10px; width: calc(100% - 24px); flex: none; }
+.related-goods__column-head > div { display: flex; align-items: baseline; gap: 7px; min-width: 0; }
+.related-goods__column-head span { color: #30a857; font-size: 12px; white-space: nowrap; }
+.related-goods__column-head .btn-text:disabled { opacity: .4; cursor: not-allowed; }
+.related-goods__filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 128px;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(60,60,67,.08);
+}
+.related-goods .related-goods__search {
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  flex: 0 0 36px;
+}
+.related-goods__account-filter { width: 100%; min-width: 0; height: 36px; }
+.related-goods__list {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .related-goods__item {
   display: flex;
   align-items: center;
@@ -1630,6 +1718,7 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .related-goods__item:hover { background: rgba(10,132,255,.045); }
+.related-goods__item:has(input:checked) { background: rgba(10,132,255,.07); }
 .related-goods__item input { flex: none; margin: 0; }
 .related-goods__cover {
   width: 38px;
@@ -1643,6 +1732,7 @@ onUnmounted(() => {
 .related-goods__info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .related-goods__info strong, .related-goods__selected-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #1c1c1e; }
 .related-goods__info small, .related-goods__selected-item small { color: rgba(28,28,30,.52); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.related-goods__info small b, .related-goods__selected-item small b { color: #0a6fc2; font-weight: 650; }
 .related-goods__info em { color: #e58600; font-size: 11px; font-style: normal; }
 .related-goods__selected-item {
   display: flex;
@@ -2000,8 +2090,9 @@ onUnmounted(() => {
 @media (max-width: 700px) {
   .modal-overlay { padding: 10px; }
   .modal-container--wide { max-height: 92vh; }
-  .related-goods__grid { grid-template-columns: 1fr; min-height: 0; }
-  .related-goods__column { max-height: 34vh; overflow-y: auto; }
+  .related-goods__grid { grid-template-columns: 1fr; height: auto; min-height: 0; overflow-y: auto; }
+  .related-goods__column { max-height: 36vh; min-height: 240px; }
   .related-goods__column + .related-goods__column { border-left: none; border-top: 1px solid rgba(60,60,67,.12); }
+  .related-goods__filters { grid-template-columns: 1fr; }
 }
 </style>
