@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.xianyusmart.entity.XianyuKamiItem;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
@@ -18,7 +19,7 @@ public interface XianyuKamiItemMapper extends BaseMapper<XianyuKamiItem> {
     @Select("SELECT * FROM xianyu_kami_item WHERE kami_config_id = #{kamiConfigId} AND status = 0 ORDER BY RAND() LIMIT 1")
     XianyuKamiItem findRandomUnused(@Param("kamiConfigId") Long kamiConfigId);
 
-    @Select("SELECT * FROM xianyu_kami_item WHERE kami_config_id = #{kamiConfigId} ORDER BY sort_order ASC")
+    @Select("SELECT * FROM xianyu_kami_item WHERE kami_config_id = #{kamiConfigId} ORDER BY sort_order ASC, id ASC")
     List<XianyuKamiItem> findByConfigId(@Param("kamiConfigId") Long kamiConfigId);
 
     @Select("<script>" +
@@ -29,7 +30,7 @@ public interface XianyuKamiItemMapper extends BaseMapper<XianyuKamiItem> {
             "<if test='keyword != null and keyword != \"\"'>" +
             "AND kami_content LIKE CONCAT('%', #{keyword}, '%') " +
             "</if>" +
-            "ORDER BY sort_order ASC" +
+            "ORDER BY sort_order ASC, id ASC" +
             "</script>")
     List<XianyuKamiItem> findByConfigIdWithFilter(
             @Param("kamiConfigId") Long kamiConfigId,
@@ -45,8 +46,14 @@ public interface XianyuKamiItemMapper extends BaseMapper<XianyuKamiItem> {
     @Select("SELECT COUNT(*) FROM xianyu_kami_item WHERE kami_config_id = #{kamiConfigId}")
     int countByConfigId(@Param("kamiConfigId") Long kamiConfigId);
 
+    @Select("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM xianyu_kami_item WHERE kami_config_id = #{kamiConfigId}")
+    int nextSortOrder(@Param("kamiConfigId") Long kamiConfigId);
+
     @Select("SELECT COUNT(*) FROM xianyu_kami_item WHERE kami_config_id = #{kamiConfigId} AND kami_content = #{kamiContent}")
     int countByConfigIdAndContent(@Param("kamiConfigId") Long kamiConfigId, @Param("kamiContent") String kamiContent);
+
+    @Delete("DELETE FROM xianyu_kami_item WHERE id = #{id} AND status IN (0, 1)")
+    int deleteIfNotPending(@Param("id") Long id);
 
     @Update("UPDATE xianyu_kami_item SET status = 1, order_id = #{orderId}, used_time = NOW(3) WHERE id = #{id} AND status = 0")
     int markUsed(@Param("id") Long id, @Param("orderId") String orderId);
@@ -85,6 +92,6 @@ public interface XianyuKamiItemMapper extends BaseMapper<XianyuKamiItem> {
     @Update("UPDATE xianyu_kami_item SET status = 3 WHERE order_id = #{orderId} AND status = 2")
     int markReservationReviewRequired(@Param("orderId") String orderId);
 
-    @Select("SELECT * FROM xianyu_kami_item WHERE kami_config_id = #{kamiConfigId} AND status = #{status} ORDER BY sort_order ASC")
+    @Select("SELECT * FROM xianyu_kami_item WHERE kami_config_id = #{kamiConfigId} AND status = #{status} ORDER BY sort_order ASC, id ASC")
     List<XianyuKamiItem> findByConfigIdAndStatus(@Param("kamiConfigId") Long kamiConfigId, @Param("status") Integer status);
 }

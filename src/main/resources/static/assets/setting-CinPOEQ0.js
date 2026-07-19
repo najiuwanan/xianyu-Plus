@@ -1,0 +1,1 @@
+import{k as e}from"./index-h9u7tJu_.js";function n(t){return e({url:"/setting/get",method:"post",data:t})}function r(t){return e({url:"/setting/save",method:"post",data:t})}function o(){return e({url:"/setting/testEmail",method:"post",data:{}})}export{n as g,r as s,o as t};

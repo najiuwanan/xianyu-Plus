@@ -31,4 +31,13 @@ class FlywayMigrationConsistencyTest {
         assertTrue(v7.contains("MODIFY COLUMN xianyu_account_id BIGINT NULL"));
         assertTrue(v7.contains("ON DELETE SET NULL"));
     }
+
+    @Test
+    void deliveredKamiCanBeDeletedWithoutLosingUsageHistory() throws IOException {
+        String v20 = new ClassPathResource("db/migration/V20__allow_deleting_delivered_kami_items.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertTrue(v20.contains("MODIFY COLUMN kami_item_id BIGINT NULL"));
+        assertTrue(v20.contains("ON DELETE SET NULL"));
+    }
 }

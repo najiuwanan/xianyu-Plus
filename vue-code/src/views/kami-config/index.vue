@@ -109,6 +109,17 @@ const sourceLabel = (sourceType?: number) => {
   return '本地库存'
 }
 
+const kamiStatusLabel = (status: number) => {
+  if (status === 0) return '未使用'
+  if (status === 1) return '已使用'
+  if (status === 2) return '发货处理中'
+  if (status === 3) return '待核对'
+  return '未知状态'
+}
+
+const canDeleteKamiItem = (item: KamiItem) => item.status === 0 || item.status === 1
+const canResetKamiItem = (item: KamiItem) => item.status === 1 || item.status === 3
+
 const relatedGoodsKey = (goods: Pick<KamiRelatedGoods, 'xianyuAccountId' | 'xyGoodsId'>) =>
   `${goods.xianyuAccountId}:${goods.xyGoodsId}`
 
@@ -432,6 +443,10 @@ const handleBatchImport = async () => {
 }
 
 const handleDeleteItem = async (item: KamiItem) => {
+  if (!canDeleteKamiItem(item)) {
+    toast.warning('卡券正在发货处理中或等待核对，暂时不能删除')
+    return
+  }
   try {
     await showConfirm('确定删除该卡券？', '删除确认')
     const res = await deleteKamiItem(item.id)
@@ -530,7 +545,7 @@ const handleExport = async () => {
 
     const header = '序号\t卡券内容\t状态\t订单ID\t使用时间\t添加时间\n'
     const rows = allItems.map(item =>
-      `${item.sortOrder}\t${item.kamiContent}\t${item.status === 0 ? '未使用' : '已使用'}\t${item.orderId || ''}\t${item.usedTime || ''}\t${item.createTime}`
+      `${item.sortOrder}\t${item.kamiContent}\t${kamiStatusLabel(item.status)}\t${item.orderId || ''}\t${item.usedTime || ''}\t${item.createTime}`
     ).join('\n')
     const content = header + rows
     const blob = new Blob(['\ufeff' + content], { type: 'text/plain;charset=utf-8' })
@@ -654,6 +669,8 @@ onUnmounted(() => {
             <option :value="undefined">全部状态</option>
             <option :value="0">未使用</option>
             <option :value="1">已使用</option>
+            <option :value="2">发货处理中</option>
+            <option :value="3">待核对</option>
           </select>
           <input
             v-model="filterKeyword"
@@ -672,18 +689,18 @@ onUnmounted(() => {
             v-for="item in kamiItems"
             :key="item.id"
             class="kami-item-card"
-            :class="{ 'kami-item-card--used': item.status === 1 }"
+            :class="{ 'kami-item-card--used': item.status !== 0 }"
           >
             <div class="kami-item-card__content">{{ item.kamiContent }}</div>
             <div class="kami-item-card__meta">
               <span :class="item.status === 0 ? 'tag tag--success' : 'tag tag--info'">
-                {{ item.status === 0 ? '未使用' : '已使用' }}
+                {{ kamiStatusLabel(item.status) }}
               </span>
               <span v-if="item.usedTime" class="kami-item-card__time">{{ item.usedTime }}</span>
             </div>
             <div class="kami-item-card__actions">
-              <button v-if="item.status === 1" class="btn-warning btn-text btn-sm" @click="handleResetItem(item)">重置</button>
-              <button class="btn-danger btn-text btn-sm" @click="handleDeleteItem(item)">删除</button>
+              <button v-if="canResetKamiItem(item)" class="btn-warning btn-text btn-sm" @click="handleResetItem(item)">重置</button>
+              <button v-if="canDeleteKamiItem(item)" class="btn-danger btn-text btn-sm" @click="handleDeleteItem(item)">删除</button>
             </div>
           </div>
         </div>
@@ -778,6 +795,8 @@ onUnmounted(() => {
                 <option :value="undefined">全部状态</option>
                 <option :value="0">未使用</option>
                 <option :value="1">已使用</option>
+                <option :value="2">发货处理中</option>
+                <option :value="3">待核对</option>
               </select>
               <input
                 v-model="filterKeyword"
@@ -806,12 +825,12 @@ onUnmounted(() => {
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="item in kamiItems" :key="item.id" :class="{ 'kami-table__row--used': item.status === 1 }">
+                    <tr v-for="item in kamiItems" :key="item.id" :class="{ 'kami-table__row--used': item.status !== 0 }">
                       <td class="kami-table__cell--num">{{ item.sortOrder }}</td>
                       <td class="kami-table__cell--content">{{ item.kamiContent }}</td>
                       <td>
                         <span class="kami-table__status" :class="item.status === 0 ? 'kami-table__status--unused' : 'kami-table__status--used'">
-                          {{ item.status === 0 ? '未使用' : '已使用' }}
+                          {{ kamiStatusLabel(item.status) }}
                         </span>
                       </td>
                       <td class="kami-table__cell--id">{{ item.orderId || '-' }}</td>
@@ -819,8 +838,8 @@ onUnmounted(() => {
                       <td class="kami-table__cell--time">{{ item.createTime }}</td>
                       <td>
                         <div class="kami-table__actions">
-                          <button v-if="item.status === 1" class="kami-table__action-btn kami-table__action-btn--reset" @click="handleResetItem(item)">重置</button>
-                          <button class="kami-table__action-btn kami-table__action-btn--delete" @click="handleDeleteItem(item)">删除</button>
+                          <button v-if="canResetKamiItem(item)" class="kami-table__action-btn kami-table__action-btn--reset" @click="handleResetItem(item)">重置</button>
+                          <button v-if="canDeleteKamiItem(item)" class="kami-table__action-btn kami-table__action-btn--delete" @click="handleDeleteItem(item)">删除</button>
                         </div>
                       </td>
                     </tr>

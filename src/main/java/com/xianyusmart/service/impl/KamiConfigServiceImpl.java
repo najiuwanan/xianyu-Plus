@@ -221,15 +221,14 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             String content = reqDTO.getKamiContent().trim();
             item.setKamiContent(content);
             item.setStatus(0);
-            item.setSortOrder(kamiItemMapper.countByConfigId(reqDTO.getKamiConfigId()));
+            item.setSortOrder(kamiItemMapper.nextSortOrder(reqDTO.getKamiConfigId()));
 
             boolean duplicated = kamiItemMapper.countByConfigIdAndContent(reqDTO.getKamiConfigId(), content) > 0;
+            if (duplicated) {
+                return ResultObject.failed("该卡券内容已存在，请勿重复添加");
+            }
             kamiItemMapper.insert(item);
             refreshConfigCounts(reqDTO.getKamiConfigId());
-
-            if (duplicated) {
-                return ResultObject.success(toItemRespDTO(item), "卡密内容重复，已导入");
-            }
             return ResultObject.success(toItemRespDTO(item));
         } catch (Exception e) {
             log.error("添加卡密失败", e);
@@ -249,7 +248,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
                 return ResultObject.failed("只有“本地库存卡密”类型可以批量导入");
             }
             String[] lines = reqDTO.getKamiContents().split("\\r?\\n");
-            int baseOrder = kamiItemMapper.countByConfigId(reqDTO.getKamiConfigId());
+            int baseOrder = kamiItemMapper.nextSortOrder(reqDTO.getKamiConfigId());
             int added = 0;
             int duplicated = 0;
             for (String line : lines) {
@@ -257,7 +256,10 @@ public class KamiConfigServiceImpl implements KamiConfigService {
                 if (trimmed.isEmpty()) continue;
 
                 boolean dup = kamiItemMapper.countByConfigIdAndContent(reqDTO.getKamiConfigId(), trimmed) > 0;
-                if (dup) duplicated++;
+                if (dup) {
+                    duplicated++;
+                    continue;
+                }
 
                 XianyuKamiItem item = new XianyuKamiItem();
                 item.setKamiConfigId(reqDTO.getKamiConfigId());
@@ -269,7 +271,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             }
             refreshConfigCounts(reqDTO.getKamiConfigId());
             String msg = duplicated > 0
-                    ? String.format("成功导入%d条，其中重复%d条", added, duplicated)
+                    ? String.format("成功导入%d条，已跳过重复%d条", added, duplicated)
                     : String.format("成功导入%d条", added);
             return ResultObject.success(added, msg);
         } catch (Exception e) {
@@ -317,7 +319,10 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             if (item == null) {
                 return ResultObject.failed("卡密不存在");
             }
-            kamiItemMapper.deleteById(id);
+            int rows = kamiItemMapper.deleteIfNotPending(id);
+            if (rows == 0) {
+                return ResultObject.failed("卡券正在发货处理中，暂时不能删除，请稍后重试");
+            }
             refreshConfigCounts(item.getKamiConfigId());
             return ResultObject.success(null);
         } catch (Exception e) {
@@ -330,10 +335,15 @@ public class KamiConfigServiceImpl implements KamiConfigService {
     @Transactional
     public ResultObject<Void> resetKamiItem(Long id) {
         try {
+            XianyuKamiItem item = kamiItemMapper.selectById(id);
+            if (item == null) {
+                return ResultObject.failed("卡密不存在");
+            }
             int rows = kamiItemMapper.markUnused(id);
             if (rows == 0) {
                 return ResultObject.failed("卡密状态重置失败，可能已是未使用状态");
             }
+            refreshConfigCounts(item.getKamiConfigId());
             return ResultObject.success(null);
         } catch (Exception e) {
             log.error("重置卡密状态失败", e);
