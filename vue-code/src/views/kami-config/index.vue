@@ -7,7 +7,6 @@ import {
   saveKamiConfig,
   deleteKamiConfig,
   queryKamiItems,
-  addKamiItem,
   batchImportKamiItems,
   deleteKamiItem,
   resetKamiItem,
@@ -45,8 +44,11 @@ const apiSaving = ref(false)
 const apiTesting = ref(false)
 const apiTestResult = ref('')
 const apiForm = ref({
+  aliasName: '',
   sourceType: 2,
   fixedContent: '',
+  deliveryTemplate: '',
+  importContent: '',
   apiUrl: '',
   apiMethod: 'POST' as 'GET' | 'POST',
   apiHeaders: '',
@@ -63,14 +65,6 @@ const relatedGoodsKeyword = ref('')
 const relatedGoodsAccountFilter = ref('all')
 const selectedRelatedGoodsKeys = ref<string[]>([])
 const initialRelatedGoodsKeys = ref<string[]>([])
-
-const showImportDialog = ref(false)
-const importContent = ref('')
-const importLoading = ref(false)
-
-const showAddDialog = ref(false)
-const addContent = ref('')
-const addLoading = ref(false)
 
 const showAlertDialog = ref(false)
 const alertForm = ref({
@@ -256,8 +250,11 @@ const handleCreate = async () => {
         selectedConfigId.value = res.data.id
         if (deferredSource) {
           apiForm.value = {
+            aliasName: res.data.aliasName || createForm.value.aliasName || '未命名',
             sourceType: requestedSource,
             fixedContent: '',
+            deliveryTemplate: '',
+            importContent: '',
             apiUrl: '',
             apiMethod: 'POST',
             apiHeaders: '',
@@ -284,8 +281,11 @@ const openApiDialog = () => {
   if (!selectedConfig.value) return
   const config = selectedConfig.value
   apiForm.value = {
+    aliasName: config.aliasName || '',
     sourceType: config.sourceType || 1,
     fixedContent: config.fixedContent || '',
+    deliveryTemplate: config.deliveryTemplate || '',
+    importContent: '',
     apiUrl: config.apiUrl || '',
     apiMethod: (config.apiMethod === 'GET' ? 'GET' : 'POST'),
     apiHeaders: config.apiHeaders || '',
@@ -323,12 +323,34 @@ const handleTestApi = async () => {
 
 const handleSaveApi = async () => {
   if (!selectedConfig.value) return
+  if (!apiForm.value.aliasName.trim()) {
+    toast.warning('请输入卡券库名称')
+    return
+  }
+  if (apiForm.value.deliveryTemplate.trim()
+      && !apiForm.value.deliveryTemplate.includes('{DELIVERY_CONTENT}')
+      && !apiForm.value.deliveryTemplate.includes('{kmKey}')) {
+    toast.warning('发货消息模板必须包含 {DELIVERY_CONTENT} 变量')
+    return
+  }
+  if (apiForm.value.sourceType !== selectedConfig.value.sourceType) {
+    try {
+      await showConfirm(
+        `确定将来源从“${sourceLabel(selectedConfig.value.sourceType)}”切换为“${sourceLabel(apiForm.value.sourceType)}”吗？现有使用记录会保留。`,
+        '切换卡券来源'
+      )
+    } catch {
+      return
+    }
+  }
   apiSaving.value = true
+  let configSaved = false
   try {
     const res = await saveKamiConfig({
       id: selectedConfig.value.id,
-      aliasName: selectedConfig.value.aliasName,
+      aliasName: apiForm.value.aliasName.trim(),
       sourceType: apiForm.value.sourceType,
+      deliveryTemplate: apiForm.value.deliveryTemplate.trim(),
       ...(apiForm.value.sourceType === 3 ? {
         fixedContent: apiForm.value.fixedContent
       } : {}),
@@ -342,7 +364,22 @@ const handleSaveApi = async () => {
       } : {})
     })
     if (res.code === 200) {
-      toast.success(`${sourceLabel(apiForm.value.sourceType)}卡券配置已保存`)
+      configSaved = true
+      if (apiForm.value.sourceType === 1 && apiForm.value.importContent.trim()) {
+        const importRes = await batchImportKamiItems({
+          kamiConfigId: selectedConfig.value.id,
+          kamiContents: apiForm.value.importContent
+        })
+        if (importRes.code !== 200) {
+          toast.error(`卡券库配置已保存，但卡券导入失败：${importRes.msg || '未知错误'}`)
+          await loadKamiConfigs()
+          loadKamiItems()
+          return
+        }
+        toast.success(importRes.msg || '卡券库配置和卡券内容已保存')
+      } else {
+        toast.success(`${sourceLabel(apiForm.value.sourceType)}卡券配置已保存`)
+      }
       showApiDialog.value = false
       kamiItems.value = []
       await loadKamiConfigs()
@@ -351,7 +388,11 @@ const handleSaveApi = async () => {
       toast.error(res.msg || '保存失败')
     }
   } catch (e) {
-    toast.error('保存失败')
+    toast.error(configSaved ? '卡券库配置已保存，但卡券导入请求失败，请重试导入' : '保存失败')
+    if (configSaved) {
+      await loadKamiConfigs()
+      if (apiForm.value.sourceType === 1) loadKamiItems()
+    }
   } finally {
     apiSaving.value = false
   }
@@ -429,60 +470,6 @@ const handleDeleteConfig = async (config: KamiConfig) => {
       toast.error(res.msg || '删除失败')
     }
   } catch {}
-}
-
-const handleAddKami = async () => {
-  if (!addContent.value.trim()) {
-    toast.warning('请输入卡券内容')
-    return
-  }
-  addLoading.value = true
-  try {
-    const res = await addKamiItem({
-      kamiConfigId: selectedConfigId.value!,
-      kamiContent: addContent.value.trim()
-    })
-    if (res.code === 200) {
-      toast.success('添加成功')
-      showAddDialog.value = false
-      addContent.value = ''
-      loadKamiItems()
-      loadKamiConfigs()
-    } else {
-      toast.error(res.msg || '添加失败')
-    }
-  } catch (e) {
-    toast.error('添加失败')
-  } finally {
-    addLoading.value = false
-  }
-}
-
-const handleBatchImport = async () => {
-  if (!importContent.value.trim()) {
-    toast.warning('请输入卡券内容')
-    return
-  }
-  importLoading.value = true
-  try {
-    const res = await batchImportKamiItems({
-      kamiConfigId: selectedConfigId.value!,
-      kamiContents: importContent.value
-    })
-    if (res.code === 200) {
-      toast.success(res.msg || '导入成功')
-      showImportDialog.value = false
-      importContent.value = ''
-      loadKamiItems()
-      loadKamiConfigs()
-    } else {
-      toast.error(res.msg || '导入失败')
-    }
-  } catch (e) {
-    toast.error('导入失败')
-  } finally {
-    importLoading.value = false
-  }
 }
 
 const handleDeleteItem = async (item: KamiItem) => {
@@ -680,10 +667,8 @@ onUnmounted(() => {
           </div>
           <div class="kami-mobile__detail-actions">
             <button class="btn-default btn-sm" @click="openRelatedGoodsDialog">关联商品 {{ selectedConfig?.relatedGoodsCount || 0 }}</button>
-            <button class="btn-default btn-sm" @click="openApiDialog">来源配置</button>
+            <button class="btn-primary btn-sm" @click="openApiDialog">编辑卡券库</button>
             <template v-if="isLocalSource">
-              <button class="btn-default btn-sm" @click="showAddDialog = true">添加</button>
-              <button class="btn-primary btn-sm" @click="showImportDialog = true">批量导入</button>
               <button class="btn-success btn-sm" @click="openExportDialog">导出</button>
               <button class="btn-warning btn-sm" @click="openAlertDialog">预警</button>
             </template>
@@ -693,13 +678,13 @@ onUnmounted(() => {
         <div v-if="isApiSource" class="api-source-panel">
           <strong>外部 API 自动取卡</strong>
           <p>买家付款后系统会按订单请求供应商接口。成功返回的卡密会缓存，重新发货时不会重复取卡。</p>
-          <button class="btn-primary btn-sm" @click="openApiDialog">查看 / 修改 API 配置</button>
+          <button class="btn-primary btn-sm" @click="openApiDialog">编辑卡券库</button>
         </div>
 
         <div v-else-if="isFixedSource" class="api-source-panel api-source-panel--fixed">
           <strong>固定内容发货</strong>
           <p>{{ selectedConfig?.fixedContent || '尚未配置固定发货内容' }}</p>
-          <button class="btn-primary btn-sm" @click="openApiDialog">查看 / 修改固定内容</button>
+          <button class="btn-primary btn-sm" @click="openApiDialog">编辑卡券库</button>
         </div>
 
         <div v-if="isLocalSource" class="kami-mobile__filters">
@@ -806,10 +791,8 @@ onUnmounted(() => {
               <h2>{{ selectedConfig.aliasName || `卡券库#${selectedConfig.id}` }}</h2>
               <div class="kami-detail__actions">
                 <button class="btn-default" @click="openRelatedGoodsDialog">关联商品 {{ selectedConfig.relatedGoodsCount || 0 }}</button>
-                <button class="btn-default" @click="openApiDialog">来源配置</button>
+                <button class="btn-primary" @click="openApiDialog">编辑卡券库</button>
                 <template v-if="isLocalSource">
-                  <button class="btn-default" @click="showAddDialog = true">添加卡券</button>
-                  <button class="btn-primary" @click="showImportDialog = true">批量导入</button>
                   <button class="btn-success" @click="openExportDialog">导出</button>
                   <button class="btn-warning" @click="openAlertDialog">预警配置</button>
                 </template>
@@ -819,13 +802,13 @@ onUnmounted(() => {
             <div v-if="isApiSource" class="api-source-panel">
               <strong>外部 API 自动取卡</strong>
               <p>当前卡券库不保存本地卡密。每笔订单会请求一次供应商接口，接口成功内容会按订单缓存，消息重试不会重复扣卡。</p>
-              <button class="btn-primary" @click="openApiDialog">查看 / 修改 API 配置</button>
+              <button class="btn-primary" @click="openApiDialog">编辑卡券库</button>
             </div>
 
             <div v-else-if="isFixedSource" class="api-source-panel api-source-panel--fixed">
               <strong>固定内容发货</strong>
               <p>{{ selectedConfig.fixedContent || '尚未配置固定发货内容' }}</p>
-              <button class="btn-primary" @click="openApiDialog">查看 / 修改固定内容</button>
+              <button class="btn-primary" @click="openApiDialog">编辑卡券库</button>
             </div>
 
             <div v-if="isLocalSource" class="kami-detail__filters">
@@ -935,54 +918,22 @@ onUnmounted(() => {
         </div>
       </Transition>
 
-      <!-- 添加卡券 -->
-      <Transition name="modal">
-        <div v-if="showAddDialog" class="modal-overlay" @click.self="showAddDialog = false">
-          <div class="modal-container">
-            <div class="modal-header">
-              <h2 class="modal-title">添加卡券</h2>
-              <button class="modal-close" @click="showAddDialog = false">×</button>
-            </div>
-            <div class="modal-body">
-              <textarea v-model="addContent" class="form-textarea" :rows="3" placeholder="请输入卡券内容"></textarea>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-secondary" @click="showAddDialog = false">取消</button>
-              <button class="btn btn-primary" :class="{ 'is-loading': addLoading }" :disabled="addLoading" @click="handleAddKami">确定</button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-
-      <!-- 批量导入卡券 -->
-      <Transition name="modal">
-        <div v-if="showImportDialog" class="modal-overlay" @click.self="showImportDialog = false">
-          <div class="modal-container modal-container--lg">
-            <div class="modal-header">
-              <h2 class="modal-title">批量导入卡券</h2>
-              <button class="modal-close" @click="showImportDialog = false">×</button>
-            </div>
-            <div class="modal-body">
-              <p class="form-hint">每行一条卡券，重复内容不会跳过</p>
-              <textarea v-model="importContent" class="form-textarea" :rows="10" placeholder="卡券1&#10;卡券2&#10;卡券3"></textarea>
-            </div>
-            <div class="modal-footer">
-              <button class="btn btn-secondary" @click="showImportDialog = false">取消</button>
-              <button class="btn btn-primary" :class="{ 'is-loading': importLoading }" :disabled="importLoading" @click="handleBatchImport">导入</button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-
-      <!-- 卡券来源 / 外部 API 配置 -->
+      <!-- 统一编辑卡券库 -->
       <Transition name="modal">
         <div v-if="showApiDialog" class="modal-overlay" @click.self="showApiDialog = false">
           <div class="modal-container modal-container--lg">
             <div class="modal-header">
-              <h2 class="modal-title">卡券来源配置</h2>
+              <div>
+                <h2 class="modal-title">编辑卡券库</h2>
+                <p class="form-hint">统一维护名称、来源内容、卡券导入和发货消息模板。</p>
+              </div>
               <button class="modal-close" @click="showApiDialog = false">×</button>
             </div>
             <div class="modal-body api-config-form">
+              <div class="form-row">
+                <label class="form-label">卡券库名称</label>
+                <input v-model="apiForm.aliasName" class="form-input" maxlength="50" placeholder="请输入卡券库名称" />
+              </div>
               <div class="form-row">
                 <label class="form-label">卡券来源</label>
                 <div class="form-radio-group">
@@ -1042,12 +993,34 @@ onUnmounted(() => {
                 </div>
               </template>
 
-              <p v-else class="form-hint">切回本地库存后，商品仍使用这套卡券库中已导入的卡密。原有 API 配置会保留，但不会再请求接口。</p>
+              <template v-else>
+                <p class="form-hint api-config-form__intro">每行输入一条卡券。保存时会追加到现有库存，重复内容自动跳过；留空则只保存其他配置。</p>
+                <div class="form-row">
+                  <label class="form-label">添加卡券</label>
+                  <textarea v-model="apiForm.importContent" class="form-textarea" :rows="8" placeholder="卡券1&#10;卡券2&#10;卡券3"></textarea>
+                  <p class="form-hint">既支持单条添加，也支持多行批量导入，不会清空已有库存和使用记录。</p>
+                </div>
+              </template>
+
+              <div class="api-config-form__template">
+                <div class="form-row">
+                  <label class="form-label">发货消息模板</label>
+                  <textarea
+                    v-model="apiForm.deliveryTemplate"
+                    class="form-textarea"
+                    :rows="7"
+                    maxlength="2000"
+                    placeholder="您好，您购买的商品已发货：&#10;&#10;{DELIVERY_CONTENT}&#10;&#10;订单号：{order_id}"
+                  ></textarea>
+                  <p v-pre class="form-hint">留空时直接发送卡券内容。填写模板必须包含 {DELIVERY_CONTENT}；还可使用 {order_id}、{item_id}、{item_title}、{buyer_name}、{buyer_id}、{seller_name}、{sku_name}。</p>
+                  <p class="form-hint">使用 <code>######</code> 分隔，可按顺序拆成多条消息发送。旧模板中的 <code>{kmKey}</code> 仍然兼容。</p>
+                </div>
+              </div>
             </div>
             <div class="modal-footer">
               <button class="btn btn-secondary" @click="showApiDialog = false">取消</button>
               <button v-if="apiForm.sourceType === 2" class="btn btn-secondary" :disabled="apiTesting" @click="handleTestApi">{{ apiTesting ? '测试中…' : '测试接口' }}</button>
-              <button class="btn btn-primary" :class="{ 'is-loading': apiSaving }" :disabled="apiSaving" @click="handleSaveApi">保存配置</button>
+              <button class="btn btn-primary" :class="{ 'is-loading': apiSaving }" :disabled="apiSaving" @click="handleSaveApi">保存卡券库</button>
             </div>
           </div>
         </div>
@@ -1642,6 +1615,18 @@ onUnmounted(() => {
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 12px;
+}
+.api-config-form__template {
+  margin-top: 4px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(60,60,67,.12);
+}
+.api-config-form__template code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgba(10,132,255,.08);
+  color: #0969b8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 .related-goods__warning {

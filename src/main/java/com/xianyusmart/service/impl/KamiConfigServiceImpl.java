@@ -104,6 +104,18 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             if (reqDTO.getFixedContent() != null) {
                 config.setFixedContent(reqDTO.getFixedContent());
             }
+            if (reqDTO.getDeliveryTemplate() != null) {
+                String deliveryTemplate = reqDTO.getDeliveryTemplate().trim();
+                if (!deliveryTemplate.isEmpty()
+                        && !deliveryTemplate.contains("{DELIVERY_CONTENT}")
+                        && !deliveryTemplate.contains("{kmKey}")) {
+                    return ResultObject.failed("发货消息模板必须包含 {DELIVERY_CONTENT} 变量");
+                }
+                if (deliveryTemplate.length() > 2000) {
+                    return ResultObject.failed("发货消息模板不能超过 2000 个字符");
+                }
+                config.setDeliveryTemplate(reqDTO.getDeliveryTemplate());
+            }
             if (reqDTO.getApiUrl() != null) {
                 config.setApiUrl(reqDTO.getApiUrl());
             }
@@ -717,6 +729,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
         dto.setAliasName(config.getAliasName());
         dto.setSourceType(config.getSourceType() == null ? 1 : config.getSourceType());
         dto.setFixedContent(config.getFixedContent());
+        dto.setDeliveryTemplate(config.getDeliveryTemplate());
         dto.setApiUrl(config.getApiUrl());
         dto.setApiMethod(config.getApiMethod());
         dto.setApiHeaders(config.getApiHeaders());

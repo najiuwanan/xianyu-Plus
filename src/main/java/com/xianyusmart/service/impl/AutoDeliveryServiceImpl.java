@@ -17,10 +17,13 @@ import com.xianyusmart.service.RedFlowerService;
 import com.xianyusmart.service.NotificationChannelService;
 import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.entity.XianyuGoodsInfo;
+import com.xianyusmart.entity.XianyuAccount;
+import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xianyusmart.service.WebSocketService;
 import com.xianyusmart.service.delivery.DeliveryContext;
 import com.xianyusmart.service.delivery.DeliveryStrategyResolver;
+import com.xianyusmart.service.delivery.DeliveryMessageTemplateRenderer;
 import com.xianyusmart.service.delivery.OrderDetailFetcher;
 import com.xianyusmart.utils.HumanLikeDelayUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -98,6 +101,12 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
     @Autowired
     private BuyerBlacklistService blacklistService;
+
+    @Autowired
+    private XianyuAccountMapper accountMapper;
+
+    @Autowired
+    private DeliveryMessageTemplateRenderer messageTemplateRenderer;
 
     @Autowired
     @Qualifier("taskExecutor")
@@ -415,6 +424,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
         String reservationOrderId = orderId + "#R#" + UUID.randomUUID().toString().replace("-", "");
         boolean cardDelivery = false;
+        boolean messageSent = false;
         try {
             OrderDetailFetcher.OrderDetailInfo orderDetail = orderDetailFetcher.fetch(accountId, xyGoodsId, orderId);
             String orderSkuId = orderDetail != null ? orderDetail.skuId : null;
@@ -445,6 +455,10 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     .reservationOrderId(reservationOrderId)
                     .freshKami(true)
                     .buyerUserName(buyerUserName)
+                    .buyerUserId(record.getBuyerUserId())
+                    .goodsTitle(record.getGoodsTitle())
+                    .skuName(record.getSkuName())
+                    .sellerName(resolveSellerName(accountId))
                     .quantity(buyNum)
                     .deliveryConfig(deliveryConfig)
                     .build();
@@ -460,9 +474,25 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 return com.xianyusmart.common.ResultObject.failed(finalBlacklistReason + "，新卡密已退回可用库存");
             }
 
-            if (!webSocketService.sendMessage(accountId, cid, cid, content)) {
-                if (cardDelivery) kamiConfigService.releaseReservation(reservationOrderId);
-                return com.xianyusmart.common.ResultObject.failed("补发内容发送失败，新卡密已退回可用库存");
+            List<String> messages = messageTemplateRenderer.splitMessages(content);
+            int sentCount = 0;
+            for (String message : messages) {
+                String messageBlacklistReason = blacklistService.blockedMessage(accountId, record.getBuyerUserId());
+                if (messageBlacklistReason != null || !webSocketService.sendMessage(accountId, cid, cid, message)) {
+                    if (cardDelivery) {
+                        if (sentCount == 0) {
+                            kamiConfigService.releaseReservation(reservationOrderId);
+                        } else {
+                            kamiConfigService.markReservationReviewRequired(reservationOrderId);
+                        }
+                    }
+                    return com.xianyusmart.common.ResultObject.failed(sentCount == 0
+                            ? "补发内容发送失败，新卡密已退回可用库存"
+                            : "部分发货消息已发送，剩余消息失败，请人工核对");
+                }
+                sentCount++;
+                messageSent = true;
+                sentMessageSaveService.saveAiAssistantReply(accountId, cid, cid, message, xyGoodsId);
             }
 
             if (cardDelivery) {
@@ -470,12 +500,14 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                         reservationOrderId, orderId, accountId, xyGoodsId, cid, buyerUserName);
             }
             sendDeliveryImages(accountId, xyGoodsId, cid, cid, deliveryConfig, false);
-            sentMessageSaveService.saveAiAssistantReply(accountId, cid, cid, content, xyGoodsId);
-            updateRecordState(record.getId(), 1, content, null);
+            updateRecordState(record.getId(), 1, String.join("\n", messages), null);
             return com.xianyusmart.common.ResultObject.success(
                     cardDelivery ? "已领取新的未使用卡密并发送给买家" : "已按当前商品规则重新发送给买家");
         } catch (Exception e) {
-            if (cardDelivery) kamiConfigService.releaseReservation(reservationOrderId);
+            if (cardDelivery) {
+                if (messageSent) kamiConfigService.markReservationReviewRequired(reservationOrderId);
+                else kamiConfigService.releaseReservation(reservationOrderId);
+            }
             log.error("【账号{}】人工重新发货失败: orderId={}", accountId, orderId, e);
             return com.xianyusmart.common.ResultObject.failed("人工重新发货失败: " + e.getMessage());
         }
@@ -552,6 +584,12 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     .reservationOrderId(orderId)
                     .freshKami(false)
                     .buyerUserName(buyerUserName)
+                    .buyerUserId(currentOrder == null ? null : currentOrder.getBuyerUserId())
+                    .goodsTitle(orderDetail != null && orderDetail.goodsTitle != null
+                            ? orderDetail.goodsTitle : (currentOrder == null ? null : currentOrder.getGoodsTitle()))
+                    .skuName(orderDetail != null && orderDetail.skuName != null
+                            ? orderDetail.skuName : (currentOrder == null ? null : currentOrder.getSkuName()))
+                    .sellerName(resolveSellerName(accountId))
                     .quantity(buyNum)
                     .deliveryConfig(deliveryConfig)
                     .build();
@@ -591,6 +629,8 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     updateRecordState(recordId, -1, null, finalBlacklistReason);
                     return;
                 }
+
+                content = messageTemplateRenderer.joinForSingleMessageChannel(content);
                 String deliveryResult = orderService.consignDummyDelivery(accountId, orderId, content, imageUrls);
                 if (deliveryResult != null) {
                     anySuccess = true;
@@ -625,55 +665,49 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     return;
                 }
 
-                if (needHumanLikeDelay) {
-                    if (i > 0) {
+                List<String> messages = messageTemplateRenderer.splitMessages(content);
+                int sentInThisDelivery = 0;
+                for (String message : messages) {
+                    if (needHumanLikeDelay) {
+                        if (i > 0 || sentInThisDelivery > 0) HumanLikeDelayUtils.thinkingDelay();
+                        HumanLikeDelayUtils.mediumDelay();
                         HumanLikeDelayUtils.thinkingDelay();
+                        HumanLikeDelayUtils.typingDelay(message.length());
                     }
-                    HumanLikeDelayUtils.mediumDelay();
-                    HumanLikeDelayUtils.thinkingDelay();
-                    HumanLikeDelayUtils.typingDelay(content.length());
-                }
 
-                log.info("【账号{}】准备发送发货文本[{}/{}]: content长度={}, deliveryMode={}", accountId, i + 1, deliveryCount, content.length(), deliveryMode);
-                cardDeliveryAttempted = cardDelivery;
-                String finalBlacklistReason = blacklistService.blockedMessage(accountId, currentOrder.getBuyerUserId());
-                if (finalBlacklistReason != null) {
-                    if (cardDelivery) kamiConfigService.releaseReservation(orderId);
-                    updateRecordState(recordId, -1, allContent.toString(), finalBlacklistReason);
-                    return;
-                }
-                boolean success = webSocketService.sendMessage(accountId, cid, toId, content);
-
-                if (success && needHumanLikeDelay) {
-                    HumanLikeDelayUtils.thinkingDelay();
-                }
-
-                if (success) {
-                    anySuccess = true;
-                    if (allContent.length() > 0) allContent.append("\n");
-                    allContent.append(content);
-                    if (cardDelivery) {
-                        kamiConfigService.commitReservation(orderId, orderId, accountId, xyGoodsId, cid, buyerUserName);
-                    }
-                    sendDeliveryImages(accountId, xyGoodsId, cid, toId, deliveryConfig, needHumanLikeDelay);
-                    log.info("【账号{}】✅ 发货成功[{}/{}]: recordId={}, deliveryMode={}", accountId, i + 1, deliveryCount, recordId, deliveryMode);
-                    sentMessageSaveService.saveAiAssistantReply(accountId, cid, toId, content, xyGoodsId);
-                } else {
-                    if (cardDelivery) {
-                        kamiConfigService.releaseReservation(orderId);
-                    }
-                    log.error("【账号{}】❌ 发货失败[{}/{}]: recordId={}", accountId, i + 1, deliveryCount, recordId);
-                    if (i == 0) {
-                        updateRecordState(recordId, -1, content, "消息发送失败");
-                        emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, "消息发送失败");
+                    cardDeliveryAttempted = cardDelivery;
+                    String finalBlacklistReason = blacklistService.blockedMessage(accountId, currentOrder.getBuyerUserId());
+                    boolean success = finalBlacklistReason == null
+                            && webSocketService.sendMessage(accountId, cid, toId, message);
+                    if (!success) {
+                        if (cardDelivery) {
+                            if (sentInThisDelivery == 0) kamiConfigService.releaseReservation(orderId);
+                            else kamiConfigService.markReservationReviewRequired(orderId);
+                        }
+                        String failReason = finalBlacklistReason != null ? finalBlacklistReason
+                                : (sentInThisDelivery == 0 && !anySuccess ? "消息发送失败"
+                                : PARTIAL_DELIVERY_REVIEW_PREFIX + "部分发货消息已发送，剩余内容失败，请人工核对后处理。");
+                        updateRecordState(recordId, -1, allContent.toString(), failReason);
+                        if (finalBlacklistReason == null) {
+                            emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, failReason);
+                        }
                         return;
                     }
-                    String partialFailure = PARTIAL_DELIVERY_REVIEW_PREFIX
-                            + "已成功发送 " + i + "/" + deliveryCount + " 条发货内容，剩余内容发送失败，请人工核对后处理。";
-                    updateRecordState(recordId, -1, allContent.toString(), partialFailure);
-                    emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, partialFailure);
-                    return;
+
+                    anySuccess = true;
+                    sentInThisDelivery++;
+                    if (allContent.length() > 0) allContent.append("\n");
+                    allContent.append(message);
+                    sentMessageSaveService.saveAiAssistantReply(accountId, cid, toId, message, xyGoodsId);
+                    if (needHumanLikeDelay) HumanLikeDelayUtils.thinkingDelay();
                 }
+
+                if (cardDelivery) {
+                    kamiConfigService.commitReservation(orderId, orderId, accountId, xyGoodsId, cid, buyerUserName);
+                }
+                sendDeliveryImages(accountId, xyGoodsId, cid, toId, deliveryConfig, needHumanLikeDelay);
+                log.info("【账号{}】✅ 发货成功[{}/{}]: recordId={}, deliveryMode={}, messageCount={}",
+                        accountId, i + 1, deliveryCount, recordId, deliveryMode, messages.size());
             }
 
             } // end else (wsConnected)
@@ -791,6 +825,15 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
         } catch (Exception e) {
             log.error("更新订单状态失败: recordId={}, state={}", recordId, state, e);
         }
+    }
+
+    private String resolveSellerName(Long accountId) {
+        XianyuAccount account = accountMapper.selectById(accountId);
+        if (account == null) return String.valueOf(accountId);
+        if (account.getAccountNote() != null && !account.getAccountNote().isBlank()) {
+            return account.getAccountNote();
+        }
+        return account.getUnb() == null ? String.valueOf(accountId) : account.getUnb();
     }
 
     @Override

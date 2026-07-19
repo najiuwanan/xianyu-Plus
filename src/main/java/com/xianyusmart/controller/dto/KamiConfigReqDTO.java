@@ -19,6 +19,8 @@ public class KamiConfigReqDTO {
 
     private String fixedContent;
 
+    private String deliveryTemplate;
+
     private String apiUrl;
 
     private String apiMethod;

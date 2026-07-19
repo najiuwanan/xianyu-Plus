@@ -7,6 +7,7 @@ export interface KamiConfig {
   /** 1=本地库存，2=外部 API，3=固定内容 */
   sourceType?: number;
   fixedContent?: string;
+  deliveryTemplate?: string;
   relatedGoodsCount?: number;
   apiUrl?: string;
   apiMethod?: 'GET' | 'POST' | string;
@@ -42,6 +43,7 @@ export interface SaveKamiConfigReq {
   aliasName?: string;
   sourceType?: number;
   fixedContent?: string;
+  deliveryTemplate?: string;
   apiUrl?: string;
   apiMethod?: 'GET' | 'POST';
   apiHeaders?: string;

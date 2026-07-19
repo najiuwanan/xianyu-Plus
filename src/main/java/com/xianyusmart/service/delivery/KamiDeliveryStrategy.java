@@ -31,6 +31,9 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
     private KamiConfigService kamiConfigService;
 
     @Autowired
+    private DeliveryMessageTemplateRenderer templateRenderer;
+
+    @Autowired
     private ApiKamiDeliveryService apiKamiDeliveryService;
 
     @Override
@@ -51,7 +54,8 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
                 context.getQuantity() != null ? context.getQuantity() : 1,
                 context.getDeliveryConfig(),
                 context.getReservationOrderId(),
-                Boolean.TRUE.equals(context.getFreshKami())
+                Boolean.TRUE.equals(context.getFreshKami()),
+                context
         );
         if (content == null) {
             log.warn("【账号{}】卡密发货模式下无可用卡密: xyGoodsId={}, kamiConfigIds={}",
@@ -65,7 +69,7 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
     private String acquireKamiContent(String kamiConfigIds, String kamiDeliveryTemplate,
                                        String orderId, Long accountId, String xyGoodsId, String sId,
                                        String buyerUserName, int quantity, XianyuGoodsAutoDeliveryConfig deliveryConfig,
-                                       String reservationOrderId, boolean freshKami) {
+                                       String reservationOrderId, boolean freshKami, DeliveryContext context) {
         if (kamiConfigIds == null || kamiConfigIds.trim().isEmpty()) {
             log.warn("【账号{}】卡密发货未绑定卡密配置: xyGoodsId={}", accountId, xyGoodsId);
             return null;
@@ -97,21 +101,22 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
                             .quantity(quantity)
                             .deliveryConfig(deliveryConfig)
                             .build());
-                    return applyTemplate(kamiDeliveryTemplate, apiContent);
+                    return applyTemplate(config, kamiDeliveryTemplate, apiContent, context);
                 }
                 if (fixedContentSource) {
                     if (config.getFixedContent() == null || config.getFixedContent().isBlank()) {
                         throw new BusinessException(400, "固定内容卡券库尚未填写发货内容");
                     }
-                    return applyTemplate(kamiDeliveryTemplate, config.getFixedContent().trim());
+                    return applyTemplate(config, kamiDeliveryTemplate, config.getFixedContent().trim(), context);
                 }
                 String reservationKey = reservationOrderId == null || reservationOrderId.isBlank()
                         ? orderId : reservationOrderId;
-                return kamiConfigService.reserveKami(configId, reservationKey, quantity).stream()
+                String localContent = kamiConfigService.reserveKami(configId, reservationKey, quantity).stream()
                         .map(XianyuKamiItem::getKamiContent)
-                        .map(kamiContent -> applyTemplate(kamiDeliveryTemplate, kamiContent))
                         .reduce((left, right) -> left + "\n" + right)
                         .orElse(null);
+                return localContent == null ? null
+                        : applyTemplate(config, kamiDeliveryTemplate, localContent, context);
             } catch (NumberFormatException e) {
                 log.warn("【账号{}】卡密配置ID格式错误: {}", accountId, configIdStr);
             } catch (BusinessException e) {
@@ -125,10 +130,13 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
         return null;
     }
 
-    private String applyTemplate(String template, String kamiContent) {
+    private String applyTemplate(XianyuKamiConfig config, String legacyTemplate, String kamiContent,
+                                 DeliveryContext context) {
+        String template = config.getDeliveryTemplate();
         if (template == null || template.isBlank()) {
-            return kamiContent;
+            template = legacyTemplate;
         }
-        return template.replace("{kmKey}", kamiContent);
+        return templateRenderer.render(template, kamiContent, context);
     }
+
 }

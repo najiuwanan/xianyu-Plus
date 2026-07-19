@@ -17,6 +17,8 @@ public class KamiConfigRespDTO {
 
     private String fixedContent;
 
+    private String deliveryTemplate;
+
     /** 当前已绑定此卡券库的商品数量。 */
     private Integer relatedGoodsCount;
 

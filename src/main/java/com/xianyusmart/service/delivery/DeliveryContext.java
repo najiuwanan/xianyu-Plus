@@ -20,6 +20,10 @@ public class DeliveryContext {
     private String reservationOrderId;
     private Boolean freshKami;
     private String buyerUserName;
+    private String buyerUserId;
+    private String goodsTitle;
+    private String skuName;
+    private String sellerName;
     private Integer quantity;
     private XianyuGoodsAutoDeliveryConfig deliveryConfig;
 }

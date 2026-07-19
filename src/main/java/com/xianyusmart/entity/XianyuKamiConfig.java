@@ -22,6 +22,9 @@ public class XianyuKamiConfig {
     /** 固定内容来源的发货文本，例如网盘链接、教程说明等。 */
     private String fixedContent;
 
+    /** 卡券库统一发货消息模板；{DELIVERY_CONTENT} 会替换为实际卡密或来源内容。 */
+    private String deliveryTemplate;
+
     /** 外部 API 卡券配置，仅 sourceType=2 时使用。 */
     private String apiUrl;
 

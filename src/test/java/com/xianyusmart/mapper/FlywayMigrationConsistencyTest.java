@@ -40,4 +40,12 @@ class FlywayMigrationConsistencyTest {
         assertTrue(v20.contains("MODIFY COLUMN kami_item_id BIGINT NULL"));
         assertTrue(v20.contains("ON DELETE SET NULL"));
     }
+
+    @Test
+    void kamiDeliveryTemplateMigrationIsAdditive() throws IOException {
+        String v23 = new ClassPathResource("db/migration/V23__add_kami_delivery_template.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertTrue(v23.contains("ADD COLUMN delivery_template TEXT NULL"));
+    }
 }
