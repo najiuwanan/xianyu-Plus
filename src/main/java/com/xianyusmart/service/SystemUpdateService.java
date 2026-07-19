@@ -208,6 +208,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.5.0".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "新增商品素材库，统一保存标题、描述、图片、价格与交付信息",
+                    "新增 AI 看图生成、文案润色和多账号差异化描述",
+                    "多账号分别预检类目、动态属性和发布地址",
+                    "支持逐账号选择地址、顺序发布与独立结果展示",
+                    "发布失败互不影响，并保留双重确认防止误发"
+            ));
+            return;
+        }
         if ("1.4.0".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "新增买家黑名单，支持所有账号或指定账号范围",

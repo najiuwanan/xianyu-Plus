@@ -50,6 +50,12 @@ const router = createRouter({
       meta: { title: '发布商品', icon: '➕' }
     },
     {
+      path: '/product-materials',
+      name: 'product-materials',
+      component: () => import('@/views/product-materials/index.vue'),
+      meta: { title: '商品素材库', icon: '🗂️' }
+    },
+    {
       path: '/orders',
       name: 'orders',
       component: () => import('@/views/orders/index.vue'),

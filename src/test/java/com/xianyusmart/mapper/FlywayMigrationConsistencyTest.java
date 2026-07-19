@@ -48,4 +48,14 @@ class FlywayMigrationConsistencyTest {
 
         assertTrue(v23.contains("ADD COLUMN delivery_template TEXT NULL"));
     }
+
+    @Test
+    void productMaterialMigrationIsIndependentFromAccounts() throws IOException {
+        String v24 = new ClassPathResource("db/migration/V24__add_product_material.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertTrue(v24.contains("CREATE TABLE xianyu_product_material"));
+        assertTrue(v24.contains("images_json TEXT NULL"));
+        assertTrue(!v24.contains("FOREIGN KEY"));
+    }
 }
