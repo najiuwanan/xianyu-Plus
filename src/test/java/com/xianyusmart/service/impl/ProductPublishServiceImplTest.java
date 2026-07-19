@@ -84,6 +84,33 @@ class ProductPublishServiceImplTest {
     }
 
     @Test
+    void shouldPublishWithSelectedPoiWhenCommonAddressesAreMissing() {
+        ProductPublishReqDTO request = request();
+        when(probeService.check(7L, request.getTitle())).thenReturn(generalSchema());
+        when(accountService.getCookieByAccountId(7L)).thenReturn("_m_h5_tk=token_exp");
+        when(apiCallUtils.callApiWithRetry(eq(7L), eq(PublishCapabilityProbeService.LOCATION_API), any(Map.class),
+                any(String.class), eq("1.0"), eq(null), eq(null)))
+                .thenReturn(new XianyuApiCallUtils.ApiCallResult(true,
+                        "{\"ret\":[\"SUCCESS\"],\"data\":{\"selectedPoi\":{\"districtName\":\"浦东\",\"cityName\":\"上海\",\"adCode\":\"310115\",\"gps\":\"121.5,31.2\",\"id\":\"poi-1\",\"name\":\"上海\",\"provinceName\":\"上海\"}}}",
+                        null, false));
+        when(apiCallUtils.callApiWithRetry(eq(7L), eq(ProductPublishServiceImpl.PUBLISH_API), any(Map.class),
+                any(String.class), eq("1.0"), eq(null), eq(null)))
+                .thenReturn(new XianyuApiCallUtils.ApiCallResult(true,
+                        "{\"ret\":[\"SUCCESS\"],\"data\":{\"itemId\":\"123\"}}", null, false));
+
+        ProductPublishRespDTO response = service.publish(request);
+
+        assertEquals("123", response.getItemId());
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(apiCallUtils).callApiWithRetry(eq(7L), eq(ProductPublishServiceImpl.PUBLISH_API), payload.capture(),
+                any(String.class), eq("1.0"), eq(null), eq(null));
+        Map<?, ?> address = (Map<?, ?>) payload.getValue().get("itemAddrDTO");
+        assertEquals("310115", address.get("divisionId"));
+        assertEquals("上海", address.get("poiName"));
+        assertEquals("121.5,31.2", address.get("gps"));
+    }
+
+    @Test
     void shouldRequireDoubleConfirmationBeforeAnyNetworkCall() {
         ProductPublishReqDTO request = request();
         request.setConfirmation("发布");

@@ -221,14 +221,61 @@ public class ProductPublishServiceImpl implements ProductPublishService {
                 PublishCapabilityProbeService.LOCATION_API,
                 Map.of("longitude", 121.4737, "latitude", 31.2304), cookie, "1.0", null, null);
         Map<String, Object> data = result.extractData();
-        if (!result.isSuccess() || data == null || !(data.get("commonAddresses") instanceof List<?> addresses) || addresses.isEmpty()) {
+        if (!result.isSuccess() || data == null) {
             throw new BusinessException(409, "账号没有可用的默认发布地址");
         }
-        Object first = addresses.get(0);
-        if (!(first instanceof Map<?, ?> raw)) throw new BusinessException(409, "默认发布地址格式不正确");
+
+        Object rawLocation = nonEmptyMap(data.get("selectedPoi"));
+        if (rawLocation == null && data.get("commonAddresses") instanceof List<?> addresses && !addresses.isEmpty()) {
+            rawLocation = nonEmptyMap(addresses.get(0));
+        }
+        if (rawLocation == null && data.get("poiList") instanceof List<?> poiList && !poiList.isEmpty()) {
+            rawLocation = nonEmptyMap(poiList.get(0));
+        }
+        if (!(rawLocation instanceof Map<?, ?> raw)) {
+            throw new BusinessException(409, "账号没有可用的默认发布地址");
+        }
         Map<String, Object> location = new LinkedHashMap<>();
         raw.forEach((key, value) -> location.put(String.valueOf(key), value));
+        normalizeLocation(location);
+        if (value(location, "divisionId").isBlank() && value(location, "city").isBlank()) {
+            throw new BusinessException(409, "闲鱼返回的发布地点信息不完整，请先在闲鱼发布页选择一次地点");
+        }
         return location;
+    }
+
+    private Object nonEmptyMap(Object value) {
+        return value instanceof Map<?, ?> map && !map.isEmpty() ? map : null;
+    }
+
+    /** 兼容 selectedPoi 与 commonAddresses 使用的不同字段名。 */
+    private void normalizeLocation(Map<String, Object> location) {
+        alias(location, "poi", "poiName", "name");
+        alias(location, "poiId", "id");
+        alias(location, "prov", "province", "provinceName");
+        alias(location, "city", "cityName");
+        alias(location, "area", "district", "districtName");
+        alias(location, "divisionId", "adCode", "areaCode");
+        Object longitude = location.get("longitude");
+        Object latitude = location.get("latitude");
+        if ((longitude == null || latitude == null) && location.get("gps") != null) {
+            String[] gps = String.valueOf(location.get("gps")).split(",", 2);
+            if (gps.length == 2) {
+                location.putIfAbsent("longitude", gps[0]);
+                location.putIfAbsent("latitude", gps[1]);
+            }
+        }
+    }
+
+    private void alias(Map<String, Object> location, String target, String... sources) {
+        if (location.get(target) != null && !String.valueOf(location.get(target)).isBlank()) return;
+        for (String source : sources) {
+            Object value = location.get(source);
+            if (value != null && !String.valueOf(value).isBlank()) {
+                location.put(target, value);
+                return;
+            }
+        }
     }
 
     private Map<String, Object> buildPayload(ProductPublishReqDTO request, PublishCapabilityCheckRespDTO schema,
