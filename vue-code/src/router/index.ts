@@ -41,7 +41,7 @@ const router = createRouter({
       path: '/goods',
       name: 'goods',
       component: () => import('@/views/goods/index.vue'),
-      meta: { title: '商品配置中心', icon: '📦' }
+      meta: { title: '商品列表', icon: '📦' }
     },
     {
       path: '/product-publish',
@@ -71,7 +71,7 @@ const router = createRouter({
       path: '/blacklist',
       name: 'blacklist',
       component: () => import('@/views/blacklist/index.vue'),
-      meta: { title: '买家黑名单', icon: '⛔' }
+      meta: { title: '黑名单', icon: '⛔' }
     },
     {
       path: '/notifications',

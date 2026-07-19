@@ -163,7 +163,7 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
         <section class="goods-config-dialog" role="dialog" aria-modal="true" :aria-label="`${itemTitle} 配置`">
           <header class="goods-config-dialog__header">
             <div>
-              <p class="goods-config-dialog__eyebrow">商品配置中心</p>
+              <p class="goods-config-dialog__eyebrow">商品配置</p>
               <h2>{{ itemTitle }}</h2>
               <p>把发货、商品专属 AI 与关键词回复放在同一个地方管理。</p>
             </div>

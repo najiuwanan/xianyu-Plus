@@ -316,7 +316,7 @@ const submitBatchUpdate = async () => {
         <div class="goods__title-icon">
           <IconShoppingBag />
         </div>
-        <h1 class="goods__title">商品配置中心</h1>
+        <h1 class="goods__title">商品列表</h1>
       </div>
 
       <div class="goods__actions">

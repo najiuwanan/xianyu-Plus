@@ -23,7 +23,8 @@ export function useGoodsManager() {
   const loading = ref(false)
   const refreshing = ref(false)
   const accounts = ref<Account[]>([])
-  const selectedAccountId = ref<number | null>(null)
+  // 商品列表固定以“所有账号”为初始范围，0 表示不传账号筛选条件。
+  const selectedAccountId = ref<number | null>(0)
   const statusFilter = ref<string>('')
   const goodsList = ref<GoodsItemWithConfig[]>([])
   const currentPage = ref(1)
@@ -151,10 +152,7 @@ export function useGoodsManager() {
       const response = await getAccountList()
       if (response.code === 0 || response.code === 200) {
         accounts.value = response.data?.accounts || []
-        if (accounts.value.length > 0 && !selectedAccountId.value) {
-          selectedAccountId.value = accounts.value[0]?.id || null
-          await loadGoods()
-        }
+        await loadGoods()
       }
     } catch (error: unknown) {
       console.error('加载账号列表失败:', error)

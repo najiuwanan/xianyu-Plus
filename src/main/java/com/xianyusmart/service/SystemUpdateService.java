@@ -208,6 +208,15 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.7.1".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "左侧导航的商品配置中心更名为商品列表",
+                    "左侧导航的买家黑名单精简为黑名单",
+                    "商品列表首次打开固定展示所有账号商品",
+                    "同步调整桌面端、移动端标题和商品配置入口文案"
+            ));
+            return;
+        }
         if ("1.7.0".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "关键词回复规则支持每行配置一个触发词，任意一个命中后共用同一组回复",

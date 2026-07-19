@@ -208,11 +208,11 @@ onMounted(refresh)
           <span class="title-icon"><IconTruck /></span>
           <h1>发货中心</h1>
         </div>
-        <p>集中处理待发货、失败补发和手动发货；商品规则统一在商品配置中心维护。</p>
+        <p>集中处理待发货、失败补发和手动发货；商品规则统一在商品列表维护。</p>
       </div>
       <div class="header-actions">
         <button class="btn btn--secondary" @click="refresh"><IconRefresh />刷新记录</button>
-        <button class="btn btn--primary" @click="router.push('/goods')"><IconPackage />商品配置中心</button>
+        <button class="btn btn--primary" @click="router.push('/goods')"><IconPackage />商品列表</button>
       </div>
     </header>
 
@@ -225,7 +225,7 @@ onMounted(refresh)
           </option>
         </select>
       </label>
-      <p>发货方式、卡券关联、固定内容和自动确认发货，请到 <button class="text-link" @click="router.push('/goods')">商品配置中心</button> 设置。</p>
+      <p>发货方式、卡券关联、固定内容和自动确认发货，请到 <button class="text-link" @click="router.push('/goods')">商品列表</button> 设置。</p>
     </section>
 
     <section class="summary-grid">
