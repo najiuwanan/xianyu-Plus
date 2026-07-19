@@ -157,7 +157,7 @@ public interface XianyuChatMessageMapper {
             "SELECT m.s_id AS sid, " +
             "COALESCE(NULLIF(n.sender_user_name, ''), '未知买家') AS buyer_user_name, " +
             "COALESCE(NULLIF(b.sender_user_id, ''), NULLIF(m.sender_user_id, '')) AS buyer_user_id, " +
-            "m.xy_goods_id AS xy_goods_id, m.msg_content AS last_message, " +
+            "m.xy_goods_id AS xy_goods_id, g.title AS goods_title, m.msg_content AS last_message, " +
             "m.message_time AS last_message_time, m.content_type AS last_content_type, " +
             "h.end_time AS takeover_end_time, " +
             "COALESCE((SELECT COUNT(1) FROM xianyu_chat_message u " +
@@ -173,6 +173,8 @@ public interface XianyuChatMessageMapper {
             "FROM xianyu_chat_message m " +
             "LEFT JOIN xianyu_chat_session_read r " +
             "ON r.xianyu_account_id = m.xianyu_account_id AND r.s_id = m.s_id " +
+            "LEFT JOIN xianyu_goods g " +
+            "ON g.xianyu_account_id = m.xianyu_account_id AND g.xy_good_id = m.xy_goods_id " +
             "LEFT JOIN xianyu_human_intervention_record h " +
             "ON h.xianyu_account_id = m.xianyu_account_id AND h.s_id = m.s_id AND h.end_time > NOW(3) " +
             "LEFT JOIN xianyu_chat_message b ON b.id = (" +

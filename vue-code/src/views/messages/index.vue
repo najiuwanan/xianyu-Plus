@@ -103,7 +103,7 @@ const getSessionAvatar = (session?: ChatSession | null) => {
 const filteredSessions = computed(() => {
   const keyword = searchText.value.trim().toLowerCase()
   return sessions.value.filter(session => {
-    const matchesKeyword = !keyword || [session.buyerUserName, session.buyerUserId, session.lastMessage, session.xyGoodsId]
+    const matchesKeyword = !keyword || [session.buyerUserName, session.buyerUserId, session.goodsTitle, session.lastMessage, session.xyGoodsId]
       .filter(Boolean)
       .join(' ')
       .toLowerCase()
@@ -637,6 +637,7 @@ onBeforeUnmount(() => {
             <dl>
               <div><dt>买家</dt><dd>{{ getBuyerDisplayName(selectedSession) }}</dd></div>
               <div><dt>买家 ID</dt><dd>{{ buyerUserId || '-' }}</dd></div>
+              <div><dt>商品标题</dt><dd :title="selectedSession.goodsTitle || ''">{{ selectedSession.goodsTitle || '未同步商品标题' }}</dd></div>
               <div><dt>商品 ID</dt><dd>{{ selectedSession.xyGoodsId || '-' }}</dd></div>
               <div><dt>当前账号</dt><dd>{{ selectedAccount?.accountNote || selectedAccount?.unb || '-' }}</dd></div>
             </dl>

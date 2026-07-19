@@ -17,6 +17,7 @@ public class ChatSessionDTO {
     @JsonIgnore
     private String buyerCompleteMsg;
     private String xyGoodsId;
+    private String goodsTitle;
     private String lastMessage;
     private Long lastMessageTime;
     private Integer lastContentType;
