@@ -23,7 +23,7 @@ const pageTitleMap: Record<string, string> = {
   '/messages': '在线客服',
   '/notifications': '通知渠道',
   '/kami-config': '卡券管理',
-  '/auto-delivery': '自动发货',
+  '/auto-delivery': '发货中心',
   '/item-polish': '一键擦亮',
   '/order-automation': '自动化执行中心',
   '/auto-reply': '关键词回复',

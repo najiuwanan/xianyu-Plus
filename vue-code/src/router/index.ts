@@ -65,7 +65,7 @@ const router = createRouter({
       path: '/auto-delivery',
       name: 'auto-delivery',
       component: () => import('@/views/auto-delivery/index.vue'),
-      meta: { title: '自动发货', icon: '🤖' }
+      meta: { title: '发货中心', icon: '🤖' }
     },
     {
       path: '/item-polish',
