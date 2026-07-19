@@ -472,6 +472,7 @@ const submitBatchUpdate = async () => {
       :goods-id="selectedGoodsId"
       :account-id="selectedAccountId"
       @refresh="loadGoods"
+      @configure="openGoodsConfig"
     />
 
     <GoodsConfigDialog

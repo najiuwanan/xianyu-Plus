@@ -26,12 +26,12 @@ interface Props {
 interface Emits {
   (e: 'update:modelValue', value: boolean): void
   (e: 'refresh'): void
+  (e: 'configure', item: GoodsItemWithConfig): void
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 const router = useRouter()
-
 const loading = ref(false)
 const goodsDetail = ref<GoodsItemWithConfig | null>(null)
 const currentImageIndex = ref(0)
@@ -170,13 +170,7 @@ const handleConfigAutoDelivery = () => {
 // 配置自动回复
 const handleConfigAutoReply = () => {
   if (!goodsDetail.value) return
-  router.push({
-    path: '/auto-reply',
-    query: {
-      accountId: props.accountId?.toString(),
-      goodsId: goodsDetail.value.item.xyGoodId
-    }
-  })
+  emit('configure', goodsDetail.value)
   handleClose()
 }
 
