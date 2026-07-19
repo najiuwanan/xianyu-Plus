@@ -53,8 +53,7 @@ const {
   toggleAutoDelivery,
   toggleAutoReply,
   confirmDelete,
-  executeDelete,
-  syncSingleGoods
+  executeDelete
 } = useGoodsManager()
 
 defineOptions({ name: 'GoodsIndex' })
@@ -430,7 +429,6 @@ const submitBatchUpdate = async () => {
           :account-names="accountNames"
           :show-account="selectedAccountId === 0"
           @view="viewDetail"
-          @sync="syncSingleGoods"
           @toggle-auto-delivery="toggleAutoDelivery"
           @toggle-auto-reply="toggleAutoReply"
           @configure="openGoodsConfig"

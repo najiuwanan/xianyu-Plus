@@ -6,7 +6,6 @@ import {
   updateAutoDeliveryStatus,
   updateAutoReplyStatus,
   deleteItem,
-  syncSingleItem,
   getSyncProgress,
   batchUpdateGoodsConfig
 } from '@/api/goods'
@@ -411,24 +410,6 @@ export function useGoodsManager() {
     }
   }
 
-  const syncSingleGoods = async (item: GoodsItemWithConfig) => {
-    try {
-      const response = await syncSingleItem({
-        xianyuAccountId: item.item.xianyuAccountId,
-        xyGoodsId: item.item.xyGoodId
-      })
-      if ((response.code === 0 || response.code === 200) && response.data?.success) {
-        showSuccess('同步成功')
-        loadGoods()
-      } else {
-        throw new Error(response.data?.message || response.msg || '同步失败')
-      }
-    } catch (error: unknown) {
-      console.error('同步失败:', error)
-      showError(errorMessage(error, '同步失败'))
-    }
-  }
-
   return {
     loading,
     refreshing,
@@ -468,7 +449,6 @@ export function useGoodsManager() {
     executeDelete,
     getGoodsStatusText,
     formatPrice,
-    formatTime,
-    syncSingleGoods
+    formatTime
   }
 }

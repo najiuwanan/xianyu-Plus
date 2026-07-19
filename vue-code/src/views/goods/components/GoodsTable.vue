@@ -19,7 +19,6 @@ interface Props {
 
 interface Emits {
   (e: 'view', item: GoodsItemWithConfig): void
-  (e: 'sync', item: GoodsItemWithConfig): void
   (e: 'toggleAutoDelivery', item: GoodsItemWithConfig, value: boolean): void
   (e: 'toggleAutoReply', item: GoodsItemWithConfig, value: boolean): void
   (e: 'configure', item: GoodsItemWithConfig): void
@@ -260,10 +259,6 @@ const handleImgError = (e: Event) => {
             <button class="table__action table__action--detail" @click="emit('view', item)">
               <IconCheck />
               <span>详情</span>
-            </button>
-            <button class="table__action table__action--sync" @click="emit('sync', item)">
-              <IconSparkle />
-              <span>同步</span>
             </button>
             <button class="table__action table__action--delete" @click="emit('delete', item)">
               <IconTrash />

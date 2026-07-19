@@ -75,13 +75,6 @@ export interface SyncProgressResponse {
   estimatedRemainingTime: number;
 }
 
-export interface SyncSingleItemResponse {
-  success: boolean;
-  verificationRequired: boolean;
-  captchaUrl?: string;
-  message: string;
-}
-
 // 获取商品列表
 export function getGoodsList(data: {
   xianyuAccountId?: number;
@@ -164,17 +157,6 @@ export function deleteItem(data: {
 }) {
   return request({
     url: '/items/delete',
-    method: 'POST',
-    data
-  });
-}
-
-export function syncSingleItem(data: {
-  xianyuAccountId: number;
-  xyGoodsId: string;
-}) {
-  return request<SyncSingleItemResponse>({
-    url: '/items/syncSingle',
     method: 'POST',
     data
   });
