@@ -102,7 +102,8 @@ export function getChatSessions(xianyuAccountId: number, limit = 80) {
 export function queryChatAvatars(data: {
   xianyuAccountId: number;
   includeOwner?: boolean;
-  queries: Array<{ buyerUserId: string; sid: string }>;
+  forceOwnerRefresh?: boolean;
+  queries: Array<{ buyerUserId: string; sid: string; forceRefresh?: boolean }>;
 }) {
   return request<ChatAvatarQueryResponse>({
     url: '/msg/avatars',

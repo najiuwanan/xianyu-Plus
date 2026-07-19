@@ -70,15 +70,19 @@ public class ChatAvatarProfileServiceImpl implements ChatAvatarProfileService {
             if (profile != null) response.getBuyerProfiles().put(item.getBuyerUserId(), profile);
         }
 
+        boolean forceOwnerRefresh = Boolean.TRUE.equals(request.getForceOwnerRefresh());
+        if (forceOwnerRefresh) {
+            accountMapper.updateAvatar(account.getId(), null);
+            response.setAccountAvatarUrl(null);
+        }
         if (Boolean.TRUE.equals(request.getIncludeOwner()) && StringUtils.hasText(cookie)
-                && !StringUtils.hasText(response.getAccountAvatarUrl())) {
+                && (forceOwnerRefresh || !StringUtils.hasText(response.getAccountAvatarUrl()))) {
             ChatAvatarQueryReqDTO.QueryItem source = queries.stream()
                     .filter(item -> item != null && StringUtils.hasText(item.getSid())).findFirst().orElse(null);
             if (source != null) {
                 ChatAvatarQueryRespDTO.UserProfile owner = fetchProfile(account.getId(), source.getSid(), cookie, true);
                 if (owner != null && StringUtils.hasText(owner.getAvatarUrl())) {
-                    account.setAvatarUrl(owner.getAvatarUrl());
-                    accountMapper.updateById(account);
+                    accountMapper.updateAvatar(account.getId(), owner.getAvatarUrl());
                     response.setAccountAvatarUrl(owner.getAvatarUrl());
                 }
             }
@@ -89,13 +93,19 @@ public class ChatAvatarProfileServiceImpl implements ChatAvatarProfileService {
     private ChatAvatarQueryRespDTO.UserProfile findOrFetchBuyer(Long accountId,
                                                                  ChatAvatarQueryReqDTO.QueryItem item,
                                                                  String cookie) {
-        XianyuChatUserProfile cached = profileMapper.findValid(accountId, item.getSid());
-        if (cached != null && StringUtils.hasText(cached.getAvatarUrl())) {
-            return new ChatAvatarQueryRespDTO.UserProfile(cached.getAvatarUrl(), cached.getBuyerUserName());
+        boolean forceRefresh = Boolean.TRUE.equals(item.getForceRefresh());
+        if (forceRefresh) {
+            profileMapper.invalidateBuyerAvatar(accountId, item.getBuyerUserId());
+            failedUntil.remove(accountId + ":" + item.getBuyerUserId());
+        } else {
+            XianyuChatUserProfile cached = profileMapper.findCachedByBuyer(accountId, item.getBuyerUserId());
+            if (cached != null && StringUtils.hasText(cached.getAvatarUrl())) {
+                return new ChatAvatarQueryRespDTO.UserProfile(cached.getAvatarUrl(), cached.getBuyerUserName());
+            }
         }
         if (!StringUtils.hasText(cookie)) return null;
 
-        String failureKey = accountId + ":" + item.getSid();
+        String failureKey = accountId + ":" + item.getBuyerUserId();
         if (failedUntil.getOrDefault(failureKey, 0L) > System.currentTimeMillis()) return null;
 
         ChatAvatarQueryRespDTO.UserProfile fetched = fetchProfile(accountId, item.getSid(), cookie, false);
@@ -110,7 +120,8 @@ public class ChatAvatarProfileServiceImpl implements ChatAvatarProfileService {
         entity.setBuyerUserId(item.getBuyerUserId());
         entity.setBuyerUserName(fetched.getNick());
         entity.setAvatarUrl(fetched.getAvatarUrl());
-        entity.setExpiresAt(LocalDateTime.now().plusHours(24));
+        // 头像成功后永久复用；expires_at 保留仅为兼容已发布的 V22 表结构。
+        entity.setExpiresAt(LocalDateTime.of(9999, 12, 31, 23, 59, 59));
         profileMapper.upsert(entity);
         failedUntil.remove(failureKey);
         return fetched;

@@ -48,6 +48,8 @@ const takeoverMinutes = ref(10)
 const setHeaderContent = inject<(content: any) => void>('setHeaderContent')
 const buyerProfileCache = new Map<string, { avatarUrl?: string; nick?: string }>()
 const avatarAttemptedAt = new Map<string, number>()
+const refreshingBrokenAvatars = new Set<string>()
+const brokenAvatarUrls = new Map<string, string>()
 let loadingAvatars = false
 
 const selectedAccount = computed(() =>
@@ -104,13 +106,15 @@ const getAccountAvatar = (account?: Account | null) => String(account?.avatarUrl
 
 const getSessionAvatar = (session?: ChatSession | null) => {
   const avatar = String(session?.buyerAvatarUrl || session?.buyerAvatar || '').trim()
+  const accountId = selectedAccountId.value
+  if (accountId && session?.buyerUserId && brokenAvatarUrls.get(avatarCacheKey(accountId, session.buyerUserId)) === avatar) return ''
   return /^https?:\/\//i.test(avatar) ? avatar : ''
 }
 
-const avatarCacheKey = (accountId: number, sid: string) => `${accountId}:${sid}`
+const avatarCacheKey = (accountId: number, buyerUserId: string) => `${accountId}:${buyerUserId}`
 
 const applyCachedProfiles = (items: ChatSession[], accountId: number) => items.map(session => {
-  const cached = buyerProfileCache.get(avatarCacheKey(accountId, session.sid))
+  const cached = buyerProfileCache.get(avatarCacheKey(accountId, session.buyerUserId))
   if (!cached) return session
   return {
     ...session,
@@ -130,7 +134,7 @@ const loadMissingAvatars = async () => {
     .sort((left, right) => Number(right.sid === preferredSid) - Number(left.sid === preferredSid))
     .filter(session => {
       if (!session.sid || !session.buyerUserId || getSessionAvatar(session)) return false
-      const attemptedAt = avatarAttemptedAt.get(avatarCacheKey(accountId, session.sid)) || 0
+      const attemptedAt = avatarAttemptedAt.get(avatarCacheKey(accountId, session.buyerUserId)) || 0
       return now - attemptedAt >= 5 * 60_000
     })
     .slice(0, 3)
@@ -143,7 +147,7 @@ const loadMissingAvatars = async () => {
   if (!candidates.length) return
 
   loadingAvatars = true
-  candidates.forEach(session => avatarAttemptedAt.set(avatarCacheKey(accountId, session.sid), now))
+  candidates.forEach(session => avatarAttemptedAt.set(avatarCacheKey(accountId, session.buyerUserId), now))
   try {
     const response = await queryChatAvatars({
       xianyuAccountId: accountId,
@@ -161,7 +165,7 @@ const loadMissingAvatars = async () => {
     for (const session of candidates) {
       const profile = result?.buyerProfiles?.[session.buyerUserId]
       if (profile?.avatarUrl || profile?.nick) {
-        buyerProfileCache.set(avatarCacheKey(accountId, session.sid), profile)
+        buyerProfileCache.set(avatarCacheKey(accountId, session.buyerUserId), profile)
       }
     }
     sessions.value = applyCachedProfiles(sessions.value, accountId)
@@ -172,6 +176,66 @@ const loadMissingAvatars = async () => {
     console.warn('补取客服头像失败，继续使用文字头像', error)
   } finally {
     loadingAvatars = false
+  }
+}
+
+const refreshBrokenBuyerAvatar = async (session?: ChatSession | null) => {
+  const accountId = selectedAccountId.value
+  if (!accountId || !session?.sid || !session.buyerUserId) return
+  const key = avatarCacheKey(accountId, session.buyerUserId)
+  if (refreshingBrokenAvatars.has(key)) return
+  refreshingBrokenAvatars.add(key)
+  const brokenUrl = String(session.buyerAvatarUrl || session.buyerAvatar || '').trim()
+  if (brokenUrl) brokenAvatarUrls.set(key, brokenUrl)
+  buyerProfileCache.delete(key)
+  sessions.value = sessions.value.map(item => item.buyerUserId === session.buyerUserId
+    ? { ...item, buyerAvatarUrl: '', buyerAvatar: '' }
+    : item)
+  selectedSession.value = sessions.value.find(item => item.sid === selectedSession.value?.sid) || selectedSession.value
+  try {
+    const response = await queryChatAvatars({
+      xianyuAccountId: accountId,
+      queries: [{ buyerUserId: session.buyerUserId, sid: session.sid, forceRefresh: true }]
+    })
+    ensureSuccess(response)
+    if (selectedAccountId.value !== accountId) return
+    const profile = response.data?.buyerProfiles?.[session.buyerUserId]
+    if (profile?.avatarUrl) {
+      if (profile.avatarUrl !== brokenUrl) brokenAvatarUrls.delete(key)
+      buyerProfileCache.set(key, profile)
+      sessions.value = applyCachedProfiles(sessions.value, accountId)
+      selectedSession.value = sessions.value.find(item => item.sid === selectedSession.value?.sid) || selectedSession.value
+    }
+  } catch (error) {
+    console.warn('买家头像已失效，本次刷新失败，继续使用文字头像', error)
+  } finally {
+    refreshingBrokenAvatars.delete(key)
+  }
+}
+
+const refreshBrokenAccountAvatar = async () => {
+  const accountId = selectedAccountId.value
+  const session = selectedSession.value || sessions.value[0]
+  const key = `owner:${accountId}`
+  if (!accountId || !session?.sid || !session.buyerUserId || refreshingBrokenAvatars.has(key)) return
+  refreshingBrokenAvatars.add(key)
+  accounts.value = accounts.value.map(account => Number(account.id) === accountId ? { ...account, avatarUrl: '' } : account)
+  try {
+    const response = await queryChatAvatars({
+      xianyuAccountId: accountId,
+      includeOwner: true,
+      forceOwnerRefresh: true,
+      queries: [{ buyerUserId: session.buyerUserId, sid: session.sid }]
+    })
+    ensureSuccess(response)
+    const avatarUrl = response.data?.accountAvatarUrl
+    if (selectedAccountId.value === accountId && avatarUrl) {
+      accounts.value = accounts.value.map(account => Number(account.id) === accountId ? { ...account, avatarUrl } : account)
+    }
+  } catch (error) {
+    console.warn('账号头像已失效，本次刷新失败，继续使用文字头像', error)
+  } finally {
+    refreshingBrokenAvatars.delete(key)
   }
 }
 
@@ -660,7 +724,7 @@ onBeforeUnmount(() => {
             @click="selectSession(session)"
           >
             <div class="session-item__avatar">
-              <img v-if="getSessionAvatar(session)" :src="getSessionAvatar(session)" :alt="getBuyerDisplayName(session)">
+              <img v-if="getSessionAvatar(session)" :src="getSessionAvatar(session)" :alt="getBuyerDisplayName(session)" @error="refreshBrokenBuyerAvatar(session)">
               <span v-else>{{ getBuyerDisplayName(session).slice(0, 1) }}</span>
             </div>
             <div class="session-item__body">
@@ -687,7 +751,7 @@ onBeforeUnmount(() => {
           <header class="chat-panel__header">
             <div class="chat-panel__buyer">
               <div class="chat-panel__avatar">
-                <img v-if="getSessionAvatar(selectedSession)" :src="getSessionAvatar(selectedSession)" :alt="getBuyerDisplayName(selectedSession)">
+                <img v-if="getSessionAvatar(selectedSession)" :src="getSessionAvatar(selectedSession)" :alt="getBuyerDisplayName(selectedSession)" @error="refreshBrokenBuyerAvatar(selectedSession)">
                 <span v-else>{{ getBuyerDisplayName(selectedSession).slice(0, 1) }}</span>
               </div>
               <div>
@@ -711,8 +775,8 @@ onBeforeUnmount(() => {
                 :class="{ 'chat-message--mine': isMine(message), 'chat-message--system': !isMine(message) && message.contentType !== 1 }"
               >
                 <div class="chat-message__avatar">
-                  <img v-if="isMine(message) && selectedAccount && getAccountAvatar(selectedAccount)" :src="getAccountAvatar(selectedAccount)" alt="我的头像">
-                  <img v-else-if="!isMine(message) && getSessionAvatar(selectedSession)" :src="getSessionAvatar(selectedSession)" :alt="getMessageSenderName(message)">
+                  <img v-if="isMine(message) && selectedAccount && getAccountAvatar(selectedAccount)" :src="getAccountAvatar(selectedAccount)" alt="我的头像" @error="refreshBrokenAccountAvatar">
+                  <img v-else-if="!isMine(message) && getSessionAvatar(selectedSession)" :src="getSessionAvatar(selectedSession)" :alt="getMessageSenderName(message)" @error="refreshBrokenBuyerAvatar(selectedSession)">
                   <IconUser v-else />
                 </div>
                 <div class="chat-message__content">

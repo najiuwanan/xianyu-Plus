@@ -44,7 +44,7 @@ class ChatAvatarProfileServiceImplTest {
         XianyuChatUserProfile cached = new XianyuChatUserProfile();
         cached.setAvatarUrl("https://img.example/buyer.jpg");
         cached.setBuyerUserName("买家甲");
-        when(profileMapper.findValid(7L, "session-1")).thenReturn(cached);
+        when(profileMapper.findCachedByBuyer(7L, "buyer-session-1")).thenReturn(cached);
 
         ChatAvatarQueryRespDTO response = service.query(requestWithSessions("session-1"));
 
@@ -60,10 +60,10 @@ class ChatAvatarProfileServiceImplTest {
         ChatAvatarQueryRespDTO response = service.query(request);
 
         assertEquals(0, response.getBuyerProfiles().size());
-        verify(profileMapper).findValid(7L, "1");
-        verify(profileMapper).findValid(7L, "2");
-        verify(profileMapper).findValid(7L, "3");
-        verify(profileMapper, never()).findValid(7L, "4");
+        verify(profileMapper).findCachedByBuyer(7L, "buyer-1");
+        verify(profileMapper).findCachedByBuyer(7L, "buyer-2");
+        verify(profileMapper).findCachedByBuyer(7L, "buyer-3");
+        verify(profileMapper, never()).findCachedByBuyer(7L, "buyer-4");
         assertNull(response.getBuyerProfiles().get("buyer-4"));
     }
 
