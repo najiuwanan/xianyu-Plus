@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.util.StringUtils;
 
 /**
@@ -55,6 +56,9 @@ public class ChatMessageServiceImpl implements ChatMessageService {
             "useravatar", "useravatarurl", "headurl", "headpic",
             "headimage", "portrait", "portraiturl", "usericon", "usericonurl"
     );
+
+    private static final long AVATAR_CACHE_MILLIS = 60_000L;
+    private final Map<String, AvatarCacheEntry> buyerAvatarCache = new ConcurrentHashMap<>();
     
     @Override
     public List<XianyuChatMessage> getMessagesByAccountId(Long accountId, int page, int pageSize) {
@@ -201,10 +205,7 @@ public class ChatMessageServiceImpl implements ChatMessageService {
             int limit = reqDTO.getLimit() == null ? 80 : Math.max(1, Math.min(reqDTO.getLimit(), 200));
             List<ChatSessionDTO> sessions = chatMessageMapper.findRecentSessions(
                     reqDTO.getXianyuAccountId(), account.getUnb(), limit);
-            if (sessions != null) {
-                sessions.forEach(session -> session.setBuyerAvatarUrl(
-                        extractBuyerAvatarUrl(session.getBuyerCompleteMsg())));
-            }
+            populateBuyerAvatars(reqDTO.getXianyuAccountId(), account.getUnb(), sessions);
             return ResultObject.success(sessions);
         } catch (Exception e) {
             log.error("查询在线客服会话失败: accountId={}", reqDTO.getXianyuAccountId(), e);
@@ -368,5 +369,58 @@ public class ChatMessageServiceImpl implements ChatMessageService {
             url = "https:" + url;
         }
         return url.startsWith("https://") || url.startsWith("http://") ? url : null;
+    }
+
+    private void populateBuyerAvatars(Long accountId, String sellerUserId, List<ChatSessionDTO> sessions) {
+        if (sessions == null || sessions.isEmpty()) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        boolean needsRefresh = false;
+        for (ChatSessionDTO session : sessions) {
+            AvatarCacheEntry cached = buyerAvatarCache.get(avatarCacheKey(accountId, session.getSid()));
+            if (cached != null && cached.expiresAt() > now) {
+                session.setBuyerAvatarUrl(cached.avatarUrl());
+            } else {
+                needsRefresh = true;
+            }
+        }
+        if (!needsRefresh) {
+            return;
+        }
+
+        Map<String, String> resolvedAvatars = new ConcurrentHashMap<>();
+        List<ChatSessionDTO> candidates = chatMessageMapper.findBuyerAvatarCandidates(accountId, sellerUserId);
+        if (candidates != null) {
+            for (ChatSessionDTO candidate : candidates) {
+                if (!StringUtils.hasText(candidate.getSid()) || resolvedAvatars.containsKey(candidate.getSid())) {
+                    continue;
+                }
+                String avatarUrl = extractBuyerAvatarUrl(candidate.getBuyerCompleteMsg());
+                if (avatarUrl != null) {
+                    resolvedAvatars.put(candidate.getSid(), avatarUrl);
+                }
+            }
+        }
+
+        long expiresAt = now + AVATAR_CACHE_MILLIS;
+        for (ChatSessionDTO session : sessions) {
+            String cacheKey = avatarCacheKey(accountId, session.getSid());
+            String avatarUrl = resolvedAvatars.get(session.getSid());
+            AvatarCacheEntry cached = buyerAvatarCache.get(cacheKey);
+            if (avatarUrl == null && cached != null && cached.expiresAt() > now) {
+                avatarUrl = cached.avatarUrl();
+            }
+            buyerAvatarCache.put(cacheKey, new AvatarCacheEntry(avatarUrl, expiresAt));
+            session.setBuyerAvatarUrl(avatarUrl);
+        }
+    }
+
+    private String avatarCacheKey(Long accountId, String sid) {
+        return accountId + ":" + sid;
+    }
+
+    private record AvatarCacheEntry(String avatarUrl, long expiresAt) {
     }
 }

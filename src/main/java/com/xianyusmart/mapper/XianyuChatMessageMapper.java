@@ -157,7 +157,6 @@ public interface XianyuChatMessageMapper {
             "SELECT m.s_id AS sid, " +
             "COALESCE(NULLIF(n.sender_user_name, ''), '未知买家') AS buyer_user_name, " +
             "COALESCE(NULLIF(b.sender_user_id, ''), NULLIF(m.sender_user_id, '')) AS buyer_user_id, " +
-            "b.complete_msg AS buyer_complete_msg, " +
             "m.xy_goods_id AS xy_goods_id, m.msg_content AS last_message, " +
             "m.message_time AS last_message_time, m.content_type AS last_content_type, " +
             "h.end_time AS takeover_end_time, " +
@@ -202,8 +201,29 @@ public interface XianyuChatMessageMapper {
             "ORDER BY m.message_time DESC, m.id DESC LIMIT #{limit}" +
             "</script>")
     List<ChatSessionDTO> findRecentSessions(@Param("accountId") Long accountId,
-                                            @Param("sellerUserId") String sellerUserId,
-                                            @Param("limit") int limit);
+                                             @Param("sellerUserId") String sellerUserId,
+                                             @Param("limit") int limit);
+
+    /**
+     * 批量读取可能包含买家头像的历史消息，每个会话最多返回最近 8 条候选记录。
+     */
+    @Select("SELECT sid, buyer_user_id, buyer_complete_msg FROM (" +
+            "SELECT m.s_id AS sid, m.sender_user_id AS buyer_user_id, " +
+            "m.complete_msg AS buyer_complete_msg, " +
+            "ROW_NUMBER() OVER (PARTITION BY m.s_id ORDER BY m.message_time DESC, m.id DESC) AS avatar_rank " +
+            "FROM xianyu_chat_message m " +
+            "WHERE m.xianyu_account_id = #{accountId} AND m.s_id IS NOT NULL " +
+            "AND m.sender_user_id IS NOT NULL AND m.sender_user_id != '' " +
+            "AND m.sender_user_id != #{sellerUserId} AND m.complete_msg IS NOT NULL " +
+            "AND (LOWER(m.complete_msg) LIKE '%avatar%' " +
+            "OR LOWER(m.complete_msg) LIKE '%headpic%' " +
+            "OR LOWER(m.complete_msg) LIKE '%headurl%' " +
+            "OR LOWER(m.complete_msg) LIKE '%portrait%' " +
+            "OR LOWER(m.complete_msg) LIKE '%usericon%')" +
+            ") avatar_candidates WHERE avatar_rank BETWEEN 1 AND 8 " +
+            "ORDER BY sid, avatar_rank LIMIT 1600")
+    List<ChatSessionDTO> findBuyerAvatarCandidates(@Param("accountId") Long accountId,
+                                                    @Param("sellerUserId") String sellerUserId);
 
     /**
      * 仪表盘未读数：仅计入买家在上次人工查看后发来的消息。
