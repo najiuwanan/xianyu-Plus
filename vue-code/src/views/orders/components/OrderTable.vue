@@ -218,8 +218,7 @@ const canConfirmShipment = (order: DeliveryRecordItem) => {
 }
 
 const canRuleDelivery = (order: DeliveryRecordItem) => {
-  return order.deliveryStatus === 'FAILED'
-    && Boolean(order.orderId && order.xianyuAccountId && order.xyGoodsId)
+  return Boolean(order.orderId && order.xianyuAccountId && order.xyGoodsId)
     && !['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')
 }
 
@@ -268,10 +267,9 @@ const runCompensation = async (order: DeliveryRecordItem, action: AutomationActi
 }
 
 const ruleDeliveryReason = (order: DeliveryRecordItem) => {
-  if (canRuleDelivery(order)) return '按商品关联的卡券规则补发'
+  if (canRuleDelivery(order)) return '可领取新卡密补发，或发送自定义发货内容'
   if (['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')) return '退款或关闭交易不能发货'
-  if (order.state === 1) return '订单已经发货完成'
-  return '仅自动发货失败且已匹配卡券规则的订单可手动补发'
+  return '订单信息不完整，暂时不能手动发货'
 }
 
 const confirmShipmentReason = (order: DeliveryRecordItem) => {

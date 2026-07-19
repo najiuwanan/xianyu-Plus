@@ -83,8 +83,10 @@ public interface XianyuKamiItemMapper extends BaseMapper<XianyuKamiItem> {
             "<foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach></script>")
     int reserve(@Param("ids") List<Long> ids, @Param("orderId") String orderId);
 
-    @Update("UPDATE xianyu_kami_item SET status = 1, used_time = NOW(3) WHERE order_id = #{orderId} AND status = 2")
-    int commitReservation(@Param("orderId") String orderId);
+    @Update("UPDATE xianyu_kami_item SET status = 1, order_id = #{businessOrderId}, used_time = NOW(3) " +
+            "WHERE order_id = #{reservationOrderId} AND status = 2")
+    int commitReservation(@Param("reservationOrderId") String reservationOrderId,
+                          @Param("businessOrderId") String businessOrderId);
 
     @Update("UPDATE xianyu_kami_item SET status = 0, order_id = NULL, reserved_time = NULL WHERE order_id = #{orderId} AND status = 2")
     int releaseReservation(@Param("orderId") String orderId);

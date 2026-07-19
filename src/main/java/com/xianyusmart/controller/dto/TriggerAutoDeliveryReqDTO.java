@@ -29,4 +29,10 @@ public class TriggerAutoDeliveryReqDTO {
      * 默认: false（手动触发场景）
      */
     private Boolean needHumanLikeDelay = false;
+
+    /**
+     * 人工补发时是否强制领取新的本地卡密。
+     * 旧卡继续保留为已使用，新卡使用独立预占标识，避免复用原订单卡密。
+     */
+    private Boolean freshKami = false;
 }

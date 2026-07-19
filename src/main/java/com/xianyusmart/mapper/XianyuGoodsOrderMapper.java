@@ -103,6 +103,9 @@ public interface XianyuGoodsOrderMapper {
             "<if test='xyGoodsId != null and xyGoodsId != \"\"'>" +
             "AND r.xy_goods_id = #{xyGoodsId} " +
             "</if>" +
+            "<if test='orderStatus != null'>" +
+            "AND r.state = #{orderStatus} " +
+            "</if>" +
             "<if test='keyword != null and keyword != \"\"'>" +
             "AND (g.title LIKE CONCAT('%', #{keyword}, '%') OR r.sku_name LIKE CONCAT('%', #{keyword}, '%') OR r.buyer_user_name LIKE CONCAT('%', #{keyword}, '%') OR r.content LIKE CONCAT('%', #{keyword}, '%')) " +
             "</if>" +
@@ -146,6 +149,7 @@ public interface XianyuGoodsOrderMapper {
     List<XianyuGoodsOrder> selectByAccountIdWithPage(
             @Param("accountId") Long accountId,
             @Param("xyGoodsId") String xyGoodsId,
+            @Param("orderStatus") Integer orderStatus,
             @Param("keyword") String keyword,
             @Param("limit") int limit,
             @Param("offset") int offset);
@@ -158,11 +162,15 @@ public interface XianyuGoodsOrderMapper {
             "<if test='xyGoodsId != null and xyGoodsId != \"\"'>" +
             "AND r.xy_goods_id = #{xyGoodsId} " +
             "</if>" +
+            "<if test='orderStatus != null'>" +
+            "AND r.state = #{orderStatus} " +
+            "</if>" +
             "<if test='keyword != null and keyword != \"\"'>" +
             "AND (g.title LIKE CONCAT('%', #{keyword}, '%') OR r.sku_name LIKE CONCAT('%', #{keyword}, '%') OR r.buyer_user_name LIKE CONCAT('%', #{keyword}, '%') OR r.content LIKE CONCAT('%', #{keyword}, '%')) " +
             "</if>" +
             "</script>")
-    long countByAccountId(@Param("accountId") Long accountId, @Param("xyGoodsId") String xyGoodsId, @Param("keyword") String keyword);
+    long countByAccountId(@Param("accountId") Long accountId, @Param("xyGoodsId") String xyGoodsId,
+                          @Param("orderStatus") Integer orderStatus, @Param("keyword") String keyword);
     
     @Update("UPDATE xianyu_goods_order SET state = #{state}, delivery_status = CASE WHEN #{state} = 1 THEN 'COMPLETED' WHEN #{state} = -1 THEN 'FAILED' ELSE delivery_status END WHERE id = #{id}")
     int updateState(@Param("id") Long id, @Param("state") Integer state);

@@ -32,7 +32,8 @@ const {
   handleSizeChange,
   copySId,
   handleConfirmShipment,
-  handleRuleDelivery
+  handleRuleDelivery,
+  handleCustomDelivery
 } = useOrderManager()
 
 const showFilterSheet = ref(false)
@@ -42,6 +43,7 @@ const showConfirmDialog = ref(false)
 const confirmTargetOrder = ref<any>(null)
 const showRuleDeliveryDialog = ref(false)
 const ruleDeliveryTargetOrder = ref<any>(null)
+const customDeliveryContent = ref('')
 
 const checkScreenSize = () => {
   isMobile.value = window.innerWidth < 768
@@ -136,6 +138,11 @@ const changePageSize = (event: Event) => {
   if ([20, 50, 100].includes(size)) handleSizeChange(size)
 }
 
+const handleDeliveryStatusChange = () => {
+  queryParams.pageNum = 1
+  void loadOrders()
+}
+
 const openConfirmDialog = (order: any) => {
   confirmTargetOrder.value = order
   showConfirmDialog.value = true
@@ -149,6 +156,7 @@ const executeConfirmShipment = async () => {
 
 const openRuleDeliveryDialog = (order: any) => {
   ruleDeliveryTargetOrder.value = order
+  customDeliveryContent.value = ''
   showRuleDeliveryDialog.value = true
 }
 
@@ -158,6 +166,16 @@ const executeRuleDelivery = async () => {
   if (success) {
     showRuleDeliveryDialog.value = false
     ruleDeliveryTargetOrder.value = null
+  }
+}
+
+const executeCustomDelivery = async () => {
+  if (!ruleDeliveryTargetOrder.value) return
+  const success = await handleCustomDelivery(ruleDeliveryTargetOrder.value, customDeliveryContent.value)
+  if (success) {
+    showRuleDeliveryDialog.value = false
+    ruleDeliveryTargetOrder.value = null
+    customDeliveryContent.value = ''
   }
 }
 </script>
@@ -180,6 +198,15 @@ const executeRuleDelivery = async () => {
           <span class="orders__select-icon"><IconChevronDown /></span>
         </div>
         <template v-if="!isMobile">
+          <div class="orders__select-wrap">
+            <select v-model="queryParams.orderStatus" class="orders__select" @change="handleDeliveryStatusChange">
+              <option :value="undefined">全部发货状态</option>
+              <option :value="0">待处理</option>
+              <option :value="-1">发货失败</option>
+              <option :value="1">已发货</option>
+            </select>
+            <span class="orders__select-icon"><IconChevronDown /></span>
+          </div>
           <div class="orders__input-wrap">
             <input v-model="queryParams.keyword" class="orders__input" placeholder="商品名称/规格/买家/发货内容" @keyup.enter="loadOrders">
           </div>
@@ -244,6 +271,15 @@ const executeRuleDelivery = async () => {
             <label class="orders__filter-label">关键词</label>
             <input v-model="filterKeyword" class="orders__filter-input" placeholder="商品名称/规格/买家/发货内容">
           </div>
+          <div class="orders__filter-group">
+            <label class="orders__filter-label">发货状态</label>
+            <select v-model="queryParams.orderStatus" class="orders__filter-input">
+              <option :value="undefined">全部发货状态</option>
+              <option :value="0">待处理</option>
+              <option :value="-1">发货失败</option>
+              <option :value="1">已发货</option>
+            </select>
+          </div>
           <div class="orders__filter-actions">
             <button class="btn btn--secondary" @click="resetFilter">重置</button>
             <button class="btn btn--primary" @click="applyFilter">查询</button>
@@ -268,15 +304,20 @@ const executeRuleDelivery = async () => {
     <Transition name="overlay-fade">
       <div v-if="showRuleDeliveryDialog" class="orders__dialog-overlay" @click.self="showRuleDeliveryDialog = false">
         <div class="orders__dialog orders__dialog--rule-delivery">
-          <div class="orders__dialog-header"><h3 class="orders__dialog-title">按规则发货</h3></div>
+          <div class="orders__dialog-header"><h3 class="orders__dialog-title">手动发货</h3></div>
           <div class="orders__dialog-body">
-            <p class="orders__dialog-text">将为订单「{{ ruleDeliveryTargetOrder?.orderId }}」重新按当前商品规则发货。</p>
-            <p class="orders__dialog-hint">会复用卡券管理绑定、固定内容、规格匹配和发货模板；库存仍不足时不会发送，也不会错误扣减库存。</p>
+            <p class="orders__dialog-text">为订单「{{ ruleDeliveryTargetOrder?.orderId }}」主动补发。</p>
+            <p class="orders__dialog-hint">点击“领取新卡并补发”时，本地卡密仓库会领取新的未使用卡密；之前发出的卡密仍保留为已使用，不会重复发送。退款或关闭订单不能操作。</p>
+            <label class="orders__manual-label">
+              <span>也可以直接发送自定义内容</span>
+              <textarea v-model="customDeliveryContent" maxlength="1000" placeholder="例如：新的卡密、网盘链接或补充说明"></textarea>
+            </label>
           </div>
           <div class="orders__dialog-footer">
             <button class="orders__dialog-btn orders__dialog-btn--cancel" :disabled="ruleDeliveryTargetOrder?.manualDelivering" @click="showRuleDeliveryDialog = false">取消</button>
+            <button class="orders__dialog-btn" :disabled="ruleDeliveryTargetOrder?.manualDelivering || !customDeliveryContent.trim()" @click="executeCustomDelivery">发送自定义内容</button>
             <button class="orders__dialog-btn orders__dialog-btn--rule" :disabled="ruleDeliveryTargetOrder?.manualDelivering" @click="executeRuleDelivery">
-              {{ ruleDeliveryTargetOrder?.manualDelivering ? '发货中…' : '确认按规则发货' }}
+              {{ ruleDeliveryTargetOrder?.manualDelivering ? '发货中…' : '领取新卡并补发' }}
             </button>
           </div>
         </div>

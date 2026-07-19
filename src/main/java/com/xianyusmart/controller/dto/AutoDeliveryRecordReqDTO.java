@@ -17,6 +17,9 @@ public class AutoDeliveryRecordReqDTO {
      * 商品ID（可选，不传则查询所有商品）
      */
     private String xyGoodsId;
+
+    /** 发货状态：0-待处理，-1-失败，1-已发货。 */
+    private Integer orderStatus;
     
     /**
      * 模糊搜索关键词，匹配商品名称、规格、买家、发货内容

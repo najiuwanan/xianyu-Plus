@@ -3,8 +3,11 @@ package com.xianyusmart.service.impl;
 import com.xianyusmart.common.ResultObject;
 import com.xianyusmart.entity.XianyuKamiConfig;
 import com.xianyusmart.entity.XianyuKamiItem;
+import com.xianyusmart.entity.XianyuKamiUsageRecord;
 import com.xianyusmart.mapper.XianyuKamiConfigMapper;
 import com.xianyusmart.mapper.XianyuKamiItemMapper;
+import com.xianyusmart.mapper.XianyuKamiUsageRecordMapper;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -24,6 +27,8 @@ class KamiConfigServiceImplTest {
     private XianyuKamiConfigMapper kamiConfigMapper;
     @Mock
     private XianyuKamiItemMapper kamiItemMapper;
+    @Mock
+    private XianyuKamiUsageRecordMapper kamiUsageRecordMapper;
     @InjectMocks
     private KamiConfigServiceImpl service;
 
@@ -74,6 +79,22 @@ class KamiConfigServiceImplTest {
         assertEquals(200, result.getCode());
         assertEquals(0, config.getUsedCount());
         verify(kamiConfigMapper).updateById(config);
+    }
+
+    @Test
+    void freshRedeliveryCommitsReservationToOriginalBusinessOrder() {
+        XianyuKamiItem item = item(11L, 7L, 2);
+        item.setKamiContent("NEW-CARD");
+        when(kamiItemMapper.findByOrderAndStatus("order-1#R#attempt", 2)).thenReturn(java.util.List.of(item));
+        when(kamiItemMapper.commitReservation("order-1#R#attempt", "order-1")).thenReturn(1);
+
+        service.commitReservation("order-1#R#attempt", "order-1", 3L, "goods-1", "buyer-1", "买家");
+
+        ArgumentCaptor<XianyuKamiUsageRecord> captor = ArgumentCaptor.forClass(XianyuKamiUsageRecord.class);
+        verify(kamiUsageRecordMapper).insert(captor.capture());
+        assertEquals("order-1", captor.getValue().getOrderId());
+        assertEquals("NEW-CARD", captor.getValue().getKamiContent());
+        verify(kamiItemMapper).commitReservation("order-1#R#attempt", "order-1");
     }
 
     private XianyuKamiItem item(Long id, Long configId, int status) {

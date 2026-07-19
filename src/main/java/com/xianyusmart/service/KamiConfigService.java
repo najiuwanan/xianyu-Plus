@@ -33,7 +33,8 @@ public interface KamiConfigService {
 
     List<XianyuKamiItem> reserveKami(Long kamiConfigId, String orderId, int quantity);
 
-    void commitReservation(String orderId, Long accountId, String xyGoodsId, String buyerUserId, String buyerUserName);
+    void commitReservation(String reservationOrderId, String businessOrderId, Long accountId,
+                           String xyGoodsId, String buyerUserId, String buyerUserName);
 
     void releaseReservation(String orderId);
 

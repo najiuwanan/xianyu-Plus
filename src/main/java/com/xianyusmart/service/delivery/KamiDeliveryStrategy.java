@@ -49,7 +49,9 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
                 context.getSId(),
                 context.getBuyerUserName(),
                 context.getQuantity() != null ? context.getQuantity() : 1,
-                context.getDeliveryConfig()
+                context.getDeliveryConfig(),
+                context.getReservationOrderId(),
+                Boolean.TRUE.equals(context.getFreshKami())
         );
         if (content == null) {
             log.warn("【账号{}】卡密发货模式下无可用卡密: xyGoodsId={}, kamiConfigIds={}",
@@ -62,7 +64,8 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
 
     private String acquireKamiContent(String kamiConfigIds, String kamiDeliveryTemplate,
                                        String orderId, Long accountId, String xyGoodsId, String sId,
-                                       String buyerUserName, int quantity, XianyuGoodsAutoDeliveryConfig deliveryConfig) {
+                                       String buyerUserName, int quantity, XianyuGoodsAutoDeliveryConfig deliveryConfig,
+                                       String reservationOrderId, boolean freshKami) {
         if (kamiConfigIds == null || kamiConfigIds.trim().isEmpty()) {
             log.warn("【账号{}】卡密发货未绑定卡密配置: xyGoodsId={}", accountId, xyGoodsId);
             return null;
@@ -82,6 +85,9 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
                 apiSource = Integer.valueOf(2).equals(config.getSourceType());
                 fixedContentSource = Integer.valueOf(3).equals(config.getSourceType());
                 if (apiSource) {
+                    if (freshKami) {
+                        throw new BusinessException(409, "外部 API 卡券不支持自动重新扣卡，请使用自定义内容发货或到供应商后台核对");
+                    }
                     String apiContent = apiKamiDeliveryService.acquire(config, DeliveryContext.builder()
                             .accountId(accountId)
                             .xyGoodsId(xyGoodsId)
@@ -99,7 +105,9 @@ public class KamiDeliveryStrategy implements DeliveryContentStrategy {
                     }
                     return applyTemplate(kamiDeliveryTemplate, config.getFixedContent().trim());
                 }
-                return kamiConfigService.reserveKami(configId, orderId, quantity).stream()
+                String reservationKey = reservationOrderId == null || reservationOrderId.isBlank()
+                        ? orderId : reservationOrderId;
+                return kamiConfigService.reserveKami(configId, reservationKey, quantity).stream()
                         .map(XianyuKamiItem::getKamiContent)
                         .map(kamiContent -> applyTemplate(kamiDeliveryTemplate, kamiContent))
                         .reduce((left, right) -> left + "\n" + right)

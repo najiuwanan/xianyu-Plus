@@ -1,9 +1,9 @@
 import { request } from '@/utils/request'
-import type { ApiResponse } from '@/types'
 
 export interface DeliveryRecordQueryReq {
   xianyuAccountId?: number
   xyGoodsId?: string
+  orderStatus?: number
   keyword?: string
   pageNum?: number
   pageSize?: number
@@ -104,7 +104,7 @@ export function manualDelivery(data: { xianyuAccountId: number; orderId: string;
 }
 
 /** 按商品当前的自动发货配置执行一次补发（卡券、固定内容、图片与模板规则均复用）。 */
-export function triggerRuleDelivery(data: { xianyuAccountId: number; xyGoodsId: string; orderId: string }) {
+export function triggerRuleDelivery(data: { xianyuAccountId: number; xyGoodsId: string; orderId: string; freshKami?: boolean }) {
   return request<string>({
     url: '/autoDelivery/trigger',
     method: 'POST',

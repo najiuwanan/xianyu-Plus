@@ -935,6 +935,10 @@
   overflow: hidden;
 }
 
+.orders__dialog--rule-delivery {
+  max-width: 520px;
+}
+
 .orders__dialog-header {
   padding: var(--d-space-5) var(--d-space-5) var(--d-space-2);
   text-align: center;
@@ -969,6 +973,33 @@
   text-align: left;
 }
 
+.orders__manual-label {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--d-text-secondary);
+  font-size: 12px;
+  text-align: left;
+}
+
+.orders__manual-label textarea {
+  min-height: 92px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--d-border);
+  border-radius: 10px;
+  color: var(--d-text-primary);
+  background: rgba(255,255,255,.78);
+  font: inherit;
+  line-height: 1.5;
+  outline: none;
+}
+
+.orders__manual-label textarea:focus {
+  border-color: rgba(10,132,255,.55);
+  box-shadow: 0 0 0 3px rgba(10,132,255,.10);
+}
+
 .orders__dialog-footer {
   display: flex;
   border-top: 1px solid var(--d-border);
@@ -987,6 +1018,11 @@
   border: none;
   background: transparent;
   -webkit-tap-highlight-color: transparent;
+}
+
+.orders__dialog--rule-delivery .orders__dialog-btn {
+  padding: 0 10px;
+  font-size: 14px;
 }
 
 .orders__dialog-btn--cancel {

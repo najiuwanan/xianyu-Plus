@@ -407,15 +407,15 @@ public class KamiConfigServiceImpl implements KamiConfigService {
 
     @Override
     @Transactional
-    public void commitReservation(String orderId, Long accountId, String xyGoodsId,
-                                  String buyerUserId, String buyerUserName) {
+    public void commitReservation(String reservationOrderId, String businessOrderId, Long accountId,
+                                  String xyGoodsId, String buyerUserId, String buyerUserName) {
         List<XianyuKamiItem> reservedItems = kamiItemMapper.findByOrderAndStatus(
-                orderId, KamiStatus.RESERVED.getCode());
+                reservationOrderId, KamiStatus.RESERVED.getCode());
         if (reservedItems.isEmpty()) {
             return;
         }
 
-        if (kamiItemMapper.commitReservation(orderId) != reservedItems.size()) {
+        if (kamiItemMapper.commitReservation(reservationOrderId, businessOrderId) != reservedItems.size()) {
             throw new BusinessException(409, "卡密交付提交冲突");
         }
 
@@ -426,7 +426,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             usageRecord.setKamiItemId(item.getId());
             usageRecord.setXianyuAccountId(accountId);
             usageRecord.setXyGoodsId(xyGoodsId);
-            usageRecord.setOrderId(orderId);
+            usageRecord.setOrderId(businessOrderId);
             usageRecord.setDeliveryIndex(index + 1);
             usageRecord.setDeliveryStatus(KamiStatus.DELIVERED.name());
             usageRecord.setBuyerUserId(buyerUserId);

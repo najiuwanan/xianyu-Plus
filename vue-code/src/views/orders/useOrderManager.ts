@@ -1,9 +1,9 @@
 import { ref, reactive, computed } from 'vue'
-import { queryDeliveryRecordList, confirmShipment, syncOrderHistory, triggerRuleDelivery } from '@/api/order'
+import { queryDeliveryRecordList, confirmShipment, manualDelivery, syncOrderHistory, triggerRuleDelivery } from '@/api/order'
 import { getAccountList } from '@/api/account'
 import type { DeliveryRecordVO, DeliveryRecordQueryReq } from '@/api/order'
 import type { Account } from '@/types'
-import { showSuccess, showError, showConfirm, showInfo } from '@/utils'
+import { showSuccess, showError, showInfo } from '@/utils'
 import { formatTime } from '@/utils'
 
 export interface DeliveryRecordItem extends DeliveryRecordVO {
@@ -112,6 +112,7 @@ export function useOrderManager() {
 
   const handleReset = () => {
     queryParams.keyword = undefined
+    queryParams.orderStatus = undefined
     queryParams.pageNum = 1
     loadOrders()
   }
@@ -166,16 +167,43 @@ export function useOrderManager() {
       const response = await triggerRuleDelivery({
         xianyuAccountId: row.xianyuAccountId,
         xyGoodsId: row.xyGoodsId,
-        orderId: row.orderId
+        orderId: row.orderId,
+        freshKami: true
       })
       if (response.code !== 0 && response.code !== 200) {
         throw new Error(response.msg || '按规则发货失败')
       }
-      showSuccess(response.data || '已按当前卡券与发货规则完成补发')
+      showSuccess(response.data || '已按当前发货规则完成补发')
       await loadOrders()
       return true
     } catch (error: any) {
       showError('按规则发货失败：' + (error.message || '请检查卡券库存和发货配置'))
+      return false
+    } finally {
+      row.manualDelivering = false
+    }
+  }
+
+  const handleCustomDelivery = async (row: DeliveryRecordItem, content: string) => {
+    if (!row.orderId || !row.xianyuAccountId || !content.trim()) {
+      showError('请输入要发送给买家的发货内容')
+      return false
+    }
+    try {
+      row.manualDelivering = true
+      const response = await manualDelivery({
+        xianyuAccountId: row.xianyuAccountId,
+        orderId: row.orderId,
+        content: content.trim()
+      })
+      if (response.code !== 0 && response.code !== 200) {
+        throw new Error(response.msg || '自定义内容发送失败')
+      }
+      showSuccess(response.data || '自定义发货内容已发送给买家')
+      await loadOrders()
+      return true
+    } catch (error: any) {
+      showError('自定义发货失败：' + (error.message || '请稍后重试'))
       return false
     } finally {
       row.manualDelivering = false
@@ -202,6 +230,7 @@ export function useOrderManager() {
     copySId,
     handleConfirmShipment,
     handleRuleDelivery,
+    handleCustomDelivery,
     getStatusColor,
     getStatusBg,
     getStatusText,
