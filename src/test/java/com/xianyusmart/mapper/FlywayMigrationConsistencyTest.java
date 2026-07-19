@@ -58,4 +58,15 @@ class FlywayMigrationConsistencyTest {
         assertTrue(v24.contains("images_json TEXT NULL"));
         assertTrue(!v24.contains("FOREIGN KEY"));
     }
+
+    @Test
+    void bargainMigrationAddsGuardedConfigAndIsolatedSessionState() throws IOException {
+        String v25 = new ClassPathResource("db/migration/V25__add_product_ai_bargain.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertTrue(v25.contains("ADD COLUMN ai_bargain_floor_price DECIMAL(12, 2)"));
+        assertTrue(v25.contains("CREATE TABLE xianyu_ai_bargain_session"));
+        assertTrue(v25.contains("UNIQUE KEY uk_bargain_account_goods_buyer"));
+        assertTrue(!v25.contains("FOREIGN KEY"));
+    }
 }

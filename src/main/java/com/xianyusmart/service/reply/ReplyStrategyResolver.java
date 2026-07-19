@@ -30,6 +30,12 @@ public class ReplyStrategyResolver {
     @Autowired
     private AIReplyStrategy aiReplyStrategy;
 
+    @Autowired
+    private BargainReplyStrategy bargainReplyStrategy;
+
+    @Autowired
+    private com.xianyusmart.service.bargain.BargainDecisionService bargainDecisionService;
+
     public ReplyStrategy resolve(List<ChatMessageData> messageList) {
         ChatMessageData lastMessage = messageList.get(messageList.size() - 1);
         Long accountId = lastMessage.getXianyuAccountId();
@@ -38,6 +44,16 @@ public class ReplyStrategyResolver {
         XianyuGoodsConfig config = goodsConfigMapper.selectByAccountAndGoodsId(accountId, xyGoodsId);
         boolean keywordReplyOn = config != null && config.getXianyuKeywordReplyOn() != null && config.getXianyuKeywordReplyOn() == 1;
         boolean aiReplyOn = config != null && config.getXianyuAutoReplyOn() != null && config.getXianyuAutoReplyOn() == 1;
+        String combinedBuyerMessage = messageList.stream()
+                .map(ChatMessageData::getMsgContent)
+                .filter(value -> value != null && !value.isBlank())
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse("");
+
+        if (lastMessage.getSenderUserId() != null
+                && bargainDecisionService.shouldNegotiate(config, combinedBuyerMessage)) {
+            return bargainReplyStrategy;
+        }
 
         if (keywordReplyOn && aiReplyOn) {
             return keywordWithAIPolishStrategy;

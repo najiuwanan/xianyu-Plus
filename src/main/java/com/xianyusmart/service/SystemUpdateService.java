@@ -208,6 +208,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.6.0".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "新增每个商品独立控制的 AI 议价开关",
+                    "支持最低成交价、单轮让价金额、最大轮数和三种议价风格",
+                    "按账号、商品和买家隔离议价进度，新会话自动重置",
+                    "模型回复经过价格硬校验，禁止突破底价或声称已经改价",
+                    "黑名单与人工接管继续优先拦截，第一版不会自动修改价格"
+            ));
+            return;
+        }
         if ("1.5.1".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "新增商品素材库、AI 文案助手与多账号安全发布",

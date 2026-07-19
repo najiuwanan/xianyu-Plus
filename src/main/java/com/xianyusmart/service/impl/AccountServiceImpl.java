@@ -14,6 +14,7 @@ import com.xianyusmart.mapper.XianyuGoodsAutoDeliveryConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.xianyusmart.mapper.XianyuGoodsAutoReplyRecordMapper;
 import com.xianyusmart.mapper.XianyuOperationLogMapper;
+import com.xianyusmart.mapper.XianyuAiBargainSessionMapper;
 import com.xianyusmart.service.AccountService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -60,6 +61,9 @@ public class AccountServiceImpl implements AccountService {
     
     @Autowired
     private XianyuOperationLogMapper operationLogMapper;
+
+    @Autowired
+    private XianyuAiBargainSessionMapper bargainSessionMapper;
     
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     
@@ -493,8 +497,12 @@ public class AccountServiceImpl implements AccountService {
             // 7. 删除操作记录数据
             int operationLogCount = operationLogMapper.deleteByAccountId(accountId);
             log.info("删除操作记录数据: accountId={}, 删除数量={}", accountId, operationLogCount);
+
+            // 8. 删除 AI 议价会话，避免账号删除后保留买家价格状态
+            int bargainSessionCount = bargainSessionMapper.deleteByAccountId(accountId);
+            log.info("删除 AI 议价会话: accountId={}, 删除数量={}", accountId, bargainSessionCount);
             
-            // 8. 删除Cookie数据
+            // 9. 删除Cookie数据
             LambdaQueryWrapper<XianyuCookie> cookieQuery = new LambdaQueryWrapper<>();
             cookieQuery.eq(XianyuCookie::getXianyuAccountId, accountId);
             int cookieCount = cookieMapper.delete(cookieQuery);

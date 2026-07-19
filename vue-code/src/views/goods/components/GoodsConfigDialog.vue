@@ -27,7 +27,14 @@ const form = reactive({
   aiEnabled: false,
   keywordEnabled: false,
   aiPrompt: '',
-  fixedMaterial: ''
+  fixedMaterial: '',
+  bargainEnabled: false,
+  bargainFloorPrice: null as number | null,
+  bargainStepAmount: null as number | null,
+  bargainMaxRounds: 3,
+  bargainStyle: 'BALANCED' as 'FIRM' | 'BALANCED' | 'CLOSE',
+  bargainFloorReply: '',
+  bargainInstructions: ''
 })
 
 const itemTitle = computed(() => props.item?.item.title || '商品配置')
@@ -47,6 +54,13 @@ const loadConfig = async () => {
   form.keywordEnabled = props.item.xianyuKeywordReplyOn === 1
   form.aiPrompt = ''
   form.fixedMaterial = ''
+  form.bargainEnabled = false
+  form.bargainFloorPrice = null
+  form.bargainStepAmount = null
+  form.bargainMaxRounds = 3
+  form.bargainStyle = 'BALANCED'
+  form.bargainFloorReply = ''
+  form.bargainInstructions = ''
   form.kamiConfigId = props.item.kamiConfigId ?? ''
   try {
     const [kamiResponse, materialResponse] = await Promise.all([
@@ -61,6 +75,13 @@ const loadConfig = async () => {
       if (material.code === 0 || material.code === 200) {
         form.fixedMaterial = material.data?.fixedMaterial || ''
         form.aiPrompt = material.data?.aiPrompt || ''
+        form.bargainEnabled = material.data?.aiBargainOn === 1
+        form.bargainFloorPrice = material.data?.aiBargainFloorPrice ?? null
+        form.bargainStepAmount = material.data?.aiBargainStepAmount ?? null
+        form.bargainMaxRounds = material.data?.aiBargainMaxRounds ?? 3
+        form.bargainStyle = material.data?.aiBargainStyle || 'BALANCED'
+        form.bargainFloorReply = material.data?.aiBargainFloorReply || ''
+        form.bargainInstructions = material.data?.aiBargainInstructions || ''
       }
     }
   } catch (error) {
@@ -73,6 +94,25 @@ const loadConfig = async () => {
 
 const save = async () => {
   if (!props.item || !props.accountId || saving.value) return
+  const listPrice = Number(props.item.item.soldPrice)
+  if (form.bargainEnabled) {
+    if (!form.bargainFloorPrice || form.bargainFloorPrice <= 0) {
+      showError('开启 AI 议价后，请填写大于 0 的最低成交价')
+      return
+    }
+    if (!form.bargainStepAmount || form.bargainStepAmount <= 0) {
+      showError('每轮让价金额必须大于 0')
+      return
+    }
+    if (Number.isFinite(listPrice) && form.bargainFloorPrice > listPrice) {
+      showError('最低成交价不能高于商品当前标价')
+      return
+    }
+    if (form.bargainMaxRounds < 1 || form.bargainMaxRounds > 10) {
+      showError('最大议价轮数必须在 1 到 10 之间')
+      return
+    }
+  }
   saving.value = true
   try {
     const result = await batchUpdateGoodsConfig({
@@ -89,7 +129,14 @@ const save = async () => {
       accountId: props.accountId,
       goodsId: props.item.item.xyGoodId,
       aiPrompt: form.aiPrompt.trim(),
-      fixedMaterial: form.fixedMaterial.trim()
+      fixedMaterial: form.fixedMaterial.trim(),
+      aiBargainOn: form.bargainEnabled ? 1 : 0,
+      aiBargainFloorPrice: form.bargainFloorPrice,
+      aiBargainStepAmount: form.bargainStepAmount,
+      aiBargainMaxRounds: form.bargainMaxRounds,
+      aiBargainStyle: form.bargainStyle,
+      aiBargainFloorReply: form.bargainFloorReply.trim(),
+      aiBargainInstructions: form.bargainInstructions.trim()
     })
     if (!materialResponse.ok) throw new Error('保存商品 AI 资料失败')
     const material = await materialResponse.json()
@@ -170,6 +217,56 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
               </template>
             </section>
 
+            <section class="config-section config-section--bargain">
+              <div class="config-section__title">
+                <div>
+                  <h3>AI 议价</h3>
+                  <p>只处理本商品的砍价咨询；系统逐轮计算可报价格，并在 AI 回复后再次校验，绝不会自动改价。</p>
+                </div>
+                <label class="switch">
+                  <input v-model="form.bargainEnabled" type="checkbox" />
+                  <span></span>
+                </label>
+              </div>
+              <template v-if="form.bargainEnabled">
+                <div class="bargain-grid">
+                  <label class="field">
+                    <span>商品当前标价</span>
+                    <input :value="`¥${props.item?.item.soldPrice || '-'}`" disabled />
+                  </label>
+                  <label class="field">
+                    <span>最低成交价 *</span>
+                    <input v-model.number="form.bargainFloorPrice" type="number" min="0.01" step="0.01" placeholder="AI 绝不能低于此价格" />
+                  </label>
+                  <label class="field">
+                    <span>每轮最多让价 *</span>
+                    <input v-model.number="form.bargainStepAmount" type="number" min="0.01" step="0.01" placeholder="例如 2" />
+                  </label>
+                  <label class="field">
+                    <span>最大议价轮数</span>
+                    <input v-model.number="form.bargainMaxRounds" type="number" min="1" max="10" step="1" />
+                  </label>
+                  <label class="field bargain-grid__wide">
+                    <span>议价风格</span>
+                    <select v-model="form.bargainStyle">
+                      <option value="FIRM">坚定 · 少让价</option>
+                      <option value="BALANCED">适中 · 逐步让价</option>
+                      <option value="CLOSE">积极成交 · 不突破底价</option>
+                    </select>
+                  </label>
+                </div>
+                <label class="field">
+                  <span>到达底价后的回复（可选）</span>
+                  <textarea v-model="form.bargainFloorReply" rows="2" placeholder="可使用 {price} 表示本轮价格；留空则使用安全默认话术。"></textarea>
+                </label>
+                <label class="field">
+                  <span>补充议价规则（可选）</span>
+                  <textarea v-model="form.bargainInstructions" rows="3" placeholder="例如：两件以上可包邮；不赠送额外配件；不要承诺库存。"></textarea>
+                </label>
+                <p class="bargain-note">每个买家、商品和账号分别记录轮次；24 小时无议价消息后重新开始。买家接受报价后仍需卖家人工处理价格。</p>
+              </template>
+            </section>
+
             <section class="config-section config-section--keyword">
               <div class="config-section__title">
                 <div>
@@ -186,7 +283,7 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 
             <section class="config-tip">
               <strong>回复优先级</strong>
-              <span>关键词规则 → 商品专属 AI（结合固定资料）→ 系统 AI 兜底</span>
+              <span>黑名单/人工接管 → AI 议价 → 关键词规则 → 商品专属 AI → 系统 AI 兜底</span>
             </section>
           </div>
 
@@ -217,8 +314,13 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 .config-section h3 { margin: 0; color: #1d2d48; font-size: 15px; }
 .config-section p { margin: 6px 0 0; color: #758097; font-size: 13px; line-height: 1.55; }
 .field { display: grid; gap: 8px; margin-top: 16px; color: #536079; font-size: 13px; font-weight: 600; }
-.field select, .field textarea { width: 100%; box-sizing: border-box; border: 1px solid #dce3ec; border-radius: 10px; background: #fbfcfe; color: #253651; font: inherit; padding: 10px 12px; outline: none; resize: vertical; }
-.field select:focus, .field textarea:focus { border-color: #4e9aff; box-shadow: 0 0 0 3px rgba(78,154,255,.13); }
+.field select, .field textarea, .field input { width: 100%; box-sizing: border-box; border: 1px solid #dce3ec; border-radius: 10px; background: #fbfcfe; color: #253651; font: inherit; padding: 10px 12px; outline: none; resize: vertical; }
+.field select:focus, .field textarea:focus, .field input:focus { border-color: #4e9aff; box-shadow: 0 0 0 3px rgba(78,154,255,.13); }
+.field input:disabled { color: #768198; background: #f2f4f7; }
+.config-section--bargain { border-color: #eadfbf; background: #fffef9; }
+.bargain-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.bargain-grid__wide { grid-column: 1 / -1; }
+.bargain-note { margin-top: 14px !important; padding: 10px 12px; border-radius: 9px; background: #f4f8ff; color: #58708e !important; }
 .switch { position: relative; flex: none; width: 44px; height: 24px; cursor: pointer; }
 .switch input { opacity: 0; width: 0; height: 0; }
 .switch span { position: absolute; inset: 0; border-radius: 99px; background: #d7dde7; transition: .2s; }
@@ -234,5 +336,5 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 .btn:disabled { opacity: .55; cursor: not-allowed; }
 .goods-config-fade-enter-active, .goods-config-fade-leave-active { transition: opacity .18s ease; }
 .goods-config-fade-enter-from, .goods-config-fade-leave-to { opacity: 0; }
-@media (max-width: 620px) { .goods-config-mask { padding: 0; align-items: end; } .goods-config-dialog { width: 100%; max-height: 92vh; border-radius: 20px 20px 0 0; } .goods-config-dialog__header, .goods-config-dialog__content, .goods-config-dialog__footer { padding-left: 18px; padding-right: 18px; } }
+@media (max-width: 620px) { .goods-config-mask { padding: 0; align-items: end; } .goods-config-dialog { width: 100%; max-height: 92vh; border-radius: 20px 20px 0 0; } .goods-config-dialog__header, .goods-config-dialog__content, .goods-config-dialog__footer { padding-left: 18px; padding-right: 18px; } .bargain-grid { grid-template-columns: 1fr; } .bargain-grid__wide { grid-column: auto; } }
 </style>

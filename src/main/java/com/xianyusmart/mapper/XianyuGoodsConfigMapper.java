@@ -21,8 +21,8 @@ public interface XianyuGoodsConfigMapper {
     /**
      * 插入配置
      */
-    @Insert("INSERT INTO xianyu_goods_config (xianyu_account_id, xianyu_goods_id, xy_goods_id, xianyu_auto_delivery_on, xianyu_auto_reply_on, xianyu_auto_reply_context_on, xianyu_keyword_reply_on, human_intervention_on, human_intervention_minutes, fixed_material, ai_prompt) " +
-            "VALUES (#{xianyuAccountId}, #{xianyuGoodsId}, #{xyGoodsId}, #{xianyuAutoDeliveryOn}, #{xianyuAutoReplyOn}, #{xianyuAutoReplyContextOn}, #{xianyuKeywordReplyOn}, #{humanInterventionOn}, #{humanInterventionMinutes}, #{fixedMaterial}, #{aiPrompt})")
+    @Insert("INSERT INTO xianyu_goods_config (xianyu_account_id, xianyu_goods_id, xy_goods_id, xianyu_auto_delivery_on, xianyu_auto_reply_on, xianyu_auto_reply_context_on, xianyu_keyword_reply_on, human_intervention_on, human_intervention_minutes, fixed_material, ai_prompt, ai_bargain_on, ai_bargain_floor_price, ai_bargain_step_amount, ai_bargain_max_rounds, ai_bargain_style, ai_bargain_floor_reply, ai_bargain_instructions) " +
+            "VALUES (#{xianyuAccountId}, #{xianyuGoodsId}, #{xyGoodsId}, #{xianyuAutoDeliveryOn}, #{xianyuAutoReplyOn}, #{xianyuAutoReplyContextOn}, #{xianyuKeywordReplyOn}, #{humanInterventionOn}, #{humanInterventionMinutes}, #{fixedMaterial}, #{aiPrompt}, #{aiBargainOn}, #{aiBargainFloorPrice}, #{aiBargainStepAmount}, #{aiBargainMaxRounds}, #{aiBargainStyle}, #{aiBargainFloorReply}, #{aiBargainInstructions})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(XianyuGoodsConfig config);
     
@@ -36,7 +36,14 @@ public interface XianyuGoodsConfigMapper {
             "human_intervention_on = #{humanInterventionOn}, " +
             "human_intervention_minutes = #{humanInterventionMinutes}, " +
             "fixed_material = #{fixedMaterial}, " +
-            "ai_prompt = #{aiPrompt} WHERE id = #{id}")
+            "ai_prompt = #{aiPrompt}, " +
+            "ai_bargain_on = #{aiBargainOn}, " +
+            "ai_bargain_floor_price = #{aiBargainFloorPrice}, " +
+            "ai_bargain_step_amount = #{aiBargainStepAmount}, " +
+            "ai_bargain_max_rounds = #{aiBargainMaxRounds}, " +
+            "ai_bargain_style = #{aiBargainStyle}, " +
+            "ai_bargain_floor_reply = #{aiBargainFloorReply}, " +
+            "ai_bargain_instructions = #{aiBargainInstructions} WHERE id = #{id}")
     int update(XianyuGoodsConfig config);
     
     /**
@@ -48,12 +55,23 @@ public interface XianyuGoodsConfigMapper {
     /**
      * 保存商品专属 AI 规则与固定资料。
      */
-    @Update("UPDATE xianyu_goods_config SET fixed_material = #{fixedMaterial}, ai_prompt = #{aiPrompt} " +
+    @Update("UPDATE xianyu_goods_config SET fixed_material = #{fixedMaterial}, ai_prompt = #{aiPrompt}, " +
+            "ai_bargain_on = #{aiBargainOn}, ai_bargain_floor_price = #{aiBargainFloorPrice}, " +
+            "ai_bargain_step_amount = #{aiBargainStepAmount}, ai_bargain_max_rounds = #{aiBargainMaxRounds}, " +
+            "ai_bargain_style = #{aiBargainStyle}, ai_bargain_floor_reply = #{aiBargainFloorReply}, " +
+            "ai_bargain_instructions = #{aiBargainInstructions} " +
             "WHERE xianyu_account_id = #{accountId} AND xy_goods_id = #{xyGoodsId}")
     int updateProductAiConfig(@Param("accountId") Long accountId,
                               @Param("xyGoodsId") String xyGoodsId,
                               @Param("fixedMaterial") String fixedMaterial,
-                              @Param("aiPrompt") String aiPrompt);
+                              @Param("aiPrompt") String aiPrompt,
+                              @Param("aiBargainOn") Integer aiBargainOn,
+                              @Param("aiBargainFloorPrice") java.math.BigDecimal aiBargainFloorPrice,
+                              @Param("aiBargainStepAmount") java.math.BigDecimal aiBargainStepAmount,
+                              @Param("aiBargainMaxRounds") Integer aiBargainMaxRounds,
+                              @Param("aiBargainStyle") String aiBargainStyle,
+                              @Param("aiBargainFloorReply") String aiBargainFloorReply,
+                              @Param("aiBargainInstructions") String aiBargainInstructions);
     
     /**
      * 根据账号ID删除配置

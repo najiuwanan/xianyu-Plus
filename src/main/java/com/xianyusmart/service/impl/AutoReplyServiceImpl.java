@@ -349,7 +349,8 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             }
             boolean aiOn = goodsConfig.getXianyuAutoReplyOn() != null && goodsConfig.getXianyuAutoReplyOn() == 1;
             boolean keywordOn = goodsConfig.getXianyuKeywordReplyOn() != null && goodsConfig.getXianyuKeywordReplyOn() == 1;
-            return aiOn || keywordOn;
+            boolean bargainOn = goodsConfig.getAiBargainOn() != null && goodsConfig.getAiBargainOn() == 1;
+            return aiOn || keywordOn || bargainOn;
         } catch (Exception e) {
             log.error("【账号{}】检查回复开关异常: xyGoodsId={}", accountId, xyGoodsId, e);
             return false;
@@ -366,10 +367,12 @@ public class AutoReplyServiceImpl implements AutoReplyService {
         }
         boolean aiOn = Integer.valueOf(1).equals(config.getXianyuAutoReplyOn());
         boolean keywordOn = Integer.valueOf(1).equals(config.getXianyuKeywordReplyOn());
+        boolean bargainOn = Integer.valueOf(1).equals(config.getAiBargainOn());
         return switch (replyType) {
             case 1 -> keywordOn;
             case 2 -> aiOn;
             case 3 -> aiOn && keywordOn;
+            case 4 -> bargainOn;
             default -> false;
         };
     }

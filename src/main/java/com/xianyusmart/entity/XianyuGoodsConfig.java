@@ -2,6 +2,8 @@ package com.xianyusmart.entity;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 /**
  * 商品配置实体类
  */
@@ -62,6 +64,27 @@ public class XianyuGoodsConfig {
      * 商品专属 AI 回复规则。启用商品 AI 回复后，会优先于全局兜底规则使用。
      */
     private String aiPrompt;
+
+    /** 商品级 AI 议价开关。 */
+    private Integer aiBargainOn = 0;
+
+    /** AI 允许给出的最低价格。 */
+    private BigDecimal aiBargainFloorPrice;
+
+    /** 每轮最多降低的金额。 */
+    private BigDecimal aiBargainStepAmount;
+
+    /** 单个买家针对本商品的最大议价轮数。 */
+    private Integer aiBargainMaxRounds = 3;
+
+    /** FIRM、BALANCED 或 CLOSE。 */
+    private String aiBargainStyle = "BALANCED";
+
+    /** 达到底价或最大轮数后的固定回复。 */
+    private String aiBargainFloorReply;
+
+    /** 包邮、赠品、批量优惠等仅供议价使用的补充规则。 */
+    private String aiBargainInstructions;
     
     /**
      * 创建时间

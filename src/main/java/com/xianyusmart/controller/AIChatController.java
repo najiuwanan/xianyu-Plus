@@ -8,8 +8,11 @@ import com.xianyusmart.service.GoodsInfoService;
 import com.xianyusmart.service.ItemDetailSyncService;
 import com.xianyusmart.controller.dto.SyncSingleItemRespDTO;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
+import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.entity.XianyuGoodsConfig;
+import com.xianyusmart.entity.XianyuGoodsInfo;
 import com.xianyusmart.service.reply.ProductAiContextBuilder;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
@@ -38,6 +41,9 @@ public class AIChatController {
     
     @Autowired
     private XianyuGoodsConfigMapper goodsConfigMapper;
+
+    @Autowired
+    private XianyuGoodsInfoMapper goodsInfoMapper;
 
     @Autowired
     private ProductAiContextBuilder productAiContextBuilder;
@@ -96,7 +102,13 @@ public class AIChatController {
 
     @PostMapping("/saveFixedMaterial")
     public ResultObject<?> saveFixedMaterial(@RequestBody FixedMaterialReqDTO req) {
-        goodsConfigMapper.updateProductAiConfig(req.getAccountId(), req.getGoodsId(), req.getFixedMaterial(), req.getAiPrompt());
+        String validationError = validateBargainConfig(req);
+        if (validationError != null) return ResultObject.failed(validationError);
+        goodsConfigMapper.updateProductAiConfig(
+                req.getAccountId(), req.getGoodsId(), req.getFixedMaterial(), req.getAiPrompt(),
+                enabled(req.getAiBargainOn()), req.getAiBargainFloorPrice(), req.getAiBargainStepAmount(),
+                normalizeRounds(req.getAiBargainMaxRounds()), normalizeStyle(req.getAiBargainStyle()),
+                trimToNull(req.getAiBargainFloorReply()), trimToNull(req.getAiBargainInstructions()));
         return ResultObject.success(null);
     }
 
@@ -107,6 +119,13 @@ public class AIChatController {
         if (config != null) {
             resp.setFixedMaterial(config.getFixedMaterial());
             resp.setAiPrompt(config.getAiPrompt());
+            resp.setAiBargainOn(config.getAiBargainOn());
+            resp.setAiBargainFloorPrice(config.getAiBargainFloorPrice());
+            resp.setAiBargainStepAmount(config.getAiBargainStepAmount());
+            resp.setAiBargainMaxRounds(config.getAiBargainMaxRounds());
+            resp.setAiBargainStyle(config.getAiBargainStyle());
+            resp.setAiBargainFloorReply(config.getAiBargainFloorReply());
+            resp.setAiBargainInstructions(config.getAiBargainInstructions());
         }
         return ResultObject.success(resp);
     }
@@ -147,6 +166,13 @@ public class AIChatController {
         private String goodsId;
         private String fixedMaterial;
         private String aiPrompt;
+        private Integer aiBargainOn;
+        private java.math.BigDecimal aiBargainFloorPrice;
+        private java.math.BigDecimal aiBargainStepAmount;
+        private Integer aiBargainMaxRounds;
+        private String aiBargainStyle;
+        private String aiBargainFloorReply;
+        private String aiBargainInstructions;
 
         public Long getAccountId() { return accountId; }
         public void setAccountId(Long accountId) { this.accountId = accountId; }
@@ -156,11 +182,32 @@ public class AIChatController {
         public void setFixedMaterial(String fixedMaterial) { this.fixedMaterial = fixedMaterial; }
         public String getAiPrompt() { return aiPrompt; }
         public void setAiPrompt(String aiPrompt) { this.aiPrompt = aiPrompt; }
+        public Integer getAiBargainOn() { return aiBargainOn; }
+        public void setAiBargainOn(Integer aiBargainOn) { this.aiBargainOn = aiBargainOn; }
+        public java.math.BigDecimal getAiBargainFloorPrice() { return aiBargainFloorPrice; }
+        public void setAiBargainFloorPrice(java.math.BigDecimal value) { this.aiBargainFloorPrice = value; }
+        public java.math.BigDecimal getAiBargainStepAmount() { return aiBargainStepAmount; }
+        public void setAiBargainStepAmount(java.math.BigDecimal value) { this.aiBargainStepAmount = value; }
+        public Integer getAiBargainMaxRounds() { return aiBargainMaxRounds; }
+        public void setAiBargainMaxRounds(Integer value) { this.aiBargainMaxRounds = value; }
+        public String getAiBargainStyle() { return aiBargainStyle; }
+        public void setAiBargainStyle(String value) { this.aiBargainStyle = value; }
+        public String getAiBargainFloorReply() { return aiBargainFloorReply; }
+        public void setAiBargainFloorReply(String value) { this.aiBargainFloorReply = value; }
+        public String getAiBargainInstructions() { return aiBargainInstructions; }
+        public void setAiBargainInstructions(String value) { this.aiBargainInstructions = value; }
     }
 
     public static class FixedMaterialRespDTO {
         private String fixedMaterial;
         private String aiPrompt;
+        private Integer aiBargainOn;
+        private java.math.BigDecimal aiBargainFloorPrice;
+        private java.math.BigDecimal aiBargainStepAmount;
+        private Integer aiBargainMaxRounds;
+        private String aiBargainStyle;
+        private String aiBargainFloorReply;
+        private String aiBargainInstructions;
         private boolean verificationRequired;
         private String captchaUrl;
 
@@ -168,6 +215,20 @@ public class AIChatController {
         public void setFixedMaterial(String fixedMaterial) { this.fixedMaterial = fixedMaterial; }
         public String getAiPrompt() { return aiPrompt; }
         public void setAiPrompt(String aiPrompt) { this.aiPrompt = aiPrompt; }
+        public Integer getAiBargainOn() { return aiBargainOn; }
+        public void setAiBargainOn(Integer value) { this.aiBargainOn = value; }
+        public java.math.BigDecimal getAiBargainFloorPrice() { return aiBargainFloorPrice; }
+        public void setAiBargainFloorPrice(java.math.BigDecimal value) { this.aiBargainFloorPrice = value; }
+        public java.math.BigDecimal getAiBargainStepAmount() { return aiBargainStepAmount; }
+        public void setAiBargainStepAmount(java.math.BigDecimal value) { this.aiBargainStepAmount = value; }
+        public Integer getAiBargainMaxRounds() { return aiBargainMaxRounds; }
+        public void setAiBargainMaxRounds(Integer value) { this.aiBargainMaxRounds = value; }
+        public String getAiBargainStyle() { return aiBargainStyle; }
+        public void setAiBargainStyle(String value) { this.aiBargainStyle = value; }
+        public String getAiBargainFloorReply() { return aiBargainFloorReply; }
+        public void setAiBargainFloorReply(String value) { this.aiBargainFloorReply = value; }
+        public String getAiBargainInstructions() { return aiBargainInstructions; }
+        public void setAiBargainInstructions(String value) { this.aiBargainInstructions = value; }
         public boolean isVerificationRequired() { return verificationRequired; }
         public void setVerificationRequired(boolean verificationRequired) { this.verificationRequired = verificationRequired; }
         public String getCaptchaUrl() { return captchaUrl; }
@@ -210,5 +271,44 @@ public class AIChatController {
         public void setBaseUrl(String baseUrl) { this.baseUrl = baseUrl; }
         public String getModel() { return model; }
         public void setModel(String model) { this.model = model; }
+    }
+
+    private String validateBargainConfig(FixedMaterialReqDTO req) {
+        if (req == null || req.getAccountId() == null || req.getGoodsId() == null || req.getGoodsId().isBlank()) {
+            return "账号和商品不能为空";
+        }
+        if (enabled(req.getAiBargainOn()) == 0) return null;
+        if (req.getAiBargainFloorPrice() == null || req.getAiBargainFloorPrice().signum() <= 0) {
+            return "开启 AI 议价后必须填写大于 0 的最低成交价";
+        }
+        if (req.getAiBargainStepAmount() == null || req.getAiBargainStepAmount().signum() <= 0) {
+            return "每轮让价金额必须大于 0";
+        }
+        int rounds = normalizeRounds(req.getAiBargainMaxRounds());
+        if (req.getAiBargainMaxRounds() != null && (rounds != req.getAiBargainMaxRounds())) {
+            return "最大议价轮数必须在 1 到 10 之间";
+        }
+        XianyuGoodsInfo goods = goodsInfoMapper.selectOne(new LambdaQueryWrapper<XianyuGoodsInfo>()
+                .eq(XianyuGoodsInfo::getXianyuAccountId, req.getAccountId())
+                .eq(XianyuGoodsInfo::getXyGoodId, req.getGoodsId())
+                .last("LIMIT 1"));
+        java.math.BigDecimal listPrice = parsePrice(goods == null ? null : goods.getSoldPrice());
+        if (listPrice == null) return "当前商品没有可用标价，请先同步商品后再开启 AI 议价";
+        if (req.getAiBargainFloorPrice().compareTo(listPrice) > 0) return "最低成交价不能高于商品当前标价";
+        return null;
+    }
+
+    private int enabled(Integer value) { return Integer.valueOf(1).equals(value) ? 1 : 0; }
+    private int normalizeRounds(Integer value) { return value == null ? 3 : Math.max(1, Math.min(10, value)); }
+    private String normalizeStyle(String value) {
+        String style = value == null ? "" : value.trim().toUpperCase();
+        return switch (style) { case "FIRM", "CLOSE" -> style; default -> "BALANCED"; };
+    }
+    private String trimToNull(String value) { return value == null || value.isBlank() ? null : value.trim(); }
+    private java.math.BigDecimal parsePrice(String value) {
+        if (value == null) return null;
+        String normalized = value.replaceAll("[^0-9.]", "");
+        if (normalized.isBlank()) return null;
+        try { return new java.math.BigDecimal(normalized); } catch (NumberFormatException error) { return null; }
     }
 }

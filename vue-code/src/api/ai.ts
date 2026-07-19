@@ -59,7 +59,21 @@ export function getAIStatus(): Promise<Response> {
 }
 
 // 保存固定资料
-export function saveFixedMaterial(data: { accountId: number; goodsId: string; fixedMaterial: string; aiPrompt?: string }): Promise<Response> {
+export interface ProductAiConfigPayload {
+  accountId: number
+  goodsId: string
+  fixedMaterial?: string
+  aiPrompt?: string
+  aiBargainOn?: number
+  aiBargainFloorPrice?: number | null
+  aiBargainStepAmount?: number | null
+  aiBargainMaxRounds?: number
+  aiBargainStyle?: 'FIRM' | 'BALANCED' | 'CLOSE'
+  aiBargainFloorReply?: string
+  aiBargainInstructions?: string
+}
+
+export function saveFixedMaterial(data: ProductAiConfigPayload): Promise<Response> {
   return fetch('/ai/saveFixedMaterial', {
     method: 'POST',
     headers: authHeaders(),

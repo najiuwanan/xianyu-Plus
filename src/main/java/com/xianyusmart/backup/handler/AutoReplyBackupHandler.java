@@ -28,7 +28,9 @@ public class AutoReplyBackupHandler implements DataBackupHandler {
     @Override
     public Map<String, Object> exportData() {
         List<Map<String, Object>> configs = jdbcTemplate.queryForList(
-                "SELECT c.xy_goods_id, c.xianyu_auto_reply_on, c.xianyu_auto_reply_context_on, c.fixed_material, c.ai_prompt, a.unb " +
+                "SELECT c.xy_goods_id, c.xianyu_auto_reply_on, c.xianyu_auto_reply_context_on, c.fixed_material, c.ai_prompt, " +
+                "c.ai_bargain_on, c.ai_bargain_floor_price, c.ai_bargain_step_amount, c.ai_bargain_max_rounds, " +
+                "c.ai_bargain_style, c.ai_bargain_floor_reply, c.ai_bargain_instructions, a.unb " +
                 "FROM xianyu_goods_config c " +
                 "LEFT JOIN xianyu_account a ON c.xianyu_account_id = a.id " +
                 "WHERE c.xianyu_auto_reply_on IS NOT NULL");
@@ -43,6 +45,13 @@ public class AutoReplyBackupHandler implements DataBackupHandler {
             map.put("autoReplyContextOn", config.get("xianyu_auto_reply_context_on"));
             map.put("fixedMaterial", config.get("fixed_material"));
             map.put("aiPrompt", config.get("ai_prompt"));
+            map.put("aiBargainOn", config.get("ai_bargain_on"));
+            map.put("aiBargainFloorPrice", config.get("ai_bargain_floor_price"));
+            map.put("aiBargainStepAmount", config.get("ai_bargain_step_amount"));
+            map.put("aiBargainMaxRounds", config.get("ai_bargain_max_rounds"));
+            map.put("aiBargainStyle", config.get("ai_bargain_style"));
+            map.put("aiBargainFloorReply", config.get("ai_bargain_floor_reply"));
+            map.put("aiBargainInstructions", config.get("ai_bargain_instructions"));
             result.add(map);
         }
 
@@ -82,6 +91,13 @@ public class AutoReplyBackupHandler implements DataBackupHandler {
                 Integer autoReplyContextOn = map.get("autoReplyContextOn") != null ? ((Number) map.get("autoReplyContextOn")).intValue() : null;
                 String fixedMaterial = (String) map.get("fixedMaterial");
                 String aiPrompt = (String) map.get("aiPrompt");
+                Integer aiBargainOn = numberValue(map.get("aiBargainOn"), 0);
+                java.math.BigDecimal aiBargainFloorPrice = decimalValue(map.get("aiBargainFloorPrice"));
+                java.math.BigDecimal aiBargainStepAmount = decimalValue(map.get("aiBargainStepAmount"));
+                Integer aiBargainMaxRounds = numberValue(map.get("aiBargainMaxRounds"), 3);
+                String aiBargainStyle = stringValue(map.get("aiBargainStyle"), "BALANCED");
+                String aiBargainFloorReply = (String) map.get("aiBargainFloorReply");
+                String aiBargainInstructions = (String) map.get("aiBargainInstructions");
 
                 List<Map<String, Object>> existing = jdbcTemplate.queryForList(
                         "SELECT * FROM xianyu_goods_config WHERE xianyu_account_id = ? AND xy_goods_id = ?",
@@ -89,12 +105,16 @@ public class AutoReplyBackupHandler implements DataBackupHandler {
 
                 if (existing.isEmpty()) {
                     jdbcTemplate.update(
-                            "INSERT INTO xianyu_goods_config (xianyu_account_id, xy_goods_id, xianyu_auto_reply_on, xianyu_auto_reply_context_on, fixed_material, ai_prompt) VALUES (?, ?, ?, ?, ?, ?)",
-                            accountId, xyGoodsId, autoReplyOn, autoReplyContextOn, fixedMaterial, aiPrompt);
+                            "INSERT INTO xianyu_goods_config (xianyu_account_id, xy_goods_id, xianyu_auto_reply_on, xianyu_auto_reply_context_on, fixed_material, ai_prompt, ai_bargain_on, ai_bargain_floor_price, ai_bargain_step_amount, ai_bargain_max_rounds, ai_bargain_style, ai_bargain_floor_reply, ai_bargain_instructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            accountId, xyGoodsId, autoReplyOn, autoReplyContextOn, fixedMaterial, aiPrompt,
+                            aiBargainOn, aiBargainFloorPrice, aiBargainStepAmount, aiBargainMaxRounds,
+                            aiBargainStyle, aiBargainFloorReply, aiBargainInstructions);
                 } else {
                     jdbcTemplate.update(
-                            "UPDATE xianyu_goods_config SET xianyu_auto_reply_on = ?, xianyu_auto_reply_context_on = ?, fixed_material = ?, ai_prompt = ? WHERE xianyu_account_id = ? AND xy_goods_id = ?",
-                            autoReplyOn, autoReplyContextOn, fixedMaterial, aiPrompt, accountId, xyGoodsId);
+                            "UPDATE xianyu_goods_config SET xianyu_auto_reply_on = ?, xianyu_auto_reply_context_on = ?, fixed_material = ?, ai_prompt = ?, ai_bargain_on = ?, ai_bargain_floor_price = ?, ai_bargain_step_amount = ?, ai_bargain_max_rounds = ?, ai_bargain_style = ?, ai_bargain_floor_reply = ?, ai_bargain_instructions = ? WHERE xianyu_account_id = ? AND xy_goods_id = ?",
+                            autoReplyOn, autoReplyContextOn, fixedMaterial, aiPrompt, aiBargainOn,
+                            aiBargainFloorPrice, aiBargainStepAmount, aiBargainMaxRounds, aiBargainStyle,
+                            aiBargainFloorReply, aiBargainInstructions, accountId, xyGoodsId);
                 }
             } catch (Exception e) {
                 log.warn("[AutoReplyBackup] 导入单条自动回复配置失败: {}", e.getMessage());
@@ -103,5 +123,19 @@ public class AutoReplyBackupHandler implements DataBackupHandler {
         if (skippedCount > 0) {
             log.warn("[AutoReplyBackup] 共跳过 {} 条数据（账号不存在）", skippedCount);
         }
+    }
+
+    private Integer numberValue(Object value, int fallback) {
+        return value instanceof Number number ? number.intValue() : fallback;
+    }
+
+    private java.math.BigDecimal decimalValue(Object value) {
+        if (value == null) return null;
+        try { return new java.math.BigDecimal(value.toString()); }
+        catch (NumberFormatException ignored) { return null; }
+    }
+
+    private String stringValue(Object value, String fallback) {
+        return value == null || value.toString().isBlank() ? fallback : value.toString();
     }
 }
