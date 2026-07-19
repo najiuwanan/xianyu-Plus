@@ -7,6 +7,7 @@ import {
   markChatSessionRead,
   addChatBuyerTag,
   removeChatBuyerTag,
+  queryChatAvatars,
   sendMessage as sendMessageApi,
   updateChatTakeover,
   type ChatMessage,
@@ -45,6 +46,9 @@ const activeBlacklist = ref<BuyerBlacklistEntry | null>(null)
 const messageListRef = ref<HTMLElement | null>(null)
 const takeoverMinutes = ref(10)
 const setHeaderContent = inject<(content: any) => void>('setHeaderContent')
+const buyerProfileCache = new Map<string, { avatarUrl?: string; nick?: string }>()
+const avatarAttemptedAt = new Map<string, number>()
+let loadingAvatars = false
 
 const selectedAccount = computed(() =>
   accounts.value.find(account => Number(account.id) === selectedAccountId.value) || null
@@ -96,11 +100,79 @@ const getMessageSenderName = (message: ChatMessage) => {
   return getBuyerDisplayName(selectedSession.value)
 }
 
-const getAccountAvatar = (account: Account) => String(account.avatarUrl || '').trim()
+const getAccountAvatar = (account?: Account | null) => String(account?.avatarUrl || '').trim()
 
 const getSessionAvatar = (session?: ChatSession | null) => {
   const avatar = String(session?.buyerAvatarUrl || session?.buyerAvatar || '').trim()
   return /^https?:\/\//i.test(avatar) ? avatar : ''
+}
+
+const avatarCacheKey = (accountId: number, sid: string) => `${accountId}:${sid}`
+
+const applyCachedProfiles = (items: ChatSession[], accountId: number) => items.map(session => {
+  const cached = buyerProfileCache.get(avatarCacheKey(accountId, session.sid))
+  if (!cached) return session
+  return {
+    ...session,
+    buyerAvatarUrl: cached.avatarUrl || session.buyerAvatarUrl,
+    buyerUserName: cached.nick && !isUsableDisplayName(session.buyerUserName, session.lastMessage)
+      ? cached.nick
+      : session.buyerUserName
+  }
+})
+
+const loadMissingAvatars = async () => {
+  const accountId = selectedAccountId.value
+  if (!accountId || loadingAvatars) return
+  const now = Date.now()
+  const preferredSid = selectedSession.value?.sid
+  const candidates = [...sessions.value]
+    .sort((left, right) => Number(right.sid === preferredSid) - Number(left.sid === preferredSid))
+    .filter(session => {
+      if (!session.sid || !session.buyerUserId || getSessionAvatar(session)) return false
+      const attemptedAt = avatarAttemptedAt.get(avatarCacheKey(accountId, session.sid)) || 0
+      return now - attemptedAt >= 5 * 60_000
+    })
+    .slice(0, 3)
+  const shouldLoadOwner = !getAccountAvatar(selectedAccount.value)
+  if (!candidates.length && !shouldLoadOwner) return
+  if (!candidates.length) {
+    const fallback = sessions.value.find(session => session.sid && session.buyerUserId)
+    if (fallback) candidates.push(fallback)
+  }
+  if (!candidates.length) return
+
+  loadingAvatars = true
+  candidates.forEach(session => avatarAttemptedAt.set(avatarCacheKey(accountId, session.sid), now))
+  try {
+    const response = await queryChatAvatars({
+      xianyuAccountId: accountId,
+      includeOwner: shouldLoadOwner,
+      queries: candidates.map(session => ({ buyerUserId: session.buyerUserId, sid: session.sid }))
+    })
+    ensureSuccess(response)
+    if (selectedAccountId.value !== accountId) return
+    const result = response.data
+    if (result?.accountAvatarUrl) {
+      accounts.value = accounts.value.map(account => Number(account.id) === accountId
+        ? { ...account, avatarUrl: result.accountAvatarUrl }
+        : account)
+    }
+    for (const session of candidates) {
+      const profile = result?.buyerProfiles?.[session.buyerUserId]
+      if (profile?.avatarUrl || profile?.nick) {
+        buyerProfileCache.set(avatarCacheKey(accountId, session.sid), profile)
+      }
+    }
+    sessions.value = applyCachedProfiles(sessions.value, accountId)
+    if (selectedSession.value) {
+      selectedSession.value = sessions.value.find(session => session.sid === selectedSession.value?.sid) || selectedSession.value
+    }
+  } catch (error) {
+    console.warn('补取客服头像失败，继续使用文字头像', error)
+  } finally {
+    loadingAvatars = false
+  }
 }
 
 const filteredSessions = computed(() => {
@@ -326,7 +398,7 @@ const loadSessions = async (silent = false) => {
     const response = await getChatSessions(selectedAccountId.value)
     ensureSuccess(response)
     const currentSid = selectedSession.value?.sid
-    sessions.value = response.data || []
+    sessions.value = applyCachedProfiles(response.data || [], selectedAccountId.value)
     const current = currentSid ? sessions.value.find(session => session.sid === currentSid) : null
     if (current) {
       selectedSession.value = current
@@ -339,6 +411,7 @@ const loadSessions = async (silent = false) => {
       selectedSession.value = null
       messages.value = []
     }
+    void loadMissingAvatars()
   } catch (error: any) {
     if (!silent) showError(error.message || '加载会话失败')
   } finally {
@@ -378,6 +451,7 @@ const selectAccount = async (accountId?: number) => {
     messages.value = []
     tagFilter.value = ''
     sessionFilter.value = 'ALL'
+    avatarAttemptedAt.clear()
   }
   await loadSessions()
 }
@@ -391,6 +465,7 @@ const selectSession = async (session: ChatSession) => {
   messages.value = []
   await refreshBlacklistState()
   await loadMessages()
+  void loadMissingAvatars()
 }
 
 const refreshAll = async () => {
@@ -636,7 +711,8 @@ onBeforeUnmount(() => {
                 :class="{ 'chat-message--mine': isMine(message), 'chat-message--system': !isMine(message) && message.contentType !== 1 }"
               >
                 <div class="chat-message__avatar">
-                  <img v-if="!isMine(message) && getSessionAvatar(selectedSession)" :src="getSessionAvatar(selectedSession)" :alt="getMessageSenderName(message)">
+                  <img v-if="isMine(message) && selectedAccount && getAccountAvatar(selectedAccount)" :src="getAccountAvatar(selectedAccount)" alt="我的头像">
+                  <img v-else-if="!isMine(message) && getSessionAvatar(selectedSession)" :src="getSessionAvatar(selectedSession)" :alt="getMessageSenderName(message)">
                   <IconUser v-else />
                 </div>
                 <div class="chat-message__content">

@@ -9,7 +9,10 @@ import com.xianyusmart.controller.dto.ChatSessionReqDTO;
 import com.xianyusmart.controller.dto.ChatTakeoverReqDTO;
 import com.xianyusmart.controller.dto.ChatSessionReadReqDTO;
 import com.xianyusmart.controller.dto.ChatBuyerTagReqDTO;
+import com.xianyusmart.controller.dto.ChatAvatarQueryReqDTO;
+import com.xianyusmart.controller.dto.ChatAvatarQueryRespDTO;
 import com.xianyusmart.service.ChatMessageService;
+import com.xianyusmart.service.ChatAvatarProfileService;
 import com.xianyusmart.service.reply.HumanTakeoverManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +31,9 @@ public class MsgController {
 
     @Autowired
     private HumanTakeoverManager humanTakeoverManager;
+
+    @Autowired
+    private ChatAvatarProfileService chatAvatarProfileService;
 
     /**
      * 分页查询消息列表
@@ -69,6 +75,15 @@ public class MsgController {
     @PostMapping("/sessions")
     public ResultObject<java.util.List<ChatSessionDTO>> getSessions(@RequestBody ChatSessionReqDTO reqDTO) {
         return chatMessageService.getSessionList(reqDTO);
+    }
+
+    /** 按需批量补取在线客服买家头像，并在缺失时补取当前账号头像。 */
+    @PostMapping("/avatars")
+    public ResultObject<ChatAvatarQueryRespDTO> queryAvatars(@RequestBody ChatAvatarQueryReqDTO reqDTO) {
+        if (reqDTO == null || reqDTO.getXianyuAccountId() == null) {
+            return ResultObject.validateFailed("xianyuAccountId不能为空");
+        }
+        return ResultObject.success(chatAvatarProfileService.query(reqDTO));
     }
 
     @PostMapping("/session/read")

@@ -47,6 +47,16 @@ export interface ChatSession {
   buyerTags?: string;
 }
 
+export interface ChatUserProfile {
+  avatarUrl?: string;
+  nick?: string;
+}
+
+export interface ChatAvatarQueryResponse {
+  accountAvatarUrl?: string;
+  buyerProfiles: Record<string, ChatUserProfile>;
+}
+
 // 获取消息列表
 export function getMessageList(data: {
   xianyuAccountId: number;
@@ -86,6 +96,18 @@ export function getChatSessions(xianyuAccountId: number, limit = 80) {
     url: '/msg/sessions',
     method: 'POST',
     data: { xianyuAccountId, limit }
+  });
+}
+
+export function queryChatAvatars(data: {
+  xianyuAccountId: number;
+  includeOwner?: boolean;
+  queries: Array<{ buyerUserId: string; sid: string }>;
+}) {
+  return request<ChatAvatarQueryResponse>({
+    url: '/msg/avatars',
+    method: 'POST',
+    data
   });
 }
 
