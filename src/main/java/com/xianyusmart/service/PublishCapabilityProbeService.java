@@ -23,7 +23,7 @@ import java.util.Set;
 public class PublishCapabilityProbeService {
 
     static final String CATEGORY_API = "mtop.taobao.idle.kgraph.property.recommend";
-    static final String LOCATION_API = "mtop.taobao.idle.local.poi.get";
+    public static final String LOCATION_API = "mtop.taobao.idle.local.poi.get";
 
     private final XianyuAccountMapper accountMapper;
     private final AccountService accountService;
