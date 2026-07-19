@@ -15,6 +15,9 @@ export interface DeliveryRecordVO {
   xyGoodsId: string
   goodsTitle?: string
   buyerUserName?: string
+  buyerUserId?: string
+  blacklisted?: boolean
+  blacklistReason?: string
   sid?: string
   content?: string
   state: number

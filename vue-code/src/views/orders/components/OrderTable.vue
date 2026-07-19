@@ -178,6 +178,9 @@ const getDeliveryText = (state: number, deliveryStatus?: string) => {
   return '失败'
 }
 
+const getOrderDeliveryText = (order: DeliveryRecordItem) =>
+  order.blacklisted ? '黑名单拦截' : getDeliveryText(order.state, order.deliveryStatus)
+
 const getDeliveryColor = (state: number, deliveryStatus?: string) => {
   if (deliveryStatus === 'SKIPPED') return '#637085'
   if (state === 1) return '#168b49'
@@ -218,6 +221,7 @@ const canConfirmShipment = (order: DeliveryRecordItem) => {
 }
 
 const canRuleDelivery = (order: DeliveryRecordItem) => {
+  if (order.blacklisted) return false
   return Boolean(order.orderId && order.xianyuAccountId && order.xyGoodsId)
     && !['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')
 }
@@ -267,6 +271,7 @@ const runCompensation = async (order: DeliveryRecordItem, action: AutomationActi
 }
 
 const ruleDeliveryReason = (order: DeliveryRecordItem) => {
+  if (order.blacklisted) return order.blacklistReason || '黑名单买家禁止手动发货'
   if (canRuleDelivery(order)) return '可领取新卡密补发，或发送自定义发货内容'
   if (['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')) return '退款或关闭交易不能发货'
   return '订单信息不完整，暂时不能手动发货'
@@ -356,7 +361,7 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
               background: getDeliveryBg(order.state, order.deliveryStatus)
             }"
           >
-            {{ getDeliveryText(order.state, order.deliveryStatus) }}
+            {{ getOrderDeliveryText(order) }}
           </span>
           <span
             class="order-card__status"

@@ -40,6 +40,7 @@ public class DeliveryTaskScheduler {
     private final Executor taskExecutor;
     private final TaskScheduler taskScheduler;
     private final AutomationScheduleService automationScheduleService;
+    private final BuyerBlacklistService blacklistService;
     private final String workerId = buildWorkerId();
     private final AtomicBoolean discoveringOrders = new AtomicBoolean(false);
 
@@ -62,7 +63,8 @@ public class DeliveryTaskScheduler {
                                  WebSocketService webSocketService,
                                  @Qualifier("taskExecutor") Executor taskExecutor,
                                  @Qualifier("taskScheduler") TaskScheduler taskScheduler,
-                                 AutomationScheduleService automationScheduleService) {
+                                 AutomationScheduleService automationScheduleService,
+                                 BuyerBlacklistService blacklistService) {
         this.deliveryTaskService = deliveryTaskService;
         this.autoDeliveryService = autoDeliveryService;
         this.orderMapper = orderMapper;
@@ -74,6 +76,7 @@ public class DeliveryTaskScheduler {
         this.taskExecutor = taskExecutor;
         this.taskScheduler = taskScheduler;
         this.automationScheduleService = automationScheduleService;
+        this.blacklistService = blacklistService;
     }
 
     @Scheduled(fixedDelay = 1000, initialDelay = 5000)
@@ -122,6 +125,13 @@ public class DeliveryTaskScheduler {
     }
 
     private void executeTask(XianyuGoodsOrder task) {
+        if (blacklistService.isBlacklisted(task.getXianyuAccountId(), task.getBuyerUserId())) {
+            String reason = blacklistService.blockedMessage(task.getXianyuAccountId(), task.getBuyerUserId());
+            orderMapper.blockClaimedTaskByBlacklist(task.getId(), workerId, reason);
+            log.warn("【账号{}】黑名单买家发货任务已终止: taskId={}, buyerUserId={}",
+                    task.getXianyuAccountId(), task.getId(), task.getBuyerUserId());
+            return;
+        }
         XianyuAccount account = accountMapper.selectById(task.getXianyuAccountId());
         if (account == null || !Integer.valueOf(1).equals(account.getStatus())) {
             deliveryTaskService.pauseClaimedTask(task.getId(), workerId);

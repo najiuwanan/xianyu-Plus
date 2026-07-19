@@ -56,6 +56,12 @@ const router = createRouter({
       meta: { title: '在线客服', icon: '💬' }
     },
     {
+      path: '/blacklist',
+      name: 'blacklist',
+      component: () => import('@/views/blacklist/index.vue'),
+      meta: { title: '买家黑名单', icon: '⛔' }
+    },
+    {
       path: '/notifications',
       name: 'notifications',
       component: () => import('@/views/notifications/index.vue'),

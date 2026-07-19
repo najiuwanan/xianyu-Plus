@@ -13,6 +13,7 @@ import {
   type ChatSession
 } from '@/api/message'
 import { sendImageMessage as sendImageMessageApi } from '@/api/image'
+import { checkBuyerBlacklist, deleteBuyerBlacklist, saveBuyerBlacklist, type BuyerBlacklistEntry } from '@/api/blacklist'
 import type { Account } from '@/types'
 import { showError, showSuccess } from '@/utils'
 import IconImage from '@/components/icons/IconImage.vue'
@@ -39,6 +40,8 @@ const loadingMessages = ref(false)
 const sending = ref(false)
 const updatingTakeover = ref(false)
 const updatingTag = ref(false)
+const updatingBlacklist = ref(false)
+const activeBlacklist = ref<BuyerBlacklistEntry | null>(null)
 const messageListRef = ref<HTMLElement | null>(null)
 const takeoverMinutes = ref(10)
 const setHeaderContent = inject<(content: any) => void>('setHeaderContent')
@@ -253,6 +256,50 @@ const ensureSuccess = (response: any) => {
   }
 }
 
+const refreshBlacklistState = async () => {
+  if (!selectedAccountId.value || !buyerUserId.value) {
+    activeBlacklist.value = null
+    return
+  }
+  try {
+    const response = await checkBuyerBlacklist({
+      xianyuAccountId: selectedAccountId.value,
+      buyerUserId: buyerUserId.value
+    })
+    activeBlacklist.value = response.data || null
+  } catch (error) {
+    console.warn('读取买家黑名单状态失败', error)
+  }
+}
+
+const toggleBlacklist = async () => {
+  if (!selectedAccountId.value || !buyerUserId.value || updatingBlacklist.value) return
+  updatingBlacklist.value = true
+  try {
+    if (activeBlacklist.value) {
+      if (!window.confirm('确定解除该买家的黑名单吗？解除后自动化可再次执行。')) return
+      await deleteBuyerBlacklist(activeBlacklist.value.id)
+      showSuccess('已解除黑名单')
+    } else {
+      const reason = window.prompt('请输入拉黑原因（可留空）：', '风险买家')
+      if (reason === null) return
+      await saveBuyerBlacklist({
+        xianyuAccountId: selectedAccountId.value,
+        buyerUserId: buyerUserId.value,
+        buyerUserName: getBuyerDisplayName(selectedSession.value),
+        reason,
+        enabled: 1
+      })
+      showSuccess('已加入当前账号黑名单，自动回复和发货已立即停止')
+    }
+    await refreshBlacklistState()
+  } catch (error: any) {
+    showError(error.message || '更新黑名单失败')
+  } finally {
+    updatingBlacklist.value = false
+  }
+}
+
 const loadAccounts = async () => {
   try {
     const response = await getAccountList()
@@ -283,8 +330,10 @@ const loadSessions = async (silent = false) => {
     const current = currentSid ? sessions.value.find(session => session.sid === currentSid) : null
     if (current) {
       selectedSession.value = current
+      await refreshBlacklistState()
     } else if (sessions.value.length) {
       selectedSession.value = sessions.value[0]!
+      await refreshBlacklistState()
       await loadMessages()
     } else {
       selectedSession.value = null
@@ -340,6 +389,7 @@ const selectSession = async (session: ChatSession) => {
   }
   selectedSession.value = session
   messages.value = []
+  await refreshBlacklistState()
   await loadMessages()
 }
 
@@ -567,11 +617,11 @@ onBeforeUnmount(() => {
               </div>
               <div>
                 <h2>{{ getBuyerDisplayName(selectedSession) }}</h2>
-                <p>{{ hasActiveTakeover ? `人工接管至 ${formatTakeoverEnd(selectedSession.takeoverEndTime)}` : 'AI 自动回复可按商品设置执行' }}</p>
+                <p>{{ activeBlacklist ? '黑名单已拦截全部自动回复与发货' : hasActiveTakeover ? `人工接管至 ${formatTakeoverEnd(selectedSession.takeoverEndTime)}` : 'AI 自动回复可按商品设置执行' }}</p>
               </div>
             </div>
-            <span class="chat-panel__state" :class="{ 'chat-panel__state--manual': hasActiveTakeover }">
-              {{ hasActiveTakeover ? '人工接管中' : '自动回复中' }}
+            <span class="chat-panel__state" :class="{ 'chat-panel__state--manual': hasActiveTakeover || activeBlacklist }">
+              {{ activeBlacklist ? '黑名单拦截' : hasActiveTakeover ? '人工接管中' : '自动回复中' }}
             </span>
           </header>
 
@@ -657,6 +707,13 @@ onBeforeUnmount(() => {
               <button type="submit" :disabled="!tagDraft.trim() || !buyerUserId || updatingTag">{{ updatingTag ? '处理中' : '添加' }}</button>
             </form>
           </section>
+          <section class="detail-panel__blacklist" :class="{ 'is-blocked': activeBlacklist }">
+            <h3>{{ activeBlacklist ? '黑名单拦截中' : '买家黑名单' }}</h3>
+            <p>{{ activeBlacklist ? (activeBlacklist.reason || '该买家已被禁止自动回复和发货。') : '加入后会禁止关键词、AI、自动发货和人工补发。' }}</p>
+            <button :disabled="updatingBlacklist || !buyerUserId" @click="toggleBlacklist">
+              {{ updatingBlacklist ? '处理中…' : activeBlacklist ? '解除黑名单' : '加入当前账号黑名单' }}
+            </button>
+          </section>
           <section class="detail-panel__takeover">
             <h3>人工接管</h3>
             <p>{{ hasActiveTakeover ? `该会话已暂停 AI 回复，${formatTakeoverEnd(selectedSession.takeoverEndTime)} 后自动恢复。` : '接管后，该会话的新消息不会触发 AI 或关键词自动回复。' }}</p>
@@ -699,6 +756,7 @@ h1 { font-size:24px; line-height:1.2; }
 .customer-service__refresh-button:hover:not(:disabled) { background:#eef7ff; box-shadow:0 5px 14px rgba(10,132,255,.18); transform:translateY(-1px); }
 .customer-service__refresh-button:active:not(:disabled) { transform:translateY(0); box-shadow:0 2px 6px rgba(10,132,255,.12); }
 .customer-service__refresh-button:disabled { cursor:not-allowed; opacity:.62; }
+.detail-panel__blacklist{margin:0 16px 16px;padding:14px;border:1px solid #fed7d7;border-radius:12px;background:#fffafa}.detail-panel__blacklist h3{color:#b42318}.detail-panel__blacklist p{margin:6px 0 12px;color:#7a4d49;font-size:12px;line-height:1.55}.detail-panel__blacklist button{width:100%;height:34px;border:1px solid #f3a7a1;border-radius:9px;color:#b42318;background:#fff;cursor:pointer;font-weight:700}.detail-panel__blacklist.is-blocked{background:#fff1f0}.detail-panel__blacklist.is-blocked button{color:#fff;background:#d92d20;border-color:#d92d20}.detail-panel__blacklist button:disabled{cursor:not-allowed;opacity:.55}
 .customer-service__refresh-button.is-loading svg { animation:customer-service-spin .72s linear infinite; }
 @keyframes customer-service-spin { to { transform:rotate(360deg); } }
 .customer-service__workspace { min-height:0; flex:1; display:grid; grid-template-columns:196px 280px minmax(360px, 1fr) 260px; overflow:hidden; background:rgba(255,255,255,.9); border:1px solid rgba(60,60,67,.12); border-radius:16px; box-shadow:0 7px 28px rgba(0,0,0,.05); }

@@ -1,1 +1,0 @@
-import{d as n,a as o,b as s,j as t,_ as a}from"./index-CLPmS3mw.js";const _={class:"qrlogin-page"},r=n({__name:"index",setup(p){return(c,e)=>(t(),o("div",_,[...e[0]||(e[0]=[s("h1",null,"扫码登录",-1),s("p",null,"扫码登录功能开发中...",-1)])]))}}),l=a(r,[["__scopeId","data-v-83f57100"]]);export{l as default};

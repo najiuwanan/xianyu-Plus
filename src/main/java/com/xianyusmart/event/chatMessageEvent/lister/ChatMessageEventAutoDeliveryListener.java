@@ -8,6 +8,7 @@ import com.xianyusmart.event.chatMessageEvent.ChatMessageData;
 import com.xianyusmart.event.chatMessageEvent.ChatMessageReceivedEvent;
 import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.service.DeliveryTaskService;
+import com.xianyusmart.service.BuyerBlacklistService;
 import com.xianyusmart.entity.XianyuGoodsConfig;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,9 @@ public class ChatMessageEventAutoDeliveryListener {
     @Autowired
     private DeliveryTaskService deliveryTaskService;
 
+    @Autowired
+    private BuyerBlacklistService blacklistService;
+
     @Async
     @EventListener
     public void handleChatMessageReceived(ChatMessageReceivedEvent event) {
@@ -60,6 +64,12 @@ public class ChatMessageEventAutoDeliveryListener {
             if (message.getXyGoodsId() == null || message.getSId() == null
                     || message.getOrderId() == null || message.getOrderId().isBlank()) {
                 log.warn("【账号{}】消息缺少商品ID或会话ID，无法触发自动发货: pnmId={}", accountId, message.getPnmId());
+                return;
+            }
+
+            if (blacklistService.isBlacklisted(accountId, message.getSenderUserId())) {
+                log.warn("【账号{}】黑名单买家订单已拦截，不创建自动发货任务: buyerUserId={}, orderId={}",
+                        accountId, message.getSenderUserId(), message.getOrderId());
                 return;
             }
 

@@ -26,6 +26,12 @@ public class AutoDeliveryRecordDTO {
      * 买家用户名称
      */
     private String buyerUserName;
+
+    private String buyerUserId;
+
+    private Boolean blacklisted;
+
+    private String blacklistReason;
     
     /**
      * 发货消息内容

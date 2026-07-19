@@ -5,6 +5,7 @@ import com.xianyusmart.event.chatMessageEvent.ChatMessageReceivedEvent;
 import com.xianyusmart.service.AccountService;
 import com.xianyusmart.service.AutoReplyDelayService;
 import com.xianyusmart.service.AutoReplyService;
+import com.xianyusmart.service.BuyerBlacklistService;
 import com.xianyusmart.service.reply.HumanTakeoverManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,6 +52,9 @@ public class ChatMessageEventAutoReplyListener {
 
     @Autowired
     private HumanTakeoverManager takeoverManager;
+
+    @Autowired
+    private BuyerBlacklistService blacklistService;
     
     /**
      * 处理聊天消息接收事件 - 判断并触发自动回复
@@ -86,6 +90,15 @@ public class ChatMessageEventAutoReplyListener {
             if (senderUserId != null && ownUserId != null && senderUserId.equals(ownUserId)) {
                 log.info("【账号{}】[AutoReplyListener]自己发送的消息，跳过自动回复: senderUserId={}, ownUserId={}", 
                         message.getXianyuAccountId(), senderUserId, ownUserId);
+                return;
+            }
+
+            if (blacklistService.isBlacklisted(message.getXianyuAccountId(), senderUserId)) {
+                log.warn("【账号{}】黑名单买家消息已拦截，禁止 AI 与关键词自动回复: buyerUserId={}",
+                        message.getXianyuAccountId(), senderUserId);
+                if (message.getSId() != null) {
+                    autoReplyDelayService.cancelDelayTask(message.getXianyuAccountId(), message.getSId());
+                }
                 return;
             }
             

@@ -258,6 +258,13 @@ public interface XianyuGoodsOrderMapper {
             "WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId}")
     int pauseClaimedTask(@Param("id") Long id, @Param("workerId") String workerId);
 
+    @Update("UPDATE xianyu_goods_order SET state = -1, fail_reason = #{reason}, delivery_status = 'SKIPPED', " +
+            "next_retry_time = NULL, lease_owner = NULL, lease_expire_time = NULL, " +
+            "last_error_code = 'BUYER_BLACKLISTED', last_error_message = #{reason} " +
+            "WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId}")
+    int blockClaimedTaskByBlacklist(@Param("id") Long id, @Param("workerId") String workerId,
+                                    @Param("reason") String reason);
+
     @Update("UPDATE xianyu_goods_order SET delivery_status = 'SKIPPED', next_retry_time = NULL, " +
             "lease_owner = NULL, lease_expire_time = NULL, last_error_code = 'AUTOMATION_RISK_PAUSED', " +
             "last_error_message = #{reason} WHERE xianyu_account_id = #{accountId} AND state <> 1 " +

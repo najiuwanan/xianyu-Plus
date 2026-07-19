@@ -21,6 +21,7 @@ const pageTitleMap: Record<string, string> = {
   '/goods': '商品配置中心',
   '/orders': '订单管理',
   '/messages': '在线客服',
+  '/blacklist': '买家黑名单',
   '/notifications': '通知渠道',
   '/kami-config': '卡券管理',
   '/item-polish': '一键擦亮',

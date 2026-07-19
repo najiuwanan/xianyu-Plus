@@ -11,6 +11,7 @@ import com.xianyusmart.mapper.XianyuGoodsAutoReplyRecordMapper;
 import com.xianyusmart.service.AutoDeliveryService;
 import com.xianyusmart.service.EmailNotifyService;
 import com.xianyusmart.service.KamiConfigService;
+import com.xianyusmart.service.BuyerBlacklistService;
 import com.xianyusmart.service.OrderService;
 import com.xianyusmart.service.RedFlowerService;
 import com.xianyusmart.service.NotificationChannelService;
@@ -96,6 +97,9 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
     private KamiConfigService kamiConfigService;
 
     @Autowired
+    private BuyerBlacklistService blacklistService;
+
+    @Autowired
     @Qualifier("taskExecutor")
     private Executor taskExecutor;
     
@@ -176,6 +180,13 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
         try {
             log.info("【账号{}】处理自动发货: xyGoodsId={}, sId={}, buyerUserId={}, buyerUserName={}, orderId={}", 
                     accountId, xyGoodsId, sId, buyerUserId, buyerUserName, orderId);
+
+            String blacklistReason = blacklistService.blockedMessage(accountId, buyerUserId);
+            if (blacklistReason != null) {
+                log.warn("【账号{}】旧发货入口命中黑名单并停止: buyerUserId={}, orderId={}",
+                        accountId, buyerUserId, orderId);
+                return;
+            }
             
             XianyuGoodsConfig goodsConfig = getGoodsConfig(accountId, xyGoodsId);
             if (goodsConfig == null || goodsConfig.getXianyuAutoDeliveryOn() != 1) {
@@ -200,6 +211,11 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             
             String cid = sId.replace("@goofish", "");
             String toId = cid;
+
+            if (blacklistService.isBlacklisted(accountId, buyerUserId)) {
+                log.warn("【账号{}】旧发货入口发送前再次命中黑名单: buyerUserId={}", accountId, buyerUserId);
+                return;
+            }
             
             boolean success = webSocketService.sendMessage(accountId, cid, toId, content);
             
@@ -268,6 +284,10 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             dto.setXyGoodsId(record.getXyGoodsId());
             dto.setGoodsTitle(record.getGoodsTitle());
             dto.setBuyerUserName(record.getBuyerUserName());
+            dto.setBuyerUserId(record.getBuyerUserId());
+            String blacklistReason = blacklistService.blockedMessage(record.getXianyuAccountId(), record.getBuyerUserId());
+            dto.setBlacklisted(blacklistReason != null);
+            dto.setBlacklistReason(blacklistReason);
             dto.setContent(record.getContent());
             dto.setState(record.getState());
             dto.setConfirmState(record.getConfirmState());
@@ -321,6 +341,10 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             if (record == null) {
                 log.warn("【账号{}】发货记录不存在: orderId={}", accountId, orderId);
                 return com.xianyusmart.common.ResultObject.failed("发货记录不存在");
+            }
+            String blacklistReason = blacklistService.blockedMessage(accountId, record.getBuyerUserId());
+            if (blacklistReason != null) {
+                return com.xianyusmart.common.ResultObject.failed(blacklistReason + "，禁止自动或手动发货");
             }
 
             Long recordId = record.getId();
@@ -430,6 +454,12 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 return com.xianyusmart.common.ResultObject.failed("没有可发送的内容，请检查商品发货配置或卡密库存");
             }
 
+            String finalBlacklistReason = blacklistService.blockedMessage(accountId, record.getBuyerUserId());
+            if (finalBlacklistReason != null) {
+                if (cardDelivery) kamiConfigService.releaseReservation(reservationOrderId);
+                return com.xianyusmart.common.ResultObject.failed(finalBlacklistReason + "，新卡密已退回可用库存");
+            }
+
             if (!webSocketService.sendMessage(accountId, cid, cid, content)) {
                 if (cardDelivery) kamiConfigService.releaseReservation(reservationOrderId);
                 return com.xianyusmart.common.ResultObject.failed("补发内容发送失败，新卡密已退回可用库存");
@@ -459,6 +489,16 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
         StringBuilder allContent = new StringBuilder();
         try {
             log.info("【账号{}】开始执行自动发货: recordId={}, xyGoodsId={}, orderId={}", accountId, recordId, xyGoodsId, orderId);
+
+            XianyuGoodsOrder currentOrder = orderMapper.selectById(recordId);
+            String blacklistReason = currentOrder == null ? null
+                    : blacklistService.blockedMessage(accountId, currentOrder.getBuyerUserId());
+            if (blacklistReason != null) {
+                updateRecordState(recordId, -1, null, blacklistReason);
+                log.warn("【账号{}】黑名单买家禁止发货: recordId={}, buyerUserId={}",
+                        accountId, recordId, currentOrder.getBuyerUserId());
+                return;
+            }
 
             XianyuGoodsConfig goodsConfig = goodsConfigMapper.selectByAccountAndGoodsId(accountId, xyGoodsId);
             if (goodsConfig == null || goodsConfig.getXianyuAutoDeliveryOn() == null || goodsConfig.getXianyuAutoDeliveryOn() != 1) {
@@ -545,6 +585,12 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 }
 
                 cardDeliveryAttempted = cardDelivery;
+                String finalBlacklistReason = blacklistService.blockedMessage(accountId, currentOrder.getBuyerUserId());
+                if (finalBlacklistReason != null) {
+                    if (cardDelivery) kamiConfigService.releaseReservation(orderId);
+                    updateRecordState(recordId, -1, null, finalBlacklistReason);
+                    return;
+                }
                 String deliveryResult = orderService.consignDummyDelivery(accountId, orderId, content, imageUrls);
                 if (deliveryResult != null) {
                     anySuccess = true;
@@ -590,6 +636,12 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
                 log.info("【账号{}】准备发送发货文本[{}/{}]: content长度={}, deliveryMode={}", accountId, i + 1, deliveryCount, content.length(), deliveryMode);
                 cardDeliveryAttempted = cardDelivery;
+                String finalBlacklistReason = blacklistService.blockedMessage(accountId, currentOrder.getBuyerUserId());
+                if (finalBlacklistReason != null) {
+                    if (cardDelivery) kamiConfigService.releaseReservation(orderId);
+                    updateRecordState(recordId, -1, allContent.toString(), finalBlacklistReason);
+                    return;
+                }
                 boolean success = webSocketService.sendMessage(accountId, cid, toId, content);
 
                 if (success && needHumanLikeDelay) {
@@ -686,6 +738,10 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             try {
                 String url = imageUrls[i].trim();
                 if (url.isEmpty()) continue;
+                if (blacklistService.isBlacklisted(accountId, toId)) {
+                    log.warn("【账号{}】买家在发货图片发送前进入黑名单，停止剩余图片: buyerUserId={}", accountId, toId);
+                    return;
+                }
                 if (i > 0) {
                     if (needHumanLikeDelay) {
                         HumanLikeDelayUtils.thinkingDelay();
@@ -767,6 +823,11 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 return com.xianyusmart.common.ResultObject.failed("订单记录不存在");
             }
 
+            String blacklistReason = blacklistService.blockedMessage(xianyuAccountId, record.getBuyerUserId());
+            if (blacklistReason != null) {
+                return com.xianyusmart.common.ResultObject.failed(blacklistReason + "，禁止发送卡券或自定义发货内容");
+            }
+
             String tradeStatus = record.getTradeStatus() == null ? "" : record.getTradeStatus().toUpperCase();
             if (List.of("REFUNDING", "REFUNDED", "CLOSED").contains(tradeStatus)) {
                 return com.xianyusmart.common.ResultObject.failed("退款中、已退款或已关闭的订单不能手动发货");
@@ -787,6 +848,11 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 }
                 String cid = sId.replace("@goofish", "");
                 String toId = cid;
+
+                String finalBlacklistReason = blacklistService.blockedMessage(xianyuAccountId, record.getBuyerUserId());
+                if (finalBlacklistReason != null) {
+                    return com.xianyusmart.common.ResultObject.failed(finalBlacklistReason + "，禁止发送发货内容");
+                }
 
                 boolean success = webSocketService.sendMessage(xianyuAccountId, cid, toId, content);
                 if (success) {

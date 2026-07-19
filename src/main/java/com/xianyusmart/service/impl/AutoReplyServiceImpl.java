@@ -17,6 +17,7 @@ import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.mapper.XianyuChatMessageMapper;
 import com.xianyusmart.service.AIService;
 import com.xianyusmart.service.AutoReplyService;
+import com.xianyusmart.service.BuyerBlacklistService;
 import com.xianyusmart.service.WebSocketService;
 import com.xianyusmart.service.NotificationChannelService;
 import com.xianyusmart.service.reply.ReplyStrategy;
@@ -72,6 +73,9 @@ public class AutoReplyServiceImpl implements AutoReplyService {
 
     @Autowired
     private NotificationChannelService notificationChannelService;
+
+    @Autowired
+    private BuyerBlacklistService blacklistService;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -101,6 +105,13 @@ public class AutoReplyServiceImpl implements AutoReplyService {
         String xyGoodsId = lastMessage.getXyGoodsId();
         String sId = lastMessage.getSId();
         String pnmId = lastMessage.getPnmId();
+
+        if (blacklistService.isBlacklisted(accountId, lastMessage.getSenderUserId())) {
+            log.warn("【账号{}】黑名单买家禁止自动回复: buyerUserId={}, sId={}",
+                    accountId, lastMessage.getSenderUserId(), sId);
+            if (existingRecordId != null) autoReplyRecordMapper.cancelById(existingRecordId);
+            return;
+        }
 
         XianyuAccount account = accountId == null ? null : accountMapper.selectById(accountId);
         if (account == null || !Integer.valueOf(1).equals(account.getStatus())) {
@@ -253,6 +264,12 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             
             // 8. 发送回复消息
             int replyType = replyResult.getItems().get(0).getReplyType();
+            if (blacklistService.isBlacklisted(accountId, lastMessage.getSenderUserId())) {
+                log.warn("【账号{}】回复生成期间买家被加入黑名单，取消发送: buyerUserId={}, sId={}",
+                        accountId, lastMessage.getSenderUserId(), sId);
+                updateRecordState(record.getId(), -2, null);
+                return;
+            }
             if (takeoverManager.isTakenOver(accountId, sId)) {
                 log.info("【账号{}】AI生成期间会话已被人工接管，取消发送: sId={}", accountId, sId);
                 updateRecordState(record.getId(), -2, null);
@@ -271,7 +288,8 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             String toId = cid;
             
             for (ReplyStrategy.ReplyResult.ReplyItem item : replyResult.getItems()) {
-                if (takeoverManager.isTakenOver(accountId, sId)
+                if (blacklistService.isBlacklisted(accountId, lastMessage.getSenderUserId())
+                        || takeoverManager.isTakenOver(accountId, sId)
                         || !isReplyTypeEnabled(accountId, xyGoodsId, item.getReplyType())) {
                     log.info("【账号{}】发送过程中检测到人工接管或开关关闭，停止剩余自动回复: sId={}", accountId, sId);
                     sendSuccess = false;

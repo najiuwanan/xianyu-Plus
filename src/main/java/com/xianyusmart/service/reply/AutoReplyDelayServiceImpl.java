@@ -9,6 +9,7 @@ import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.xianyusmart.mapper.XianyuGoodsAutoReplyRecordMapper;
 import com.xianyusmart.service.AutoReplyDelayService;
 import com.xianyusmart.service.AutoReplyService;
+import com.xianyusmart.service.BuyerBlacklistService;
 import com.xianyusmart.service.AutomationScheduleService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +56,9 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
     
     @Autowired
     private AutoReplyService autoReplyService;
+
+    @Autowired
+    private BuyerBlacklistService blacklistService;
 
     @Autowired
     private HumanTakeoverManager takeoverManager;
@@ -330,6 +334,12 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
                 return;
             }
             if (takeoverManager.isTakenOver(accountId, sId)) {
+                autoReplyRecordMapper.cancelById(recordId);
+                return;
+            }
+            if (blacklistService.isBlacklisted(accountId, lastMessage.getSenderUserId())) {
+                log.warn("【账号{}】延时任务执行前命中黑名单，取消自动回复: buyerUserId={}, sId={}",
+                        accountId, lastMessage.getSenderUserId(), sId);
                 autoReplyRecordMapper.cancelById(recordId);
                 return;
             }
