@@ -208,6 +208,15 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.5.1".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "新增商品素材库、AI 文案助手与多账号安全发布",
+                    "修复 V1.5.0 Docker 镜像仍查找旧版 JAR 的构建错误",
+                    "Maven 改用固定产物名，后续版本升级无需再修改 Dockerfile",
+                    "Docker 本地镜像改用稳定的 latest 标签"
+            ));
+            return;
+        }
         if ("1.5.0".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "新增商品素材库，统一保存标题、描述、图片、价格与交付信息",

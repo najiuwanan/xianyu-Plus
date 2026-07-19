@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.xianyusmart</groupId>
     <artifactId>xianyusmart</artifactId>
-    <version>1.5.0</version>
+    <version>1.5.1</version>
     <name>XianYuPlus</name>
     <description>单商家私有化闲鱼虚拟商品经营助手</description>
     <url/>
@@ -167,6 +167,8 @@
     </dependencies>
 
     <build>
+        <!-- 固定产物名，升级项目版本时 Dockerfile 无需同步修改 JAR 文件名。 -->
+        <finalName>xianyusmart</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

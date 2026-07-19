@@ -46,7 +46,6 @@ ARG APP_GIT_SHA=unknown
 
 LABEL org.opencontainers.image.title="XianYuPlus"
 LABEL org.opencontainers.image.description="单商家私有化闲鱼虚拟商品经营助手"
-LABEL org.opencontainers.image.version="1.4.0"
 LABEL org.opencontainers.image.licenses="PolyForm-Noncommercial-1.0.0"
 
 WORKDIR /app
@@ -67,7 +66,7 @@ RUN groupadd --system xianyusmart && useradd --system --gid xianyusmart --home-d
     && chown -R xianyusmart:xianyusmart /app
 
 # 从构建阶段复制 JAR
-COPY --from=backend-build --chown=xianyusmart:xianyusmart /app/target/xianyusmart-1.4.0.jar app.jar
+COPY --from=backend-build --chown=xianyusmart:xianyusmart /app/target/xianyusmart.jar app.jar
 COPY --from=backend-build --chown=xianyusmart:xianyusmart /ms-playwright /app/ms-playwright
 
 # 暴露端口
