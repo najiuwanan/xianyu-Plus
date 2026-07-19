@@ -23,8 +23,29 @@ export interface ProductPublishRequest {
   postFee?: number
   acknowledged: boolean
   confirmation: string
+  address: {
+    locationKey: string
+    lookupLongitude?: number
+    lookupLatitude?: number
+    customPoiName?: string
+  }
   images: ProductPublishImage[]
   properties: ProductPublishProperty[]
+}
+
+export interface ProductPublishLocation {
+  key: string
+  source: 'SELECTED' | 'COMMON' | 'NEARBY'
+  selected: boolean
+  province: string
+  city: string
+  district: string
+  divisionId: string
+  poiId: string
+  poiName: string
+  longitude: string
+  latitude: string
+  displayName: string
 }
 
 export interface ProductPublishResult {
@@ -35,4 +56,8 @@ export interface ProductPublishResult {
 
 export function publishProduct(data: ProductPublishRequest) {
   return request<ProductPublishResult>({ url: '/product-publish', method: 'POST', data })
+}
+
+export function getPublishLocations(data: { accountId: number; longitude?: number; latitude?: number }) {
+  return request<ProductPublishLocation[]>({ url: '/product-publish/locations', method: 'POST', data })
 }

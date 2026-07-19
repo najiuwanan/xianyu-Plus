@@ -2,6 +2,7 @@ package com.xianyusmart.service.impl;
 
 import com.xianyusmart.controller.dto.ProductPublishReqDTO;
 import com.xianyusmart.controller.dto.ProductPublishRespDTO;
+import com.xianyusmart.controller.dto.ProductPublishLocationDTO;
 import com.xianyusmart.controller.dto.PublishCapabilityCheckRespDTO;
 import com.xianyusmart.exception.BusinessException;
 import com.xianyusmart.service.AccountService;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.HashSet;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Service
@@ -26,6 +28,8 @@ public class ProductPublishServiceImpl implements ProductPublishService {
     static final String PUBLISH_API = "mtop.idle.pc.idleitem.publish";
     private static final Set<String> DELIVERY_MODES = Set.of("FREE", "FLAT", "NONE", "SELF_PICKUP");
     private static final Set<String> TRUSTED_IMAGE_SUFFIXES = Set.of("alicdn.com", "tbcdn.cn", "goofish.com");
+    private static final double DEFAULT_LONGITUDE = 121.4737;
+    private static final double DEFAULT_LATITUDE = 31.2304;
 
     private final PublishCapabilityProbeService probeService;
     private final AccountService accountService;
@@ -60,7 +64,7 @@ public class ProductPublishServiceImpl implements ProductPublishService {
         }
 
         List<Map<String, Object>> labels = resolveLabels(schema, request.getProperties());
-        Map<String, Object> location = loadDefaultLocation(request.getAccountId());
+        Map<String, Object> location = resolveLocation(request);
         Map<String, Object> payload = buildPayload(request, schema, labels, location);
         String cookie = accountService.getCookieByAccountId(request.getAccountId());
         XianyuApiCallUtils.ApiCallResult result = apiCallUtils.callApiWithRetry(
@@ -84,6 +88,33 @@ public class ProductPublishServiceImpl implements ProductPublishService {
         }
         completedRequests.put(request.getRequestId(), response);
         return response;
+    }
+
+    @Override
+    public List<ProductPublishLocationDTO> listLocations(Long accountId, Double longitude, Double latitude) {
+        if (accountId == null) throw new BusinessException(400, "请选择发布账号");
+        double queryLongitude = longitude == null ? DEFAULT_LONGITUDE : longitude;
+        double queryLatitude = latitude == null ? DEFAULT_LATITUDE : latitude;
+        if (queryLongitude < -180 || queryLongitude > 180 || queryLatitude < -90 || queryLatitude > 90) {
+            throw new BusinessException(400, "位置坐标不正确");
+        }
+        String cookie = accountService.getCookieByAccountId(accountId);
+        if (cookie == null || cookie.isBlank()) throw new BusinessException(401, "账号 Cookie 不可用");
+        XianyuApiCallUtils.ApiCallResult result = apiCallUtils.callApiWithRetry(accountId,
+                PublishCapabilityProbeService.LOCATION_API,
+                Map.of("longitude", queryLongitude, "latitude", queryLatitude), cookie, "1.0", null, null);
+        Map<String, Object> data = result.extractData();
+        if (!result.isSuccess() || data == null) {
+            throw new BusinessException(409, "闲鱼没有返回可用的发布地点");
+        }
+
+        List<ProductPublishLocationDTO> locations = new ArrayList<>();
+        Set<String> keys = new HashSet<>();
+        addLocation(locations, keys, data.get("selectedPoi"), "SELECTED", true);
+        addLocationList(locations, keys, data.get("commonAddresses"), "COMMON");
+        addLocationList(locations, keys, data.get("poiList"), "NEARBY");
+        if (locations.isEmpty()) throw new BusinessException(409, "账号没有可用的发布地点，请先在闲鱼发布页选择一次地点");
+        return locations;
     }
 
     private void validateBasic(ProductPublishReqDTO request) {
@@ -215,37 +246,72 @@ public class ProductPublishServiceImpl implements ProductPublishService {
         return label;
     }
 
-    private Map<String, Object> loadDefaultLocation(Long accountId) {
-        String cookie = accountService.getCookieByAccountId(accountId);
-        XianyuApiCallUtils.ApiCallResult result = apiCallUtils.callApiWithRetry(accountId,
-                PublishCapabilityProbeService.LOCATION_API,
-                Map.of("longitude", 121.4737, "latitude", 31.2304), cookie, "1.0", null, null);
-        Map<String, Object> data = result.extractData();
-        if (!result.isSuccess() || data == null) {
-            throw new BusinessException(409, "账号没有可用的默认发布地址");
+    private Map<String, Object> resolveLocation(ProductPublishReqDTO request) {
+        ProductPublishReqDTO.Address requested = request.getAddress();
+        Double longitude = requested == null ? null : requested.getLookupLongitude();
+        Double latitude = requested == null ? null : requested.getLookupLatitude();
+        List<ProductPublishLocationDTO> locations = listLocations(request.getAccountId(), longitude, latitude);
+        ProductPublishLocationDTO chosen;
+        if (requested == null || requested.getLocationKey() == null || requested.getLocationKey().isBlank()) {
+            chosen = locations.stream().filter(ProductPublishLocationDTO::isSelected).findFirst().orElse(locations.get(0));
+        } else {
+            chosen = locations.stream().filter(location -> requested.getLocationKey().equals(location.getKey()))
+                    .findFirst().orElseThrow(() -> new BusinessException(409, "所选发布地点已经变化，请重新加载地址"));
         }
-
-        Object rawLocation = nonEmptyMap(data.get("selectedPoi"));
-        if (rawLocation == null && data.get("commonAddresses") instanceof List<?> addresses && !addresses.isEmpty()) {
-            rawLocation = nonEmptyMap(addresses.get(0));
-        }
-        if (rawLocation == null && data.get("poiList") instanceof List<?> poiList && !poiList.isEmpty()) {
-            rawLocation = nonEmptyMap(poiList.get(0));
-        }
-        if (!(rawLocation instanceof Map<?, ?> raw)) {
-            throw new BusinessException(409, "账号没有可用的默认发布地址");
-        }
+        String customName = requested == null ? "" : trim(requested.getCustomPoiName());
+        if (customName.length() > 100) throw new BusinessException(400, "自定义地点名称不能超过 100 个字符");
         Map<String, Object> location = new LinkedHashMap<>();
-        raw.forEach((key, value) -> location.put(String.valueOf(key), value));
-        normalizeLocation(location);
-        if (value(location, "divisionId").isBlank() && value(location, "city").isBlank()) {
-            throw new BusinessException(409, "闲鱼返回的发布地点信息不完整，请先在闲鱼发布页选择一次地点");
-        }
+        location.put("area", chosen.getDistrict());
+        location.put("city", chosen.getCity());
+        location.put("divisionId", chosen.getDivisionId());
+        location.put("longitude", chosen.getLongitude());
+        location.put("latitude", chosen.getLatitude());
+        location.put("poiId", chosen.getPoiId());
+        location.put("poi", customName.isBlank() ? chosen.getPoiName() : customName);
+        location.put("prov", chosen.getProvince());
         return location;
     }
 
     private Object nonEmptyMap(Object value) {
         return value instanceof Map<?, ?> map && !map.isEmpty() ? map : null;
+    }
+
+    private void addLocationList(List<ProductPublishLocationDTO> locations, Set<String> keys, Object rawList, String source) {
+        if (!(rawList instanceof List<?> list)) return;
+        for (Object value : list) addLocation(locations, keys, value, source, false);
+    }
+
+    private void addLocation(List<ProductPublishLocationDTO> locations, Set<String> keys, Object rawValue,
+                             String source, boolean selected) {
+        Object rawLocation = nonEmptyMap(rawValue);
+        if (!(rawLocation instanceof Map<?, ?> raw)) return;
+        Map<String, Object> location = new LinkedHashMap<>();
+        raw.forEach((key, value) -> location.put(String.valueOf(key), value));
+        normalizeLocation(location);
+        if (value(location, "divisionId").isBlank() && value(location, "city").isBlank()) return;
+
+        ProductPublishLocationDTO dto = new ProductPublishLocationDTO();
+        dto.setSource(source);
+        dto.setSelected(selected);
+        dto.setProvince(value(location, "prov"));
+        dto.setCity(value(location, "city"));
+        dto.setDistrict(value(location, "area"));
+        dto.setDivisionId(value(location, "divisionId"));
+        dto.setPoiId(value(location, "poiId"));
+        dto.setPoiName(value(location, "poi"));
+        dto.setLongitude(value(location, "longitude"));
+        dto.setLatitude(value(location, "latitude"));
+        dto.setKey(String.join("|", dto.getDivisionId(), dto.getPoiId(), dto.getLongitude(), dto.getLatitude()));
+        dto.setDisplayName(joinLocation(dto.getProvince(), dto.getCity(), dto.getDistrict(), dto.getPoiName()));
+        if (keys.add(dto.getKey())) locations.add(dto);
+    }
+
+    private String joinLocation(String... parts) {
+        StringBuilder result = new StringBuilder();
+        for (String part : parts) {
+            if (part != null && !part.isBlank() && !result.toString().endsWith(part)) result.append(part);
+        }
+        return result.length() == 0 ? "未命名地点" : result.toString();
     }
 
     /** 兼容 selectedPoi 与 commonAddresses 使用的不同字段名。 */

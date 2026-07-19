@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { getAccountList } from '@/api/account'
 import { uploadImage } from '@/api/image'
-import { publishProduct, type ProductPublishImage, type ProductPublishProperty } from '@/api/product-publish'
+import { getPublishLocations, publishProduct, type ProductPublishImage, type ProductPublishLocation, type ProductPublishProperty } from '@/api/product-publish'
 import { checkPublishCapability, type PublishCapabilityResult } from '@/api/system-check'
 import type { Account } from '@/types'
 import { toast } from '@/utils/toast'
@@ -16,6 +16,11 @@ const publishing = ref(false)
 const uploading = ref(false)
 const schema = ref<PublishCapabilityResult | null>(null)
 const images = ref<ProductPublishImage[]>([])
+const locations = ref<ProductPublishLocation[]>([])
+const loadingLocations = ref(false)
+const selectedLocationKey = ref('')
+const lookupCoordinates = ref<{ longitude: number; latitude: number } | null>(null)
+const customPoiName = ref('')
 const selectedProperties = ref<Record<string, string | string[]>>({})
 const acknowledged = ref(false)
 const confirmation = ref('')
@@ -46,9 +51,11 @@ const canPublish = computed(() => Boolean(
   selectedAccountId.value && schema.value?.supportLevel === 'GENERAL_FORM' && schema.value.locationApiReady &&
   schema.value.dependentPropertyCount === 0 &&
   requiredPropertiesReady.value &&
-  images.value.length && form.title.trim().length >= 2 && form.description.trim().length >= 2 &&
+  images.value.length && selectedLocationKey.value && form.title.trim().length >= 2 && form.description.trim().length >= 2 &&
   form.price > 0 && acknowledged.value && confirmation.value === '确认发布' && !publishing.value
 ))
+const selectedLocation = computed(() => locations.value.find(location => location.key === selectedLocationKey.value) || null)
+const locationSourceLabel = (source: string) => ({ SELECTED: '平台默认', COMMON: '常用地址', NEARBY: '附近地点' }[source] || '平台地点')
 
 const loadAccounts = async () => {
   const result = await getAccountList()
@@ -56,10 +63,43 @@ const loadAccounts = async () => {
   selectedAccountId.value = accounts.value[0]?.id || null
 }
 
+const loadLocations = async (coordinates?: { longitude: number; latitude: number }) => {
+  if (!selectedAccountId.value) return
+  loadingLocations.value = true
+  try {
+    lookupCoordinates.value = coordinates || null
+    const result = await getPublishLocations({ accountId: selectedAccountId.value, ...coordinates })
+    locations.value = result.data || []
+    selectedLocationKey.value = locations.value.find(location => location.selected)?.key || locations.value[0]?.key || ''
+    if (!locations.value.length) toast.warning('闲鱼没有返回可选发布地点')
+  } catch (error: any) {
+    locations.value = []
+    selectedLocationKey.value = ''
+    if (!error?.messageShown) toast.error(error?.message || '发布地点加载失败')
+  } finally {
+    loadingLocations.value = false
+  }
+}
+
+const useBrowserLocation = () => {
+  if (!navigator.geolocation) return toast.warning('当前浏览器不支持定位')
+  loadingLocations.value = true
+  navigator.geolocation.getCurrentPosition(
+    position => void loadLocations({ longitude: position.coords.longitude, latitude: position.coords.latitude }),
+    () => { loadingLocations.value = false; toast.error('无法获取当前位置，请检查浏览器定位权限') },
+    { enableHighAccuracy: true, timeout: 12000 }
+  )
+}
+
 watch(selectedAccountId, () => {
   schema.value = null
   images.value = []
   selectedProperties.value = {}
+  locations.value = []
+  selectedLocationKey.value = ''
+  lookupCoordinates.value = null
+  customPoiName.value = ''
+  if (selectedAccountId.value) void loadLocations()
 })
 watch(() => form.title, () => {
   if (schema.value && form.title.trim()) {
@@ -155,6 +195,12 @@ const submit = async () => {
       postFee: form.deliveryMode === 'FLAT' ? form.postFee : undefined,
       acknowledged: acknowledged.value,
       confirmation: confirmation.value,
+      address: {
+        locationKey: selectedLocationKey.value,
+        lookupLongitude: lookupCoordinates.value?.longitude,
+        lookupLatitude: lookupCoordinates.value?.latitude,
+        customPoiName: customPoiName.value.trim() || undefined
+      },
       images: images.value,
       properties: propertyPayload()
     })
@@ -180,7 +226,7 @@ onMounted(loadAccounts)
   <main class="publish-page">
     <header class="publish-page__header">
       <div><h1>发布商品</h1><p>先识别类目并填写动态属性，确认后才会真实发布到闲鱼。</p></div>
-      <span>第二阶段 · 单账号普通实物</span>
+      <span>最终阶段 · 安全发布</span>
     </header>
 
     <section class="publish-card">
@@ -223,9 +269,37 @@ onMounted(loadAccounts)
       </div>
     </section>
 
+    <section class="publish-card">
+      <div class="section-title">
+        <h2>4. 发布地点</h2>
+        <button class="location-button" type="button" :disabled="loadingLocations || !selectedAccountId" @click="loadLocations()">{{ loadingLocations ? '加载中…' : '刷新平台地址' }}</button>
+      </div>
+      <p class="location-help">发布前请选择明确的发货地点。默认、常用和附近地点均由当前闲鱼账号返回。</p>
+      <div class="location-actions">
+        <button type="button" :disabled="loadingLocations || !selectedAccountId" @click="useBrowserLocation">使用我的当前位置查附近地点</button>
+        <span v-if="lookupCoordinates">已按当前位置查询附近地点</span>
+      </div>
+      <div v-if="locations.length" class="location-list">
+        <label v-for="location in locations" :key="location.key" :class="{ selected: selectedLocationKey === location.key }">
+          <input v-model="selectedLocationKey" type="radio" :value="location.key">
+          <span>
+            <strong>{{ location.displayName }}</strong>
+            <small>{{ locationSourceLabel(location.source) }} · {{ location.longitude }}, {{ location.latitude }}</small>
+          </span>
+        </label>
+      </div>
+      <div v-else-if="!loadingLocations" class="location-empty">当前账号没有返回可用地址，请刷新或使用当前位置查询。</div>
+      <label v-if="selectedLocation" class="custom-location">
+        <span>自定义地点名称（可选）</span>
+        <input v-model="customPoiName" maxlength="100" :placeholder="`默认使用：${selectedLocation.poiName || selectedLocation.displayName}`">
+        <small>可以填写小区、商圈或自提点名称；省市区和坐标仍以所选平台地点为准，确保接口可发布。</small>
+      </label>
+    </section>
+
     <section class="publish-card confirm-card">
-      <h2>4. 最终确认</h2>
-      <label class="ack"><input v-model="acknowledged" type="checkbox">我已核对图片、价格、库存、类目和商品描述，并确认商品符合闲鱼规则。</label>
+      <h2>5. 最终确认</h2>
+      <div class="confirm-location"><span>本次发布地点</span><strong>{{ customPoiName.trim() || selectedLocation?.displayName || '尚未选择' }}</strong></div>
+      <label class="ack"><input v-model="acknowledged" type="checkbox">我已核对图片、价格、库存、类目、商品描述和发布地点，并确认商品符合闲鱼规则。</label>
       <label><span>输入“确认发布”</span><input v-model="confirmation" placeholder="确认发布"></label>
       <button type="button" class="publish-button" :disabled="!canPublish" @click="submit">{{ publishing ? '正在发布…' : '确认并真实发布' }}</button>
     </section>
@@ -234,4 +308,5 @@ onMounted(loadAccounts)
 
 <style scoped>
 .publish-page{max-width:1180px;margin:0 auto;padding:4px 0 48px;color:#1d2939}.publish-page__header,.section-title{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.publish-page__header{margin-bottom:18px}.publish-page__header h1{margin:0;font-size:27px}.publish-page__header p{margin:6px 0 0;color:#667085}.publish-page__header>span{padding:7px 11px;border-radius:999px;background:#eef4ff;color:#3538cd;font-size:12px;font-weight:700}.publish-card{margin-bottom:16px;padding:20px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;box-shadow:0 2px 8px rgba(16,24,40,.04)}.publish-card h2{margin:0 0 16px;font-size:17px}.form-grid{display:grid;grid-template-columns:220px minmax(260px,1fr) auto;gap:14px;align-items:end}.form-grid label,.property-grid label,.confirm-card>label{display:flex;flex-direction:column;gap:6px}.form-grid label>span,.property-grid label>span,.confirm-card label>span{font-size:12px;font-weight:700;color:#475467}.form-grid .wide{min-width:0}.form-grid .full{grid-column:1/-1}.form-grid input,.form-grid select,.form-grid textarea,.property-grid select,.confirm-card>label>input{box-sizing:border-box;width:100%;border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:10px 11px;color:#1d2939;outline:none}.form-grid textarea{resize:vertical}.probe-button,.publish-button{border:0;border-radius:9px;background:#1570ef;color:#fff;font-weight:700;cursor:pointer}.probe-button{height:40px;padding:0 18px}.probe-button:disabled,.publish-button:disabled{opacity:.5;cursor:not-allowed}.section-title h2{margin:0}.level{padding:5px 9px;border-radius:999px;font-size:12px;font-weight:700}.level--general_form{background:#dcfae6;color:#067647}.level--special_adapter{background:#fef0c7;color:#b54708}.level--blocked{background:#fee4e2;color:#b42318}.blocked-tip{margin:14px 0;padding:11px;border-radius:8px;background:#fffaeb;color:#93370d;font-size:13px}.property-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.property-grid em{font-style:normal;color:#d92d20}.property-grid small{padding:9px;border:1px dashed #fdb022;border-radius:7px;background:#fffaeb;color:#b54708}.image-list{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px}.image-card,.image-add{position:relative;width:112px;height:112px;box-sizing:border-box;border-radius:10px;overflow:hidden}.image-card img{width:100%;height:100%;object-fit:cover}.image-card button{position:absolute;right:5px;top:5px;width:24px;height:24px;border:0;border-radius:50%;background:#0009;color:#fff;cursor:pointer}.image-card small{position:absolute;left:5px;bottom:5px;padding:2px 6px;border-radius:999px;background:#1570ef;color:#fff}.image-add{display:grid;place-content:center;gap:5px;border:1px dashed #98a2b3;text-align:center;color:#667085;cursor:pointer}.image-add input{display:none}.image-add strong{color:#1570ef}.image-add span{font-size:11px}.pricing{grid-template-columns:repeat(5,minmax(120px,1fr))}.confirm-card{display:grid;grid-template-columns:1fr 220px 190px;align-items:end;gap:14px}.confirm-card h2{grid-column:1/-1}.confirm-card .ack{display:flex;flex-direction:row;align-items:center;font-size:13px;color:#475467}.publish-button{height:42px}.publish-button:not(:disabled){background:#d92d20}@media(max-width:900px){.form-grid,.pricing,.property-grid,.confirm-card{grid-template-columns:1fr}.confirm-card h2{grid-column:auto}.publish-page__header{flex-direction:column}}
+.location-button,.location-actions button{border:1px solid #b2ccff;border-radius:8px;background:#fff;padding:8px 12px;color:#175cd3;font-weight:700;cursor:pointer}.location-button:disabled,.location-actions button:disabled{opacity:.5;cursor:not-allowed}.location-help{margin:8px 0 12px;color:#667085;font-size:13px}.location-actions{display:flex;align-items:center;gap:12px;margin-bottom:12px}.location-actions span{color:#067647;font-size:12px}.location-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.location-list>label{display:flex;align-items:flex-start;gap:9px;padding:12px;border:1px solid #e4e7ec;border-radius:10px;cursor:pointer}.location-list>label.selected{border-color:#84adff;background:#f5f8ff}.location-list label>span{display:flex;min-width:0;flex-direction:column;gap:4px}.location-list strong{font-size:14px}.location-list small{color:#667085}.location-empty{padding:16px;border:1px dashed #fdb022;border-radius:9px;background:#fffaeb;color:#b54708}.custom-location{display:flex;flex-direction:column;gap:6px;margin-top:14px}.custom-location>span{font-size:12px;font-weight:700;color:#475467}.custom-location input{box-sizing:border-box;width:100%;border:1px solid #d0d5dd;border-radius:8px;padding:10px 11px}.custom-location small{color:#667085}.confirm-location{display:flex;flex-direction:column;gap:5px;padding:10px;border-radius:8px;background:#f2f4f7}.confirm-location span{font-size:12px;color:#667085}.confirm-location strong{font-size:13px}.confirm-card .confirm-location{grid-column:1/-1}@media(max-width:700px){.location-list{grid-template-columns:1fr}.location-actions{align-items:flex-start;flex-direction:column}}
 </style>

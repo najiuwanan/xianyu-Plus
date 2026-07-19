@@ -21,6 +21,7 @@ public class ProductPublishReqDTO {
     private BigDecimal postFee;
     private boolean acknowledged;
     private String confirmation;
+    private Address address;
     private List<Image> images = new ArrayList<>();
     private List<PropertySelection> properties = new ArrayList<>();
 
@@ -36,5 +37,16 @@ public class ProductPublishReqDTO {
         private String propertyId;
         /** 对应 valueId；接口没有 valueId 时使用选项名称。 */
         private String valueKey;
+    }
+
+    @Data
+    public static class Address {
+        /** 服务端返回的地点 key，防止直接伪造行政区和坐标。 */
+        private String locationKey;
+        /** 使用浏览器当前位置查询候选地点时携带。 */
+        private Double lookupLongitude;
+        private Double lookupLatitude;
+        /** 可自定义页面显示的地点名称，行政区和坐标仍使用平台候选地点。 */
+        private String customPoiName;
     }
 }
