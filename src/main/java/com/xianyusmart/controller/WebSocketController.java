@@ -222,6 +222,11 @@ public class WebSocketController {
                 return ResultObject.failed("WebSocket未连接，请先启动连接");
             }
             
+            // 在线客服一旦主动发送，立即接管真实会话并取消尚未发出的自动回复。
+            String sId = reqDTO.getCid() + "@goofish";
+            autoReplyDelayService.recordCustomerServiceReply(
+                    reqDTO.getXianyuAccountId(), reqDTO.getXyGoodsId(), sId);
+
             // 发送消息
             boolean success = webSocketService.sendMessage(
                     reqDTO.getXianyuAccountId(),
@@ -237,12 +242,6 @@ public class WebSocketController {
                         reqDTO.getToId(),
                         reqDTO.getText(),
                         reqDTO.getXyGoodsId()
-                );
-                String sId = reqDTO.getToId() + "@goofish";
-                autoReplyDelayService.recordSellerManualReply(
-                        reqDTO.getXianyuAccountId(),
-                        reqDTO.getXyGoodsId(),
-                        sId
                 );
                 return ResultObject.success("消息发送成功");
             } else {
@@ -287,6 +286,11 @@ public class WebSocketController {
             int width = reqDTO.getWidth() != null && reqDTO.getWidth() > 0 ? reqDTO.getWidth() : 800;
             int height = reqDTO.getHeight() != null && reqDTO.getHeight() > 0 ? reqDTO.getHeight() : 600;
             
+            // 在线客服一旦主动发送，立即接管真实会话并取消尚未发出的自动回复。
+            String sId = reqDTO.getCid() + "@goofish";
+            autoReplyDelayService.recordCustomerServiceReply(
+                    reqDTO.getXianyuAccountId(), reqDTO.getXyGoodsId(), sId);
+
             // 发送图片消息
             boolean success = webSocketService.sendImageMessage(
                     reqDTO.getXianyuAccountId(),
@@ -304,12 +308,6 @@ public class WebSocketController {
                         reqDTO.getToId(),
                         reqDTO.getImageUrl(),
                         reqDTO.getXyGoodsId()
-                );
-                String sId = reqDTO.getToId() + "@goofish";
-                autoReplyDelayService.recordSellerManualReply(
-                        reqDTO.getXianyuAccountId(),
-                        reqDTO.getXyGoodsId(),
-                        sId
                 );
                 return ResultObject.success("图片消息发送成功");
             } else {

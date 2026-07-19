@@ -49,5 +49,8 @@ public interface AutoReplyDelayService {
 
     void recordSellerManualReply(Long accountId, String xyGoodsId, String sId);
 
+    /** 在线客服主动发送成功前立即接管会话，不受商品人工干预开关限制。 */
+    void recordCustomerServiceReply(Long accountId, String xyGoodsId, String sId);
+
     void shutdown();
 }

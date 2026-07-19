@@ -21,6 +21,7 @@ import com.xianyusmart.service.WebSocketService;
 import com.xianyusmart.service.NotificationChannelService;
 import com.xianyusmart.service.reply.ReplyStrategy;
 import com.xianyusmart.service.reply.ReplyStrategyResolver;
+import com.xianyusmart.service.reply.HumanTakeoverManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -65,6 +66,9 @@ public class AutoReplyServiceImpl implements AutoReplyService {
 
     @Autowired
     private ReplyStrategyResolver replyStrategyResolver;
+
+    @Autowired
+    private HumanTakeoverManager takeoverManager;
 
     @Autowired
     private NotificationChannelService notificationChannelService;
@@ -248,12 +252,31 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             }
             
             // 8. 发送回复消息
+            int replyType = replyResult.getItems().get(0).getReplyType();
+            if (takeoverManager.isTakenOver(accountId, sId)) {
+                log.info("【账号{}】AI生成期间会话已被人工接管，取消发送: sId={}", accountId, sId);
+                updateRecordState(record.getId(), -2, null);
+                return;
+            }
+            if (!isReplyTypeEnabled(accountId, xyGoodsId, replyType)) {
+                log.info("【账号{}】回复生成后对应开关已关闭，取消发送: xyGoodsId={}, replyType={}",
+                        accountId, xyGoodsId, replyType);
+                updateRecordState(record.getId(), -2, null);
+                return;
+            }
+
             boolean sendSuccess = true;
             boolean hasReplyContent = false;
             String cid = sId.replace("@goofish", "");
             String toId = cid;
             
             for (ReplyStrategy.ReplyResult.ReplyItem item : replyResult.getItems()) {
+                if (takeoverManager.isTakenOver(accountId, sId)
+                        || !isReplyTypeEnabled(accountId, xyGoodsId, item.getReplyType())) {
+                    log.info("【账号{}】发送过程中检测到人工接管或开关关闭，停止剩余自动回复: sId={}", accountId, sId);
+                    sendSuccess = false;
+                    break;
+                }
                 if (item.getImageUrl() != null && !item.getImageUrl().isEmpty()) {
                     hasReplyContent = true;
                     boolean imageSent = webSocketService.sendImageMessageWithResult(accountId, cid, toId, item.getImageUrl(), 0, 0);
@@ -313,6 +336,24 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             log.error("【账号{}】检查回复开关异常: xyGoodsId={}", accountId, xyGoodsId, e);
             return false;
         }
+    }
+
+    private boolean isReplyTypeEnabled(Long accountId, String xyGoodsId, int replyType) {
+        if (accountId == null || xyGoodsId == null) {
+            return false;
+        }
+        XianyuGoodsConfig config = goodsConfigMapper.selectByAccountAndGoodsId(accountId, xyGoodsId);
+        if (config == null) {
+            return false;
+        }
+        boolean aiOn = Integer.valueOf(1).equals(config.getXianyuAutoReplyOn());
+        boolean keywordOn = Integer.valueOf(1).equals(config.getXianyuKeywordReplyOn());
+        return switch (replyType) {
+            case 1 -> keywordOn;
+            case 2 -> aiOn;
+            case 3 -> aiOn && keywordOn;
+            default -> false;
+        };
     }
     
     private void updateRecordState(Long recordId, Integer state, String replyContent) {

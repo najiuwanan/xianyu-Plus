@@ -235,6 +235,19 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
             return;
         }
 
+        startTakeover(accountId, xyGoodsId, sId);
+    }
+
+    @Override
+    public void recordCustomerServiceReply(Long accountId, String xyGoodsId, String sId) {
+        if (accountId == null || sId == null || sId.isBlank()) {
+            log.warn("recordCustomerServiceReply参数无效: accountId={}, sId={}, xyGoodsId={}", accountId, sId, xyGoodsId);
+            return;
+        }
+        startTakeover(accountId, xyGoodsId, sId);
+    }
+
+    private void startTakeover(Long accountId, String xyGoodsId, String sId) {
         int minutes = configProvider.getInterventionMinutes(accountId, xyGoodsId);
         takeoverManager.takeover(accountId, xyGoodsId, sId, minutes);
 
@@ -317,6 +330,12 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
                 return;
             }
             if (takeoverManager.isTakenOver(accountId, sId)) {
+                autoReplyRecordMapper.cancelById(recordId);
+                return;
+            }
+            if (!autoReplyService.isAutoReplyEnabled(accountId, lastMessage.getXyGoodsId())) {
+                log.info("【账号{}】商品回复开关已关闭，取消待执行自动回复: xyGoodsId={}, sId={}",
+                        accountId, lastMessage.getXyGoodsId(), sId);
                 autoReplyRecordMapper.cancelById(recordId);
                 return;
             }
