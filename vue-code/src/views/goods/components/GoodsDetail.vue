@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { ref, watch, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRouter } from 'vue-router'
 import { getGoodsDetail, deleteItem } from '@/api/goods'
 import { getGoodsSkuDetail, type GoodsSku, type GoodsSkuProperty } from '@/api/auto-delivery-config'
 import { showSuccess, showError, showConfirm } from '@/utils'
-import { getGoodsStatusText, formatPrice, formatTime } from '@/utils'
+import { getGoodsStatusText, formatPrice } from '@/utils'
 import type { GoodsItemWithConfig } from '@/api/goods'
 
 import IconImage from '@/components/icons/IconImage.vue'
@@ -12,7 +11,6 @@ import IconSend from '@/components/icons/IconSend.vue'
 import IconRobot from '@/components/icons/IconRobot.vue'
 import IconSparkle from '@/components/icons/IconSparkle.vue'
 import IconTrash from '@/components/icons/IconTrash.vue'
-import IconCheck from '@/components/icons/IconCheck.vue'
 import IconClock from '@/components/icons/IconClock.vue'
 import IconChevronLeft from '@/components/icons/IconChevronLeft.vue'
 import IconChevronRight from '@/components/icons/IconChevronRight.vue'
@@ -31,13 +29,13 @@ interface Emits {
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
-const router = useRouter()
 const loading = ref(false)
 const goodsDetail = ref<GoodsItemWithConfig | null>(null)
 const currentImageIndex = ref(0)
 const images = ref<string[]>([])
 const skuList = ref<GoodsSku[]>([])
 const skuPropertyList = ref<GoodsSkuProperty[]>([])
+const errorMessage = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback
 
 const isMobile = ref(false)
 const checkScreenSize = () => {
@@ -115,9 +113,11 @@ const loadDetail = async () => {
 
       if (goodsDetail.value?.item.infoPic) {
         try {
-          const infoPicArray = JSON.parse(goodsDetail.value.item.infoPic)
-          images.value = infoPicArray.map((pic: any) => pic.url)
-        } catch (e) {
+          const infoPicArray: unknown = JSON.parse(goodsDetail.value.item.infoPic)
+          images.value = Array.isArray(infoPicArray)
+            ? infoPicArray.flatMap(pic => typeof pic === 'object' && pic !== null && 'url' in pic && typeof pic.url === 'string' ? [pic.url] : [])
+            : []
+        } catch {
           images.value = []
         }
       }
@@ -147,7 +147,7 @@ const loadDetail = async () => {
     } else {
       throw new Error(response.msg || '获取商品详情失败')
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('加载商品详情失败:', error)
   } finally {
     loading.value = false
@@ -157,13 +157,7 @@ const loadDetail = async () => {
 // 配置自动发货
 const handleConfigAutoDelivery = () => {
   if (!goodsDetail.value) return
-  router.push({
-    path: '/auto-delivery',
-    query: {
-      accountId: props.accountId?.toString(),
-      goodsId: goodsDetail.value.item.xyGoodId
-    }
-  })
+  emit('configure', goodsDetail.value)
   handleClose()
 }
 
@@ -193,9 +187,9 @@ const handleDelete = async () => {
     } else {
       throw new Error(response.msg || '删除失败')
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error === 'cancel') return
-    showError('删除失败: ' + error.message)
+    showError('删除失败: ' + errorMessage(error, '未知错误'))
   }
 }
 
