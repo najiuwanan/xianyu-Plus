@@ -20,8 +20,28 @@ const selectedAccountId = ref<number | null>(null)
 const probeTitle = ref('iPhone 15 Pro 256G 原装二手手机')
 const probing = ref(false)
 const probeResult = ref<PublishCapabilityResult | null>(null)
+const selectedPropertyValues = ref<Record<string, string | string[]>>({})
 
 const checks = computed<SystemCheckItem[]>(() => overview.value?.items || [])
+const propertyKey = (property: PublishCapabilityResult['properties'][number]) =>
+  property.propertyId || property.propertyName
+const unresolvedRequiredCount = computed(() => {
+  if (!probeResult.value) return 0
+  return probeResult.value.properties.filter((property) => {
+    if (!property.required) return false
+    const value = selectedPropertyValues.value[propertyKey(property)]
+    return Array.isArray(value) ? value.length === 0 : !value
+  }).length
+})
+
+const initializePropertyValues = (result: PublishCapabilityResult | null) => {
+  const values: Record<string, string | string[]> = {}
+  for (const property of result?.properties || []) {
+    const selected = property.options?.filter((option) => option.selected).map((option) => option.valueId) || []
+    values[propertyKey(property)] = property.multiple ? selected : (selected[0] || '')
+  }
+  selectedPropertyValues.value = values
+}
 const checkedAt = computed(() => {
   if (!overview.value?.generatedAt) return '尚未检查'
   return String(overview.value.generatedAt).replace('T', ' ').slice(0, 19)
@@ -67,6 +87,7 @@ const runPublishProbe = async () => {
       title: probeTitle.value.trim()
     })
     probeResult.value = result.data || null
+    initializePropertyValues(probeResult.value)
     if (probeResult.value?.status === 'PASS') toast.success('商品发布前置能力检测通过')
     else if (probeResult.value?.status === 'FAIL') toast.error(probeResult.value.summary)
     else toast.warning(probeResult.value?.summary || '检测完成，但仍有项目需要处理')
@@ -150,13 +171,50 @@ onMounted(() => {
           <small>识别类目</small>
           <strong>{{ probeResult.categoryName || '未返回名称' }}</strong>
           <span>ID：{{ probeResult.categoryId }}</span>
+          <em class="support-badge" :class="`support-badge--${probeResult.supportLevel.toLowerCase()}`">
+            {{ probeResult.supportLabel }}
+          </em>
+        </div>
+        <div v-if="probeResult.publishWarnings?.length" class="probe-warnings">
+          <strong>发布前提醒</strong>
+          <ul><li v-for="warning in probeResult.publishWarnings" :key="warning">{{ warning }}</li></ul>
         </div>
         <div v-if="probeResult.properties?.length" class="probe-properties">
           <div v-for="property in probeResult.properties" :key="`${property.propertyId}-${property.propertyName}`" class="probe-property">
-            <strong>{{ property.propertyName }}</strong>
-            <span>{{ property.optionCount }} 个选项</span>
-            <p>{{ property.optionExamples?.join('、') || '接口未返回示例值' }}</p>
+            <div class="probe-property__head">
+              <strong>{{ property.propertyName }}</strong>
+              <span v-if="property.required" class="required-badge">必填</span>
+              <span v-if="property.dependent" class="dependent-badge">联动属性</span>
+            </div>
+            <select
+              v-if="property.options?.length"
+              v-model="selectedPropertyValues[propertyKey(property)]"
+              :multiple="property.multiple"
+            >
+              <option v-if="!property.multiple" value="">请选择</option>
+              <option
+                v-for="option in property.options"
+                :key="`${propertyKey(property)}-${option.valueId}-${option.valueName}`"
+                :value="option.valueId"
+                :disabled="option.disabled"
+              >{{ option.valueName }}</option>
+            </select>
+            <input
+              v-else-if="property.inputType === 'TEXT'"
+              v-model="selectedPropertyValues[propertyKey(property)]"
+              type="text"
+              :placeholder="`请输入${property.propertyName}`"
+            >
+            <p v-else class="probe-property__empty">请先选择品牌、产品或上级属性，正式发布页将自动加载此项。</p>
+            <small>{{ property.optionCount }} 个选项</small>
           </div>
+        </div>
+        <div v-if="probeResult.properties?.length" class="schema-readiness">
+          <strong>动态表单预览</strong>
+          <span v-if="probeResult.supportLevel === 'BLOCKED'">当前商品需要人工核验，自动发布保持关闭。</span>
+          <span v-else-if="unresolvedRequiredCount">还有 {{ unresolvedRequiredCount }} 个必填属性未选择。</span>
+          <span v-else-if="probeResult.dependentPropertyCount">基础字段可填写；还有 {{ probeResult.dependentPropertyCount }} 个联动属性需要专项加载。</span>
+          <span v-else>当前返回的类目字段可以由通用表单承载。</span>
         </div>
       </article>
     </section>
@@ -190,6 +248,7 @@ h1 { margin:0; font-size:28px; letter-spacing:.01em; } p { margin:8px 0 0; color
 .publish-probe__header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:16px; }.publish-probe__header h2{margin:0;font-size:18px}.publish-probe__header p{margin-top:5px}.publish-probe__safe{padding:5px 10px;border-radius:999px;background:#dcfae6;color:#067647;font-size:12px;font-weight:700;white-space:nowrap}
 .publish-probe__form{display:grid;grid-template-columns:220px minmax(260px,1fr) auto;align-items:end;gap:12px}.publish-probe__form label{display:flex;flex-direction:column;gap:6px}.publish-probe__form label>span{color:#475467;font-size:12px;font-weight:600}.publish-probe__form select,.publish-probe__form input{height:40px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding:0 12px;color:#1d2939;outline:none}.publish-probe__form select:focus,.publish-probe__form input:focus{border-color:#53b1fd;box-shadow:0 0 0 3px rgba(46,144,250,.12)}.publish-probe__button{height:40px;border:0;border-radius:8px;padding:0 18px;background:#1570ef;color:#fff;font-weight:700;cursor:pointer}.publish-probe__button:disabled{opacity:.55;cursor:not-allowed}
 .probe-result{margin-top:16px;padding:16px;border:1px solid #eaecf0;border-radius:10px;background:#fff}.probe-result--pass{border-color:#abefc6}.probe-result--warn{border-color:#fedf89}.probe-result--fail{border-color:#fecdca}.probe-result__main>strong{font-size:16px}.probe-result__main>p{margin:5px 0 12px}.probe-result__checks{display:flex;flex-wrap:wrap;gap:8px}.probe-result__checks span{padding:4px 8px;border-radius:999px;background:#f2f4f7;color:#667085;font-size:12px}.probe-result__checks span.ready{background:#dcfae6;color:#067647}.probe-result__category{display:flex;align-items:baseline;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid #eaecf0}.probe-result__category small,.probe-result__category span{color:#98a2b3}.probe-properties{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:14px}.probe-property{padding:12px;border-radius:8px;background:#f9fafb}.probe-property strong{display:block;font-size:14px}.probe-property span{color:#667085;font-size:12px}.probe-property p{margin:6px 0 0;font-size:12px;line-height:1.5}
+.probe-result__category em{font-style:normal}.support-badge{margin-left:auto;padding:4px 9px;border-radius:999px;font-size:12px;font-weight:700}.support-badge--general_form{background:#dcfae6;color:#067647}.support-badge--special_adapter{background:#fef0c7;color:#b54708}.support-badge--blocked{background:#fee4e2;color:#b42318}.probe-warnings{margin-top:12px;padding:12px 14px;border-radius:8px;background:#fffaeb;color:#93370d;font-size:12px}.probe-warnings strong{font-size:13px}.probe-warnings ul{margin:6px 0 0;padding-left:18px;line-height:1.7}.probe-property__head{display:flex;align-items:center;gap:6px;margin-bottom:8px}.probe-property__head strong{margin-right:auto}.probe-property__head .required-badge{padding:2px 6px;border-radius:999px;background:#fee4e2;color:#b42318}.probe-property__head .dependent-badge{padding:2px 6px;border-radius:999px;background:#fef0c7;color:#b54708}.probe-property select,.probe-property input{width:100%;min-height:36px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:7px;background:#fff;padding:7px 9px;color:#344054}.probe-property select[multiple]{min-height:92px}.probe-property small{display:block;margin-top:7px;color:#98a2b3}.probe-property .probe-property__empty{min-height:36px;margin:0;padding:8px;border:1px dashed #fdb022;border-radius:7px;background:#fffaeb;color:#b54708}.schema-readiness{display:flex;align-items:center;gap:10px;margin-top:14px;padding:12px 14px;border-top:1px solid #eaecf0;color:#475467;font-size:13px}.schema-readiness strong{color:#1d2939}
 .system-check__grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px; }
 .check-card { display:flex; width:100%; gap:14px; align-items:flex-start; text-align:left; padding:18px; border:1px solid #eaecf0; border-radius:12px; background:#fff; cursor:pointer; transition:.18s ease; }
 .check-card:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(16,24,40,.08); border-color:#b2ddff; }.check-card__status { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; font-size:18px; font-weight:700; flex:0 0 auto; }.check-card--pass .check-card__status{background:#dcfae6;color:#12b76a}.check-card--warn .check-card__status{background:#fef0c7;color:#dc6803}.check-card--fail .check-card__status{background:#fee4e2;color:#d92d20}

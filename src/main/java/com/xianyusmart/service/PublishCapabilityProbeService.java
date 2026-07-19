@@ -12,6 +12,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 验证账号是否具备商品发布所需的只读前置能力。
@@ -91,6 +92,7 @@ public class PublishCapabilityProbeService {
         response.setProperties(parseProperties(categoryData == null ? null : categoryData.get("cardList")));
         response.setPropertyCount(response.getProperties().size());
         response.setDynamicPropertiesReady(!response.getProperties().isEmpty());
+        enrichCategorySupport(response, probeTitle);
 
         Map<String, Object> locationRequest = new LinkedHashMap<>();
         locationRequest.put("longitude", 121.4737);
@@ -118,6 +120,12 @@ public class PublishCapabilityProbeService {
             response.setDetail("已识别类目“" + displayCategory(response) + "”，并读取 "
                     + response.getPropertyCount() + " 组动态属性；真实商品尚未创建。");
         }
+        if ("BLOCKED".equals(response.getSupportLevel())) {
+            response.setPassed(false);
+            response.setStatus("WARN");
+            response.setSummary("发布接口可读取，但商品需要人工合规核验");
+            response.setDetail("系统已保持自动发布关闭；只有确认符合闲鱼当前规则后，才能继续人工处理。");
+        }
         return response;
     }
 
@@ -136,21 +144,111 @@ public class PublishCapabilityProbeService {
             PublishCapabilityCheckRespDTO.Property property = new PublishCapabilityCheckRespDTO.Property();
             property.setPropertyId(text(cardData.get("propertyId")));
             property.setPropertyName(propertyName);
+            property.setRequired(booleanValue(cardData, "required", "isRequired", "mustSelect"));
+            property.setMultiple(booleanValue(cardData, "multiple", "multiSelect", "isMultiSelect"));
+            property.setInputType(resolveInputType(cardData));
             List<String> examples = new ArrayList<>();
             Object rawValues = cardData.get("valuesList");
             if (rawValues instanceof List<?> values) {
                 property.setOptionCount(values.size());
                 for (Object rawValue : values) {
-                    String option = text(asMap(rawValue).get("catName"));
-                    if (!option.isBlank() && examples.size() < 6) {
-                        examples.add(option);
+                    Map<String, Object> value = asMap(rawValue);
+                    String optionName = firstText(value, "catName", "valueName", "text", "name");
+                    if (optionName.isBlank()) {
+                        continue;
+                    }
+                    PublishCapabilityCheckRespDTO.Option option = new PublishCapabilityCheckRespDTO.Option();
+                    option.setValueId(firstText(value, "valueId", "channelCatId", "id"));
+                    option.setValueName(optionName);
+                    option.setChannelCategoryId(text(value.get("channelCatId")));
+                    option.setTaobaoCategoryId(text(value.get("tbCatId")));
+                    option.setSelected(booleanValue(value, "isClicked", "selected", "isSelected"));
+                    option.setDisabled(booleanValue(value, "disabled", "isDisabled"));
+                    property.getOptions().add(option);
+                    if (examples.size() < 6) {
+                        examples.add(optionName);
                     }
                 }
             }
+            property.setOptionCount(property.getOptions().size());
+            property.setDependent(property.getOptions().isEmpty());
             property.setOptionExamples(examples);
             properties.add(property);
         }
         return properties;
+    }
+
+    private void enrichCategorySupport(PublishCapabilityCheckRespDTO response, String title) {
+        String categoryText = (text(response.getCategoryName()) + " " + title).toLowerCase();
+        Set<String> blockedHints = Set.of("枪", "弹药", "毒品", "烟草", "处方药", "野生动物", "身份证", "银行卡");
+        Set<String> specialHints = Set.of("汽车", "摩托", "珠宝", "文玩", "奢侈", "潮鞋", "票", "账号", "装备", "会员", "卡券", "代下单", "跑腿", "服务", "定制");
+
+        boolean blocked = blockedHints.stream().anyMatch(categoryText::contains);
+        boolean special = specialHints.stream().anyMatch(categoryText::contains);
+        response.setSpecialCategory(special || blocked);
+        if (blocked) {
+            response.setSupportLevel("BLOCKED");
+            response.setSupportLabel("需平台审核或禁止自动发布");
+            response.getPublishWarnings().add("检测到高风险商品关键词，系统不会提供自动发布；请先核对闲鱼最新禁限售规则。");
+        } else if (special) {
+            response.setSupportLevel("SPECIAL_ADAPTER");
+            response.setSupportLabel("需要专项适配");
+            response.getPublishWarnings().add("该类目可能涉及资质、实名、鉴定、有效期或特殊交付流程，不能按普通实物直接发布。");
+        } else {
+            response.setSupportLevel("GENERAL_FORM");
+            response.setSupportLabel("可使用通用动态表单");
+        }
+
+        int requiredCount = 0;
+        int dependentCount = 0;
+        for (PublishCapabilityCheckRespDTO.Property property : response.getProperties()) {
+            if (property.isRequired()) {
+                requiredCount++;
+            }
+            if (property.isDependent()) {
+                dependentCount++;
+            }
+        }
+        response.setRequiredPropertyCount(requiredCount);
+        response.setDependentPropertyCount(dependentCount);
+        if (dependentCount > 0) {
+            response.getPublishWarnings().add("有 " + dependentCount + " 个联动属性暂无选项，需要先选择品牌、产品或上级属性后再加载。");
+        }
+        response.getPublishWarnings().add("当前仅完成发布表单预检，尚未上传图片，也没有创建真实商品。");
+    }
+
+    private String resolveInputType(Map<String, Object> cardData) {
+        String raw = firstText(cardData, "inputType", "renderType", "type").toLowerCase();
+        if (raw.contains("input") || raw.contains("text")) {
+            return "TEXT";
+        }
+        if (booleanValue(cardData, "multiple", "multiSelect", "isMultiSelect")) {
+            return "MULTI_SELECT";
+        }
+        return "SELECT";
+    }
+
+    private boolean booleanValue(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value instanceof Boolean bool) {
+                return bool;
+            }
+            if (value != null && ("1".equals(String.valueOf(value)) || "true".equalsIgnoreCase(String.valueOf(value)))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String firstText(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            String value = text(map.get(key));
+            if (!value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 
     private boolean hasLocation(Map<String, Object> data) {

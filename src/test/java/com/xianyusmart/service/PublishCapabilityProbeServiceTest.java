@@ -72,9 +72,48 @@ class PublishCapabilityProbeServiceTest {
         assertEquals(2, result.getPropertyCount());
         assertEquals("品牌", result.getProperties().get(0).getPropertyName());
         assertEquals(2, result.getProperties().get(0).getOptionCount());
+        assertEquals("Apple/苹果", result.getProperties().get(0).getOptions().get(0).getValueName());
+        assertEquals("GENERAL_FORM", result.getSupportLevel());
+        assertEquals("可使用通用动态表单", result.getSupportLabel());
         assertFalse(result.isRealPublishTested());
         verify(apiCallUtils, never()).callApiWithRetry(eq(7L), eq("mtop.idle.pc.idleitem.publish"),
                 any(Map.class), any(String.class));
+    }
+
+    @Test
+    void shouldIdentifyEmptyOptionsAsDependentAndSpecialCategory() {
+        XianyuAccount account = new XianyuAccount();
+        account.setId(8L);
+        when(accountMapper.selectById(8L)).thenReturn(account);
+        when(accountService.getCookieByAccountId(8L)).thenReturn("_m_h5_tk=token_exp; unb=buyer");
+
+        String categoryResponse = """
+                {"ret":["SUCCESS::调用成功"],"data":{
+                  "categoryPredictResult":{"catId":"50025461","catName":"咖啡/奶茶/冷饮"},
+                  "cardList":[
+                    {"cardData":{"propertyId":"1","propertyName":"餐饮品牌","required":true,"valuesList":[{"catName":"瑞幸咖啡","channelCatId":"11","isClicked":true}]}},
+                    {"cardData":{"propertyId":"2","propertyName":"适用门店","required":true,"valuesList":[]}}
+                  ]
+                }}
+                """;
+        String locationResponse = """
+                {"ret":["SUCCESS::调用成功"],"data":{"commonAddresses":[{"divisionId":"310101"}]}}
+                """;
+        when(apiCallUtils.callApiWithRetry(eq(8L), eq(PublishCapabilityProbeService.CATEGORY_API), any(Map.class),
+                any(String.class), eq("2.0"), eq(null), eq(null)))
+                .thenReturn(new XianyuApiCallUtils.ApiCallResult(true, categoryResponse, null, false));
+        when(apiCallUtils.callApiWithRetry(eq(8L), eq(PublishCapabilityProbeService.LOCATION_API), any(Map.class),
+                any(String.class), eq("1.0"), eq(null), eq(null)))
+                .thenReturn(new XianyuApiCallUtils.ApiCallResult(true, locationResponse, null, false));
+
+        PublishCapabilityCheckRespDTO result = service.check(8L, "瑞幸咖啡代下单电子券");
+
+        assertEquals("SPECIAL_ADAPTER", result.getSupportLevel());
+        assertTrue(result.isSpecialCategory());
+        assertEquals(2, result.getRequiredPropertyCount());
+        assertEquals(1, result.getDependentPropertyCount());
+        assertTrue(result.getProperties().get(1).isDependent());
+        assertTrue(result.getProperties().get(0).getOptions().get(0).isSelected());
     }
 
     @Test

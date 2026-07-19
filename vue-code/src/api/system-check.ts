@@ -23,7 +23,21 @@ export interface PublishCapabilityProperty {
   propertyId: string
   propertyName: string
   optionCount: number
+  required: boolean
+  dependent: boolean
+  multiple: boolean
+  inputType: 'SELECT' | 'MULTI_SELECT' | 'TEXT'
   optionExamples: string[]
+  options: PublishCapabilityOption[]
+}
+
+export interface PublishCapabilityOption {
+  valueId: string
+  valueName: string
+  channelCategoryId: string
+  taobaoCategoryId: string
+  selected: boolean
+  disabled: boolean
 }
 
 export interface PublishCapabilityResult {
@@ -40,6 +54,12 @@ export interface PublishCapabilityResult {
   locationApiReady: boolean
   realPublishTested: boolean
   propertyCount: number
+  supportLevel: 'GENERAL_FORM' | 'SPECIAL_ADAPTER' | 'BLOCKED'
+  supportLabel: string
+  specialCategory: boolean
+  requiredPropertyCount: number
+  dependentPropertyCount: number
+  publishWarnings: string[]
   properties: PublishCapabilityProperty[]
 }
 
