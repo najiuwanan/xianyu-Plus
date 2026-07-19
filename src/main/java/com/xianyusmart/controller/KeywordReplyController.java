@@ -37,7 +37,8 @@ public class KeywordReplyController {
             Long accountId = Long.valueOf(params.get("xianyuAccountId").toString());
             String xyGoodsId = params.get("xyGoodsId").toString();
             String keyword = params.get("keyword").toString();
-            KeywordReplyRuleBO rule = keywordReplyService.addRule(accountId, xyGoodsId, keyword);
+            Integer matchMode = params.get("matchMode") == null ? 0 : Integer.valueOf(params.get("matchMode").toString());
+            KeywordReplyRuleBO rule = keywordReplyService.addRule(accountId, xyGoodsId, keyword, matchMode);
             return ResultObject.success(rule);
         } catch (Exception e) {
             log.error("添加关键词规则失败", e);

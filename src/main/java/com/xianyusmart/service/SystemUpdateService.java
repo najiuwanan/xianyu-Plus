@@ -208,6 +208,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.7.0".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "关键词回复规则支持每行配置一个触发词，任意一个命中后共用同一组回复",
+                    "单条规则最多支持 30 个触发词，自动忽略空行和重复词",
+                    "旧版单关键词规则自动兼容，无需重新配置",
+                    "修正包含、完全一致、开头匹配三种模式的后端匹配含义",
+                    "规则列表新增触发词数量和明细展示"
+            ));
+            return;
+        }
         if ("1.6.0".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "新增每个商品独立控制的 AI 议价开关",

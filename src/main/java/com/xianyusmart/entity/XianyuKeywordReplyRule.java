@@ -12,6 +12,7 @@ public class XianyuKeywordReplyRule {
     private Long xianyuAccountId;
     private String xyGoodsId;
     private String keyword;
+    private String keywords;
     private Integer matchMode;
     private Integer isFallback;
     private String createTime;

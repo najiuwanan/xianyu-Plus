@@ -9,6 +9,7 @@ import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.mapper.XianyuKeywordReplyContentMapper;
 import com.xianyusmart.mapper.XianyuKeywordReplyRuleMapper;
 import com.xianyusmart.service.KeywordReplyService;
+import com.xianyusmart.service.reply.KeywordTriggerMatcher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,9 @@ public class KeywordReplyServiceImpl implements KeywordReplyService {
     @Autowired
     private XianyuGoodsConfigMapper goodsConfigMapper;
 
+    @Autowired
+    private KeywordTriggerMatcher triggerMatcher;
+
     @Override
     public List<KeywordReplyRuleBO> getRules(Long accountId, String xyGoodsId) {
         List<XianyuKeywordReplyRule> rules = ruleMapper.selectByAccountAndGoodsId(accountId, xyGoodsId);
@@ -43,29 +47,19 @@ public class KeywordReplyServiceImpl implements KeywordReplyService {
     }
 
     @Override
-    public KeywordReplyRuleBO addRule(Long accountId, String xyGoodsId, String keyword) {
-        XianyuKeywordReplyRule existing = ruleMapper.selectByKeyword(accountId, xyGoodsId, keyword);
-        if (existing != null) {
-            return toRuleBO(existing, Collections.emptyList());
-        }
+    public KeywordReplyRuleBO addRule(Long accountId, String xyGoodsId, String keyword, Integer matchMode) {
+        List<String> triggers = requireTriggers(keyword);
+        ensureNoDuplicateTriggers(accountId, xyGoodsId, triggers, null);
 
         XianyuKeywordReplyRule rule = new XianyuKeywordReplyRule();
         rule.setXianyuAccountId(accountId);
         rule.setXyGoodsId(xyGoodsId);
-        rule.setKeyword(keyword);
-        rule.setMatchMode(1);
+        rule.setKeyword(triggers.get(0));
+        rule.setKeywords(triggerMatcher.serialize(triggers));
+        rule.setMatchMode(normalizeMatchMode(matchMode));
         rule.setIsFallback(0);
         ruleMapper.insert(rule);
-
-        KeywordReplyRuleBO bo = new KeywordReplyRuleBO();
-        bo.setId(rule.getId());
-        bo.setXianyuAccountId(accountId);
-        bo.setXyGoodsId(xyGoodsId);
-        bo.setKeyword(keyword);
-        bo.setMatchMode(1);
-        bo.setIsFallback(0);
-        bo.setContents(Collections.emptyList());
-        return bo;
+        return toRuleBO(rule, Collections.emptyList());
     }
 
     @Override
@@ -80,7 +74,10 @@ public class KeywordReplyServiceImpl implements KeywordReplyService {
         if (rule == null) {
             throw new RuntimeException("规则不存在: id=" + ruleId);
         }
-        rule.setKeyword(keyword);
+        List<String> triggers = requireTriggers(keyword);
+        ensureNoDuplicateTriggers(rule.getXianyuAccountId(), rule.getXyGoodsId(), triggers, ruleId);
+        rule.setKeyword(triggers.get(0));
+        rule.setKeywords(triggerMatcher.serialize(triggers));
         ruleMapper.updateById(rule);
     }
 
@@ -90,7 +87,7 @@ public class KeywordReplyServiceImpl implements KeywordReplyService {
         if (rule == null) {
             throw new RuntimeException("规则不存在: id=" + ruleId);
         }
-        rule.setMatchMode(matchMode);
+        rule.setMatchMode(normalizeMatchMode(matchMode));
         ruleMapper.updateById(rule);
     }
 
@@ -106,6 +103,7 @@ public class KeywordReplyServiceImpl implements KeywordReplyService {
         rule.setXianyuAccountId(accountId);
         rule.setXyGoodsId(xyGoodsId);
         rule.setKeyword("__fallback__");
+        rule.setKeywords("__fallback__");
         rule.setMatchMode(1);
         rule.setIsFallback(1);
         ruleMapper.insert(rule);
@@ -159,23 +157,11 @@ public class KeywordReplyServiceImpl implements KeywordReplyService {
             return Collections.emptyList();
         }
 
-        String msg = message.trim();
-
-        List<XianyuKeywordReplyRule> exactMatches = ruleMapper.matchExact(accountId, xyGoodsId, msg);
-        List<XianyuKeywordReplyRule> fuzzyMatches = ruleMapper.matchFuzzy(accountId, xyGoodsId, msg);
-
-        Set<Long> matchedIds = new HashSet<>();
-        List<XianyuKeywordReplyRule> allMatches = new ArrayList<>();
-        for (XianyuKeywordReplyRule r : exactMatches) {
-            if (matchedIds.add(r.getId())) {
-                allMatches.add(r);
-            }
-        }
-        for (XianyuKeywordReplyRule r : fuzzyMatches) {
-            if (matchedIds.add(r.getId())) {
-                allMatches.add(r);
-            }
-        }
+        List<XianyuKeywordReplyRule> allRules = ruleMapper.selectByAccountAndGoodsId(accountId, xyGoodsId);
+        List<XianyuKeywordReplyRule> allMatches = allRules == null ? Collections.emptyList() : allRules.stream()
+                .filter(rule -> !Integer.valueOf(1).equals(rule.getIsFallback()))
+                .filter(rule -> triggerMatcher.matches(rule.getMatchMode(), message, triggerMatcher.triggersOf(rule)))
+                .toList();
 
         if (!allMatches.isEmpty()) {
             Map<Long, List<XianyuKeywordReplyContent>> contentMap = loadContents(allMatches);
@@ -215,6 +201,7 @@ public class KeywordReplyServiceImpl implements KeywordReplyService {
         bo.setXianyuAccountId(rule.getXianyuAccountId());
         bo.setXyGoodsId(rule.getXyGoodsId());
         bo.setKeyword(rule.getKeyword());
+        bo.setKeywords(triggerMatcher.triggersOf(rule));
         bo.setMatchMode(rule.getMatchMode());
         bo.setIsFallback(rule.getIsFallback());
         bo.setContents(contents.stream().map(c -> {
@@ -238,5 +225,31 @@ public class KeywordReplyServiceImpl implements KeywordReplyService {
             return Collections.emptyMap();
         }
         return contents.stream().collect(Collectors.groupingBy(XianyuKeywordReplyContent::getRuleId));
+    }
+
+    private List<String> requireTriggers(String input) {
+        List<String> triggers = triggerMatcher.normalize(input);
+        if (triggers.isEmpty()) throw new IllegalArgumentException("请至少填写一个关键词");
+        return triggers;
+    }
+
+    private int normalizeMatchMode(Integer matchMode) {
+        return matchMode != null && matchMode >= 0 && matchMode <= 2 ? matchMode : 0;
+    }
+
+    private void ensureNoDuplicateTriggers(Long accountId, String goodsId, List<String> requested, Long excludedRuleId) {
+        Set<String> requestedKeys = requested.stream()
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+        List<XianyuKeywordReplyRule> existingRules = ruleMapper.selectByAccountAndGoodsId(accountId, goodsId);
+        if (existingRules == null) return;
+        for (XianyuKeywordReplyRule existing : existingRules) {
+            if (Integer.valueOf(1).equals(existing.getIsFallback()) || Objects.equals(existing.getId(), excludedRuleId)) continue;
+            for (String existingTrigger : triggerMatcher.triggersOf(existing)) {
+                if (requestedKeys.contains(existingTrigger.toLowerCase(Locale.ROOT))) {
+                    throw new IllegalArgumentException("关键词「" + existingTrigger + "」已存在于其他规则中");
+                }
+            }
+        }
     }
 }

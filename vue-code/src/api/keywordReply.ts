@@ -12,6 +12,7 @@ export interface KeywordReplyRule {
   xianyuAccountId: string | number;
   xyGoodsId: string;
   keyword: string;
+  keywords?: string[];
   matchMode: number;
   isFallback: number;
   contents: KeywordReplyContent[];
@@ -21,7 +22,7 @@ export function getKeywordReplyRules(data: { xianyuAccountId: number; xyGoodsId:
   return request<KeywordReplyRule[]>({ url: '/keyword-reply/rules', method: 'POST', data });
 }
 
-export function addKeywordRule(data: { xianyuAccountId: number; xyGoodsId: string; keyword: string }) {
+export function addKeywordRule(data: { xianyuAccountId: number; xyGoodsId: string; keyword: string; matchMode?: number }) {
   return request<KeywordReplyRule>({ url: '/keyword-reply/addRule', method: 'POST', data });
 }
 

@@ -159,23 +159,36 @@ const openCreateRule = () => {
 const openEditRule = (rule: KeywordReplyRule) => {
   ruleDialogMode.value = 'edit'
   editingRule.value = rule
-  ruleKeyword.value = rule.keyword
+  ruleKeyword.value = rule.keywords?.length ? rule.keywords.join('\n') : rule.keyword
   ruleMatchMode.value = rule.matchMode || 0
   ruleDialogVisible.value = true
 }
 
 const saveRule = async () => {
-  const keyword = ruleKeyword.value.trim()
-  if (!keyword) {
-    showError('请输入关键词')
+  const keywords = Array.from(new Map(ruleKeyword.value.split(/\r?\n/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map((value) => [value.toLocaleLowerCase(), value])).values())
+  if (!keywords.length) {
+    showError('请至少输入一个关键词')
     return
   }
+  if (keywords.length > 30) {
+    showError('每条规则最多可以设置 30 个关键词')
+    return
+  }
+  if (keywords.some((value) => value.length > 100)) {
+    showError('单个关键词不能超过 100 个字符')
+    return
+  }
+  const keyword = keywords.join('\n')
   try {
     if (ruleDialogMode.value === 'create') {
       await addKeywordRule({
         xianyuAccountId: selectedAccountId.value as number,
         xyGoodsId: selectedGoodsId.value,
-        keyword
+        keyword,
+        matchMode: ruleMatchMode.value
       })
     } else if (editingRule.value) {
       await updateKeyword({ ruleId: editingRule.value.id, keyword })
@@ -184,8 +197,8 @@ const saveRule = async () => {
     ruleDialogVisible.value = false
     showSuccess(ruleDialogMode.value === 'create' ? '关键词规则已创建' : '关键词规则已保存')
     await loadRules()
-  } catch (error) {
-    showError('保存关键词规则失败')
+  } catch (error: any) {
+    showError(error?.message || '保存关键词规则失败')
   }
 }
 
@@ -201,7 +214,8 @@ const saveMatchMode = async (rule: KeywordReplyRule, event: Event) => {
 }
 
 const removeRule = async (rule: KeywordReplyRule) => {
-  if (!window.confirm(`确定删除关键词「${rule.keyword}」及其回复内容吗？`)) return
+  const triggers = rule.keywords?.length ? rule.keywords : [rule.keyword]
+  if (!window.confirm(`确定删除包含 ${triggers.length} 个触发词的规则及其回复内容吗？`)) return
   try {
     await deleteKeywordRule({ ruleId: rule.id })
     showSuccess('关键词规则已删除')
@@ -301,7 +315,7 @@ onMounted(loadAccounts)
       <div>
         <p class="eyebrow">关键词规则</p>
         <h1>关键词回复中心</h1>
-        <p>为不同商品设置专属关键词与回复内容；关键词未命中时，才会继续使用商品 AI 回复与系统 AI。</p>
+        <p>一条规则可填写多个触发词并共用回复内容；未命中时，才会继续使用商品 AI 回复与系统 AI。</p>
       </div>
       <div class="heading-actions">
         <button class="btn btn-secondary" :disabled="loading" @click="loadRules">刷新规则</button>
@@ -355,15 +369,18 @@ onMounted(loadAccounts)
       <div v-else-if="!selectedGoodsId" class="state-box">请先在上方选择一个已同步商品。</div>
       <div v-else-if="!rules.length" class="empty-box">
         <strong>这个商品还没有关键词规则</strong>
-        <span>可以从“新增关键词”开始，例如：价格、下单、售后。</span>
+        <span>可以从“新增关键词”开始，同类说法每行填写一个。</span>
         <button class="btn btn-primary" @click="openCreateRule">新增第一条关键词</button>
       </div>
       <div v-else class="rules-grid">
         <article v-for="rule in rules" :key="rule.id" class="rule-card" :class="{ fallback: rule.isFallback }">
           <div class="rule-card-header">
             <div>
-              <span class="rule-type">{{ rule.isFallback ? '兜底回复' : '关键词' }}</span>
-              <h3>{{ rule.isFallback ? '未命中关键词时回复' : rule.keyword }}</h3>
+              <span class="rule-type">{{ rule.isFallback ? '兜底回复' : `${rule.keywords?.length || 1} 个触发词` }}</span>
+              <h3 v-if="rule.isFallback">未命中关键词时回复</h3>
+              <div v-else class="keyword-list">
+                <span v-for="trigger in (rule.keywords?.length ? rule.keywords : [rule.keyword])" :key="trigger">{{ trigger }}</span>
+              </div>
             </div>
             <div class="rule-actions">
               <button class="text-btn" @click="openEditRule(rule)">编辑</button>
@@ -410,21 +427,20 @@ onMounted(loadAccounts)
           <header>
             <div>
               <h2>{{ ruleDialogMode === 'create' ? '新增关键词规则' : '编辑关键词规则' }}</h2>
-              <p>规则将仅对当前关联商品生效。</p>
+              <p>规则仅对当前商品生效，任意一行命中都会使用同一组回复。</p>
             </div>
             <button class="close-btn" @click="ruleDialogVisible = false">×</button>
           </header>
           <main>
-            <label>关键词</label>
-            <input v-model="ruleKeyword" maxlength="100" placeholder="例如：价格、怎么下单、售后" @keyup.enter="saveRule" />
-            <template v-if="ruleDialogMode === 'edit'">
-              <label>匹配方式</label>
-              <select v-model.number="ruleMatchMode">
-                <option :value="0">包含匹配</option>
-                <option :value="1">精确匹配</option>
-                <option :value="2">开头匹配</option>
-              </select>
-            </template>
+            <label>触发关键词（每行一个）</label>
+            <textarea v-model="ruleKeyword" rows="7" maxlength="3029" placeholder="你好&#10;在么&#10;还有么" @keydown.ctrl.enter.prevent="saveRule" />
+            <small class="field-help">自动忽略空行和重复内容，最多 30 个；按 Ctrl + Enter 可保存。</small>
+            <label>匹配方式</label>
+            <select v-model.number="ruleMatchMode">
+              <option :value="0">包含匹配</option>
+              <option :value="1">精确匹配</option>
+              <option :value="2">开头匹配</option>
+            </select>
           </main>
           <footer>
             <button class="btn btn-secondary" @click="ruleDialogVisible = false">取消</button>
@@ -505,6 +521,8 @@ select:focus, input:focus, textarea:focus { border-color: #6fa9fa; box-shadow: 0
 .rule-type { display: inline-block; margin-bottom: 4px; padding: 2px 7px; border-radius: 5px; background: #eaf3ff; color: #3678c7; font-size: 11px; font-weight: 700; }
 .fallback .rule-type { background: #fff0c8; color: #a86500; }
 .rule-card h3 { max-width: 240px; font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.keyword-list { display: flex; flex-wrap: wrap; gap: 5px; max-width: 270px; }
+.keyword-list span { max-width: 150px; overflow: hidden; padding: 3px 7px; border-radius: 6px; background: #f0f5fb; color: #385777; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .rule-actions, .reply-actions { display: flex; gap: 8px; }
 .text-btn { padding: 0; border: 0; background: transparent; color: #347fe0; cursor: pointer; font-size: 13px; }
 .text-btn.danger { color: #ef6b6b; }
@@ -529,6 +547,7 @@ select:focus, input:focus, textarea:focus { border-color: #6fa9fa; box-shadow: 0
 .dialog-card header p { margin-top: 5px; color: #7e8fa6; font-size: 13px; }
 .dialog-card main { display: flex; flex-direction: column; gap: 8px; padding: 20px; }
 .dialog-card main label:not(:first-child) { margin-top: 8px; }
+.field-help { margin-top: -2px; color: #8796aa; font-size: 12px; line-height: 1.45; }
 .dialog-card footer { justify-content: flex-end; border-top: 1px solid #edf1f5; }
 .close-btn { width: 30px; height: 30px; border: 0; border-radius: 8px; background: #f3f6f9; color: #6c7d94; cursor: pointer; font-size: 22px; line-height: 1; }
 .image-preview { max-width: 160px; max-height: 160px; margin-top: 4px; border-radius: 9px; object-fit: cover; }

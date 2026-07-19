@@ -14,6 +14,7 @@ public class KeywordReplyRuleBO {
     private Long xianyuAccountId;
     private String xyGoodsId;
     private String keyword;
+    private List<String> keywords;
     private Integer matchMode;
     private Integer isFallback;
     private List<KeywordReplyContentBO> contents;

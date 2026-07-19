@@ -69,4 +69,13 @@ class FlywayMigrationConsistencyTest {
         assertTrue(v25.contains("UNIQUE KEY uk_bargain_account_goods_buyer"));
         assertTrue(!v25.contains("FOREIGN KEY"));
     }
+
+    @Test
+    void multipleKeywordMigrationBackfillsExistingRules() throws IOException {
+        String v26 = new ClassPathResource("db/migration/V26__add_multiple_keyword_triggers.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+
+        assertTrue(v26.contains("ADD COLUMN keywords TEXT NULL"));
+        assertTrue(v26.contains("SET keywords = keyword"));
+    }
 }

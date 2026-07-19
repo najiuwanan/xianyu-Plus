@@ -8,7 +8,7 @@ public interface KeywordReplyService {
 
     List<KeywordReplyRuleBO> getRules(Long accountId, String xyGoodsId);
 
-    KeywordReplyRuleBO addRule(Long accountId, String xyGoodsId, String keyword);
+    KeywordReplyRuleBO addRule(Long accountId, String xyGoodsId, String keyword, Integer matchMode);
 
     void deleteRule(Long ruleId);
 
