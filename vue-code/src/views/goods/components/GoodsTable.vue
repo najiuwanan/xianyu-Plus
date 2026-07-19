@@ -5,8 +5,6 @@ import type { GoodsItemWithConfig } from '@/api/goods'
 
 import IconEmpty from '@/components/icons/IconEmpty.vue'
 import IconTrash from '@/components/icons/IconTrash.vue'
-import IconSend from '@/components/icons/IconSend.vue'
-import IconRobot from '@/components/icons/IconRobot.vue'
 import IconImage from '@/components/icons/IconImage.vue'
 import IconCheck from '@/components/icons/IconCheck.vue'
 import IconSparkle from '@/components/icons/IconSparkle.vue'
@@ -15,26 +13,31 @@ interface Props {
   goodsList: GoodsItemWithConfig[]
   loading?: boolean
   selectedGoodsIds?: string[]
+  accountNames?: Record<number, string>
+  showAccount?: boolean
 }
 
 interface Emits {
-  (e: 'view', xyGoodId: string): void
-  (e: 'sync', xyGoodId: string): void
+  (e: 'view', item: GoodsItemWithConfig): void
+  (e: 'sync', item: GoodsItemWithConfig): void
   (e: 'toggleAutoDelivery', item: GoodsItemWithConfig, value: boolean): void
   (e: 'toggleAutoReply', item: GoodsItemWithConfig, value: boolean): void
   (e: 'configure', item: GoodsItemWithConfig): void
-  (e: 'delete', xyGoodId: string, title: string): void
-  (e: 'toggleSelect', xyGoodId: string, selected: boolean): void
+  (e: 'delete', item: GoodsItemWithConfig): void
+  (e: 'toggleSelect', item: GoodsItemWithConfig, selected: boolean): void
   (e: 'toggleSelectPage', selected: boolean): void
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
+const goodsKey = (item: GoodsItemWithConfig) => `${item.item.xianyuAccountId}:${item.item.xyGoodId}`
 const selectedGoodsSet = computed(() => new Set(props.selectedGoodsIds || []))
 const allPageSelected = computed(() => props.goodsList.length > 0
-  && props.goodsList.every(item => selectedGoodsSet.value.has(item.item.xyGoodId)))
-const isGoodsSelected = (xyGoodId: string) => selectedGoodsSet.value.has(xyGoodId)
+  && props.goodsList.every(item => selectedGoodsSet.value.has(goodsKey(item))))
+const isGoodsSelected = (item: GoodsItemWithConfig) => selectedGoodsSet.value.has(goodsKey(item))
+const accountName = (item: GoodsItemWithConfig) =>
+  props.accountNames?.[item.item.xianyuAccountId] || `账号 ${item.item.xianyuAccountId}`
 
 const isMobile = ref(false)
 const checkScreenSize = () => {
@@ -82,16 +85,16 @@ const handleImgError = (e: Event) => {
   <div v-if="isMobile" class="card-list" :class="{ 'card-list--loading': loading }">
     <div
       v-for="item in goodsList"
-      :key="item.item.xyGoodId"
+      :key="goodsKey(item)"
       class="goods-card"
-      @click="emit('view', item.item.xyGoodId)"
+      @click="emit('view', item)"
     >
       <label class="goods-card__select" @click.stop>
         <input
           class="goods-select-checkbox"
           type="checkbox"
-          :checked="isGoodsSelected(item.item.xyGoodId)"
-          @change="emit('toggleSelect', item.item.xyGoodId, ($event.target as HTMLInputElement).checked)"
+          :checked="isGoodsSelected(item)"
+          @change="emit('toggleSelect', item, ($event.target as HTMLInputElement).checked)"
         />
         <span>选择</span>
       </label>
@@ -122,6 +125,7 @@ const handleImgError = (e: Event) => {
         <div class="goods-card__overlay">
           <div class="goods-card__title-wrap">
             <div class="goods-card__title">{{ item.item.title }}</div>
+            <div v-if="showAccount" class="goods-card__account">{{ accountName(item) }}</div>
           </div>
           <div class="goods-card__meta">
             <span class="goods-card__price">{{ formatPrice(item.item.soldPrice) }}</span>
@@ -145,7 +149,7 @@ const handleImgError = (e: Event) => {
         </button>
         <button
           class="goods-card__action goods-card__action--delete"
-          @click.stop="emit('delete', item.item.xyGoodId, item.item.title)"
+          @click.stop="emit('delete', item)"
         >
           <IconTrash />
           <span>删除</span>
@@ -176,6 +180,7 @@ const handleImgError = (e: Event) => {
           </th>
           <th class="table__th table__th--image">图片</th>
           <th class="table__th">商品标题</th>
+          <th v-if="showAccount" class="table__th table__th--account">所属账号</th>
           <th class="table__th table__th--price">价格</th>
           <th class="table__th table__th--sku">规格</th>
           <th class="table__th table__th--status">状态</th>
@@ -185,14 +190,14 @@ const handleImgError = (e: Event) => {
         </tr>
       </thead>
       <tbody class="table__body">
-        <tr v-for="item in goodsList" :key="item.item.xyGoodId" class="table__tr">
+        <tr v-for="item in goodsList" :key="goodsKey(item)" class="table__tr">
           <td class="table__td table__td--select">
             <input
               class="goods-select-checkbox"
               type="checkbox"
-              :checked="isGoodsSelected(item.item.xyGoodId)"
+              :checked="isGoodsSelected(item)"
               :aria-label="`选择商品 ${item.item.title}`"
-              @change="emit('toggleSelect', item.item.xyGoodId, ($event.target as HTMLInputElement).checked)"
+              @change="emit('toggleSelect', item, ($event.target as HTMLInputElement).checked)"
             />
           </td>
           <td class="table__td table__td--image">
@@ -202,18 +207,21 @@ const handleImgError = (e: Event) => {
                 :src="item.item.coverPic"
                 class="goods-thumb__img"
                 @error="handleImgError"
-                @click="emit('view', item.item.xyGoodId)"
+                @click="emit('view', item)"
               />
               <div v-else class="goods-thumb__placeholder">
                 <IconImage />
               </div>
             </div>
           </td>
-          <td class="table__td table__td--title" @click="emit('view', item.item.xyGoodId)">
+          <td class="table__td table__td--title" @click="emit('view', item)">
             <div class="goods-title-cell">
               <span class="goods-title-cell__name">{{ item.item.title }}</span>
               <span class="goods-title-cell__id">ID: {{ item.item.xyGoodId }}</span>
             </div>
+          </td>
+          <td v-if="showAccount" class="table__td table__td--account">
+            <span class="goods-title-cell__account">{{ accountName(item) }}</span>
           </td>
           <td class="table__td table__td--price">
             <span class="price-text">{{ formatPrice(item.item.soldPrice) }}</span>
@@ -249,15 +257,15 @@ const handleImgError = (e: Event) => {
               <IconSparkle />
               <span>配置</span>
             </button>
-            <button class="table__action table__action--detail" @click="emit('view', item.item.xyGoodId)">
+            <button class="table__action table__action--detail" @click="emit('view', item)">
               <IconCheck />
               <span>详情</span>
             </button>
-            <button class="table__action table__action--sync" @click="emit('sync', item.item.xyGoodId)">
+            <button class="table__action table__action--sync" @click="emit('sync', item)">
               <IconSparkle />
               <span>同步</span>
             </button>
-            <button class="table__action table__action--delete" @click="emit('delete', item.item.xyGoodId, item.item.title)">
+            <button class="table__action table__action--delete" @click="emit('delete', item)">
               <IconTrash />
               <span>删除</span>
             </button>
@@ -426,6 +434,17 @@ const handleImgError = (e: Event) => {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+.goods-card__account {
+  width: fit-content;
+  margin-top: 5px;
+  padding: 2px 7px;
+  color: #fff;
+  background: rgba(10, 132, 255, 0.78);
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 /* 底部价格 + 按钮行 */
@@ -690,6 +709,23 @@ const handleImgError = (e: Event) => {
   font-size: 11px;
   color: var(--c-text-3);
   font-family: 'SF Mono', 'Menlo', monospace;
+}
+
+.goods-title-cell__account {
+  width: fit-content;
+  margin-top: 2px;
+  padding: 2px 7px;
+  color: #0877d1;
+  background: rgba(10, 132, 255, 0.1);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.table__th--account,
+.table__td--account {
+  width: 120px;
+  text-align: left;
 }
 
 /* Price */

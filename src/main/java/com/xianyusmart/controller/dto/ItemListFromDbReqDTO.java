@@ -19,6 +19,11 @@ public class ItemListFromDbReqDTO {
      * 闲鱼账号ID（可选）
      */
     private Long xianyuAccountId;
+
+    /**
+     * 商品状态（可选）。传入时优先于 onlyOnSale，null 表示不限制状态。
+     */
+    private Integer status;
     
     /**
      * 页码，从1开始

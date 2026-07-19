@@ -1,26 +1,26 @@
 import { ref, reactive, computed, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { getAccountList } from '@/api/account'
 import {
   getGoodsList,
   refreshGoods,
-  getGoodsDetail,
   updateAutoDeliveryStatus,
   updateAutoReplyStatus,
   deleteItem,
   syncSingleItem,
   getSyncProgress,
-  checkSyncing,
   batchUpdateGoodsConfig
 } from '@/api/goods'
-import { showSuccess, showError, showInfo, showConfirm } from '@/utils'
+import { showSuccess, showError, showInfo } from '@/utils'
 import { getGoodsStatusText, formatPrice, formatTime } from '@/utils'
 import type { Account } from '@/types'
 import type { BatchUpdateGoodsConfigReq, GoodsItemWithConfig, SyncProgressResponse } from '@/api/goods'
 
 export function useGoodsManager() {
-  const router = useRouter()
-
+  const errorMessage = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback
+  const messageWasShown = (error: unknown) => typeof error === 'object'
+    && error !== null
+    && 'messageShown' in error
+    && Boolean(error.messageShown)
   const loading = ref(false)
   const refreshing = ref(false)
   const accounts = ref<Account[]>([])
@@ -30,7 +30,7 @@ export function useGoodsManager() {
   const currentPage = ref(1)
   const pageSize = ref(20)
   const total = ref(0)
-  const selectedGoodsIds = ref<string[]>([])
+  const selectedGoodsTargets = ref<Record<string, { accountId: number; goodsId: string }>>({})
   const batchUpdating = ref(false)
 
   const dialogs = reactive({
@@ -40,12 +40,21 @@ export function useGoodsManager() {
   })
 
   const selectedGoodsId = ref<string>('')
+  const selectedGoodsAccountId = ref<number | null>(null)
   const selectedGoods = ref<GoodsItemWithConfig | null>(null)
-  const deleteTarget = ref<{ id: string; title: string } | null>(null)
+  const deleteTarget = ref<{ accountId: number; id: string; title: string } | null>(null)
 
   const syncProgress = ref<SyncProgressResponse | null>(null)
   const syncing = ref(false)
   let syncProgressTimer: ReturnType<typeof setInterval> | null = null
+  let syncingAllAccounts = false
+  let syncJobs: Array<{
+    syncId: string
+    accountName: string
+    progress?: SyncProgressResponse
+    pollFailures: number
+    abandoned: boolean
+  }> = []
 
   const stopSyncPolling = () => {
     if (syncProgressTimer) {
@@ -54,39 +63,68 @@ export function useGoodsManager() {
     }
   }
 
-  const pollSyncProgress = async (syncId: string) => {
-    try {
-      const response = await getSyncProgress(syncId)
-      if (response.code === 0 || response.code === 200) {
-        if (response.data) {
-          syncProgress.value = response.data
-          if (response.data.isCompleted || !response.data.isRunning) {
-            stopSyncPolling()
-            syncing.value = false
-            refreshing.value = false
-            if (response.data.verificationRequired) {
-              showInfo(`商品基础信息已同步；闲鱼要求安全验证，${response.data.deferredCount || 1} 个商品详情暂未补充。请在闲鱼客户端确认账号状态后，在账号管理使用“凭证更新”重新扫码，再重试同步。`)
-            } else if (response.data.successCount && response.data.successCount > 0) {
-              showSuccess(`详情同步完成: 成功${response.data.successCount}个, 失败${response.data.failedCount}个`)
-            } else if (response.data.failedCount > 0) {
-              showInfo(`商品基础信息已同步，但有${response.data.failedCount}个详情暂未补全`)
-            }
-            await loadGoods()
-          }
+  const pollSyncProgress = async () => {
+    await Promise.all(syncJobs.filter(job => !job.abandoned && !(job.progress?.isCompleted || job.progress?.isRunning === false)).map(async (job) => {
+      try {
+        const response = await getSyncProgress(job.syncId)
+        if ((response.code === 0 || response.code === 200) && response.data) {
+          job.progress = response.data
+          job.pollFailures = 0
+        } else {
+          job.pollFailures++
         }
+      } catch (error) {
+        job.pollFailures++
+        console.error(`获取账号 ${job.accountName} 的同步进度失败:`, error)
       }
-    } catch (error) {
-      console.error('获取同步进度失败:', error)
+      if (job.pollFailures >= 5) job.abandoned = true
+    }))
+
+    const progresses = syncJobs.flatMap(job => job.progress ? [job.progress] : [])
+    if (progresses.length > 0) {
+      const first = progresses[0]!
+      syncProgress.value = {
+        ...first,
+        totalCount: progresses.reduce((sum, item) => sum + item.totalCount, 0),
+        completedCount: progresses.reduce((sum, item) => sum + item.completedCount, 0),
+        successCount: progresses.reduce((sum, item) => sum + item.successCount, 0),
+        failedCount: progresses.reduce((sum, item) => sum + item.failedCount, 0),
+        deferredCount: progresses.reduce((sum, item) => sum + item.deferredCount, 0),
+        verificationRequired: progresses.some(item => item.verificationRequired),
+        isCompleted: syncJobs.every(job => job.abandoned || job.progress?.isCompleted || job.progress?.isRunning === false),
+        isRunning: syncJobs.some(job => !job.abandoned && job.progress?.isRunning !== false && !job.progress?.isCompleted)
+      }
     }
+
+    const completed = syncJobs.length > 0 && syncJobs.every(job =>
+      job.abandoned || job.progress?.isCompleted || job.progress?.isRunning === false)
+    if (!completed) return
+
+    stopSyncPolling()
+    syncing.value = false
+    refreshing.value = false
+    const progress = syncProgress.value
+    const abandonedCount = syncJobs.filter(job => job.abandoned).length
+    const syncScope = syncingAllAccounts ? '所有账号' : (syncJobs[0]?.accountName || '当前账号')
+    if (progress?.verificationRequired) {
+      showInfo(`${syncScope}的商品基础信息已同步；有 ${progress.deferredCount || 1} 个商品因闲鱼安全验证暂未补全详情。`)
+    } else if (abandonedCount > 0) {
+      showInfo(`商品同步已完成，但有 ${abandonedCount} 个账号的详情进度暂时无法确认。`)
+    } else if (progress) {
+      showSuccess(`${syncScope}的详情同步完成：成功 ${progress.successCount} 个，失败 ${progress.failedCount} 个`)
+    }
+    await loadGoods()
   }
 
-  const startSyncPolling = (syncId: string) => {
+  const startSyncPolling = (jobs: Array<{ syncId: string; accountName: string }>, allAccounts: boolean) => {
     stopSyncPolling()
+    syncingAllAccounts = allAccounts
+    syncJobs = jobs.map(job => ({ ...job, pollFailures: 0, abandoned: false }))
     syncing.value = true
     syncProgressTimer = setInterval(() => {
-      void pollSyncProgress(syncId)
+      void pollSyncProgress()
     }, 1000)
-    void pollSyncProgress(syncId)
+    void pollSyncProgress()
   }
 
   onUnmounted(() => {
@@ -100,7 +138,13 @@ export function useGoodsManager() {
     const acc = accounts.value.find(a => a.id === selectedAccountId.value)
     return acc?.accountNote || acc?.unb || ''
   })
+  const selectedGoodsIds = computed(() => Object.keys(selectedGoodsTargets.value))
   const selectedGoodsCount = computed(() => selectedGoodsIds.value.length)
+  const goodsKey = (item: GoodsItemWithConfig) => `${item.item.xianyuAccountId}:${item.item.xyGoodId}`
+  const accountDisplayName = (accountId: number) => {
+    const account = accounts.value.find(item => item.id === accountId)
+    return account?.accountNote || account?.unb || `账号 ${accountId}`
+  }
 
   // 加载账号列表
   const loadAccounts = async () => {
@@ -113,22 +157,23 @@ export function useGoodsManager() {
           await loadGoods()
         }
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('加载账号列表失败:', error)
     }
   }
 
   // 加载商品列表
   const loadGoods = async () => {
-    if (!selectedAccountId.value) {
+    if (selectedAccountId.value === null) {
       showInfo('请先选择账号')
       return
     }
 
     loading.value = true
     try {
-      const params: any = {
-        xianyuAccountId: selectedAccountId.value,
+      const params: Parameters<typeof getGoodsList>[0] = {
+        xianyuAccountId: selectedAccountId.value === 0 ? undefined : selectedAccountId.value,
+        onlyOnSale: false,
         pageNum: currentPage.value,
         pageSize: pageSize.value
       }
@@ -140,7 +185,7 @@ export function useGoodsManager() {
         goodsList.value = response.data?.itemsWithConfig || []
         total.value = response.data?.totalCount || 0
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('加载商品列表失败:', error)
       goodsList.value = []
     } finally {
@@ -150,34 +195,55 @@ export function useGoodsManager() {
 
   // 刷新商品数据
   const handleRefresh = async () => {
-    if (!selectedAccountId.value) {
+    if (selectedAccountId.value === null) {
       showInfo('请先选择账号')
       return
     }
+    const targetAccounts = selectedAccountId.value === 0
+      ? accounts.value.filter(account => account.status === 1)
+      : accounts.value.filter(account => account.id === selectedAccountId.value)
+    if (targetAccounts.length === 0) {
+      showInfo('没有可同步的正常账号')
+      return
+    }
     refreshing.value = true
+    syncProgress.value = null
     try {
-      const response = await refreshGoods(selectedAccountId.value)
-      if (response.code === 0 || response.code === 200) {
-        if (response.data && response.data.success) {
-          // 基础商品列表已经同步入库，先显示它；详情补全在后台进行，不再让页面等待全部请求结束。
-          await loadGoods()
-          if (response.data.syncId) {
-            showSuccess(`已同步${response.data.successCount || 0}个商品，正在补全详情`)
-            startSyncPolling(response.data.syncId)
+      const jobs: Array<{ syncId: string; accountName: string }> = []
+      let successAccounts = 0
+      let successItems = 0
+      const failedAccounts: string[] = []
+      for (const account of targetAccounts) {
+        const accountName = account.accountNote || account.unb || `账号 ${account.id}`
+        try {
+          const response = await refreshGoods(account.id)
+          if ((response.code === 0 || response.code === 200) && response.data?.success) {
+            successAccounts++
+            successItems += response.data.successCount || 0
+            if (response.data.syncId) jobs.push({ syncId: response.data.syncId, accountName })
           } else {
-            showSuccess(`已同步${response.data.successCount || 0}个商品`)
-            refreshing.value = false
+            failedAccounts.push(accountName)
           }
-        } else {
-          showError(response.data?.message || '刷新商品数据失败')
-          refreshing.value = false
+        } catch (error) {
+          console.error(`同步账号 ${accountName} 失败:`, error)
+          failedAccounts.push(accountName)
         }
-      } else {
-        throw new Error(response.msg || '刷新商品数据失败')
       }
-    } catch (error: any) {
+      await loadGoods()
+      if (successAccounts > 0) {
+        const failureText = failedAccounts.length > 0 ? `，${failedAccounts.length} 个账号失败` : ''
+        showSuccess(`已同步 ${successAccounts} 个账号、${successItems} 个商品${failureText}`)
+      } else {
+        showError('所有账号同步均失败，请检查账号连接状态')
+      }
+      if (jobs.length > 0) {
+        startSyncPolling(jobs, selectedAccountId.value === 0)
+      } else {
+        refreshing.value = false
+      }
+    } catch (error: unknown) {
       console.error('刷新商品数据失败:', error)
-      showError(error?.message || '刷新商品数据失败，请稍后重试')
+      showError(errorMessage(error, '刷新商品数据失败，请稍后重试'))
       refreshing.value = false
     }
   }
@@ -189,58 +255,62 @@ export function useGoodsManager() {
     loadGoods()
   }
 
-  const toggleGoodsSelection = (xyGoodsId: string, selected: boolean) => {
-    const ids = new Set(selectedGoodsIds.value)
+  const toggleGoodsSelection = (item: GoodsItemWithConfig, selected: boolean) => {
+    const targets = { ...selectedGoodsTargets.value }
+    const key = goodsKey(item)
     if (selected) {
-      ids.add(xyGoodsId)
+      targets[key] = { accountId: item.item.xianyuAccountId, goodsId: item.item.xyGoodId }
     } else {
-      ids.delete(xyGoodsId)
+      delete targets[key]
     }
-    selectedGoodsIds.value = Array.from(ids)
+    selectedGoodsTargets.value = targets
   }
 
   const togglePageSelection = (selected: boolean) => {
-    const ids = new Set(selectedGoodsIds.value)
+    const targets = { ...selectedGoodsTargets.value }
     goodsList.value.forEach((goods) => {
+      const key = goodsKey(goods)
       if (selected) {
-        ids.add(goods.item.xyGoodId)
+        targets[key] = { accountId: goods.item.xianyuAccountId, goodsId: goods.item.xyGoodId }
       } else {
-        ids.delete(goods.item.xyGoodId)
+        delete targets[key]
       }
     })
-    selectedGoodsIds.value = Array.from(ids)
+    selectedGoodsTargets.value = targets
   }
 
   const clearGoodsSelection = () => {
-    selectedGoodsIds.value = []
+    selectedGoodsTargets.value = {}
   }
 
   const updateSelectedGoodsConfig = async (
-    options: Omit<BatchUpdateGoodsConfigReq, 'xianyuAccountId' | 'xyGoodsIds'>,
-    targetGoodsIds = selectedGoodsIds.value
+    options: Omit<BatchUpdateGoodsConfigReq, 'xianyuAccountId' | 'xyGoodsIds'>
   ) => {
-    if (!selectedAccountId.value || targetGoodsIds.length === 0) {
+    const targets = Object.values(selectedGoodsTargets.value)
+    if (targets.length === 0) {
       showInfo('请先选择要批量配置的商品')
       return false
     }
 
     batchUpdating.value = true
     try {
-      const response = await batchUpdateGoodsConfig({
-        xianyuAccountId: selectedAccountId.value,
-        xyGoodsIds: targetGoodsIds,
-        ...options
-      })
-      if (response.code !== 0 && response.code !== 200) {
-        throw new Error(response.msg || '批量配置失败')
+      const grouped = new Map<number, string[]>()
+      targets.forEach(target => grouped.set(target.accountId, [
+        ...(grouped.get(target.accountId) || []), target.goodsId
+      ]))
+      for (const [accountId, xyGoodsIds] of grouped) {
+        const response = await batchUpdateGoodsConfig({ xianyuAccountId: accountId, xyGoodsIds, ...options })
+        if (response.code !== 0 && response.code !== 200) {
+          throw new Error(`${accountDisplayName(accountId)}：${response.msg || '批量配置失败'}`)
+        }
       }
-      showSuccess(response.data?.message || '批量配置成功')
+      showSuccess(`已完成 ${grouped.size} 个账号、${targets.length} 个商品的批量配置`)
       clearGoodsSelection()
       await loadGoods()
       return true
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('批量配置商品失败:', error)
-      showError(error?.message || '批量配置失败，请稍后重试')
+      showError(errorMessage(error, '批量配置失败，请稍后重试'))
       return false
     } finally {
       batchUpdating.value = false
@@ -260,28 +330,18 @@ export function useGoodsManager() {
   }
 
   // 查看详情
-  const viewDetail = (xyGoodId: string) => {
-    selectedGoodsId.value = xyGoodId
+  const viewDetail = (item: GoodsItemWithConfig) => {
+    selectedGoodsId.value = item.item.xyGoodId
+    selectedGoodsAccountId.value = item.item.xianyuAccountId
     dialogs.detail = true
-  }
-
-  // 配置自动发货
-  const configAutoDelivery = (item: GoodsItemWithConfig) => {
-    router.push({
-      path: '/auto-delivery',
-      query: {
-        accountId: selectedAccountId.value?.toString(),
-        goodsId: item.item.xyGoodId
-      }
-    })
   }
 
   // 切换自动发货
   const toggleAutoDelivery = async (item: GoodsItemWithConfig, value: boolean) => {
-    if (!selectedAccountId.value) return
+    const accountId = item.item.xianyuAccountId
     try {
       const response = await updateAutoDeliveryStatus({
-        xianyuAccountId: selectedAccountId.value,
+        xianyuAccountId: accountId,
         xyGoodsId: item.item.xyGoodId,
         xianyuAutoDeliveryOn: value ? 1 : 0
       })
@@ -291,7 +351,7 @@ export function useGoodsManager() {
       } else {
         throw new Error(response.msg || '操作失败')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('操作失败:', error)
       item.xianyuAutoDeliveryOn = value ? 0 : 1
     }
@@ -299,10 +359,10 @@ export function useGoodsManager() {
 
   // 切换自动回复
   const toggleAutoReply = async (item: GoodsItemWithConfig, value: boolean) => {
-    if (!selectedAccountId.value) return
+    const accountId = item.item.xianyuAccountId
     try {
       const response = await updateAutoReplyStatus({
-        xianyuAccountId: selectedAccountId.value,
+        xianyuAccountId: accountId,
         xyGoodsId: item.item.xyGoodId,
         xianyuAutoReplyOn: value ? 1 : 0
       })
@@ -312,23 +372,27 @@ export function useGoodsManager() {
       } else {
         throw new Error(response.msg || '操作失败')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('操作失败:', error)
       item.xianyuAutoReplyOn = value ? 0 : 1
     }
   }
 
   // 删除商品
-  const confirmDelete = (xyGoodId: string, title: string) => {
-    deleteTarget.value = { id: xyGoodId, title }
+  const confirmDelete = (item: GoodsItemWithConfig) => {
+    deleteTarget.value = {
+      accountId: item.item.xianyuAccountId,
+      id: item.item.xyGoodId,
+      title: item.item.title
+    }
     dialogs.deleteConfirm = true
   }
 
   const executeDelete = async () => {
-    if (!selectedAccountId.value || !deleteTarget.value) return
+    if (!deleteTarget.value) return
     try {
       const response = await deleteItem({
-        xianyuAccountId: selectedAccountId.value,
+        xianyuAccountId: deleteTarget.value.accountId,
         xyGoodsId: deleteTarget.value.id
       })
       if (response.code === 0 || response.code === 200) {
@@ -339,20 +403,19 @@ export function useGoodsManager() {
       } else {
         throw new Error(response.msg || '删除失败')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // 只有在错误消息未显示过时才弹出提示（避免重复显示）
-      if (!error.messageShown) {
-        showError('删除失败: ' + error.message)
+      if (!messageWasShown(error)) {
+        showError('删除失败: ' + errorMessage(error, '未知错误'))
       }
     }
   }
 
-  const syncSingleGoods = async (xyGoodId: string) => {
-    if (!selectedAccountId.value) return
+  const syncSingleGoods = async (item: GoodsItemWithConfig) => {
     try {
       const response = await syncSingleItem({
-        xianyuAccountId: selectedAccountId.value,
-        xyGoodsId: xyGoodId
+        xianyuAccountId: item.item.xianyuAccountId,
+        xyGoodsId: item.item.xyGoodId
       })
       if ((response.code === 0 || response.code === 200) && response.data?.success) {
         showSuccess('同步成功')
@@ -360,9 +423,9 @@ export function useGoodsManager() {
       } else {
         throw new Error(response.data?.message || response.msg || '同步失败')
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('同步失败:', error)
-      showError(error.message || '同步失败')
+      showError(errorMessage(error, '同步失败'))
     }
   }
 
@@ -385,6 +448,7 @@ export function useGoodsManager() {
     batchUpdating,
     dialogs,
     selectedGoodsId,
+    selectedGoodsAccountId,
     selectedGoods,
     deleteTarget,
     loadAccounts,
@@ -398,7 +462,6 @@ export function useGoodsManager() {
     handleStatusFilter,
     handlePageChange,
     viewDetail,
-    configAutoDelivery,
     toggleAutoDelivery,
     toggleAutoReply,
     confirmDelete,

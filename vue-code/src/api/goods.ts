@@ -1,5 +1,4 @@
 import { request } from '@/utils/request';
-import type { ApiResponse } from '@/types';
 
 // 商品信息
 export interface GoodsItem {
@@ -85,8 +84,9 @@ export interface SyncSingleItemResponse {
 
 // 获取商品列表
 export function getGoodsList(data: {
-  xianyuAccountId: number;
+  xianyuAccountId?: number;
   onlyOnSale?: boolean;
+  status?: number;
   pageNum?: number;
   pageSize?: number;
 }) {

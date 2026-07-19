@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, reactive, computed, inject, defineComponent, h } from 'vue'
+import { onMounted, ref, reactive, computed, inject, defineComponent, h, type Component } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGoodsManager } from './useGoodsManager'
 import { getKamiConfigs } from '@/api/kami-config'
@@ -10,7 +10,6 @@ import '@/styles/header-selectors.css'
 
 import IconShoppingBag from '@/components/icons/IconShoppingBag.vue'
 import IconRefresh from '@/components/icons/IconRefresh.vue'
-import IconFilter from '@/components/icons/IconFilter.vue'
 import IconChevronDown from '@/components/icons/IconChevronDown.vue'
 import IconChevronLeft from '@/components/icons/IconChevronLeft.vue'
 import IconChevronRight from '@/components/icons/IconChevronRight.vue'
@@ -31,7 +30,6 @@ const {
   statusFilter,
   goodsList,
   currentPage,
-  pageSize,
   total,
   totalPages,
   selectedGoodsIds,
@@ -39,6 +37,7 @@ const {
   batchUpdating,
   dialogs,
   selectedGoodsId,
+  selectedGoodsAccountId,
   deleteTarget,
   loadAccounts,
   loadGoods,
@@ -55,15 +54,18 @@ const {
   toggleAutoReply,
   confirmDelete,
   executeDelete,
-  getGoodsStatusText,
-  formatPrice,
-  formatTime,
   syncSingleGoods
 } = useGoodsManager()
+
+defineOptions({ name: 'GoodsIndex' })
 
 // 商品页是配置入口：每个商品的发货、AI 与关键词开关都从这里统一进入。
 const configDialogVisible = ref(false)
 const configTarget = ref<GoodsItemWithConfig | null>(null)
+const configTargetAccountId = computed(() => configTarget.value?.item.xianyuAccountId ?? null)
+const accountNames = computed<Record<number, string>>(() => Object.fromEntries(
+  accounts.value.map(account => [account.id, account.accountNote || account.unb || `账号 ${account.id}`])
+))
 
 const openGoodsConfig = (item: GoodsItemWithConfig) => {
   configTarget.value = item
@@ -76,12 +78,12 @@ const handleGoodsConfigSaved = () => {
 
 const openKeywordRules = () => {
   const item = configTarget.value
-  if (!item || !selectedAccountId.value) return
+  if (!item) return
   configDialogVisible.value = false
   router.push({
     path: '/auto-reply',
     query: {
-      accountId: String(selectedAccountId.value),
+      accountId: String(item.item.xianyuAccountId),
       goodsId: item.item.xyGoodId
     }
   })
@@ -158,7 +160,7 @@ const handleTouchEnd = async () => {
 }
 
 // 获取导航栏内容设置函数
-const setHeaderContent = inject<(content: any) => void>('setHeaderContent')
+const setHeaderContent = inject<(content: Component) => void>('setHeaderContent')
 
 // 创建导航栏选择器组件
 const HeaderSelectors = defineComponent({
@@ -175,6 +177,7 @@ const HeaderSelectors = defineComponent({
           }
         }, [
           h('option', { value: '', disabled: true }, '选择账号'),
+          h('option', { value: '0' }, '所有账号'),
           ...accounts.value.map(acc => 
             h('option', { value: acc.id.toString() }, acc.accountNote || acc.unb)
           )
@@ -200,7 +203,7 @@ const HeaderSelectors = defineComponent({
       ]),
       h('button', {
         class: ['header-refresh-btn', { 'header-refresh-btn--loading': refreshing.value || syncing.value }],
-        disabled: refreshing.value || syncing.value || !selectedAccountId.value,
+        disabled: refreshing.value || syncing.value || selectedAccountId.value === null,
         onClick: handleRefresh
       }, [
         h(IconRefresh, { class: 'header-refresh-icon' })
@@ -244,7 +247,7 @@ const batchForm = reactive({
 })
 
 const availableKamiConfigs = computed(() => kamiConfigs.value.filter((config) =>
-  config.xianyuAccountId == null || config.xianyuAccountId === selectedAccountId.value
+  config.xianyuAccountId == null || (selectedAccountId.value !== 0 && config.xianyuAccountId === selectedAccountId.value)
 ))
 
 const sourceTypeText = (config: KamiConfig) => {
@@ -326,6 +329,7 @@ const submitBatchUpdate = async () => {
               @change="handleAccountChange"
             >
               <option :value="null" disabled>选择账号</option>
+              <option :value="0">所有账号</option>
               <option v-for="acc in accounts" :key="acc.id" :value="acc.id">
                 {{ acc.accountNote || acc.unb }}
               </option>
@@ -355,7 +359,7 @@ const submitBatchUpdate = async () => {
         <button
           class="btn btn--primary desktop-only"
           :class="{ 'btn--loading': refreshing || syncing }"
-          :disabled="refreshing || syncing || !selectedAccountId"
+          :disabled="refreshing || syncing || selectedAccountId === null"
           @click="handleRefresh"
         >
           <IconRefresh />
@@ -373,7 +377,7 @@ const submitBatchUpdate = async () => {
           <div class="goods__sync-bar">
             <div 
               class="goods__sync-bar-fill" 
-              :style="{ width: `${(syncProgress.completedCount / syncProgress.totalCount) * 100}%` }"
+              :style="{ width: `${syncProgress.totalCount > 0 ? (syncProgress.completedCount / syncProgress.totalCount) * 100 : 0}%` }"
             ></div>
           </div>
         </div>
@@ -423,6 +427,8 @@ const submitBatchUpdate = async () => {
           :goods-list="goodsList"
           :loading="loading"
           :selected-goods-ids="selectedGoodsIds"
+          :account-names="accountNames"
+          :show-account="selectedAccountId === 0"
           @view="viewDetail"
           @sync="syncSingleGoods"
           @toggle-auto-delivery="toggleAutoDelivery"
@@ -470,7 +476,7 @@ const submitBatchUpdate = async () => {
     <GoodsDetail
       v-model="dialogs.detail"
       :goods-id="selectedGoodsId"
-      :account-id="selectedAccountId"
+      :account-id="selectedGoodsAccountId"
       @refresh="loadGoods"
       @configure="openGoodsConfig"
     />
@@ -478,7 +484,7 @@ const submitBatchUpdate = async () => {
     <GoodsConfigDialog
       v-model="configDialogVisible"
       :item="configTarget"
-      :account-id="selectedAccountId"
+      :account-id="configTargetAccountId"
       @saved="handleGoodsConfigSaved"
       @open-keyword-rules="openKeywordRules"
     />
@@ -493,7 +499,8 @@ const submitBatchUpdate = async () => {
           </div>
           <div class="goods__dialog-body">
             <p class="goods__dialog-text">
-              确定要删除「{{ deleteTarget?.title }}」吗？此操作不可恢复。
+              确定要删除「{{ deleteTarget?.title }}」吗？该商品属于
+              {{ deleteTarget ? (accountNames[deleteTarget.accountId] || `账号 ${deleteTarget.accountId}`) : '' }}，此操作不可恢复。
             </p>
           </div>
           <div class="goods__dialog-footer">
