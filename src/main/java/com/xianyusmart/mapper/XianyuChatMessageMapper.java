@@ -157,6 +157,7 @@ public interface XianyuChatMessageMapper {
             "SELECT m.s_id AS sid, " +
             "COALESCE(NULLIF(n.sender_user_name, ''), '未知买家') AS buyer_user_name, " +
             "COALESCE(NULLIF(b.sender_user_id, ''), NULLIF(m.sender_user_id, '')) AS buyer_user_id, " +
+            "b.complete_msg AS buyer_complete_msg, " +
             "m.xy_goods_id AS xy_goods_id, m.msg_content AS last_message, " +
             "m.message_time AS last_message_time, m.content_type AS last_content_type, " +
             "h.end_time AS takeover_end_time, " +

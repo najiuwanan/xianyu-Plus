@@ -1,5 +1,6 @@
 package com.xianyusmart.service.impl;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xianyusmart.common.ResultObject;
 import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.entity.XianyuChatMessage;
@@ -22,6 +23,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import org.springframework.util.StringUtils;
 
 /**
@@ -42,6 +46,15 @@ public class ChatMessageServiceImpl implements ChatMessageService {
 
     @Autowired
     private XianyuChatBuyerTagMapper buyerTagMapper;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    private static final Set<String> AVATAR_KEYS = Set.of(
+            "avatar", "avatarurl", "senderavatar", "senderavatarurl",
+            "useravatar", "useravatarurl", "headurl", "headpic",
+            "headimage", "portrait", "portraiturl", "usericon", "usericonurl"
+    );
     
     @Override
     public List<XianyuChatMessage> getMessagesByAccountId(Long accountId, int page, int pageSize) {
@@ -188,6 +201,10 @@ public class ChatMessageServiceImpl implements ChatMessageService {
             int limit = reqDTO.getLimit() == null ? 80 : Math.max(1, Math.min(reqDTO.getLimit(), 200));
             List<ChatSessionDTO> sessions = chatMessageMapper.findRecentSessions(
                     reqDTO.getXianyuAccountId(), account.getUnb(), limit);
+            if (sessions != null) {
+                sessions.forEach(session -> session.setBuyerAvatarUrl(
+                        extractBuyerAvatarUrl(session.getBuyerCompleteMsg())));
+            }
             return ResultObject.success(sessions);
         } catch (Exception e) {
             log.error("查询在线客服会话失败: accountId={}", reqDTO.getXianyuAccountId(), e);
@@ -263,5 +280,93 @@ public class ChatMessageServiceImpl implements ChatMessageService {
             return "标签不能包含英文逗号";
         }
         return null;
+    }
+
+    private String extractBuyerAvatarUrl(String completeMsg) {
+        if (!StringUtils.hasText(completeMsg)) {
+            return null;
+        }
+        try {
+            return findAvatarUrl(objectMapper.readValue(completeMsg, Object.class));
+        } catch (Exception e) {
+            log.debug("解析买家头像失败", e);
+            return null;
+        }
+    }
+
+    private String findAvatarUrl(Object node) {
+        if (node instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = normalizeKey(entry.getKey());
+                if (AVATAR_KEYS.contains(key)) {
+                    String avatarUrl = extractImageUrl(entry.getValue());
+                    if (avatarUrl != null) {
+                        return avatarUrl;
+                    }
+                }
+            }
+            for (Object value : map.values()) {
+                String avatarUrl = findAvatarUrl(value);
+                if (avatarUrl != null) {
+                    return avatarUrl;
+                }
+            }
+        } else if (node instanceof List<?> list) {
+            for (Object value : list) {
+                String avatarUrl = findAvatarUrl(value);
+                if (avatarUrl != null) {
+                    return avatarUrl;
+                }
+            }
+        } else if (node instanceof String text) {
+            String nestedJson = text.trim();
+            if ((nestedJson.startsWith("{") && nestedJson.endsWith("}"))
+                    || (nestedJson.startsWith("[") && nestedJson.endsWith("]"))) {
+                try {
+                    return findAvatarUrl(objectMapper.readValue(nestedJson, Object.class));
+                } catch (Exception ignored) {
+                    // 普通聊天文本可能恰好带有大括号，无法解析时继续忽略。
+                }
+            }
+        }
+        return null;
+    }
+
+    private String extractImageUrl(Object value) {
+        if (value instanceof String text) {
+            return normalizeImageUrl(text);
+        }
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = normalizeKey(entry.getKey());
+                if (key.equals("url") || key.equals("imageurl") || key.equals("picurl")
+                        || key.equals("resourceurl")) {
+                    String imageUrl = extractImageUrl(entry.getValue());
+                    if (imageUrl != null) {
+                        return imageUrl;
+                    }
+                }
+            }
+        } else if (value instanceof List<?> list) {
+            for (Object item : list) {
+                String imageUrl = extractImageUrl(item);
+                if (imageUrl != null) {
+                    return imageUrl;
+                }
+            }
+        }
+        return null;
+    }
+
+    private String normalizeKey(Object key) {
+        return String.valueOf(key).toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    }
+
+    private String normalizeImageUrl(String value) {
+        String url = value == null ? "" : value.trim();
+        if (url.startsWith("//")) {
+            url = "https:" + url;
+        }
+        return url.startsWith("https://") || url.startsWith("http://") ? url : null;
     }
 }

@@ -1,5 +1,6 @@
 package com.xianyusmart.controller.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -11,6 +12,10 @@ public class ChatSessionDTO {
     private String sid;
     private String buyerUserName;
     private String buyerUserId;
+    private String buyerAvatarUrl;
+    /** 用于从历史消息中提取买家头像，不返回给前端。 */
+    @JsonIgnore
+    private String buyerCompleteMsg;
     private String xyGoodsId;
     private String lastMessage;
     private Long lastMessageTime;
