@@ -619,8 +619,14 @@ public class SyncMessageHandler extends AbstractLwpHandler {
             return null;
         }
         String nickname = candidate.trim();
+        String normalizedContent = messageContent == null ? "" : messageContent.trim();
+        // 协议里 reminderTitle 等字段偶尔是消息正文或正文开头，而不是昵称。
+        // 短字符串同时又是正文前缀时，宁可不保存昵称，前端会回退展示买家 ID。
+        boolean messageFragment = nickname.length() <= 2
+                && normalizedContent.length() > nickname.length()
+                && normalizedContent.startsWith(nickname);
         if (nickname.isEmpty() || nickname.length() > 40 || nickname.contains("\n") || nickname.contains("\r")
-                || nickname.startsWith("{") || nickname.equals(messageContent == null ? "" : messageContent.trim())) {
+                || nickname.startsWith("{") || nickname.equals(normalizedContent) || messageFragment) {
             return null;
         }
         return nickname;

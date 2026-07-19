@@ -58,10 +58,26 @@ const unreadTotal = computed(() => sessions.value.reduce((total, session) => tot
 
 const selectedSessionTags = computed(() => getSessionTags(selectedSession.value))
 
+const normalizeComparableText = (value: unknown) =>
+  String(value ?? '').replace(/[\s【】\[\]()（）"'“”‘’]/g, '').trim()
+
+const isUsableDisplayName = (candidate: unknown, content?: unknown) => {
+  const name = String(candidate ?? '').trim()
+  if (!name || name.length > 40 || ['未知买家', '工作台通知', '系统通知'].includes(name)) return false
+  const normalizedName = normalizeComparableText(name)
+  const normalizedContent = normalizeComparableText(content)
+  // 部分历史消息会把正文或正文开头误写进昵称字段，例如“我完成了评价”被写成“我”。
+  // 这类数据不能作为买家名展示，统一回退到买家 ID。
+  const looksLikeMessageFragment = normalizedName.length <= 2
+    && normalizedContent.length > normalizedName.length
+    && normalizedContent.startsWith(normalizedName)
+  return Boolean(normalizedName && normalizedName !== normalizedContent && !looksLikeMessageFragment)
+}
+
 const getBuyerDisplayName = (session?: ChatSession | null) => {
   const buyerName = String(session?.buyerUserName || '').trim()
   const lastMessage = String(session?.lastMessage || '').trim()
-  if (buyerName && buyerName !== '未知买家' && buyerName !== lastMessage && buyerName.length <= 40) {
+  if (isUsableDisplayName(buyerName, lastMessage)) {
     return buyerName
   }
   const buyerId = String(session?.buyerUserId || '').trim()
@@ -71,10 +87,17 @@ const getBuyerDisplayName = (session?: ChatSession | null) => {
 const getMessageSenderName = (message: ChatMessage) => {
   if (isMine(message)) return '我'
   const senderName = String(message.senderUserName || '').trim()
-  if (senderName && senderName !== String(message.msgContent || '').trim() && senderName.length <= 40) {
+  if (isUsableDisplayName(senderName, message.msgContent)) {
     return senderName
   }
   return getBuyerDisplayName(selectedSession.value)
+}
+
+const getAccountAvatar = (account: Account) => String(account.avatarUrl || '').trim()
+
+const getSessionAvatar = (session?: ChatSession | null) => {
+  const avatar = String(session?.buyerAvatarUrl || session?.buyerAvatar || '').trim()
+  return /^https?:\/\//i.test(avatar) ? avatar : ''
 }
 
 const filteredSessions = computed(() => {
@@ -296,11 +319,17 @@ const loadMessages = async (silent = false) => {
   }
 }
 
-const selectAccount = async () => {
-  selectedSession.value = null
-  messages.value = []
-  tagFilter.value = ''
-  sessionFilter.value = 'ALL'
+const selectAccount = async (accountId?: number) => {
+  const nextAccountId = Number(accountId ?? selectedAccountId.value)
+  if (!nextAccountId) return
+  const changed = selectedAccountId.value !== nextAccountId
+  selectedAccountId.value = nextAccountId
+  if (changed) {
+    selectedSession.value = null
+    messages.value = []
+    tagFilter.value = ''
+    sessionFilter.value = 'ALL'
+  }
   await loadSessions()
 }
 
@@ -430,7 +459,7 @@ onBeforeUnmount(() => {
       </div>
       <div class="customer-service__toolbar">
         <span v-if="unreadTotal > 0" class="customer-service__unread">{{ unreadTotal }} 条未读</span>
-        <select v-model="selectedAccountId" class="customer-service__select" @change="selectAccount">
+        <select v-model="selectedAccountId" class="customer-service__select" @change="selectAccount()">
           <option v-for="account in accounts" :key="account.id" :value="Number(account.id)">
             {{ account.accountNote || account.unb }}
           </option>
@@ -443,6 +472,39 @@ onBeforeUnmount(() => {
     </header>
 
     <main class="customer-service__workspace">
+      <aside class="account-panel">
+        <div class="account-panel__header">
+          <div>
+            <strong>账号列表</strong>
+            <span>{{ accounts.length }}</span>
+          </div>
+          <button type="button" title="刷新账号与会话" :disabled="loadingSessions" @click="loadAccounts">
+            <IconRefresh />
+          </button>
+        </div>
+        <div class="account-panel__list">
+          <button
+            v-for="account in accounts"
+            :key="account.id"
+            type="button"
+            class="account-item"
+            :class="{ 'account-item--active': Number(account.id) === selectedAccountId }"
+            @click="selectAccount(Number(account.id))"
+          >
+            <div class="account-item__avatar">
+              <img v-if="getAccountAvatar(account)" :src="getAccountAvatar(account)" :alt="account.accountNote || account.unb">
+              <span v-else>{{ (account.accountNote || account.unb || '闲').slice(0, 1) }}</span>
+            </div>
+            <div class="account-item__body">
+              <strong>{{ account.accountNote || account.unb || '未命名账号' }}</strong>
+              <span>UNB: {{ account.unb || '-' }}</span>
+              <em :class="{ 'is-online': Number(account.status) === 1 }">{{ Number(account.status) === 1 ? '账号正常' : '已停用' }}</em>
+            </div>
+          </button>
+          <div v-if="!accounts.length" class="account-panel__empty">暂无可用账号</div>
+        </div>
+      </aside>
+
       <aside class="session-panel">
         <div class="session-panel__search">
           <input v-model="searchText" type="search" placeholder="搜索买家、商品或消息">
@@ -472,7 +534,10 @@ onBeforeUnmount(() => {
             :class="{ 'session-item--active': selectedSession?.sid === session.sid }"
             @click="selectSession(session)"
           >
-            <div class="session-item__avatar">{{ getBuyerDisplayName(session).slice(0, 1) }}</div>
+            <div class="session-item__avatar">
+              <img v-if="getSessionAvatar(session)" :src="getSessionAvatar(session)" :alt="getBuyerDisplayName(session)">
+              <span v-else>{{ getBuyerDisplayName(session).slice(0, 1) }}</span>
+            </div>
             <div class="session-item__body">
               <div class="session-item__top">
                 <strong>{{ getBuyerDisplayName(session) }}</strong>
@@ -496,7 +561,10 @@ onBeforeUnmount(() => {
         <template v-if="selectedSession">
           <header class="chat-panel__header">
             <div class="chat-panel__buyer">
-              <div class="chat-panel__avatar">{{ getBuyerDisplayName(selectedSession).slice(0, 1) }}</div>
+              <div class="chat-panel__avatar">
+                <img v-if="getSessionAvatar(selectedSession)" :src="getSessionAvatar(selectedSession)" :alt="getBuyerDisplayName(selectedSession)">
+                <span v-else>{{ getBuyerDisplayName(selectedSession).slice(0, 1) }}</span>
+              </div>
               <div>
                 <h2>{{ getBuyerDisplayName(selectedSession) }}</h2>
                 <p>{{ hasActiveTakeover ? `人工接管至 ${formatTakeoverEnd(selectedSession.takeoverEndTime)}` : 'AI 自动回复可按商品设置执行' }}</p>
@@ -517,8 +585,9 @@ onBeforeUnmount(() => {
                 class="chat-message"
                 :class="{ 'chat-message--mine': isMine(message), 'chat-message--system': !isMine(message) && message.contentType !== 1 }"
               >
-                <div v-if="message.contentType === 1 || isMine(message)" class="chat-message__avatar">
-                  <IconUser />
+                <div class="chat-message__avatar">
+                  <img v-if="!isMine(message) && getSessionAvatar(selectedSession)" :src="getSessionAvatar(selectedSession)" :alt="getMessageSenderName(message)">
+                  <IconUser v-else />
                 </div>
                 <div class="chat-message__content">
                   <div class="chat-message__meta">
@@ -623,6 +692,7 @@ h1 { font-size:24px; line-height:1.2; }
 .customer-service__toolbar { gap:9px; }
 .customer-service__unread { display:inline-flex; align-items:center; height:28px; padding:0 9px; border-radius:999px; color:#b42318; background:#fef3f2; font-size:12px; font-weight:700; white-space:nowrap; }
 .customer-service__select, .detail-panel select { height:36px; border:1px solid rgba(60,60,67,.18); border-radius:9px; padding:0 10px; background:#fff; color:#1c1c1e; }
+.customer-service__select { display:none; }
 .customer-service__refresh-button { height:36px; display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:0 13px; border:1px solid rgba(10,132,255,.28); border-radius:9px; color:#0969c7; background:linear-gradient(180deg, #fff 0%, #f4f9ff 100%); box-shadow:0 3px 10px rgba(10,132,255,.10); cursor:pointer; font:inherit; font-size:12px; font-weight:600; white-space:nowrap; transition:transform .15s ease, box-shadow .15s ease, background .15s ease; }
 .customer-service__refresh-button svg { width:15px; height:15px; }
 .customer-service__refresh-button:hover:not(:disabled) { background:#eef7ff; box-shadow:0 5px 14px rgba(10,132,255,.18); transform:translateY(-1px); }
@@ -630,8 +700,31 @@ h1 { font-size:24px; line-height:1.2; }
 .customer-service__refresh-button:disabled { cursor:not-allowed; opacity:.62; }
 .customer-service__refresh-button.is-loading svg { animation:customer-service-spin .72s linear infinite; }
 @keyframes customer-service-spin { to { transform:rotate(360deg); } }
-.customer-service__workspace { min-height:0; flex:1; display:grid; grid-template-columns:280px minmax(360px, 1fr) 260px; overflow:hidden; background:rgba(255,255,255,.9); border:1px solid rgba(60,60,67,.12); border-radius:16px; box-shadow:0 7px 28px rgba(0,0,0,.05); }
-.session-panel, .chat-panel, .detail-panel { min-height:0; background:rgba(248,249,251,.75); min-width:0; }
+.customer-service__workspace { min-height:0; flex:1; display:grid; grid-template-columns:196px 280px minmax(360px, 1fr) 260px; overflow:hidden; background:rgba(255,255,255,.9); border:1px solid rgba(60,60,67,.12); border-radius:16px; box-shadow:0 7px 28px rgba(0,0,0,.05); }
+.account-panel, .session-panel, .chat-panel, .detail-panel { min-height:0; background:rgba(248,249,251,.75); min-width:0; }
+.account-panel { display:flex; flex-direction:column; border-right:1px solid rgba(60,60,67,.1); background:#fbfcfe; }
+.account-panel__header { display:flex; align-items:center; justify-content:space-between; min-height:58px; padding:0 14px; border-bottom:1px solid rgba(60,60,67,.1); }
+.account-panel__header > div { display:flex; align-items:center; gap:8px; }
+.account-panel__header strong { color:#20293a; font-size:14px; }
+.account-panel__header span { display:inline-grid; min-width:20px; height:20px; padding:0 6px; place-items:center; border-radius:999px; color:#3173d8; background:#edf3ff; font-size:12px; font-weight:700; box-sizing:border-box; }
+.account-panel__header button { display:grid; width:30px; height:30px; padding:0; place-items:center; border:0; border-radius:9px; color:#5285c7; background:transparent; cursor:pointer; }
+.account-panel__header button:hover:not(:disabled) { background:#edf5ff; }
+.account-panel__header button:disabled { cursor:not-allowed; opacity:.5; }
+.account-panel__header button svg { width:16px; height:16px; }
+.account-panel__list { flex:1; min-height:0; overflow-y:auto; padding:10px; }
+.account-item { display:flex; width:100%; align-items:flex-start; gap:10px; padding:12px 10px; border:1px solid transparent; border-radius:12px; color:inherit; background:transparent; cursor:pointer; font:inherit; text-align:left; transition:.2s ease; }
+.account-item:hover { background:#f4f8ff; }
+.account-item--active { border-color:#b9dcff; background:linear-gradient(135deg,#eff7ff,#f1fbf5); box-shadow:0 5px 14px rgba(48,134,235,.12); }
+.account-item__avatar { display:grid; flex:0 0 36px; width:36px; height:36px; overflow:hidden; place-items:center; border-radius:50%; color:#226ac9; background:linear-gradient(135deg,#d7eaff,#a9ceff); font-weight:700; }
+.account-item__avatar img, .session-item__avatar img, .chat-panel__avatar img, .chat-message__avatar img { display:block; width:100%; height:100%; object-fit:cover; }
+.account-item__body { display:grid; min-width:0; gap:3px; }
+.account-item__body strong { overflow:hidden; color:#233044; font-size:14px; text-overflow:ellipsis; white-space:nowrap; }
+.account-item__body span { overflow:hidden; color:#8994a7; font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
+.account-item__body em { color:#a95d56; font-size:11px; font-style:normal; }
+.account-item__body em::before { display:inline-block; width:6px; height:6px; margin-right:4px; border-radius:50%; background:#f17972; content:''; }
+.account-item__body em.is-online { color:#21935e; }
+.account-item__body em.is-online::before { background:#30c776; }
+.account-panel__empty { padding:32px 12px; color:#97a3b7; font-size:13px; text-align:center; }
 .session-panel { display:flex; flex-direction:column; border-right:1px solid rgba(60,60,67,.1); }
 .session-panel__search { padding:14px 13px 9px; }
 .session-panel__search input { width:100%; height:36px; box-sizing:border-box; border:1px solid rgba(60,60,67,.14); border-radius:9px; background:#fff; padding:0 10px; outline:none; font:inherit; font-size:13px; }
@@ -647,7 +740,7 @@ h1 { font-size:24px; line-height:1.2; }
 .session-item { display:flex; width:100%; gap:10px; padding:12px 13px; text-align:left; border:0; border-top:1px solid rgba(60,60,67,.06); background:transparent; cursor:pointer; color:inherit; font:inherit; }
 .session-item:hover { background:rgba(10,132,255,.05); }
 .session-item--active { background:rgba(10,132,255,.11); box-shadow:inset 3px 0 #0a84ff; }
-.session-item__avatar, .chat-panel__avatar { display:grid; place-items:center; flex-shrink:0; width:36px; height:36px; border-radius:50%; background:#d9ecff; color:#0a84ff; font-size:14px; font-weight:700; }
+.session-item__avatar, .chat-panel__avatar { display:grid; place-items:center; flex-shrink:0; width:36px; height:36px; overflow:hidden; border-radius:50%; background:#d9ecff; color:#0a84ff; font-size:14px; font-weight:700; }
 .session-item__body { min-width:0; flex:1; }
 .session-item__top { display:flex; justify-content:space-between; gap:8px; align-items:center; }
 .session-item__top strong { font-size:13px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
@@ -672,7 +765,7 @@ h1 { font-size:24px; line-height:1.2; }
 .chat-message { display:flex; align-items:flex-end; gap:8px; margin-bottom:16px; }
 .chat-message--mine { flex-direction:row-reverse; }
 .chat-message--system { justify-content:center; }
-.chat-message__avatar { width:30px; height:30px; color:#fff; background:#4aa3ff; }
+.chat-message__avatar { display:grid; flex:0 0 30px; width:30px; height:30px; overflow:hidden; place-items:center; border-radius:50%; color:#fff; background:#4aa3ff; }
 .chat-message--mine .chat-message__avatar { background:#30a657; }
 .chat-message__avatar svg { width:15px; }
 .chat-message__content { max-width:72%; }
@@ -719,6 +812,7 @@ h1 { font-size:24px; line-height:1.2; }
 .detail-panel__takeover-button { width:100%; height:36px; margin-top:14px; border:0; border-radius:9px; color:#fff; background:#ff9500; cursor:pointer; font:inherit; font-size:13px; }
 .detail-panel__takeover-button--release { background:#0a84ff; }
 .detail-panel__takeover-button:disabled { opacity:.55; cursor:not-allowed; }
-@media (max-width: 1100px) { .customer-service__workspace { grid-template-columns:250px minmax(360px, 1fr); } .detail-panel { display:none; } }
+@media (max-width: 1420px) { .customer-service__workspace { grid-template-columns:196px 280px minmax(360px, 1fr); } .detail-panel { display:none; } }
+@media (max-width: 1080px) { .customer-service__select { display:block; } .customer-service__workspace { grid-template-columns:250px minmax(360px, 1fr); } .account-panel { display:none; } }
 @media (max-width: 720px) { .customer-service { height:auto; min-height:calc(100vh - 54px); padding:14px; } .customer-service__header { align-items:flex-start; flex-direction:column; } .customer-service__toolbar { width:100%; } .customer-service__select { flex:1; min-width:0; } .customer-service__workspace { min-height:720px; grid-template-columns:1fr; grid-template-rows:250px minmax(470px, 1fr); } .session-panel { border-right:0; border-bottom:1px solid rgba(60,60,67,.1); } .session-panel__list { display:flex; overflow-x:auto; overflow-y:hidden; } .session-item { min-width:230px; border-top:0; border-right:1px solid rgba(60,60,67,.08); } .chat-panel__messages { padding:16px 12px; } .chat-message__content { max-width:82%; } }
 </style>

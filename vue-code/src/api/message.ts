@@ -35,6 +35,9 @@ export interface ChatSession {
   sid: string;
   buyerUserName: string;
   buyerUserId: string;
+  buyerAvatarUrl?: string;
+  buyerAvatar?: string;
+  goodsTitle?: string;
   xyGoodsId?: string;
   lastMessage?: string;
   lastMessageTime?: string | number;

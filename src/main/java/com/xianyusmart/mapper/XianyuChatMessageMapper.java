@@ -190,6 +190,9 @@ public interface XianyuChatMessageMapper {
             "AND (n2.content_type IS NULL OR n2.content_type NOT IN (999, 997, 888, 887)) " +
             "AND n2.sender_user_name IS NOT NULL AND n2.sender_user_name != '' " +
             "AND n2.sender_user_name != n2.msg_content " +
+            "AND NOT (CHAR_LENGTH(TRIM(n2.sender_user_name)) <= 2 " +
+            "AND CHAR_LENGTH(TRIM(n2.msg_content)) > CHAR_LENGTH(TRIM(n2.sender_user_name)) " +
+            "AND TRIM(n2.msg_content) LIKE CONCAT(TRIM(n2.sender_user_name), '%')) " +
             "ORDER BY n2.message_time DESC, n2.id DESC LIMIT 1) " +
             "WHERE m.xianyu_account_id = #{accountId} AND m.s_id IS NOT NULL AND m.s_id != '' " +
             "AND m.id = (SELECT l.id FROM xianyu_chat_message l " +
