@@ -151,10 +151,7 @@ XianYuPlus 是一套面向个人卖家的私有化闲鱼运营助手。它把多
 确保设备已经安装 Docker Engine 和 Docker Compose v2，然后执行：
 
 ```bash
-git clone https://github.com/najiuwanan/xianyu-Plus.git
-cd xianyu-Plus
-chmod +x install.sh
-./install.sh
+git clone https://github.com/najiuwanan/xianyu-Plus.git && cd xianyu-Plus && chmod +x install.sh && ./install.sh
 ```
 
 安装脚本会自动创建 `.env`、生成随机运行密码、构建镜像并启动 MySQL 与应用容器。完成后访问：
