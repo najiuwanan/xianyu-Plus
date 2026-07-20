@@ -208,6 +208,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.8.0".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "运行时品牌统一为 XianYuPlus，容器、镜像、网络和构建产物改用 xianyu-plus",
+                    "更新脚本可安全复用旧数据库与应用数据卷，并在新服务健康后清理旧镜像",
+                    "修复在线客服未读消息统计 SQL 转义错误",
+                    "Cookie、访问令牌、签名参数和登录页面内容不再写入日志",
+                    "升级过程增加应用健康检查与失败日志提示"
+            ));
+            return;
+        }
         if ("1.7.1".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "左侧导航的商品配置中心更名为商品列表",

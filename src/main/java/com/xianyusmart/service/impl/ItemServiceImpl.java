@@ -112,7 +112,7 @@ public class ItemServiceImpl implements ItemService {
             }
             
             log.info("API调用成功，响应长度: {}", response.length());
-            log.info("API响应完整内容: {}", response);
+            log.debug("商品列表接口响应内容不写入日志");
 
             // 解析响应
             log.info("开始解析响应JSON...");
@@ -653,14 +653,14 @@ public class ItemServiceImpl implements ItemService {
             }
             
             log.info("API响应成功，响应长度: {}, itemId={}", response.length(), itemId);
-            log.info("mtop.taobao.idle.pc.detail 完整响应: itemId={}, response={}", itemId, response);
+            log.debug("商品详情接口已返回响应: itemId={}, 长度={}（内容不写入日志）", itemId, response.length());
             
             // 检查响应是否成功
             if (!XianyuApiUtils.isSuccess(response)) {
                 String error = XianyuApiUtils.extractError(response);
                 log.error("API返回失败: {}, itemId={}", error, itemId);
-                // 打印完整响应用于调试
-                log.error("完整响应内容: {}", response);
+                // 响应内容可能包含账号或商品隐私数据，不写入日志。
+                log.error("商品详情接口响应缺少data字段（响应内容已隐藏）");
                 return null;
             }
             
@@ -670,7 +670,7 @@ public class ItemServiceImpl implements ItemService {
             Map<String, Object> data = XianyuApiUtils.extractData(response);
             if (data == null) {
                 log.error("无法提取data字段, itemId={}", itemId);
-                log.error("响应内容: {}", response);
+                log.error("商品详情接口返回失败（响应内容已隐藏）");
                 return null;
             }
             

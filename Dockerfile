@@ -61,13 +61,13 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # 创建低权限运行用户和数据目录
-RUN groupadd --system xianyusmart && useradd --system --gid xianyusmart --home-dir /app xianyusmart \
+RUN groupadd --system xianyuplus && useradd --system --gid xianyuplus --home-dir /app xianyuplus \
     && mkdir -p /app/data /app/logs \
-    && chown -R xianyusmart:xianyusmart /app
+    && chown -R xianyuplus:xianyuplus /app
 
 # 从构建阶段复制 JAR
-COPY --from=backend-build --chown=xianyusmart:xianyusmart /app/target/xianyusmart.jar app.jar
-COPY --from=backend-build --chown=xianyusmart:xianyusmart /ms-playwright /app/ms-playwright
+COPY --from=backend-build --chown=xianyuplus:xianyuplus /app/target/xianyu-plus.jar app.jar
+COPY --from=backend-build --chown=xianyuplus:xianyuplus /ms-playwright /app/ms-playwright
 
 # 暴露端口
 EXPOSE 12400
@@ -78,7 +78,7 @@ ENV SERVER_PORT=12400
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/ms-playwright
 ENV APP_GIT_SHA=${APP_GIT_SHA}
 
-USER xianyusmart
+USER xianyuplus
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
   CMD wget -q -O /dev/null http://127.0.0.1:12400/actuator/health || exit 1

@@ -183,7 +183,8 @@ public class CookieRefreshServiceImpl implements CookieRefreshService {
                 }
 
                 String responseBody = response.body().string();
-                log.debug("【账号{}】hasLogin响应: {}", accountId, responseBody);
+                log.debug("【账号{}】hasLogin接口已返回响应，长度: {}（内容不写入日志）",
+                        accountId, responseBody != null ? responseBody.length() : 0);
 
                 // 检测风控（参考Python实现）
                 boolean isRiskControl = responseBody != null && (
@@ -192,7 +193,7 @@ public class CookieRefreshServiceImpl implements CookieRefreshService {
                     responseBody.contains("FAIL_SYS_RGV587_ERROR"));
 
                 if (isRiskControl) {
-                    log.error("【账号{}】❌ hasLogin触发风控: {}", accountId, responseBody);
+                    log.error("【账号{}】❌ hasLogin触发风控（响应内容已隐藏）", accountId);
                     log.error("【账号{}】系统目前无法自动解决，请进入闲鱼网页版-点击消息-过滑块-复制最新的Cookie", accountId);
                     
                     // 标记为失效（风控）
@@ -258,10 +259,7 @@ public class CookieRefreshServiceImpl implements CookieRefreshService {
                         );
 
                         if (mh5tkUpdated) {
-                            log.info("【账号{}】✅ _m_h5_tk已从hasLogin响应中更新: {} -> {}",
-                                    accountId,
-                                    oldMh5tk != null ? oldMh5tk.substring(0, Math.min(20, oldMh5tk.length())) + "..." : "null",
-                                    newMh5tk.substring(0, Math.min(20, newMh5tk.length())) + "...");
+                            log.info("【账号{}】✅ _m_h5_tk已从hasLogin响应中更新（值已隐藏）", accountId);
                         }
                         log.info("【账号{}】✅ Cookie已通过SessionCookieJar自动更新到数据库", accountId);
                     } else {

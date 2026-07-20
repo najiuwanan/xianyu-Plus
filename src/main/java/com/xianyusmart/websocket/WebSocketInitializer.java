@@ -78,7 +78,7 @@ public class WebSocketInitializer {
             client.send(jsonMessage);
             
             log.info("{}已发送注册消息", logPrefix(accountId));
-            log.info("{}注册消息内容: {}", logPrefix(accountId), jsonMessage);
+            log.debug("{}注册消息已发送（Token 与设备信息不写入日志）", logPrefix(accountId));
             
         } catch (Exception e) {
             log.error("{}发送注册消息失败", logPrefix(accountId), e);

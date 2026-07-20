@@ -235,9 +235,9 @@ public interface XianyuChatMessageMapper {
             "FROM xianyu_chat_message m " +
             "INNER JOIN xianyu_account a ON a.id = m.xianyu_account_id " +
             "LEFT JOIN xianyu_chat_session_read r ON r.xianyu_account_id = m.xianyu_account_id AND r.s_id = m.s_id " +
-            "WHERE m.s_id IS NOT NULL AND m.s_id &lt;&gt; '' " +
-            "AND m.sender_user_id IS NOT NULL AND m.sender_user_id &lt;&gt; '' " +
-            "AND m.sender_user_id &lt;&gt; a.unb " +
+            "WHERE m.s_id IS NOT NULL AND m.s_id <> '' " +
+            "AND m.sender_user_id IS NOT NULL AND m.sender_user_id <> '' " +
+            "AND m.sender_user_id <> a.unb " +
             "AND (m.content_type IS NULL OR m.content_type NOT IN (999, 997, 888, 887)) " +
             "AND m.id > COALESCE(r.last_read_message_id, 0) " +
             "GROUP BY m.xianyu_account_id")

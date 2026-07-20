@@ -232,8 +232,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
             if (mh5tk != null && mh5tk.contains("_")) {
                 token = mh5tk.split("_")[0];
             }
-            log.info("【账号{}】签名使用的_m_h5_tk前缀: {}", accountId,
-                    token.isEmpty() ? "空" : token.substring(0, Math.min(10, token.length())) + "...");
+            log.debug("【账号{}】签名Token状态: {}（值已隐藏）", accountId, token.isEmpty() ? "缺失" : "已加载");
 
             // 5. 构建data参数
             String deviceId = getDeviceId(accountId, cookies);
@@ -286,9 +285,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                     .header("priority", "u=1, i")
                     .header("Cookie", cookiesStr);
 
-            log.info("【账号{}】============", accountId);
-            log.info("【账号{}】1、请求体: data={}", accountId, dataVal);
-            log.info("【账号{}】2、发送POST请求: {}", accountId, fullUrl);
+            log.info("【账号{}】正在请求新的WebSocket accessToken（签名与请求参数已隐藏）", accountId);
 
             // 10. 发送请求（OkHttp能正确返回Set-Cookie头）
             try (Response httpResponse = httpClient.newCall(requestBuilder.build()).execute()) {
@@ -316,8 +313,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                     log.info("【账号{}】响应中无Set-Cookie", accountId);
                 }
 
-                log.info("【账号{}】3、响应内容: {}", accountId, responseBody);
-                log.info("【账号{}】============", accountId);
+                log.debug("【账号{}】WebSocket Token接口已返回响应（响应内容不写入日志）", accountId);
 
                 if (responseBody == null || responseBody.isEmpty()) {
                     log.error("【账号{}】获取accessToken失败：响应为空", accountId);
@@ -350,8 +346,6 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                             updateAccountStatusToNormal(accountId);
 
                             log.info("【账号{}】accessToken获取成功并已保存到数据库", accountId);
-                            log.debug("【账号{}】accessToken: {}...", accountId,
-                                    accessToken.substring(0, Math.min(20, accessToken.length())));
 
                             operationLogService.log(accountId,
                                 com.xianyusmart.constants.OperationConstants.Type.REFRESH,
@@ -396,7 +390,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                     // 检查是否触发风控（RGV587_ERROR）
                     boolean needRiskControl = retList.stream().anyMatch(ret -> ret.contains("RGV587_ERROR") || ret.contains("被挤爆啦"));
                     if (needRiskControl) {
-                        log.error("【账号{}】❌ 触发风控: {}", accountId, retList);
+                        log.error("【账号{}】❌ 触发风控（响应内容已隐藏）", accountId);
                         log.error("【账号{}】系统目前无法自动解决，请进入闲鱼网页版-点击消息-过滑块-复制最新的Cookie", accountId);
                         updateCookieStatus(accountId, 3);
                         throw new com.xianyusmart.exception.CookieExpiredException(
@@ -404,7 +398,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                     }
                 }
 
-                log.error("【账号{}】获取accessToken失败：{}", accountId, responseBody);
+                log.error("【账号{}】获取accessToken失败：接口未返回可用Token（响应内容已隐藏）", accountId);
 
                 // Token获取失败，进入失败处理流程
                 return handleTokenFailure(accountId, retryCount, responseBody, "Token API调用失败");
@@ -465,7 +459,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
             response.contains("FAIL_SYS_RGV587_ERROR"));
 
         if (isRiskControl) {
-            log.error("【账号{}】❌ 触发风控: {}", accountId, response);
+            log.error("【账号{}】❌ 触发风控（响应内容已隐藏）", accountId);
             log.error("【账号{}】系统目前无法自动解决，请进入闲鱼网页版-点击消息-过滑块-复制最新的Cookie", accountId);
             
             // 标记为失效（风控）
@@ -587,13 +581,8 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                 // hasLogin成功后从数据库读取最新Cookie
                 String newCookieStr = getLatestCookieFromDb(accountId);
                 if (newCookieStr != null && !newCookieStr.isEmpty()) {
-                    Map<String, String> newCookies = XianyuSignUtils.parseCookies(newCookieStr);
-                    String newMh5tk = newCookies.get("_m_h5_tk");
-                    log.info("【账号{}】hasLogin后从数据库获取到最新Cookie，长度: {}，_m_h5_tk前缀: {}",
-                            accountId, newCookieStr.length(),
-                            newMh5tk != null && newMh5tk.contains("_")
-                                    ? newMh5tk.split("_")[0].substring(0, Math.min(10, newMh5tk.split("_")[0].length())) + "..."
-                                    : "空");
+                    log.info("【账号{}】hasLogin后已读取最新Cookie，长度: {}（敏感值已隐藏）",
+                            accountId, newCookieStr.length());
                     // 重置retryCount为0，重新开始获取token流程
                     return getAccessTokenWithRetry(accountId, 0);
                 } else {
@@ -630,16 +619,13 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
      */
     private String updateCookiesFromResponse(Long accountId, String currentCookieStr, List<String> setCookieHeaders) {
         try {
-            // 打印所有Set-Cookie内容（调试用，确认Set-Cookie中是否包含_m_h5_tk）
+            // 只记录Set-Cookie字段数量和目标字段是否存在，禁止输出任何Cookie值。
             for (int i = 0; i < setCookieHeaders.size(); i++) {
                 String setCookie = setCookieHeaders.get(i);
-                // 只打印name=value部分，不打印Path等属性
                 if (setCookie.contains("_m_h5_tk")) {
-                    log.info("【账号{}】Set-Cookie中包含_m_h5_tk: {}", accountId,
-                            setCookie.length() > 80 ? setCookie.substring(0, 80) + "..." : setCookie);
+                    log.info("【账号{}】Set-Cookie中包含_m_h5_tk（值已隐藏）", accountId);
                 } else {
-                    log.debug("【账号{}】Set-Cookie[{}]: {}", accountId, i,
-                            setCookie.length() > 80 ? setCookie.substring(0, 80) + "..." : setCookie);
+                    log.debug("【账号{}】已接收Set-Cookie[{}]（值已隐藏）", accountId, i);
                 }
             }
 
@@ -657,9 +643,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
 
             boolean mh5tkUpdated = (newMh5tk != null && !newMh5tk.equals(oldMh5tk));
             if (mh5tkUpdated) {
-                log.info("【账号{}】✅ _m_h5_tk已从响应中更新: {} -> {}", accountId,
-                        oldMh5tk != null ? oldMh5tk.substring(0, Math.min(20, oldMh5tk.length())) + "..." : "null",
-                        newMh5tk.substring(0, Math.min(20, newMh5tk.length())) + "...");
+                log.info("【账号{}】✅ _m_h5_tk已从响应中更新（值已隐藏）", accountId);
             } else {
                 log.info("【账号{}】_m_h5_tk未变化（可能Set-Cookie中没有新的_m_h5_tk）", accountId);
             }

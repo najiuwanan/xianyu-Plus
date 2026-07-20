@@ -338,7 +338,7 @@ public class SyncMessageHandler extends AbstractLwpHandler {
                         Object level5 = ((Map<?, ?>) level3).get("5");
                         if (level5 instanceof String) {
                             String jsonStr = (String) level5;
-                            log.debug("📋 提取订单ID: 找到字段1.6.3.5={}", jsonStr.length() > 200 ? jsonStr.substring(0, 200) + "..." : jsonStr);
+                            log.debug("📋 提取订单ID: 找到字段1.6.3.5，长度={}（内容不写入日志）", jsonStr.length());
                             
                             try {
                                 // 解析嵌套的JSON字符串

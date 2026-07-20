@@ -1,4 +1,4 @@
-name: xianyusmart
+name: xianyu-plus
 
 services:
   mysql:
@@ -29,14 +29,14 @@ services:
       retries: 30
       start_period: 20s
     networks:
-      - xianyusmart
+      - xianyu-plus
 
   app:
     build:
       context: .
       args:
         APP_GIT_SHA: ${APP_GIT_SHA:-unknown}
-    image: ${APP_IMAGE:-xianyusmart:latest}
+    image: ${APP_IMAGE:-xianyu-plus:latest}
     restart: unless-stopped
     depends_on:
       mysql:
@@ -72,7 +72,7 @@ services:
       retries: 3
       start_period: 45s
     networks:
-      - xianyusmart
+      - xianyu-plus
 
   nginx:
     image: nginx:1.27-alpine
@@ -93,13 +93,17 @@ services:
         max-size: "20m"
         max-file: "3"
     networks:
-      - xianyusmart
+      - xianyu-plus
 
 volumes:
   mysql-data:
+    name: ${MYSQL_DATA_VOLUME:-xianyu-plus-mysql-data}
   app-data:
+    name: ${APP_DATA_VOLUME:-xianyu-plus-app-data}
   app-logs:
+    name: ${APP_LOGS_VOLUME:-xianyu-plus-app-logs}
 
 networks:
-  xianyusmart:
+  xianyu-plus:
+    name: ${APP_NETWORK_NAME:-xianyu-plus}
     driver: bridge

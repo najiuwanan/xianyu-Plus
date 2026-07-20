@@ -229,7 +229,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
                 return DetailSyncResult.failed("商品详情响应为空");
             }
 
-            log.info("mtop.taobao.idle.pc.detail 完整响应: itemId={}, response={}", itemId, response);
+            log.debug("商品详情同步接口已返回响应: itemId={}, 长度={}（内容不写入日志）", itemId, response.length());
 
             String businessError = getBusinessError(response);
             if (businessError != null) {

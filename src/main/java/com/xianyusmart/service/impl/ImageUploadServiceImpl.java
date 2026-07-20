@@ -208,7 +208,7 @@ public class ImageUploadServiceImpl implements ImageUploadService {
             
             if (response.statusCode() == 200) {
                 String responseBody = response.body();
-                log.debug("上传响应: {}", responseBody);
+                log.debug("图片上传接口已返回响应，长度: {}（内容不写入日志）", responseBody.length());
                 
                 return parseUploadResponse(responseBody);
             } else if (response.statusCode() == 302 || response.statusCode() == 301) {
@@ -260,7 +260,7 @@ public class ImageUploadServiceImpl implements ImageUploadService {
                 return root.get("data").get("fileUrl").asText();
             }
             
-            log.error("无法从响应中提取图片URL: {}", responseBody);
+            log.error("无法从图片上传响应中提取URL（响应内容已隐藏）");
             return null;
             
         } catch (Exception e) {

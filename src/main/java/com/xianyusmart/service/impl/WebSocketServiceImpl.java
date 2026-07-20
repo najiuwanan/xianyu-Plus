@@ -194,8 +194,6 @@ public class WebSocketServiceImpl implements WebSocketService {
             log.info("========== 使用手动Token启动WebSocket连接 ==========");
             log.info("【账号{}】accountId={}", accountId, accountId);
             log.info("【账号{}】accessToken长度={}", accountId, accessToken != null ? accessToken.length() : 0);
-            log.info("【账号{}】accessToken前50字符={}", accountId, 
-                    accessToken != null && accessToken.length() > 50 ? accessToken.substring(0, 50) + "..." : accessToken);
 
             // 检查是否已经连接
             if (webSocketClients.containsKey(accountId)) {
@@ -338,7 +336,7 @@ public class WebSocketServiceImpl implements WebSocketService {
 
             // 连接WebSocket（参考Python的connect方法）
             log.info("正在连接WebSocket: {}", WEBSOCKET_URL);
-            log.info("请求头: {}", headers);
+            log.debug("WebSocket请求头已生成，字段数: {}（敏感值不写入日志）", headers.size());
             
             boolean connected = client.connectBlocking(10, TimeUnit.SECONDS);
             

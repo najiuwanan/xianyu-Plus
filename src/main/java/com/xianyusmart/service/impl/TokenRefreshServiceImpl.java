@@ -164,8 +164,7 @@ public class TokenRefreshServiceImpl implements TokenRefreshService {
                         cookie.setMH5Tk(newMh5tk);
                         cookieMapper.updateById(cookie);
 
-                        log.info("【账号{}】✅ _m_h5_tk token刷新成功: {}",
-                                accountId, newMh5tk.substring(0, Math.min(20, newMh5tk.length())));
+                        log.info("【账号{}】✅ _m_h5_tk token刷新成功（值已隐藏）", accountId);
 
                         operationLogService.log(accountId,
                             com.xianyusmart.constants.OperationConstants.Type.REFRESH,
