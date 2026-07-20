@@ -32,6 +32,8 @@ const pageTitleMap: Record<string, string> = {
   '/accounts': '账号管理',
   '/goods': '商品列表',
   '/orders': '订单管理',
+  '/product-publish': '发布商品',
+  '/product-materials': '商品素材库',
   '/messages': '在线客服',
   '/blacklist': '黑名单',
   '/notifications': '通知渠道',

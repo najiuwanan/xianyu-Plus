@@ -2,6 +2,10 @@
 /**
  * 导航菜单组件 - 电脑端侧边栏和手机端抽屉共用
  */
+import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
 
 const emit = defineEmits<{
   select: [index: string]
@@ -10,6 +14,13 @@ const emit = defineEmits<{
 const onSelect = (index: string) => {
   emit('select', index)
 }
+
+const isPublishRoute = computed(() => ['/product-publish', '/product-materials'].includes(route.path))
+const publishMenuOpen = ref(isPublishRoute.value)
+
+watch(() => route.path, () => {
+  if (isPublishRoute.value) publishMenuOpen.value = true
+})
 </script>
 
 <template>
@@ -27,18 +38,25 @@ const onSelect = (index: string) => {
       <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
       <span>商品列表</span>
     </router-link>
-    <router-link to="/product-publish" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/product-publish')">
-      <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
-      <span>发布商品</span>
-    </router-link>
-    <router-link to="/product-materials" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/product-materials')">
-      <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>
-      <span>商品素材库</span>
-    </router-link>
     <router-link to="/orders" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/orders')">
       <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
       <span>订单管理</span>
     </router-link>
+    <div class="nav-menu-group" :class="{ 'nav-menu-group--open': publishMenuOpen, 'nav-menu-group--active': isPublishRoute }">
+      <button type="button" class="nav-menu-item nav-menu-group__trigger" :aria-expanded="publishMenuOpen" aria-controls="publish-submenu" @click="publishMenuOpen = !publishMenuOpen">
+        <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+        <span>发布商品</span>
+        <svg class="nav-menu-group__chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+      </button>
+      <div v-show="publishMenuOpen" id="publish-submenu" class="nav-menu-submenu">
+        <router-link to="/product-publish" class="nav-menu-submenu__item" active-class="nav-menu-submenu__item--active" @click="onSelect('/product-publish')">
+          <span>新建 / 发布商品</span>
+        </router-link>
+        <router-link to="/product-materials" class="nav-menu-submenu__item" active-class="nav-menu-submenu__item--active" @click="onSelect('/product-materials')">
+          <span>商品素材库</span>
+        </router-link>
+      </div>
+    </div>
     <router-link to="/messages" class="nav-menu-item" active-class="nav-menu-item--active" @click="onSelect('/messages')">
       <svg style="width:18px;height:18px;margin-right:8px;flex-shrink:0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
       <span>在线客服</span>
@@ -131,6 +149,8 @@ const onSelect = (index: string) => {
   font-size: 14px;
 }
 
+button.nav-menu-item { width: calc(100% - 24px); border: 0; background: transparent; font-family: inherit; cursor: pointer; text-align: left; }
+
 .nav-menu-item :deep(svg) { width: 17px !important; height: 17px !important; margin-right: 10px !important; stroke-width: 1.8; }
 
 .nav-menu-item:hover {
@@ -143,6 +163,16 @@ const onSelect = (index: string) => {
   color: #1f3556;
   font-weight: 700;
 }
+
+.nav-menu-group__trigger span { flex: 1; }
+.nav-menu-group__chevron { width: 15px !important; height: 15px !important; margin: 0 !important; transition: transform .18s ease; }
+.nav-menu-group--open .nav-menu-group__chevron { transform: rotate(90deg); }
+.nav-menu-group--active .nav-menu-group__trigger { background: #fff7df; color: #1f3556; font-weight: 700; }
+.nav-menu-submenu { position: relative; margin: 0 12px 4px 29px; padding: 2px 0 2px 15px; }
+.nav-menu-submenu::before { content: ''; position: absolute; top: 3px; bottom: 3px; left: 0; width: 1px; background: #e5dac0; }
+.nav-menu-submenu__item { position: relative; display: flex; align-items: center; min-height: 32px; padding: 0 9px; border-radius: 7px; color: #66758b; font-size: 13px; text-decoration: none; transition: background .18s ease, color .18s ease; }
+.nav-menu-submenu__item:hover { background: #faf6eb; color: #1f3556; }
+.nav-menu-submenu__item--active { background: #fff0c4; color: #1f3556; font-weight: 700; }
 
 .nav-menu-divider {
   display: flex;
