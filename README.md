@@ -43,6 +43,80 @@ XianYuPlus 是一套面向个人卖家的私有化闲鱼运营助手。它把多
 | 风险保护 | 黑名单可同时阻止关键词、AI、自动发货和人工补发；人工接管期间暂停自动回复 |
 | 运维审计 | 提供仪表盘、异常待办、操作日志、实时日志、系统检查、通知渠道和数据备份 |
 
+## 界面预览
+
+以下截图来自 XianYuPlus 实际运行页面。账号、UNB、订单号、买家、商品 ID、内网地址和密钥等信息均已做不可逆脱敏；界面会随版本继续优化。
+
+<details open>
+<summary><strong>账号、商品与发布</strong></summary>
+<br>
+
+| 多账号管理 | 商品详情 |
+| --- | --- |
+| ![多账号管理](docs/images/screenshots/01-account-management.png) | ![商品详情](docs/images/screenshots/02-product-detail.png) |
+
+| 商品自动化配置 | 商品发布与 AI 文案 |
+| --- | --- |
+| ![商品自动化配置](docs/images/screenshots/03-product-automation.png) | ![商品发布与 AI 文案](docs/images/screenshots/04-product-publish.png) |
+
+</details>
+
+<details open>
+<summary><strong>订单、客服与风控</strong></summary>
+<br>
+
+| 订单管理 | 在线客服 |
+| --- | --- |
+| ![订单管理](docs/images/screenshots/05-order-management.png) | ![在线客服](docs/images/screenshots/06-online-service.png) |
+
+| 买家黑名单 | 通知渠道 |
+| --- | --- |
+| ![买家黑名单](docs/images/screenshots/07-buyer-blacklist.png) | ![通知渠道](docs/images/screenshots/08-notification-channels.png) |
+
+</details>
+
+<details>
+<summary><strong>卡券、库存与商品关联</strong></summary>
+<br>
+
+| 编辑卡券库 | 关联发货商品 |
+| --- | --- |
+| ![编辑卡券库](docs/images/screenshots/09-card-library-edit.png) | ![关联发货商品](docs/images/screenshots/10-card-product-link.png) |
+
+| 通知渠道状态 | 新建卡券库 |
+| --- | --- |
+| ![通知渠道状态](docs/images/screenshots/11-notification-channel-status.png) | ![新建卡券库](docs/images/screenshots/12-card-library-create.png) |
+
+</details>
+
+<details>
+<summary><strong>自动化与回复策略</strong></summary>
+<br>
+
+| 一键擦亮 | 自动化执行中心 |
+| --- | --- |
+| ![一键擦亮](docs/images/screenshots/13-item-polish.png) | ![自动化执行中心](docs/images/screenshots/14-automation-center.png) |
+
+| 定时任务 | 关键词回复中心 |
+| --- | --- |
+| ![定时任务](docs/images/screenshots/15-scheduled-tasks.png) | ![关键词回复中心](docs/images/screenshots/16-keyword-replies.png) |
+
+</details>
+
+<details>
+<summary><strong>日志、自检与系统设置</strong></summary>
+<br>
+
+| 操作记录 | 系统自检 |
+| --- | --- |
+| ![操作记录](docs/images/screenshots/17-operation-logs.png) | ![系统自检](docs/images/screenshots/18-system-check.png) |
+
+| AI 服务配置 | 备份与恢复 |
+| --- | --- |
+| ![AI 服务配置](docs/images/screenshots/19-ai-settings.png) | ![备份与恢复](docs/images/screenshots/20-backup-restore.png) |
+
+</details>
+
 ## 自动化优先级与保护
 
 系统收到买家消息后，会先检查账号状态、买家黑名单、人工接管和商品开关，再决定是否回复。正常情况下，回复优先级为：
