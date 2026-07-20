@@ -1,9 +1,8 @@
 package com.xianyusmart.service.reply;
 
-import com.xianyusmart.entity.XianyuGoodsAutoDeliveryConfig;
 import com.xianyusmart.entity.XianyuGoodsConfig;
-import com.xianyusmart.mapper.XianyuGoodsAutoDeliveryConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
+import com.xianyusmart.service.SysSettingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
@@ -26,15 +25,18 @@ public class ReplyConfigProvider {
 
     /** 默认AI回复延时（秒），等待期间收集买家多条消息一并回复 */
     private static final int DEFAULT_DELAY_SECONDS = 15;
+    private static final int MIN_DELAY_SECONDS = 1;
+    private static final int MAX_DELAY_SECONDS = 60;
+    private static final String AI_REPLY_DELAY_SETTING = "ai_reply_delay_seconds";
 
     /** 默认人工干预持续时长（分钟） */
     private static final int DEFAULT_INTERVENTION_MINUTES = 10;
 
     @Autowired
-    private XianyuGoodsAutoDeliveryConfigMapper autoDeliveryConfigMapper;
+    private XianyuGoodsConfigMapper goodsConfigMapper;
 
     @Autowired
-    private XianyuGoodsConfigMapper goodsConfigMapper;
+    private SysSettingService sysSettingService;
 
     /**
      * 获取AI回复延时秒数
@@ -48,10 +50,12 @@ public class ReplyConfigProvider {
      */
     public int getDelaySeconds(Long accountId, String xyGoodsId) {
         try {
-            if (accountId == null || xyGoodsId == null) return DEFAULT_DELAY_SECONDS;
-            XianyuGoodsAutoDeliveryConfig config = autoDeliveryConfigMapper.findByAccountIdAndGoodsIdNoSku(accountId, xyGoodsId);
-            if (config != null && config.getRagDelaySeconds() != null && config.getRagDelaySeconds() > 0) {
-                return config.getRagDelaySeconds();
+            String configuredValue = sysSettingService.getSettingValue(AI_REPLY_DELAY_SETTING);
+            if (configuredValue != null && !configuredValue.isBlank()) {
+                int delaySeconds = Integer.parseInt(configuredValue.trim());
+                if (delaySeconds >= MIN_DELAY_SECONDS && delaySeconds <= MAX_DELAY_SECONDS) {
+                    return delaySeconds;
+                }
             }
         } catch (Exception e) {
             log.warn("获取延时配置失败: {}", e.getMessage());

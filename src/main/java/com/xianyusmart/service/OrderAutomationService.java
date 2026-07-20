@@ -348,7 +348,11 @@ public class OrderAutomationService {
                 ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
         for (String orderId : candidates) {
             if (!pendingOrderIds.contains(orderId)) {
-                automationRecordMapper.markRateWaiting(accountId, orderId, RATE_LIST_UNMATCHED_REASON);
+                // The seller-side pending-rate list can lag behind the confirmation card, or omit
+                // an order in some page variants. Let the final rate API make the authoritative
+                // decision just as the manual "check and rate" action does. It records an
+                // ineligible order as waiting instead of treating it as a completed evaluation.
+                rateService.rateBuyer(accountId, orderId, feedback);
                 continue;
             }
             rateService.rateBuyer(accountId, orderId, feedback);

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { getKamiConfigs, type KamiConfig } from '@/api/kami-config'
-import { batchUpdateGoodsConfig, type GoodsItemWithConfig } from '@/api/goods'
+import { batchUpdateGoodsConfig, updateAutoConfirmShipment, type GoodsItemWithConfig } from '@/api/goods'
+import { getAutoDeliveryConfigsByGoodsId } from '@/api/auto-delivery-config'
 import { getFixedMaterial, saveFixedMaterial } from '@/api/ai'
 import { showError, showSuccess } from '@/utils'
 
@@ -24,6 +25,7 @@ const kamiConfigs = ref<KamiConfig[]>([])
 const form = reactive({
   deliveryEnabled: false,
   kamiConfigId: '' as '' | number,
+  autoConfirmShipment: false,
   aiEnabled: false,
   keywordEnabled: false,
   aiPrompt: '',
@@ -50,6 +52,7 @@ const loadConfig = async () => {
   if (!props.modelValue || !props.item || !props.accountId) return
   loading.value = true
   form.deliveryEnabled = props.item.xianyuAutoDeliveryOn === 1
+  form.autoConfirmShipment = false
   form.aiEnabled = props.item.xianyuAutoReplyOn === 1
   form.keywordEnabled = props.item.xianyuKeywordReplyOn === 1
   form.aiPrompt = ''
@@ -63,9 +66,10 @@ const loadConfig = async () => {
   form.bargainInstructions = ''
   form.kamiConfigId = props.item.kamiConfigId ?? ''
   try {
-    const [kamiResponse, materialResponse] = await Promise.all([
+    const [kamiResponse, materialResponse, deliveryConfigResponse] = await Promise.all([
       getKamiConfigs(),
-      getFixedMaterial({ accountId: props.accountId, goodsId: props.item.item.xyGoodId })
+      getFixedMaterial({ accountId: props.accountId, goodsId: props.item.item.xyGoodId }),
+      getAutoDeliveryConfigsByGoodsId({ xianyuAccountId: props.accountId, xyGoodsId: props.item.item.xyGoodId })
     ])
     if (kamiResponse.code === 0 || kamiResponse.code === 200) {
       kamiConfigs.value = kamiResponse.data || []
@@ -83,6 +87,10 @@ const loadConfig = async () => {
         form.bargainFloorReply = material.data?.aiBargainFloorReply || ''
         form.bargainInstructions = material.data?.aiBargainInstructions || ''
       }
+    }
+    if (deliveryConfigResponse.code === 0 || deliveryConfigResponse.code === 200) {
+      const defaultConfig = (deliveryConfigResponse.data || []).find((config) => config.skuId == null)
+      form.autoConfirmShipment = defaultConfig?.autoConfirmShipment === 1
     }
   } catch (error) {
     console.error('加载商品配置失败', error)
@@ -124,6 +132,15 @@ const save = async () => {
       kamiConfigId: form.deliveryEnabled && form.kamiConfigId !== '' ? Number(form.kamiConfigId) : undefined
     })
     if (result.code !== 0 && result.code !== 200) throw new Error(result.msg || '保存商品配置失败')
+
+    const confirmResult = await updateAutoConfirmShipment({
+      xianyuAccountId: props.accountId,
+      xyGoodsId: props.item.item.xyGoodId,
+      autoConfirmShipment: form.deliveryEnabled && form.autoConfirmShipment ? 1 : 0
+    })
+    if (confirmResult.code !== 0 && confirmResult.code !== 200) {
+      throw new Error(confirmResult.msg || '保存自动确认发货设置失败')
+    }
 
     const materialResponse = await saveFixedMaterial({
       accountId: props.accountId,
@@ -192,6 +209,16 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
                   </option>
                 </select>
               </label>
+              <div v-if="form.deliveryEnabled" class="config-section__title config-section__sub-option">
+                <div>
+                  <h3>自动确认发货</h3>
+                  <p>卡券或发货内容发送成功后，等待约 2–5 秒并自动向闲鱼确认发货。</p>
+                </div>
+                <label class="switch">
+                  <input v-model="form.autoConfirmShipment" type="checkbox" />
+                  <span></span>
+                </label>
+              </div>
             </section>
 
             <section class="config-section">
@@ -311,6 +338,7 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 .goods-config-dialog__loading { padding: 56px; color: #667085; text-align: center; }
 .config-section { padding: 18px; border: 1px solid #e6eaf0; border-radius: 14px; background: #fff; }
 .config-section__title { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.config-section__sub-option { margin-top: 14px; padding-top: 14px; border-top: 1px dashed #e5eaf1; }
 .config-section h3 { margin: 0; color: #1d2d48; font-size: 15px; }
 .config-section p { margin: 6px 0 0; color: #758097; font-size: 13px; line-height: 1.55; }
 .field { display: grid; gap: 8px; margin-top: 16px; color: #536079; font-size: 13px; font-weight: 600; }

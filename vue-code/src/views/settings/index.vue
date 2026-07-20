@@ -18,10 +18,14 @@ const activeMenu = ref('ai')
 
 // 系统提示词
 const SYS_PROMPT_KEY = 'sys_prompt'
+const AI_REPLY_DELAY_SETTING = 'ai_reply_delay_seconds'
+const DEFAULT_AI_REPLY_DELAY_SECONDS = 15
 const DEFAULT_SYS_PROMPT = '作为闲鱼虚拟商品店铺客服，结合商品和知识库信息简短、准确回复。信息不足时明确说明需要补充的内容，不编造卡密、库存、价格或售后承诺。'
 const sysPromptValue = ref('')
 const sysPromptSaving = ref(false)
 const sysPromptLoaded = ref(false)
+const aiReplyDelaySeconds = ref(DEFAULT_AI_REPLY_DELAY_SECONDS)
+const aiReplyDelaySaving = ref(false)
 
 // 相似度阈值
 // AI API Key 配置
@@ -248,10 +252,22 @@ onMounted(async () => {
   }
 
   // 加载 AI 配置
-  await loadAIConfig()
+  await Promise.all([loadAIConfig(), loadAiReplyDelay()])
   // 加载 AI 状态
   await loadAIStatus()
 })
+
+async function loadAiReplyDelay() {
+  try {
+    const res = await getSetting({ settingKey: AI_REPLY_DELAY_SETTING })
+    const savedDelay = Number(res.code === 200 ? res.data?.settingValue : undefined)
+    if (Number.isInteger(savedDelay) && savedDelay >= 1 && savedDelay <= 60) {
+      aiReplyDelaySeconds.value = savedDelay
+    }
+  } catch (e) {
+    console.error('获取延迟回复时间失败:', e)
+  }
+}
 
 async function loadAIConfig() {
   try {
@@ -321,6 +337,28 @@ async function handleSaveSysPrompt() {
     }
   } finally {
     sysPromptSaving.value = false
+  }
+}
+
+async function handleSaveAiReplyDelay() {
+  const delaySeconds = Number(aiReplyDelaySeconds.value)
+  if (!Number.isInteger(delaySeconds) || delaySeconds < 1 || delaySeconds > 60) {
+    toast.warning('延迟回复时间请输入 1 到 60 之间的整数')
+    return
+  }
+
+  aiReplyDelaySaving.value = true
+  try {
+    const res = await saveSetting({
+      settingKey: AI_REPLY_DELAY_SETTING,
+      settingValue: String(delaySeconds),
+      settingDesc: 'AI 自动回复延迟秒数（1-60 秒）'
+    })
+    if (res.code === 200) {
+      toast.success('延迟回复时间保存成功，后续消息立即生效')
+    }
+  } finally {
+    aiReplyDelaySaving.value = false
   }
 }
 
@@ -756,6 +794,33 @@ function handleBackupMenuEnter() {
       <!-- AI客服配置 -->
       <div v-if="activeMenu === 'prompt'" class="settings__panel">
         <div class="settings__panel-title">AI客服配置</div>
+
+        <div class="settings__section">
+          <div class="settings__section-title">延迟回复时间</div>
+          <p class="settings__desc">买家发消息后等待一段时间再自动回复；等待期间收到的新消息会重新计时并合并回复。</p>
+          <div class="settings__form">
+            <label class="settings__label" for="ai-reply-delay">延迟秒数（1–60 秒）</label>
+            <input
+              id="ai-reply-delay"
+              v-model.number="aiReplyDelaySeconds"
+              class="settings__input"
+              type="number"
+              min="1"
+              max="60"
+              step="1"
+              :disabled="aiReplyDelaySaving"
+            />
+            <div class="settings__actions">
+              <button
+                class="settings__btn settings__btn--primary"
+                :disabled="aiReplyDelaySaving"
+                @click="handleSaveAiReplyDelay"
+              >
+                {{ aiReplyDelaySaving ? '保存中...' : '保存' }}
+              </button>
+            </div>
+          </div>
+        </div>
 
         <!-- 系统提示词 -->
         <div class="settings__section">
