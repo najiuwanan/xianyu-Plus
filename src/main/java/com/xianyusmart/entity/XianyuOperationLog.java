@@ -1,6 +1,7 @@
 package com.xianyusmart.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -19,6 +20,18 @@ public class XianyuOperationLog {
      * 账号ID
      */
     private Long xianyuAccountId;
+
+    /**
+     * Account note resolved when operation logs are queried.
+     */
+    @TableField(exist = false)
+    private String accountNote;
+
+    /**
+     * Account UNB resolved when operation logs are queried.
+     */
+    @TableField(exist = false)
+    private String accountUnb;
     
     /**
      * 操作类型

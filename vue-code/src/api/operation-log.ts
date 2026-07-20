@@ -4,6 +4,8 @@ import { request } from '@/utils/request';
 export interface OperationLog {
   id: number;
   xianyuAccountId: number;
+  accountNote?: string;
+  accountUnb?: string;
   operationType: string;
   operationModule: string;
   operationDesc: string;

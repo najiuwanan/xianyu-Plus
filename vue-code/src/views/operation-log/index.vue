@@ -34,6 +34,8 @@ const {
   goBackToAccounts,
   getAccountAvatar,
   getAccountName,
+  getLogAccountName,
+  getLogAccountUnb,
   getOperationTypeText,
   getOperationTypeClass,
   getStatusText,
@@ -224,6 +226,7 @@ onMounted(() => {
               <thead>
                 <tr>
                   <th>ID</th>
+                  <th>账号</th>
                   <th>操作类型</th>
                   <th>操作描述</th>
                   <th>状态</th>
@@ -233,6 +236,12 @@ onMounted(() => {
               <tbody>
                 <tr v-for="log in logs" :key="log.id">
                   <td style="font-size:12px;color:var(--d-text-tertiary);">{{ log.id }}</td>
+                  <td>
+                    <div class="ol__log-account">
+                      <span class="ol__log-account-name" :title="getLogAccountName(log)">{{ getLogAccountName(log) }}</span>
+                      <span class="ol__log-account-unb" :title="`UNB: ${getLogAccountUnb(log)}`">UNB: {{ getLogAccountUnb(log) }}</span>
+                    </div>
+                  </td>
                   <td>
                     <span class="ol__log-type" :class="`ol__log-type--${getOperationTypeClass(log.operationType)}`">
                       {{ getOperationTypeText(log.operationType) }}
@@ -282,6 +291,10 @@ onMounted(() => {
                   <span class="ol__log-status" :class="`ol__log-status--${getStatusClass(log.operationStatus)}`">
                     {{ getStatusText(log.operationStatus) }}
                   </span>
+                </div>
+                <div class="ol__log-card-account">
+                  <span class="ol__log-account-name">{{ getLogAccountName(log) }}</span>
+                  <span class="ol__log-account-unb">UNB: {{ getLogAccountUnb(log) }}</span>
                 </div>
                 <div class="ol__log-card-desc">{{ log.operationDesc || '-' }}</div>
                 <div class="ol__log-card-meta">

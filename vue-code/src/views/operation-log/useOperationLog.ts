@@ -95,6 +95,18 @@ export function useOperationLog() {
     return account.accountNote || `账号${account.id}`
   }
 
+  // Resolve the account identity carried by each log. The selected account is
+  // kept as a fallback for logs written before account fields were joined.
+  const getLogAccountName = (log: OperationLog) => {
+    return log.accountNote?.trim()
+      || currentAccount.value?.accountNote?.trim()
+      || `账号 #${log.xianyuAccountId}`
+  }
+
+  const getLogAccountUnb = (log: OperationLog) => {
+    return log.accountUnb?.trim() || currentAccount.value?.unb?.trim() || '-'
+  }
+
   // Get operation type text
   const getOperationTypeText = (type: string) => {
     const item = operationTypes.find(t => t.value === type)
@@ -366,6 +378,8 @@ export function useOperationLog() {
     goBackToAccounts,
     getAccountAvatar,
     getAccountName,
+    getLogAccountName,
+    getLogAccountUnb,
     getOperationTypeText,
     getOperationTypeClass,
     getStatusText,

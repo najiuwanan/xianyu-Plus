@@ -20,18 +20,20 @@ public interface XianyuOperationLogMapper extends BaseMapper<XianyuOperationLog>
      * 分页查询操作记录
      */
     @Select("<script>" +
-            "SELECT * FROM xianyu_operation_log " +
-            "WHERE xianyu_account_id = #{accountId} " +
+            "SELECT l.*, a.account_note AS accountNote, a.unb AS accountUnb " +
+            "FROM xianyu_operation_log l " +
+            "LEFT JOIN xianyu_account a ON a.id = l.xianyu_account_id " +
+            "WHERE l.xianyu_account_id = #{accountId} " +
             "<if test='operationType != null and operationType != \"\"'>" +
-            "  AND operation_type = #{operationType} " +
+            "  AND l.operation_type = #{operationType} " +
             "</if>" +
             "<if test='operationModule != null and operationModule != \"\"'>" +
-            "  AND operation_module = #{operationModule} " +
+            "  AND l.operation_module = #{operationModule} " +
             "</if>" +
             "<if test='operationStatus != null'>" +
-            "  AND operation_status = #{operationStatus} " +
+            "  AND l.operation_status = #{operationStatus} " +
             "</if>" +
-            "ORDER BY create_time DESC " +
+            "ORDER BY l.create_time DESC " +
             "LIMIT #{pageSize} OFFSET #{offset}" +
             "</script>")
     List<XianyuOperationLog> selectByPage(

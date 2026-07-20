@@ -1,0 +1,1 @@
+import{k as e}from"./index-VOLc7tos.js";function c(){return e({url:"/system-check/overview",method:"POST"})}function i(t){return e({url:"/system-check/publish-capability",method:"POST",data:t})}export{i as c,c as g};

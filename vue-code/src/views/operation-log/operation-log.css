@@ -697,6 +697,32 @@
   white-space: nowrap;
 }
 
+.ol__log-account {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  max-width: 180px;
+  gap: 2px;
+}
+
+.ol__log-account-name {
+  color: var(--d-text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ol__log-account-unb {
+  color: var(--d-text-tertiary);
+  font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ol__log-duration {
   font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
   font-size: 12px;
@@ -793,6 +819,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.ol__log-card-account {
+  display: flex;
+  align-items: baseline;
+  gap: var(--d-space-2);
+  margin-bottom: var(--d-space-2);
+  min-width: 0;
+}
+
+.ol__log-card-account .ol__log-account-name,
+.ol__log-card-account .ol__log-account-unb {
+  min-width: 0;
 }
 
 .ol__log-card-meta {
