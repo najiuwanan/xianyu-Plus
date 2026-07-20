@@ -208,6 +208,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.8.1".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "运营总览的近 7 日与近 30 日交付数据改为平滑趋势图",
+                    "发布商品与商品素材库合并为分组导航，优化运营入口顺序",
+                    "Linux 安装说明简化为一条命令，并完善项目介绍与隐私处理后的界面预览",
+                    "移除需要额外容器的网页在线更新功能，继续使用可靠的 update.sh 更新流程",
+                    "系统公告调整到顶部左侧，删除影响订单列表布局的行内复制按钮"
+            ));
+            return;
+        }
         if ("1.8.0".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "运行时品牌统一为 XianYuPlus，容器、镜像、网络和构建产物改用 xianyu-plus",
