@@ -21,6 +21,7 @@ interface Props {
 }
 
 interface Emits {
+  (e: 'copySid', sid: string): void
   (e: 'confirmShipment', item: DeliveryRecordItem): void
   (e: 'ruleDelivery', item: DeliveryRecordItem): void
   (e: 'viewDetail', item: DeliveryRecordItem): void
@@ -38,7 +39,6 @@ const detailSkuText = ref('')
 const detailFromServer = ref(false)
 const detailTimeline = ref<OrderTimelineEvent[]>([])
 const detailTimelineLoading = ref(false)
-const selectedOrder = ref<DeliveryRecordItem | null>(null)
 const runningCompensationKey = ref<string | null>(null)
 const openedActionMenuKey = ref<string | null>(null)
 
@@ -71,7 +71,6 @@ const handleViewDetail = async (order: DeliveryRecordItem, fromServer: boolean =
   detailData.value = null
   detailSkuText.value = ''
   detailFromServer.value = fromServer
-  selectedOrder.value = order
   detailTimeline.value = []
   detailTimelineLoading.value = false
   try {
@@ -106,35 +105,6 @@ const handleViewDetail = async (order: DeliveryRecordItem, fromServer: boolean =
     detailVisible.value = false
   } finally {
     detailLoading.value = false
-  }
-}
-
-const copyIdentifier = async (value: string | undefined, label: string, event?: Event) => {
-  event?.stopPropagation()
-  const text = String(value || '').trim()
-  if (!text) {
-    showInfo(`${label}为空，无法复制`)
-    return
-  }
-  try {
-    if (navigator.clipboard?.writeText && window.isSecureContext) {
-      await navigator.clipboard.writeText(text)
-    } else {
-      const textarea = document.createElement('textarea')
-      textarea.value = text
-      textarea.style.position = 'fixed'
-      textarea.style.opacity = '0'
-      textarea.style.pointerEvents = 'none'
-      document.body.appendChild(textarea)
-      textarea.focus()
-      textarea.select()
-      const copied = document.execCommand('copy')
-      textarea.remove()
-      if (!copied) throw new Error('copy command failed')
-    }
-    showSuccess(`${label}已复制`)
-  } catch {
-    showError(`${label}复制失败，请手动复制`)
   }
 }
 
@@ -382,10 +352,7 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
       class="order-card"
     >
       <div class="order-card__header">
-        <span class="copyable-id copyable-id--order-card">
-          <span class="order-card__id">{{ order.orderId || '-' }}</span>
-          <button v-if="order.orderId" type="button" class="copyable-id__button" title="复制订单号" aria-label="复制订单号" @click="copyIdentifier(order.orderId, '订单号', $event)"><IconCopy /></button>
-        </span>
+        <span class="order-card__id">{{ order.orderId || '-' }}</span>
         <div class="order-card__status-group">
           <span
             class="order-card__status"
@@ -430,25 +397,9 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
           <span class="order-card__value order-card__sku">{{ order.skuName }}</span>
         </div>
         <div class="order-card__row">
-          <IconCopy />
-          <span class="order-card__label">商品 ID</span>
-          <span class="order-card__value copyable-id">
-            <span>{{ order.xyGoodsId || '-' }}</span>
-            <button v-if="order.xyGoodsId" type="button" class="copyable-id__button" title="复制商品 ID" aria-label="复制商品 ID" @click="copyIdentifier(order.xyGoodsId, '商品 ID', $event)"><IconCopy /></button>
-          </span>
-        </div>
-        <div class="order-card__row">
           <IconUser />
           <span class="order-card__label">买家</span>
           <span class="order-card__value">{{ order.buyerUserName || '-' }}</span>
-        </div>
-        <div class="order-card__row">
-          <IconCopy />
-          <span class="order-card__label">买家 ID</span>
-          <span class="order-card__value copyable-id">
-            <span>{{ order.buyerUserId || '-' }}</span>
-            <button v-if="order.buyerUserId" type="button" class="copyable-id__button" title="复制买家 ID" aria-label="复制买家 ID" @click="copyIdentifier(order.buyerUserId, '买家 ID', $event)"><IconCopy /></button>
-          </span>
         </div>
         <div class="order-card__row">
           <IconClock />
@@ -473,7 +424,7 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
           </button>
           <Transition name="action-menu">
             <div v-if="openedActionMenuKey === orderKey(order)" class="order-action-menu order-action-menu--mobile" role="menu">
-              <button type="button" role="menuitem" :disabled="!order.orderId" @click="runMenuAction($event, () => copyIdentifier(order.orderId, '订单号'))"><IconCopy /> 复制订单号</button>
+              <button type="button" role="menuitem" :disabled="!order.orderId" @click="runMenuAction($event, () => emit('copySid', order.orderId || ''))"><IconCopy /> 复制订单 ID</button>
               <button type="button" role="menuitem" :disabled="!canRuleDelivery(order)" :title="ruleDeliveryReason(order)" @click="runMenuAction($event, () => emit('ruleDelivery', order))"><IconTruck /> {{ order.manualDelivering ? '发货中' : '手动发货' }}</button>
               <button type="button" role="menuitem" :disabled="!canConfirmShipment(order)" :title="confirmShipmentReason(order)" @click="runMenuAction($event, () => emit('confirmShipment', order))"><IconTruck /> {{ order.confirming ? '处理中' : '确认发货' }}</button>
               <div class="order-action-menu__divider"></div>
@@ -507,10 +458,7 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
         <tr v-for="order in orderList" :key="order.id" class="table__tr">
           <td class="table__td table__td--order">
             <div class="order-cell">
-              <span class="copyable-id">
-                <span class="order-id">{{ order.orderId || '-' }}</span>
-                <button v-if="order.orderId" type="button" class="copyable-id__button" title="复制订单号" aria-label="复制订单号" @click="copyIdentifier(order.orderId, '订单号', $event)"><IconCopy /></button>
-              </span>
+              <span class="order-id">{{ order.orderId || '-' }}</span>
               <span class="order-cell__time">{{ formatTime(order.orderCreateTime || order.createTime) }}</span>
             </div>
           </td>
@@ -519,8 +467,6 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
               <span class="order-title-cell__name text-ellipsis-10" :title="order.goodsTitle || '-'">{{ order.goodsTitle || '-' }}</span>
               <span v-if="order.skuName" class="order-title-cell__meta">规格：{{ order.skuName }}</span>
               <span class="order-title-cell__meta">买家：{{ order.buyerUserName || '-' }}</span>
-              <span class="order-title-cell__meta copyable-id">商品 ID：{{ order.xyGoodsId || '-' }}<button v-if="order.xyGoodsId" type="button" class="copyable-id__button" title="复制商品 ID" aria-label="复制商品 ID" @click="copyIdentifier(order.xyGoodsId, '商品 ID', $event)"><IconCopy /></button></span>
-              <span class="order-title-cell__meta copyable-id">买家 ID：{{ order.buyerUserId || '-' }}<button v-if="order.buyerUserId" type="button" class="copyable-id__button" title="复制买家 ID" aria-label="复制买家 ID" @click="copyIdentifier(order.buyerUserId, '买家 ID', $event)"><IconCopy /></button></span>
             </div>
           </td>
           <td class="table__td table__td--trade">
@@ -583,7 +529,7 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
                 </button>
                 <Transition name="action-menu">
                   <div v-if="openedActionMenuKey === orderKey(order)" class="order-action-menu" role="menu">
-                    <button type="button" role="menuitem" :disabled="!order.orderId" @click="runMenuAction($event, () => copyIdentifier(order.orderId, '订单号'))"><IconCopy /> 复制订单号</button>
+                    <button type="button" role="menuitem" :disabled="!order.orderId" @click="runMenuAction($event, () => emit('copySid', order.orderId || ''))"><IconCopy /> 复制订单 ID</button>
                     <button type="button" role="menuitem" :disabled="!canRuleDelivery(order)" :title="ruleDeliveryReason(order)" @click="runMenuAction($event, () => emit('ruleDelivery', order))"><IconTruck /> {{ order.manualDelivering ? '发货中' : '手动发货' }}</button>
                     <button type="button" role="menuitem" :disabled="!canConfirmShipment(order)" :title="confirmShipmentReason(order)" @click="runMenuAction($event, () => emit('confirmShipment', order))"><IconTruck /> {{ order.confirming ? '处理中' : '确认发货' }}</button>
                     <div class="order-action-menu__divider"></div>
@@ -620,28 +566,11 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
           <template v-else-if="detailData">
             <div class="detail-dialog__section">
               <div class="detail-dialog__rows">
-                <div v-if="selectedOrder?.orderId" class="detail-dialog__row detail-dialog__row--identifier">
-                  <span class="detail-dialog__label">订单号</span>
-                  <span class="detail-dialog__value copyable-id">
-                    <span>{{ selectedOrder.orderId }}</span>
-                    <button type="button" class="copyable-id__button" title="复制订单号" aria-label="复制订单号" @click="copyIdentifier(selectedOrder.orderId, '订单号', $event)"><IconCopy /></button>
-                  </span>
-                </div>
-                <div v-if="selectedOrder?.xyGoodsId" class="detail-dialog__row detail-dialog__row--identifier">
-                  <span class="detail-dialog__label">商品 ID</span>
-                  <span class="detail-dialog__value copyable-id">
-                    <span>{{ selectedOrder.xyGoodsId }}</span>
-                    <button type="button" class="copyable-id__button" title="复制商品 ID" aria-label="复制商品 ID" @click="copyIdentifier(selectedOrder.xyGoodsId, '商品 ID', $event)"><IconCopy /></button>
-                  </span>
-                </div>
-                <div v-if="selectedOrder?.buyerUserId" class="detail-dialog__row detail-dialog__row--identifier">
-                  <span class="detail-dialog__label">买家 ID</span>
-                  <span class="detail-dialog__value copyable-id">
-                    <span>{{ selectedOrder.buyerUserId }}</span>
-                    <button type="button" class="copyable-id__button" title="复制买家 ID" aria-label="复制买家 ID" @click="copyIdentifier(selectedOrder.buyerUserId, '买家 ID', $event)"><IconCopy /></button>
-                  </span>
-                </div>
                 <template v-if="detailFromServer && detailData.module">
+                  <div v-if="detailData.module.merchantCommonData?.orderId" class="detail-dialog__row">
+                    <span class="detail-dialog__label">订单ID</span>
+                    <span class="detail-dialog__value">{{ detailData.module.merchantCommonData.orderId }}</span>
+                  </div>
                   <div v-if="detailData.module.merchantCommonData?.orderStatus" class="detail-dialog__row">
                     <span class="detail-dialog__label">状态</span>
                     <span class="detail-dialog__value">{{ detailData.module.merchantCommonData.orderStatus }}</span>
@@ -677,6 +606,10 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
                 </template>
                 <template v-else-if="!detailFromServer">
                   <div class="detail-dialog__tag detail-dialog__tag--local">本地数据</div>
+                  <div v-if="detailData.orderId" class="detail-dialog__row">
+                    <span class="detail-dialog__label">订单ID</span>
+                    <span class="detail-dialog__value">{{ detailData.orderId }}</span>
+                  </div>
                   <div v-if="detailData.goodsTitle" class="detail-dialog__row">
                     <span class="detail-dialog__label">商品</span>
                     <span class="detail-dialog__value">{{ detailData.goodsTitle }}</span>
@@ -835,60 +768,6 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 60%;
-}
-
-.copyable-id {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-width: 0;
-}
-
-.copyable-id--order-card {
-  max-width: 62%;
-}
-
-.copyable-id--order-card .order-card__id {
-  max-width: none;
-}
-
-.copyable-id__button {
-  appearance: none;
-  display: inline-grid;
-  align-items: center;
-  justify-content: center;
-  width: 18px !important;
-  height: 18px !important;
-  min-width: 18px !important;
-  min-height: 18px !important;
-  flex: 0 0 18px;
-  margin: 0 0 0 1px !important;
-  padding: 0 !important;
-  border: 0 !important;
-  border-radius: 4px;
-  box-shadow: none !important;
-  color: #7a8798 !important;
-  background: transparent !important;
-  cursor: pointer;
-  transition: color .18s ease, background .18s ease;
-}
-
-.copyable-id__button:hover {
-  color: #1677ff !important;
-  background: rgba(22, 119, 255, .08) !important;
-}
-
-.copyable-id__button:focus-visible {
-  outline: 2px solid rgba(22, 119, 255, .38);
-  outline-offset: 1px;
-}
-
-.copyable-id__button :deep(svg) {
-  display: block;
-  width: 12px !important;
-  height: 12px !important;
-  fill: none !important;
-  stroke: currentColor !important;
 }
 
 .order-card__status-group {
@@ -1620,12 +1499,6 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
   align-items: flex-start;
   gap: 12px;
   font-size: 13px;
-}
-
-.detail-dialog__row--identifier {
-  padding: 8px 10px;
-  border-radius: 8px;
-  background: rgba(22, 119, 255, .055);
 }
 
 .detail-dialog__label {

@@ -30,6 +30,7 @@ const {
   handleReset,
   handlePageChange,
   handleSizeChange,
+  copySId,
   handleConfirmShipment,
   handleRuleDelivery,
   handleCustomDelivery
@@ -229,6 +230,7 @@ const executeCustomDelivery = async () => {
           <OrderTable
             :order-list="orderList"
             :loading="loading"
+            @copy-sid="copySId"
             @confirm-shipment="openConfirmDialog"
             @rule-delivery="openRuleDeliveryDialog"
             @refresh="loadOrders"

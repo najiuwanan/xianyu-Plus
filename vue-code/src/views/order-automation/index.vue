@@ -20,7 +20,6 @@ import {
 } from '@/api/exception-center'
 import { showConfirm, showError, showSuccess } from '@/utils'
 import type { Account } from '@/types'
-import IconCopy from '@/components/icons/IconCopy.vue'
 
 const loading = ref(false)
 const retryingKey = ref('')
@@ -287,29 +286,6 @@ const formatTime = (value?: string) => {
   })
 }
 
-const copyIdentifier = async (value: string | undefined, label: string) => {
-  const text = String(value || '').trim()
-  if (!text) return
-  try {
-    if (navigator.clipboard?.writeText && window.isSecureContext) {
-      await navigator.clipboard.writeText(text)
-    } else {
-      const textarea = document.createElement('textarea')
-      textarea.value = text
-      textarea.style.position = 'fixed'
-      textarea.style.opacity = '0'
-      document.body.appendChild(textarea)
-      textarea.select()
-      const copied = document.execCommand('copy')
-      textarea.remove()
-      if (!copied) throw new Error('copy command failed')
-    }
-    showSuccess(`${label}已复制`)
-  } catch {
-    showError(`${label}复制失败，请手动复制`)
-  }
-}
-
 onMounted(async () => {
   await loadAccounts()
   await loadRecords()
@@ -415,8 +391,8 @@ onMounted(async () => {
               <td class="failure-target">
                 <strong>{{ record.goodsTitle || record.orderId || '未命名记录' }}</strong>
                 <small>{{ record.accountName || `账号 ${record.accountId}` }}<template v-if="record.buyerUserName"> · {{ record.buyerUserName }}</template></small>
-                <small v-if="record.orderId" class="copyable-id">订单号：{{ record.orderId }}<button type="button" title="复制订单号" aria-label="复制订单号" @click="copyIdentifier(record.orderId, '订单号')"><IconCopy /></button></small>
-                <small v-if="record.xyGoodsId" class="copyable-id">商品 ID：{{ record.xyGoodsId }}<button type="button" title="复制商品 ID" aria-label="复制商品 ID" @click="copyIdentifier(record.xyGoodsId, '商品 ID')"><IconCopy /></button></small>
+                <small v-if="record.orderId">订单号：{{ record.orderId }}</small>
+                <small v-else-if="record.xyGoodsId">商品 ID：{{ record.xyGoodsId }}</small>
               </td>
               <td class="failure-reason" :title="record.reason">{{ record.reason || '未返回失败原因' }}</td>
               <td class="failure-time">{{ formatTime(record.occurredAt) }}</td>
@@ -445,7 +421,7 @@ onMounted(async () => {
               <td class="order-cell">
                 <div class="order-title">{{ record.goodsTitle || '未同步商品标题' }}</div>
                 <div class="order-meta">{{ record.accountName || `账号 ${record.accountId}` }} · {{ record.buyerUserName || '未知买家' }}</div>
-                <div class="order-id copyable-id">订单号：{{ record.orderId }}<button type="button" title="复制订单号" aria-label="复制订单号" @click="copyIdentifier(record.orderId, '订单号')"><IconCopy /></button></div>
+                <div class="order-id">订单号：{{ record.orderId }}</div>
                 <div class="order-time">下单时间：{{ formatTime(record.orderCreateTime) }}</div>
                 <div v-if="record.tradeStatusText" class="order-time">交易状态：{{ record.tradeStatusText }}</div>
               </td>
@@ -539,11 +515,6 @@ tbody tr:last-child td { border-bottom:0; }
 .order-cell { width:31%; }
 .order-title { color:#1d2939; font-weight:600; margin-bottom:5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:320px; }
 .order-meta, .order-id, .order-time, .cell-time { color:#667085; font-size:12px; margin-top:4px; }
-.copyable-id { display:flex !important; align-items:center; gap:5px; }
-.copyable-id button { display:inline-flex; align-items:center; justify-content:center; width:21px; height:21px; flex:0 0 21px; padding:0; border:0; border-radius:6px; color:#667085; background:transparent; cursor:pointer; }
-.copyable-id button:hover { color:#1677ff; background:rgba(22,119,255,.1); }
-.copyable-id button:focus-visible { outline:2px solid rgba(22,119,255,.35); outline-offset:1px; }
-.copyable-id button :deep(svg) { width:12px; height:12px; }
 .status { display:inline-flex; align-items:center; border-radius:999px; font-size:12px; font-weight:600; padding:4px 9px; }
 .status--success { color:#067647; background:#ecfdf3; }
 .status--failed { color:#b42318; background:#fef3f2; }
