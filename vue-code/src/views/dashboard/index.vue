@@ -41,8 +41,36 @@ const recentTrend = computed(() => {
   const max = Math.max(...days.map(item => item.orderCount), 1)
   return days.map(item => ({
     ...item,
-    height: item.orderCount ? Math.max(10, Math.round((item.orderCount / max) * 100)) : 4
+    ratio: item.orderCount / max
   }))
+})
+
+const chartPoints = computed(() => {
+  const total = recentTrend.value.length
+  return recentTrend.value.map((item, index) => ({
+    ...item,
+    x: total <= 1 ? 50 : 1 + (index / (total - 1)) * 98,
+    y: 82 - item.ratio * 66
+  }))
+})
+
+const smoothPath = (points: Array<{ x: number; y: number }>) => {
+  const first = points[0]
+  if (!first) return ''
+  return points.slice(1).reduce((path, point, index) => {
+    const previous = points[index]!
+    const controlX = (previous.x + point.x) / 2
+    return `${path} C ${controlX} ${previous.y}, ${controlX} ${point.y}, ${point.x} ${point.y}`
+  }, `M ${first.x} ${first.y}`)
+}
+
+const trendLinePath = computed(() => smoothPath(chartPoints.value))
+const trendAreaPath = computed(() => {
+  const points = chartPoints.value
+  const first = points[0]
+  const last = points[points.length - 1]
+  if (!first || !last) return ''
+  return `${smoothPath(points)} L ${last.x} 82 L ${first.x} 82 Z`
 })
 
 const deliveryOrderCount = computed(() => recentTrend.value.reduce((sum, item) => sum + item.orderCount, 0))
@@ -119,10 +147,33 @@ onMounted(() => {
           </div>
         </div>
       </div>
-        <div class="chart-legend"><span><i></i>成功交付订单数</span><span>{{ trendDays === 30 ? '30 日视图每 5 日显示一个日期刻度' : '每根柱形代表对应日期的交付数量' }}</span></div>
-        <div class="trend-chart" :class="{ 'trend-chart--30': trendDays === 30 }" :aria-label="trendAriaLabel">
-          <div v-for="item in recentTrend" :key="item.dateKey" class="trend-chart__item" :title="`${item.dateKey}：${item.orderCount} 笔，¥ ${money(item.revenue)}`">
-            <strong>{{ item.orderCount }}</strong><div class="trend-chart__track"><i :style="{ height: `${item.height}%` }"></i></div><span :class="{ 'trend-chart__label--hidden': !item.showLabel }">{{ item.label }}</span>
+        <div class="chart-legend"><span><i></i>成功交付订单趋势</span><span>{{ trendDays === 30 ? '30 日视图每 5 日显示一个日期刻度' : '悬停折线节点可查看当日订单与成交额' }}</span></div>
+        <div class="trend-line-chart" :class="{ 'trend-line-chart--30': trendDays === 30 }" :aria-label="trendAriaLabel">
+          <svg class="trend-line-chart__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="deliveryTrendArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#ffbd16" stop-opacity=".32" />
+                <stop offset="100%" stop-color="#ffbd16" stop-opacity=".02" />
+              </linearGradient>
+            </defs>
+            <line v-for="gridY in [16, 38, 60, 82]" :key="gridY" x1="1" :y1="gridY" x2="99" :y2="gridY" class="trend-line-chart__grid" />
+            <path :d="trendAreaPath" class="trend-line-chart__area" />
+            <path :d="trendLinePath" class="trend-line-chart__line" />
+          </svg>
+          <button
+            v-for="point in chartPoints"
+            :key="point.dateKey"
+            type="button"
+            class="trend-line-chart__point"
+            :style="{ left: `${point.x}%`, top: `calc((100% - 28px) * ${point.y / 100})` }"
+            :aria-label="`${point.dateKey}，成功交付 ${point.orderCount} 笔，成交额 ${money(point.revenue)} 元`"
+          >
+            <strong v-if="trendDays === 7 || point.orderCount > 0">{{ point.orderCount }}</strong>
+            <i></i>
+            <span class="trend-line-chart__tooltip"><b>{{ point.dateKey }}</b><em>{{ point.orderCount }} 笔订单</em><em>¥{{ money(point.revenue) }}</em></span>
+          </button>
+          <div class="trend-line-chart__labels" :style="{ gridTemplateColumns: `repeat(${recentTrend.length}, minmax(0, 1fr))` }">
+            <span v-for="item in recentTrend" :key="item.dateKey" :class="{ 'is-hidden': !item.showLabel }">{{ item.label }}</span>
           </div>
         </div>
     </section>

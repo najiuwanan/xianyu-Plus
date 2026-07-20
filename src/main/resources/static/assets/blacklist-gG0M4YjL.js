@@ -1,1 +1,0 @@
-import{k as l}from"./index-FStv-CY8.js";const s=(t={})=>l({url:"/blacklist/list",method:"POST",data:t}),a=t=>l({url:"/blacklist/save",method:"POST",data:t}),c=t=>l({url:"/blacklist/delete",method:"POST",data:{id:t}}),r=t=>l({url:"/blacklist/check",method:"POST",data:t});export{r as c,c as d,s as g,a as s};
