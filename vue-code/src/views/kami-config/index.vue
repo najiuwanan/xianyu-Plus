@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, inject } from 'vue'
+import { ref, computed, onMounted, onUnmounted, inject, nextTick } from 'vue'
 import { toast } from '@/utils/toast'
 import { showConfirm } from '@/utils/confirm'
 import {
@@ -56,6 +56,36 @@ const apiForm = ref({
   apiResultPath: '',
   apiTimeoutSeconds: 10
 })
+const deliveryTemplateTextarea = ref<HTMLTextAreaElement | null>(null)
+const deliveryTemplateVariables = [
+  {
+    token: '{DELIVERY_CONTENT}',
+    name: '实际发货内容',
+    description: '本次取出的卡券、接口返回内容或固定发货内容',
+    required: true
+  },
+  { token: '{order_id}', name: '订单号', description: '当前闲鱼订单的订单号' },
+  { token: '{item_id}', name: '商品 ID', description: '当前成交商品的闲鱼商品 ID' },
+  { token: '{item_title}', name: '商品标题', description: '当前成交商品的标题' },
+  { token: '{buyer_name}', name: '买家昵称', description: '当前订单买家的昵称' },
+  { token: '{buyer_id}', name: '买家 ID', description: '当前订单买家的闲鱼用户 ID' },
+  { token: '{seller_name}', name: '卖家名称', description: '当前发货账号的备注；未设置时显示账号 UNB' },
+  { token: '{sku_name}', name: '商品规格', description: '买家下单时选择的规格；无规格时为空' }
+]
+
+const insertDeliveryTemplateVariable = async (token: string) => {
+  const textarea = deliveryTemplateTextarea.value
+  const currentValue = apiForm.value.deliveryTemplate || ''
+  const start = textarea?.selectionStart ?? currentValue.length
+  const end = textarea?.selectionEnd ?? start
+
+  apiForm.value.deliveryTemplate = `${currentValue.slice(0, start)}${token}${currentValue.slice(end)}`
+  await nextTick()
+
+  const cursor = start + token.length
+  deliveryTemplateTextarea.value?.focus()
+  deliveryTemplateTextarea.value?.setSelectionRange(cursor, cursor)
+}
 
 const showRelatedGoodsDialog = ref(false)
 const relatedGoods = ref<KamiRelatedGoods[]>([])
@@ -1006,13 +1036,37 @@ onUnmounted(() => {
                 <div class="form-row">
                   <label class="form-label">发货消息模板</label>
                   <textarea
+                    ref="deliveryTemplateTextarea"
                     v-model="apiForm.deliveryTemplate"
                     class="form-textarea"
                     :rows="7"
                     maxlength="2000"
                     placeholder="您好，您购买的商品已发货：&#10;&#10;{DELIVERY_CONTENT}&#10;&#10;订单号：{order_id}"
                   ></textarea>
-                  <p v-pre class="form-hint">留空时直接发送卡券内容。填写模板必须包含 {DELIVERY_CONTENT}；还可使用 {order_id}、{item_id}、{item_title}、{buyer_name}、{buyer_id}、{seller_name}、{sku_name}。</p>
+                  <p v-pre class="form-hint">留空时直接发送卡券内容。填写模板时必须包含 {DELIVERY_CONTENT}。</p>
+                  <div class="delivery-template-guide">
+                    <div class="delivery-template-guide__head">
+                      <strong>变量说明</strong>
+                      <span>点击变量即可插入到模板光标位置</span>
+                    </div>
+                    <div class="delivery-template-guide__grid">
+                      <button
+                        v-for="variable in deliveryTemplateVariables"
+                        :key="variable.token"
+                        type="button"
+                        class="delivery-template-variable"
+                        :title="`插入 ${variable.token}`"
+                        @click="insertDeliveryTemplateVariable(variable.token)"
+                      >
+                        <span class="delivery-template-variable__top">
+                          <code>{{ variable.token }}</code>
+                          <b>{{ variable.name }}</b>
+                          <em v-if="variable.required">必填</em>
+                        </span>
+                        <small>{{ variable.description }}</small>
+                      </button>
+                    </div>
+                  </div>
                   <p class="form-hint">使用 <code>######</code> 分隔，可按顺序拆成多条消息发送。旧模板中的 <code>{kmKey}</code> 仍然兼容。</p>
                 </div>
               </div>
@@ -1628,6 +1682,88 @@ onUnmounted(() => {
   color: #0969b8;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
+.delivery-template-guide {
+  flex: 1 1 calc(100% - 80px);
+  margin-left: 80px;
+  padding: 11px;
+  border: 1px solid rgba(10,132,255,.16);
+  border-radius: 10px;
+  background: rgba(10,132,255,.035);
+}
+.delivery-template-guide__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+  color: #1c1c1e;
+  font-size: 12px;
+}
+.delivery-template-guide__head span {
+  color: rgba(28,28,30,.5);
+  font-weight: 400;
+}
+.delivery-template-guide__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+.delivery-template-variable {
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid rgba(60,60,67,.1);
+  border-radius: 8px;
+  background: rgba(255,255,255,.72);
+  color: #1c1c1e;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+.delivery-template-variable:hover {
+  border-color: rgba(10,132,255,.42);
+  background: #fff;
+  transform: translateY(-1px);
+}
+.delivery-template-variable:focus-visible {
+  outline: 2px solid rgba(10,132,255,.32);
+  outline-offset: 1px;
+}
+.delivery-template-variable__top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.delivery-template-variable__top code {
+  flex: 0 0 auto;
+  padding: 1px 4px;
+  font-size: 11px;
+}
+.delivery-template-variable__top b {
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+.delivery-template-variable__top em {
+  margin-left: auto;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(255,159,10,.13);
+  color: #a46100;
+  font-size: 10px;
+  font-style: normal;
+  white-space: nowrap;
+}
+.delivery-template-variable small {
+  display: block;
+  margin-top: 4px;
+  overflow: hidden;
+  color: rgba(28,28,30,.56);
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .related-goods__warning {
   padding: 10px 12px;
@@ -2079,5 +2215,8 @@ onUnmounted(() => {
   .related-goods__column { max-height: 36vh; min-height: 240px; }
   .related-goods__column + .related-goods__column { border-left: none; border-top: 1px solid rgba(60,60,67,.12); }
   .related-goods__filters { grid-template-columns: 1fr; }
+  .delivery-template-guide { flex-basis: 100%; margin-left: 0; }
+  .delivery-template-guide__head { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .delivery-template-guide__grid { grid-template-columns: 1fr; }
 }
 </style>
