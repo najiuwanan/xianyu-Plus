@@ -42,6 +42,11 @@ ensure_volume_setting APP_DATA_VOLUME xianyu-plus-app-data xianyusmart_app-data
 ensure_volume_setting APP_LOGS_VOLUME xianyu-plus-app-logs xianyusmart_app-logs
 ensure_setting APP_NETWORK_NAME xianyu-plus
 ensure_setting APP_IMAGE xianyu-plus:latest
+ensure_setting UPDATER_IMAGE xianyu-plus-updater:latest
+ensure_setting ONLINE_UPDATE_ENABLED true
+ensure_setting ONLINE_UPDATE_BRANCH main
+ensure_setting ONLINE_UPDATE_DOWNTIME_SECONDS 120
+ensure_setting HOST_PROJECT_DIR "$ROOT_DIR"
 
 # 仅迁移项目过去的默认镜像名；用户自行配置的远程镜像保持不变。
 if grep -q '^APP_IMAGE=xianyusmart:latest$' .env; then

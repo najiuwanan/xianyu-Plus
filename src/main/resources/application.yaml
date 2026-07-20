@@ -32,6 +32,9 @@ app:
   security:
     allowed-origins: ${ALLOWED_ORIGINS:http://localhost:5173,http://localhost:12400}
     trust-proxy: ${TRUST_PROXY:false}
+  online-update:
+    enabled: ${ONLINE_UPDATE_ENABLED:false}
+    control-dir: ${ONLINE_UPDATE_CONTROL_DIR:/app/data/update}
 
 # AI功能开关（默认开启，API Key从数据库xianyu_sys_setting表读取，未配置时AI功能自动降级）
 ai:
