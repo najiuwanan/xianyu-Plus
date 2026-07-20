@@ -55,8 +55,6 @@ services:
       TZ: ${TZ:-Asia/Shanghai}
       UPDATE_GITHUB_REPOSITORY: ${UPDATE_GITHUB_REPOSITORY:-najiuwanan/xianyu-Plus}
       UPDATE_CHECK_CACHE_MINUTES: ${UPDATE_CHECK_CACHE_MINUTES:-60}
-      ONLINE_UPDATE_ENABLED: ${ONLINE_UPDATE_ENABLED:-true}
-      ONLINE_UPDATE_CONTROL_DIR: /app/data/update
     ports:
       - "12400:12400"
     logging:
@@ -73,33 +71,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 45s
-    networks:
-      - xianyu-plus
-
-  updater:
-    build:
-      context: .
-      dockerfile: deploy/updater/Dockerfile
-    image: ${UPDATER_IMAGE:-xianyu-plus-updater:latest}
-    restart: unless-stopped
-    working_dir: ${HOST_PROJECT_DIR:-/workspace}
-    environment:
-      HOME: /tmp
-      UPDATE_WORKSPACE: ${HOST_PROJECT_DIR:-/workspace}
-      UPDATE_CONTROL_ROOT: /control/update
-      ONLINE_UPDATE_BRANCH: ${ONLINE_UPDATE_BRANCH:-main}
-      ONLINE_UPDATE_DOWNTIME_SECONDS: ${ONLINE_UPDATE_DOWNTIME_SECONDS:-120}
-      APP_IMAGE: ${APP_IMAGE:-xianyu-plus:latest}
-      TZ: ${TZ:-Asia/Shanghai}
-    volumes:
-      - ${HOST_PROJECT_DIR:-.}:${HOST_PROJECT_DIR:-/workspace}
-      - app-data:/control
-      - /var/run/docker.sock:/var/run/docker.sock
-    read_only: true
-    tmpfs:
-      - /tmp
-    security_opt:
-      - no-new-privileges:true
     networks:
       - xianyu-plus
 

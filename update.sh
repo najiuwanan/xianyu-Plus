@@ -13,6 +13,9 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
+# V1.8.x：在线更新功能已移除，清理旧版更新容器遗留配置。
+sed -i '/^ONLINE_UPDATE_ENABLED=/d;/^ONLINE_UPDATE_BRANCH=/d;/^ONLINE_UPDATE_DOWNTIME_SECONDS=/d;/^UPDATER_IMAGE=/d;/^HOST_PROJECT_DIR=/d' .env
+
 # V1.8.0 品牌迁移：旧安装继续复用原有数据卷；全新安装使用 xianyu-plus 名称。
 ensure_volume_setting() {
     local key="$1"
@@ -42,11 +45,6 @@ ensure_volume_setting APP_DATA_VOLUME xianyu-plus-app-data xianyusmart_app-data
 ensure_volume_setting APP_LOGS_VOLUME xianyu-plus-app-logs xianyusmart_app-logs
 ensure_setting APP_NETWORK_NAME xianyu-plus
 ensure_setting APP_IMAGE xianyu-plus:latest
-ensure_setting UPDATER_IMAGE xianyu-plus-updater:latest
-ensure_setting ONLINE_UPDATE_ENABLED true
-ensure_setting ONLINE_UPDATE_BRANCH main
-ensure_setting ONLINE_UPDATE_DOWNTIME_SECONDS 120
-ensure_setting HOST_PROJECT_DIR "$ROOT_DIR"
 
 # 仅迁移项目过去的默认镜像名；用户自行配置的远程镜像保持不变。
 if grep -q '^APP_IMAGE=xianyusmart:latest$' .env; then
@@ -82,7 +80,7 @@ if [ "${V21_FAILED//$'\r'/}" = "1" ]; then
     docker compose exec -T mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < deploy/sql/repair-v21-buyer-blacklist.sql
 fi
 
-docker compose up -d --build
+docker compose up -d --build --remove-orphans
 
 echo "正在等待 XianYuPlus 应用通过健康检查..."
 APP_CONTAINER_ID="$(docker compose ps -q app)"
@@ -101,6 +99,7 @@ done
 
 # 新服务确认健康后再移除旧应用镜像；数据库镜像和数据卷不会删除。
 docker image rm xianyusmart:latest >/dev/null 2>&1 || true
+docker image rm xianyu-plus-updater:latest >/dev/null 2>&1 || true
 docker network rm xianyusmart_xianyusmart >/dev/null 2>&1 || true
 
 docker compose ps

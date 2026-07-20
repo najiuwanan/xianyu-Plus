@@ -9,12 +9,10 @@ import com.xianyusmart.controller.dto.FetchModelsReqDTO;
 import com.xianyusmart.controller.dto.FetchModelsRespDTO;
 import com.xianyusmart.controller.dto.TestAiReqDTO;
 import com.xianyusmart.controller.dto.SystemUpdateStatusRespDTO;
-import com.xianyusmart.controller.dto.OnlineUpdateExecutionRespDTO;
 import com.xianyusmart.entity.SysUser;
 import com.xianyusmart.exception.BusinessException;
 import com.xianyusmart.service.AuthService;
 import com.xianyusmart.service.SystemUpdateService;
-import com.xianyusmart.service.OnlineUpdateExecutionService;
 import com.xianyusmart.service.bo.ChangePasswordReqBO;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -43,9 +41,6 @@ public class SystemController {
 
     @Autowired
     private SystemUpdateService systemUpdateService;
-
-    @Autowired
-    private OnlineUpdateExecutionService onlineUpdateExecutionService;
 
     /**
      * 获取当前用户信息
@@ -118,29 +113,6 @@ public class SystemController {
     public ResultObject<SystemUpdateStatusRespDTO> getUpdateStatus(
             @RequestParam(value = "refresh", defaultValue = "false") boolean refresh) {
         return ResultObject.success(systemUpdateService.checkStatus(refresh));
-    }
-
-    /** 获取独立更新代理的进度；应用重启后仍可继续读取。 */
-    @GetMapping("/online-update/status")
-    public ResultObject<OnlineUpdateExecutionRespDTO> getOnlineUpdateStatus() {
-        return ResultObject.success(onlineUpdateExecutionService.getStatus());
-    }
-
-    /** 提交固定格式的在线更新请求，不接受任何命令或脚本参数。 */
-    @PostMapping("/online-update/start")
-    public ResultObject<OnlineUpdateExecutionRespDTO> startOnlineUpdate(HttpServletRequest request) {
-        if (request.getAttribute("currentUserId") == null) {
-            return ResultObject.unauthorized(null);
-        }
-        try {
-            SystemUpdateStatusRespDTO updateStatus = systemUpdateService.checkStatus(true);
-            if (!updateStatus.isUpdateAvailable()) {
-                return ResultObject.failed("当前已经是最新版本，无需更新");
-            }
-            return ResultObject.success(onlineUpdateExecutionService.start(updateStatus.getLatestCommit()), "在线更新已开始");
-        } catch (BusinessException e) {
-            return ResultObject.failed(e.getMessage());
-        }
     }
 
     @PostMapping("/fetchModels")

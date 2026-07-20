@@ -853,24 +853,29 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
 }
 
 .copyable-id__button {
-  display: inline-flex;
+  appearance: none;
+  display: inline-grid;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  flex: 0 0 22px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  color: #5f6f86;
-  background: transparent;
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px !important;
+  min-height: 18px !important;
+  flex: 0 0 18px;
+  margin: 0 0 0 1px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 4px;
+  box-shadow: none !important;
+  color: #7a8798 !important;
+  background: transparent !important;
   cursor: pointer;
   transition: color .18s ease, background .18s ease;
 }
 
 .copyable-id__button:hover {
-  color: #1677ff;
-  background: rgba(22, 119, 255, .1);
+  color: #1677ff !important;
+  background: rgba(22, 119, 255, .08) !important;
 }
 
 .copyable-id__button:focus-visible {
@@ -879,8 +884,11 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
 }
 
 .copyable-id__button :deep(svg) {
-  width: 13px;
-  height: 13px;
+  display: block;
+  width: 12px !important;
+  height: 12px !important;
+  fill: none !important;
+  stroke: currentColor !important;
 }
 
 .order-card__status-group {

@@ -41,12 +41,8 @@ if [ ! -f .env ]; then
     chmod 600 .env
 fi
 
-if ! grep -q '^HOST_PROJECT_DIR=' .env; then
-    printf '\nHOST_PROJECT_DIR=%s\n' "$ROOT_DIR" >> .env
-fi
-
 export APP_GIT_SHA="$(git rev-parse --verify HEAD 2>/dev/null || echo unknown)"
-docker compose up -d --build
+docker compose up -d --build --remove-orphans
 docker compose ps
 
 echo

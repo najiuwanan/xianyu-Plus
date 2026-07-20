@@ -3,7 +3,7 @@ import { computed, onMounted, onUnmounted, provide, ref, shallowRef } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import NavMenu from './NavMenu.vue'
 import UserMenu from './UserMenu.vue'
-import { getSystemUpdateStatus, pollOnlineUpdateStatus, startOnlineUpdate, type OnlineUpdateExecution, type SystemUpdateStatus } from '@/api/system'
+import { getSystemUpdateStatus, type SystemUpdateStatus } from '@/api/system'
 
 const route = useRoute()
 
@@ -15,20 +15,6 @@ const drawerVisible = ref(false)
 const updateStatus = ref<SystemUpdateStatus | null>(null)
 const updateChecking = ref(false)
 const versionDialogVisible = ref(false)
-const updateExecution = ref<OnlineUpdateExecution | null>(null)
-const updateConfirmVisible = ref(false)
-const updateStarting = ref(false)
-const updateConnectionLost = ref(false)
-let updatePollTimer: number | undefined
-
-const activeUpdateStates = ['QUEUED', 'RUNNING', 'RESTARTING']
-const updateIsActive = computed(() => !!updateExecution.value && activeUpdateStates.includes(updateExecution.value.state))
-const updateStageLabels: Record<string, string> = {
-  QUEUED: '排队等待', PREPARING: '环境检查', BACKUP: '备份数据库', DOWNLOADING: '下载代码',
-  BUILDING: '构建镜像', DATABASE_CHECK: '数据库检查', RESTARTING: '正在重启',
-  HEALTH_CHECK: '健康检查', COMPLETED: '更新完成', FAILED: '更新失败', STATUS_ERROR: '状态异常'
-}
-const updateStageLabel = computed(() => updateStageLabels[updateExecution.value?.stage || ''] || '准备更新')
 
 const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV]/, '')}` : '未知版本'
 const updateSummary = computed(() => {
@@ -103,58 +89,14 @@ const loadUpdateStatus = async (forceRefresh = false) => {
   }
 }
 
-const loadOnlineUpdateStatus = async () => {
-  try {
-    const status = await pollOnlineUpdateStatus()
-    const wasActive = updateIsActive.value
-    updateExecution.value = status
-    updateConnectionLost.value = false
-    if (wasActive && status.state === 'SUCCEEDED') {
-      await loadUpdateStatus(true)
-    }
-  } catch {
-    if (updateIsActive.value) updateConnectionLost.value = true
-  }
-}
-
-const beginUpdatePolling = () => {
-  if (updatePollTimer) window.clearInterval(updatePollTimer)
-  updatePollTimer = window.setInterval(loadOnlineUpdateStatus, 2500)
-}
-
-const openVersionDialog = () => {
-  versionDialogVisible.value = true
-  updateConfirmVisible.value = false
-  loadOnlineUpdateStatus().then(() => {
-    if (updateIsActive.value) beginUpdatePolling()
-  })
-}
-
-const confirmOnlineUpdate = async () => {
-  updateStarting.value = true
-  try {
-    const response = await startOnlineUpdate()
-    updateExecution.value = response.data || null
-    updateConfirmVisible.value = false
-    updateConnectionLost.value = false
-    beginUpdatePolling()
-  } finally {
-    updateStarting.value = false
-  }
-}
-
 onMounted(() => {
   checkScreenSize()
   loadUpdateStatus()
-  loadOnlineUpdateStatus().then(() => {
-    if (updateIsActive.value) beginUpdatePolling()
-  })
   window.addEventListener('resize', checkScreenSize)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkScreenSize)
-  if (updatePollTimer) window.clearInterval(updatePollTimer)
 })
 </script>
 
@@ -174,15 +116,14 @@ onUnmounted(() => {
 
       <section class="workspace">
         <header class="workspace-header">
-          <div class="workspace-header__spacer"></div>
+          <div class="workspace-notice" :class="{ 'workspace-notice--available': updateStatus?.updateAvailable }" aria-live="polite">
+            <span class="workspace-notice__icon" aria-hidden="true">{{ updateStatus?.updateAvailable ? '↑' : 'i' }}</span>
+            <strong>系统公告</strong>
+            <span class="workspace-notice__message" :title="updateStatus?.message">{{ updateSummary }}</span>
+            <button v-if="updateStatus" type="button" class="workspace-notice__detail" @click="versionDialogVisible = true">版本详情</button>
+            <button type="button" :disabled="updateChecking" @click="loadUpdateStatus(true)">{{ updateChecking ? '检查中…' : '检查更新' }}</button>
+          </div>
           <div class="workspace-header__actions">
-            <div class="workspace-notice" :class="{ 'workspace-notice--available': updateStatus?.updateAvailable }" aria-live="polite">
-              <span class="workspace-notice__icon" aria-hidden="true">{{ updateStatus?.updateAvailable ? '↑' : 'i' }}</span>
-              <strong>系统公告</strong>
-              <span class="workspace-notice__message" :title="updateStatus?.message">{{ updateSummary }}</span>
-              <button v-if="updateStatus" type="button" class="workspace-notice__detail" @click="openVersionDialog">版本详情</button>
-              <button type="button" :disabled="updateChecking" @click="loadUpdateStatus(true)">{{ updateChecking ? '检查中…' : '检查更新' }}</button>
-            </div>
             <span class="today-status"><span aria-hidden="true">☼</span> 今天，生意顺利</span>
             <UserMenu />
           </div>
@@ -241,40 +182,9 @@ onUnmounted(() => {
           </ul>
           <p v-else>{{ updateStatus.latestMessage || '暂无版本说明' }}</p>
         </div>
-        <div v-if="updateConfirmVisible" class="online-update-confirm">
-          <div class="online-update-confirm__title"><strong>确认在线更新</strong><span>更新期间请勿关闭设备或停止 Docker</span></div>
-          <div class="online-update-confirm__facts">
-            <div><small>预计总耗时</small><strong>约 3～10 分钟</strong><span>下载依赖和构建镜像耗时最长</span></div>
-            <div><small>预计服务中断</small><strong>约 30～120 秒</strong><span>仅在新镜像构建完成后重启</span></div>
-          </div>
-          <ul>
-            <li>更新前自动备份数据库，并保留最近 5 份备份。</li>
-            <li>构建阶段现有服务继续运行；进入“正在重启”后网页可能暂时失联。</li>
-            <li>页面会自动重连并继续显示进度，健康检查失败时将尝试恢复旧镜像。</li>
-          </ul>
-          <div class="online-update-confirm__actions">
-            <button type="button" :disabled="updateStarting" @click="updateConfirmVisible = false">暂不更新</button>
-            <button type="button" class="is-primary" :disabled="updateStarting" @click="confirmOnlineUpdate">{{ updateStarting ? '正在提交…' : '确认并开始更新' }}</button>
-          </div>
-        </div>
-        <div v-if="updateExecution && (updateIsActive || updateExecution.state === 'SUCCEEDED' || updateExecution.state === 'FAILED')" class="online-update-progress" :class="`is-${updateExecution.state.toLowerCase()}`">
-          <div class="online-update-progress__head">
-            <div><small>{{ updateStageLabel }}</small><strong>{{ updateExecution.message }}</strong></div>
-            <b>{{ updateExecution.progress }}%</b>
-          </div>
-          <div class="online-update-progress__track"><i :style="{ width: `${updateExecution.progress}%` }"></i></div>
-          <p v-if="updateConnectionLost" class="online-update-progress__offline"><span></span>应用正在重启，连接暂时中断；页面会自动重试，无需手动刷新。</p>
-          <p v-else-if="updateExecution.state === 'RESTARTING'">预计中断不超过 {{ updateExecution.estimatedDowntimeSeconds }} 秒，正在自动等待服务恢复。</p>
-          <details v-if="updateExecution.logs?.length">
-            <summary>查看更新日志（最近 {{ updateExecution.logs.length }} 行）</summary>
-            <pre>{{ updateExecution.logs.join('\n') }}</pre>
-          </details>
-        </div>
         <footer>
-          <span v-if="!updateExecution?.enabled">首次启用命令：<code>cd ~/xianyu-Plus && ./update.sh</code></span>
-          <span v-else>{{ updateIsActive ? '更新正在后台安全执行，请保持设备通电。' : '在线更新代理已就绪' }}</span>
+          <span>更新命令：<code>cd ~/xianyu-Plus && ./update.sh</code></span>
           <a v-if="updateStatus.updateUrl" :href="updateStatus.updateUrl" target="_blank" rel="noopener noreferrer">查看 GitHub</a>
-          <button v-if="updateStatus.updateAvailable && updateExecution?.enabled && !updateIsActive && !updateConfirmVisible" type="button" class="online-update-button" @click="updateConfirmVisible = true">立即在线更新</button>
           <button type="button" @click="versionDialogVisible = false">关闭</button>
         </footer>
       </section>
@@ -321,10 +231,6 @@ onUnmounted(() => {
 .version-dialog__versions small { color: #7a8799; }.version-dialog__versions strong { color: #1d3557; font-size: 20px; }.version-dialog__versions code { color: #8190a4; font-size: 11px; }
 .version-dialog__status { margin: 8px 24px 0; padding: 10px 12px; border-radius: 10px; color: #315f91; background: #edf6ff; font-size: 13px; }.version-dialog__status.available { color: #805900; background: #fff4cf; }
 .version-dialog__changes { padding: 18px 24px 20px; }.version-dialog__changes h3 { margin: 0 0 10px; color: #283b57; font-size: 15px; }.version-dialog__changes ul { display: grid; gap: 8px; margin: 0; padding-left: 20px; color: #53627a; font-size: 13px; line-height: 1.55; }.version-dialog__changes p { color: #718096; font-size: 13px; }
-.online-update-confirm,.online-update-progress { margin: 0 24px 20px; padding: 16px; border-radius: 13px; }
-.online-update-confirm { border: 1px solid #f0cc6d; background: #fffaf0; }.online-update-confirm__title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }.online-update-confirm__title strong { color: #684c05; }.online-update-confirm__title span { color: #9a6f00; font-size: 11px; }.online-update-confirm__facts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 13px 0; }.online-update-confirm__facts div { display: grid; gap: 3px; padding: 10px; border: 1px solid #f1dfaa; border-radius: 9px; background: #fff; }.online-update-confirm__facts small { color: #8a7441; }.online-update-confirm__facts strong { color: #3d4d63; font-size: 15px; }.online-update-confirm__facts span { color: #7c8796; font-size: 11px; }.online-update-confirm ul { display: grid; gap: 5px; margin: 0; padding-left: 19px; color: #647087; font-size: 12px; line-height: 1.45; }.online-update-confirm__actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }.online-update-confirm__actions button { padding: 8px 13px; border: 1px solid #d8dfE9; border-radius: 8px; background: #fff; color: #4d6079; font-weight: 700; cursor: pointer; }.online-update-confirm__actions button.is-primary,.version-dialog > footer .online-update-button { border-color: #dfaa12; background: #f7bb18; color: #563d00; }.online-update-confirm__actions button:disabled { opacity: .6; cursor: wait; }
-.online-update-progress { border: 1px solid #cfe0f4; background: #f6faff; }.online-update-progress.is-succeeded { border-color: #a9e6bf; background: #f3fcf6; }.online-update-progress.is-failed { border-color: #f4b8b4; background: #fff6f5; }.online-update-progress__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }.online-update-progress__head div { display: grid; gap: 4px; }.online-update-progress__head small { color: #3474bb; font-weight: 800; }.online-update-progress__head strong { color: #253a58; font-size: 13px; }.online-update-progress__head b { color: #286bb6; font-size: 18px; }.online-update-progress__track { height: 8px; margin: 13px 0 9px; overflow: hidden; border-radius: 99px; background: #dfe9f5; }.online-update-progress__track i { height: 100%; display: block; border-radius: inherit; background: linear-gradient(90deg,#3b8eea,#f2b516); transition: width .35s ease; }.online-update-progress p { margin: 0; color: #65758b; font-size: 12px; }.online-update-progress__offline { display: flex; align-items: center; gap: 7px; color: #986b00 !important; }.online-update-progress__offline span { width: 8px; height: 8px; border-radius: 50%; background: #f0ad00; box-shadow: 0 0 0 4px #fff0bd; animation: update-pulse 1.2s infinite; }.online-update-progress details { margin-top: 12px; }.online-update-progress summary { color: #496784; font-size: 12px; cursor: pointer; }.online-update-progress pre { max-height: 180px; overflow: auto; margin: 8px 0 0; padding: 10px; border-radius: 8px; background: #182538; color: #dce8f6; font: 11px/1.55 ui-monospace,Consolas,monospace; white-space: pre-wrap; }.online-update-progress.is-succeeded .online-update-progress__track i { background: #2db568; }.online-update-progress.is-failed .online-update-progress__track i { background: #db5148; }
-@keyframes update-pulse { 50% { opacity: .45; transform: scale(.75); } }
 .version-dialog > footer { display: flex; align-items: center; gap: 9px; padding: 14px 24px; border-top: 1px solid #edf0f4; background: #fafbfd; }.version-dialog > footer span { min-width: 0; margin-right: auto; color: #6f7e92; font-size: 11px; }.version-dialog > footer span code { color: #335b87; }.version-dialog > footer a,.version-dialog > footer button { padding: 8px 13px; border: 1px solid #d5deea; border-radius: 9px; background: #fff; color: #315b89; font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer; }
 .workspace-main { flex: 1; min-width: 0; overflow: auto; padding: 28px 32px 36px; background: var(--xy-page); }
 
@@ -348,5 +254,5 @@ onUnmounted(() => {
 
 @media (max-width: 1180px) { .workspace-notice { max-width: 340px; } }
 @media (max-width: 1023px) { .workspace-main { padding: 24px; } }
-@media (max-width: 767px) { .workspace-main, .workspace-main--compact { padding: 16px; } .compact-header { height: 56px; padding: 0 14px; } .header-content-slot { max-width: 52%; overflow: hidden; }.version-dialog { max-height: calc(100vh - 24px); overflow-y: auto; }.version-dialog__versions,.online-update-confirm__facts { grid-template-columns: 1fr; }.version-dialog__versions > span { display: none; }.online-update-confirm__title { align-items: flex-start; flex-direction: column; }.version-dialog > footer { align-items: stretch; flex-wrap: wrap; }.version-dialog > footer span { width: 100%; }.online-update-confirm,.online-update-progress { margin-right: 14px; margin-left: 14px; } }
+@media (max-width: 767px) { .workspace-main, .workspace-main--compact { padding: 16px; } .compact-header { height: 56px; padding: 0 14px; } .header-content-slot { max-width: 52%; overflow: hidden; } }
 </style>
