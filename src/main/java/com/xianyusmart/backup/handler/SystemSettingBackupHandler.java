@@ -8,18 +8,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Component
 public class SystemSettingBackupHandler implements DataBackupHandler {
-
-    private static final Set<String> BACKUP_KEYS = Set.of(
-            "ai_base_url", "ai_model", "sys_prompt", "ai_reply_delay_seconds",
-            "email_smtp_host", "email_smtp_port", "email_smtp_username",
-            "email_smtp_from", "email_smtp_ssl",
-            "email_notify_ws_disconnect_enabled", "email_notify_cookie_expire_enabled"
-    );
 
     @Autowired
     private XianyuSysSettingMapper sysSettingMapper;
@@ -36,9 +31,8 @@ public class SystemSettingBackupHandler implements DataBackupHandler {
 
     @Override
     public Map<String, Object> exportData() {
-        LambdaQueryWrapper<XianyuSysSetting> wrapper = new LambdaQueryWrapper<>();
-        wrapper.in(XianyuSysSetting::getSettingKey, BACKUP_KEYS);
-        List<XianyuSysSetting> settings = sysSettingMapper.selectList(wrapper);
+        // Keep all settings so a manual migration also restores task intervals and credentials.
+        List<XianyuSysSetting> settings = sysSettingMapper.selectList(null);
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("settings", settings);
@@ -59,7 +53,7 @@ public class SystemSettingBackupHandler implements DataBackupHandler {
                 String settingValue = (String) map.get("settingValue");
                 String settingDesc = (String) map.get("settingDesc");
 
-                if (settingKey == null || !BACKUP_KEYS.contains(settingKey)) continue;
+                if (settingKey == null || settingKey.isBlank()) continue;
 
                 LambdaQueryWrapper<XianyuSysSetting> wrapper = new LambdaQueryWrapper<>();
                 wrapper.eq(XianyuSysSetting::getSettingKey, settingKey);

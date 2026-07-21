@@ -884,7 +884,7 @@ function handleBackupMenuEnter() {
 
         <div class="settings__section">
           <div class="settings__section-title">导出备份</div>
-          <p class="settings__desc">将选中模块的数据导出为 JSON 文件</p>
+          <p class="settings__desc">将选中模块的数据导出为 JSON 文件。完整备份包含 Cookie、AI/邮件密钥和通知渠道凭据，请加密保存，勿发送给他人。</p>
           <div v-if="backupExporting" class="settings__progress-wrap">
             <div class="settings__progress-bar">
               <div class="settings__progress-fill" :style="{ width: backupExportProgress + '%' }"></div>
@@ -904,7 +904,7 @@ function handleBackupMenuEnter() {
 
         <div class="settings__section">
           <div class="settings__section-title">导入恢复</div>
-          <p class="settings__desc">从 JSON 备份文件中恢复数据（将覆盖当前选中模块的已有数据）</p>
+          <p class="settings__desc">从 JSON 备份文件中恢复数据（按标识新增或更新当前选中模块的数据，不会删除备份中不存在的旧记录）</p>
           <input
             ref="importFileInput"
             type="file"

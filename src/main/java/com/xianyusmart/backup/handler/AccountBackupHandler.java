@@ -45,12 +45,38 @@ public class AccountBackupHandler implements DataBackupHandler {
             map.put("unb", account.getUnb());
             map.put("accountNote", account.getAccountNote());
             map.put("deviceId", account.getDeviceId());
+            map.put("avatarUrl", account.getAvatarUrl());
             map.put("status", account.getStatus());
+            map.put("autoRateEnabled", account.getAutoRateEnabled());
+            map.put("autoRateText", account.getAutoRateText());
+            map.put("autoAskFlower", account.getAutoAskFlower());
+            map.put("autoAskFlowerText", account.getAutoAskFlowerText());
+            map.put("autoConnectOnStartup", account.getAutoConnectOnStartup());
+            map.put("automationRiskPaused", account.getAutomationRiskPaused());
+            map.put("automationRiskPauseReason", account.getAutomationRiskPauseReason());
             accountList.add(map);
+        }
+
+        List<Map<String, Object>> cookieList = new ArrayList<>();
+        for (XianyuAccount account : accounts) {
+            List<XianyuCookie> cookies = cookieMapper.selectList(new LambdaQueryWrapper<XianyuCookie>()
+                    .eq(XianyuCookie::getXianyuAccountId, account.getId()));
+            for (XianyuCookie cookie : cookies) {
+                Map<String, Object> map = new LinkedHashMap<>();
+                map.put("unb", account.getUnb());
+                map.put("cookieText", cookie.getCookieText());
+                map.put("mH5Tk", cookie.getMH5Tk());
+                map.put("cookieStatus", cookie.getCookieStatus());
+                map.put("expireTime", cookie.getExpireTime());
+                map.put("websocketToken", cookie.getWebsocketToken());
+                map.put("tokenExpireTime", cookie.getTokenExpireTime());
+                cookieList.add(map);
+            }
         }
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("accounts", accountList);
+        data.put("cookies", cookieList);
         return data;
     }
 
@@ -76,21 +102,11 @@ public class AccountBackupHandler implements DataBackupHandler {
                     if (existing == null) {
                         account = new XianyuAccount();
                         account.setUnb(unb);
-                        account.setAccountNote((String) map.get("accountNote"));
-                        account.setDeviceId((String) map.get("deviceId"));
-                        account.setStatus(map.get("status") != null ? ((Number) map.get("status")).intValue() : null);
+                        applyAccountValues(account, map, false);
                         accountMapper.insert(account);
                     } else {
                         account = existing;
-                        if (map.get("accountNote") != null) {
-                            account.setAccountNote((String) map.get("accountNote"));
-                        }
-                        if (map.get("deviceId") != null) {
-                            account.setDeviceId((String) map.get("deviceId"));
-                        }
-                        if (map.get("status") != null) {
-                            account.setStatus(((Number) map.get("status")).intValue());
-                        }
+                        applyAccountValues(account, map, true);
                         accountMapper.updateById(account);
                     }
                     unbToAccountId.put(unb, account.getId());
@@ -134,6 +150,35 @@ public class AccountBackupHandler implements DataBackupHandler {
                     log.warn("[AccountBackup] 导入单条Cookie数据失败: {}", e.getMessage());
                 }
             }
+        }
+    }
+
+    private void applyAccountValues(XianyuAccount account, Map<String, Object> map, boolean onlyWhenPresent) {
+        setString(map, "accountNote", account::setAccountNote, onlyWhenPresent);
+        setString(map, "deviceId", account::setDeviceId, onlyWhenPresent);
+        setString(map, "avatarUrl", account::setAvatarUrl, onlyWhenPresent);
+        setInteger(map, "status", account::setStatus, onlyWhenPresent);
+        setInteger(map, "autoRateEnabled", account::setAutoRateEnabled, onlyWhenPresent);
+        setString(map, "autoRateText", account::setAutoRateText, onlyWhenPresent);
+        setInteger(map, "autoAskFlower", account::setAutoAskFlower, onlyWhenPresent);
+        setString(map, "autoAskFlowerText", account::setAutoAskFlowerText, onlyWhenPresent);
+        setInteger(map, "autoConnectOnStartup", account::setAutoConnectOnStartup, onlyWhenPresent);
+        setInteger(map, "automationRiskPaused", account::setAutomationRiskPaused, onlyWhenPresent);
+        setString(map, "automationRiskPauseReason", account::setAutomationRiskPauseReason, onlyWhenPresent);
+    }
+
+    private void setString(Map<String, Object> map, String key, java.util.function.Consumer<String> setter,
+                           boolean onlyWhenPresent) {
+        if (!onlyWhenPresent || map.containsKey(key)) {
+            setter.accept((String) map.get(key));
+        }
+    }
+
+    private void setInteger(Map<String, Object> map, String key, java.util.function.Consumer<Integer> setter,
+                            boolean onlyWhenPresent) {
+        if (!onlyWhenPresent || map.containsKey(key)) {
+            Object value = map.get(key);
+            setter.accept(value == null ? null : ((Number) value).intValue());
         }
     }
 }
