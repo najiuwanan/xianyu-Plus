@@ -208,6 +208,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.8.5".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "AI 客服回复延迟可在系统设置中配置为 1–60 秒，保存后即时生效",
+                    "商品卡密自动发货支持完整发货后自动确认发货",
+                    "自动评价增加最终接口核验，待评价列表延迟时无需再依赖人工检查",
+                    "手动备份扩展至 Cookie、自动化设置、关键词、通知、擦亮、黑名单、标签和商品素材",
+                    "备份导入采用按标识新增或更新，并增加敏感信息保管提示"
+            ));
+            return;
+        }
         if ("1.8.1".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "运营总览的近 7 日与近 30 日交付数据改为平滑趋势图",
