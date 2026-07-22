@@ -84,7 +84,7 @@ class ProductPublishServiceImplTest {
     }
 
     @Test
-    void shouldUseSelectedPoiWhenGenericLocationProbeWasUnavailable() {
+    void shouldPublishWithSelectedPoiWhenCommonAddressesAreMissing() {
         ProductPublishReqDTO request = request();
         ProductPublishReqDTO.Address addressRequest = new ProductPublishReqDTO.Address();
         addressRequest.setLocationKey("310115|poi-1|121.5|31.2");
@@ -92,9 +92,7 @@ class ProductPublishServiceImplTest {
         addressRequest.setLookupLatitude(31.2);
         addressRequest.setCustomPoiName("张江自提点");
         request.setAddress(addressRequest);
-        PublishCapabilityCheckRespDTO schema = generalSchema();
-        schema.setLocationApiReady(false);
-        when(probeService.check(7L, request.getTitle())).thenReturn(schema);
+        when(probeService.check(7L, request.getTitle())).thenReturn(generalSchema());
         when(accountService.getCookieByAccountId(7L)).thenReturn("_m_h5_tk=token_exp");
         when(apiCallUtils.callApiWithRetry(eq(7L), eq(PublishCapabilityProbeService.LOCATION_API), any(Map.class),
                 any(String.class), eq("1.0"), eq(null), eq(null)))
