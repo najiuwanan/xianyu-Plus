@@ -135,6 +135,7 @@ public class SystemUpdateService {
                     && "identical".equals(compareStatus)) {
                 status.setLatestVersion(status.getCurrentVersion());
             }
+            fetchReleaseHighlights(normalizedRepository, status);
             applyBundledReleaseNotes(status);
         } catch (Exception e) {
             log.warn("GitHub 更新检查异常", e);
@@ -191,6 +192,81 @@ public class SystemUpdateService {
         }
     }
 
+    /**
+     * Git commit titles are developer-facing and may be English. Prefer the
+     * published Release body for the update dialog, which is user-facing and
+     * maintained as Chinese release notes.
+     */
+    private void fetchReleaseHighlights(String normalizedRepository, SystemUpdateStatusRespDTO status) {
+        if (!Boolean.TRUE.equals(status.getUpdateAvailable())) {
+            return;
+        }
+        String currentVersion = normalizeVersion(status.getCurrentVersion());
+        String latestVersion = normalizeVersion(status.getLatestVersion());
+        if (!isSemanticVersion(currentVersion) || !isSemanticVersion(latestVersion)
+                || compareVersions(latestVersion, currentVersion) <= 0) {
+            return;
+        }
+
+        try {
+            String releasesUrl = "https://api.github.com/repos/" + normalizedRepository + "/releases?per_page=100";
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(releasesUrl))
+                    .timeout(Duration.ofSeconds(8))
+                    .header("Accept", "application/vnd.github+json")
+                    .header("User-Agent", "XianYuPlus-Update-Checker")
+                    .GET()
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                return;
+            }
+
+            JsonNode releases = objectMapper.readTree(response.body());
+            List<String> highlights = new ArrayList<>();
+            if (releases.isArray()) {
+                for (JsonNode release : releases) {
+                    if (release.path("draft").asBoolean(false) || release.path("prerelease").asBoolean(false)) {
+                        continue;
+                    }
+                    String version = normalizeVersion(release.path("tag_name").asText(""));
+                    if (!isSemanticVersion(version) || compareVersions(version, currentVersion) <= 0
+                            || compareVersions(version, latestVersion) > 0) {
+                        continue;
+                    }
+                    appendReleaseBodyHighlights(release.path("body").asText(""), highlights);
+                    if (highlights.size() >= 8) {
+                        break;
+                    }
+                }
+            }
+            if (!highlights.isEmpty()) {
+                status.setUpdateHighlights(highlights);
+            }
+        } catch (Exception e) {
+            log.debug("读取 GitHub Release 更新说明失败，将回退到提交摘要", e);
+        }
+    }
+
+    private void appendReleaseBodyHighlights(String body, List<String> highlights) {
+        if (body == null || body.isBlank()) {
+            return;
+        }
+        for (String rawLine : body.split("\\R")) {
+            String line = rawLine.trim();
+            if (line.isBlank() || line.startsWith("#")) {
+                continue;
+            }
+            line = line.replaceFirst("^[-*+]\\s+", "").replaceFirst("^\\d+[.)]\\s+", "").trim();
+            if (!line.isBlank() && !highlights.contains(line)) {
+                highlights.add(line);
+            }
+            if (highlights.size() >= 8) {
+                return;
+            }
+        }
+    }
+
     private List<String> extractCommitHighlights(JsonNode commits) {
         Set<String> highlights = new LinkedHashSet<>();
         if (commits != null && commits.isArray()) {
@@ -208,6 +284,13 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.8.10".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "更新弹窗优先读取 GitHub Release 的中文发布说明，不再优先展示开发提交标题",
+                    "Release 不可用或没有说明时才回退到提交摘要，保证更新说明始终可读"
+            ));
+            return;
+        }
         if ("1.8.9".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "修复 WebSocket 安全验证提示的前端类型声明，Docker 前端生产构建恢复正常"
