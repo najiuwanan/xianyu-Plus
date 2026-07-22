@@ -67,6 +67,8 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
     private static final String GOOFISH_COOKIE_DOMAIN = ".goofish.com";
     private static final String TAOBAO_COOKIE_DOMAIN = ".taobao.com";
     private static final int H5_DETAIL_TIMEOUT_MS = 15_000;
+    private static final long MAX_SYNC_RUNNING_MS = 90_000;
+    private static final long MAX_SYNC_STALE_MS = 60_000;
 
     private static class SyncProgress {
         String syncId;
@@ -83,6 +85,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         String currentItemId = null;
         String message = "同步中...";
         long startTime;
+        long lastProgressTime;
         boolean cancelled = false;
     }
 
@@ -100,9 +103,18 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         progress.accountId = accountId;
         progress.totalCount = items.size();
         progress.startTime = System.currentTimeMillis();
+        progress.lastProgressTime = progress.startTime;
 
         progressMap.put(syncId, progress);
         accountSyncMap.put(accountId, syncId);
+
+        if (items.isEmpty()) {
+            progress.isCompleted = true;
+            progress.isRunning = false;
+            progress.message = "No items need detail sync";
+            accountSyncMap.remove(accountId);
+            return syncId;
+        }
 
         String cookieStr = accountService.getCookieByAccountId(accountId);
 
@@ -124,6 +136,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
             for (ItemDTO item : items) {
                 if (progress.cancelled) {
                     progress.message = "同步已取消";
+                    progress.lastProgressTime = System.currentTimeMillis();
                     break;
                 }
 
@@ -131,10 +144,12 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
                 if (itemId == null || itemId.isEmpty()) {
                     progress.completedCount++;
                     progress.failedCount++;
+                    progress.lastProgressTime = System.currentTimeMillis();
                     continue;
                 }
 
                 progress.currentItemId = itemId;
+                progress.lastProgressTime = System.currentTimeMillis();
 
                 try {
                     Thread.sleep(new Random().nextInt(501));
@@ -146,6 +161,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
                 DetailSyncResult result = fetchAndSaveDetail(itemId, cookieStr, accountId);
                 
                 progress.completedCount++;
+                progress.lastProgressTime = System.currentTimeMillis();
                 if (result.success()) {
                     progress.successCount++;
                 } else {
@@ -492,6 +508,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         if (progress == null) {
             return null;
         }
+        closeStaleProgress(progress);
 
         SyncProgressRespDTO dto = new SyncProgressRespDTO();
         dto.setSyncId(progress.syncId);
@@ -525,6 +542,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
         if (progress != null) {
             progress.cancelled = true;
             progress.message = "正在取消同步...";
+            progress.lastProgressTime = System.currentTimeMillis();
             log.info("取消同步: syncId={}", syncId);
         }
     }
@@ -536,6 +554,26 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
             return false;
         }
         SyncProgress progress = progressMap.get(syncId);
+        closeStaleProgress(progress);
         return progress != null && progress.isRunning && !progress.isCompleted;
+    }
+
+    private void closeStaleProgress(SyncProgress progress) {
+        if (progress == null || progress.isCompleted || !progress.isRunning) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        long startedAt = progress.startTime > 0 ? progress.startTime : now;
+        long lastChangedAt = progress.lastProgressTime > 0 ? progress.lastProgressTime : startedAt;
+        if (now - startedAt < MAX_SYNC_RUNNING_MS && now - lastChangedAt < MAX_SYNC_STALE_MS) {
+            return;
+        }
+        progress.isCompleted = true;
+        progress.isRunning = false;
+        progress.failedCount += Math.max(0, progress.totalCount - progress.completedCount);
+        progress.message = "详情同步超时，已保留商品基础信息";
+        accountSyncMap.remove(progress.accountId);
+        log.warn("Detail sync timed out and was closed: syncId={}, accountId={}, completed={}/{}",
+                progress.syncId, progress.accountId, progress.completedCount, progress.totalCount);
     }
 }

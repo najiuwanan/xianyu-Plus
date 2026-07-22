@@ -15,6 +15,8 @@ import type { Account } from '@/types'
 import type { BatchUpdateGoodsConfigReq, GoodsItemWithConfig, SyncProgressResponse } from '@/api/goods'
 
 export function useGoodsManager() {
+  const SYNC_PROGRESS_STALE_MS = 60_000
+  const SYNC_PROGRESS_MAX_MS = 120_000
   const errorMessage = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback
   const messageWasShown = (error: unknown) => typeof error === 'object'
     && error !== null
@@ -54,6 +56,9 @@ export function useGoodsManager() {
     progress?: SyncProgressResponse
     pollFailures: number
     abandoned: boolean
+    startedAt: number
+    lastChangedAt: number
+    lastCompletedCount: number
   }> = []
 
   const stopSyncPolling = () => {
@@ -68,6 +73,11 @@ export function useGoodsManager() {
       try {
         const response = await getSyncProgress(job.syncId)
         if ((response.code === 0 || response.code === 200) && response.data) {
+          const completedCount = response.data.completedCount || 0
+          if (completedCount !== job.lastCompletedCount || response.data.isCompleted || response.data.isRunning === false) {
+            job.lastChangedAt = Date.now()
+            job.lastCompletedCount = completedCount
+          }
           job.progress = response.data
           job.pollFailures = 0
         } else {
@@ -77,7 +87,14 @@ export function useGoodsManager() {
         job.pollFailures++
         console.error(`获取账号 ${job.accountName} 的同步进度失败:`, error)
       }
-      if (job.pollFailures >= 5) job.abandoned = true
+      const now = Date.now()
+      if (
+        job.pollFailures >= 5
+        || now - job.startedAt > SYNC_PROGRESS_MAX_MS
+        || (job.progress?.isRunning && now - job.lastChangedAt > SYNC_PROGRESS_STALE_MS)
+      ) {
+        job.abandoned = true
+      }
     }))
 
     const progresses = syncJobs.flatMap(job => job.progress ? [job.progress] : [])
@@ -119,7 +136,15 @@ export function useGoodsManager() {
   const startSyncPolling = (jobs: Array<{ syncId: string; accountName: string }>, allAccounts: boolean) => {
     stopSyncPolling()
     syncingAllAccounts = allAccounts
-    syncJobs = jobs.map(job => ({ ...job, pollFailures: 0, abandoned: false }))
+    const now = Date.now()
+    syncJobs = jobs.map(job => ({
+      ...job,
+      pollFailures: 0,
+      abandoned: false,
+      startedAt: now,
+      lastChangedAt: now,
+      lastCompletedCount: -1
+    }))
     syncing.value = true
     syncProgressTimer = setInterval(() => {
       void pollSyncProgress()
