@@ -90,11 +90,6 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
     private final Map<Long, Long> captchaTimestamps = new ConcurrentHashMap<>();
 
     /**
-     * 验证URL有效期（5分钟）
-     */
-    private static final long CAPTCHA_TIMEOUT = 5 * 60 * 1000;
-
-    /**
      * Token获取失败重试最大次数（参考Python: retry_count >= 2）
      */
     private static final int MAX_TOKEN_RETRY_COUNT = 2;
@@ -180,16 +175,9 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
         try {
             // 0. 检查是否正在等待验证
             if (pendingCaptchaAccounts.containsKey(accountId)) {
-                Long timestamp = captchaTimestamps.get(accountId);
-                if (timestamp != null && System.currentTimeMillis() - timestamp < CAPTCHA_TIMEOUT) {
-                    String captchaUrl = pendingCaptchaAccounts.get(accountId);
-                    log.debug("【账号{}】正在等待滑块验证，跳过重复请求", accountId);
-                    throw new CaptchaRequiredException(captchaUrl);
-                } else {
-                    log.info("【账号{}】验证超时，清除等待状态", accountId);
-                    pendingCaptchaAccounts.remove(accountId);
-                    captchaTimestamps.remove(accountId);
-                }
+                String captchaUrl = pendingCaptchaAccounts.get(accountId);
+                log.debug("【账号{}】正在等待人工安全验证，跳过重复请求", accountId);
+                throw new CaptchaRequiredException(captchaUrl);
             }
 
             // 1. 【关键】每次都从数据库重新读取最新Cookie
@@ -753,6 +741,11 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
         pendingCaptchaAccounts.remove(accountId);
         captchaTimestamps.remove(accountId);
         log.info("【账号{}】验证等待状态已清除", accountId);
+    }
+
+    @Override
+    public boolean isCaptchaPending(Long accountId) {
+        return accountId != null && pendingCaptchaAccounts.containsKey(accountId);
     }
 
     /**

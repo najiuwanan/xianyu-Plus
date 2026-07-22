@@ -208,6 +208,14 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.8.8".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "WebSocket Token 触发安全验证后会暂停自动重连，避免反复刷新 Cookie 和刷屏日志",
+                    "安全验证等待状态由用户完成验证后的凭证更新主动恢复，不再自动反复请求",
+                    "连接页面明确说明网页验证流程，以及完成验证后重新连接的步骤"
+            ));
+            return;
+        }
         if ("1.8.7".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "修复商品详情同步的异步代理 Bean 类型错误，基础商品同步不会再误报账号连接失败",

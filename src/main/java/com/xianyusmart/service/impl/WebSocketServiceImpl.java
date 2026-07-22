@@ -458,6 +458,9 @@ public class WebSocketServiceImpl implements WebSocketService {
                 }
             }
             return success;
+        } catch (com.xianyusmart.exception.CaptchaRequiredException e) {
+            log.warn("凭证更新后仍需人工安全验证，已暂停自动重连: accountId={}", accountId);
+            return false;
         } catch (Exception e) {
             log.error("凭证更新后重建WebSocket连接失败: accountId={}", accountId, e);
             scheduleReconnect(accountId, config.getReconnectDelay(), false);
@@ -724,6 +727,10 @@ public class WebSocketServiceImpl implements WebSocketService {
      * @param isManualRestart 是否主动重启（Token刷新等）
      */
     private void scheduleReconnect(Long accountId, int delaySeconds, boolean isManualRestart) {
+        if (tokenService.isCaptchaPending(accountId)) {
+            log.warn("【账号{}】正在等待人工安全验证，已暂停WebSocket自动重连", accountId);
+            return;
+        }
         // 取消已有的重连任务（防止重复）
         Future<?> existingTask = reconnectTasks.get(accountId);
         if (existingTask != null && !existingTask.isDone()) {
@@ -810,6 +817,10 @@ public class WebSocketServiceImpl implements WebSocketService {
                     // 参考Python: 重连失败后继续尝试（while True循环）
                     scheduleReconnect(accountId, config.getReconnectDelay(), false);
                 }
+            } catch (com.xianyusmart.exception.CaptchaRequiredException e) {
+                // Retrying here only replays the same risk-controlled token request
+                // and floods the operation log. The user must verify first.
+                log.warn("【账号{}】触发安全验证，WebSocket自动重连已暂停，等待用户完成验证后手动重连", accountId);
             } catch (Exception e) {
                 log.error("【账号{}】重连异常，将继续尝试...", accountId, e);
                 scheduleReconnect(accountId, config.getReconnectDelay(), false);

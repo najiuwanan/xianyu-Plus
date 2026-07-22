@@ -78,7 +78,7 @@ public class WebSocketController {
             CaptchaInfoDTO captchaInfo = new CaptchaInfoDTO();
             captchaInfo.setNeedCaptcha(true);
             captchaInfo.setCaptchaUrl(null);
-            captchaInfo.setMessage("检测到闲鱼安全验证，请在闲鱼客户端确认账号状态后，在账号管理中使用“凭证更新”重新扫码，再重新连接。");
+            captchaInfo.setMessage("闲鱼要求网页安全验证，系统已暂停该账号的自动重连。请在自己的浏览器登录该闲鱼账号并完成页面出现的安全验证；随后回到账号管理执行“凭证更新”并重新连接。闲鱼 App 不一定会弹出提示。");
             return new ResultObject<>(1001, "需要安全验证", captchaInfo);
             /*
             log.warn("⚠️ 需要滑块验证: accountId={}, url={}", reqDTO.getXianyuAccountId(), e.getCaptchaUrl());

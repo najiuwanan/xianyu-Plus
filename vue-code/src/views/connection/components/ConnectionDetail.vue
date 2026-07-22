@@ -98,7 +98,7 @@ const handleStartConnection = async () => {
       await loadConnectionStatus()
       toast.info('1、请勿使用闲鱼网页版进行消息回复，避免触发风控；2、首次运行可能出现短暂掉线或自动刷新失败，请保持服务持续运行后重试。')
     } else if (response.code === 1001 && response.data?.needCaptcha) {
-      showInfo('闲鱼要求安全验证。请在闲鱼客户端确认账号状态后，在“凭证更新”中重新扫码，再重新连接。')
+      showInfo(response.data?.message || '闲鱼要求网页安全验证，自动重连已暂停。请在自己的浏览器登录该账号完成验证，再执行“凭证更新”并重新连接。')
     } else {
       throw new Error(response.msg || '启动连接失败')
     }

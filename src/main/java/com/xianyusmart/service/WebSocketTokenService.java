@@ -35,6 +35,9 @@ public interface WebSocketTokenService {
      * 清除验证等待状态
      */
     void clearCaptchaWait(Long accountId);
+
+    /** Returns true while this account is waiting for a user security check. */
+    boolean isCaptchaPending(Long accountId);
     
     /**
      * 刷新WebSocket token
