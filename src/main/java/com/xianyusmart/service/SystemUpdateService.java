@@ -208,6 +208,15 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.8.6".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "修复商品列表同步后详情进度停留在 0/1，导致同步按钮一直灰色转圈的问题",
+                    "详情同步任务增加后端超时收口，旧任务或卡住任务会自动释放账号同步状态",
+                    "前端同步进度增加兜底超时判断，长时间无进度会自动结束等待并恢复按钮",
+                    "基础商品列表同步成功后，即使详情补全受闲鱼接口影响，也会保留已同步商品信息"
+            ));
+            return;
+        }
         if ("1.8.5".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "AI 客服回复延迟可在系统设置中配置为 1–60 秒，保存后即时生效",
