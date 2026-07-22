@@ -230,14 +230,11 @@ public class SystemUpdateService {
                         continue;
                     }
                     String version = normalizeVersion(release.path("tag_name").asText(""));
-                    if (!isSemanticVersion(version) || compareVersions(version, currentVersion) <= 0
-                            || compareVersions(version, latestVersion) > 0) {
+                    if (!latestVersion.equals(version)) {
                         continue;
                     }
                     appendReleaseBodyHighlights(release.path("body").asText(""), highlights);
-                    if (highlights.size() >= 8) {
-                        break;
-                    }
+                    break;
                 }
             }
             if (!highlights.isEmpty()) {
@@ -284,6 +281,15 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.9.0".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "修复商品详情同步卡住、异步代理报错及售出下架后同步误报账号异常的问题",
+                    "自提订单会进入订单管理，并自动跳过所有物流与自动发货动作",
+                    "WebSocket 触发安全验证后暂停自动重连，避免重复刷新 Cookie 和刷屏日志",
+                    "更新弹窗优先显示 GitHub 正式 Release 的中文说明，Docker 前端构建恢复稳定"
+            ));
+            return;
+        }
         if ("1.8.10".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "更新弹窗优先读取 GitHub Release 的中文发布说明，不再优先展示开发提交标题",
