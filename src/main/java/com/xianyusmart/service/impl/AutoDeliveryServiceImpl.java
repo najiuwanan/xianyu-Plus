@@ -351,6 +351,9 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 log.warn("【账号{}】发货记录不存在: orderId={}", accountId, orderId);
                 return com.xianyusmart.common.ResultObject.failed("发货记录不存在");
             }
+            if ("PICKUP".equalsIgnoreCase(record.getDeliveryChannel())) {
+                return com.xianyusmart.common.ResultObject.failed("自提订单不需要物流或虚拟发货");
+            }
             String blacklistReason = blacklistService.blockedMessage(accountId, record.getBuyerUserId());
             if (blacklistReason != null) {
                 return com.xianyusmart.common.ResultObject.failed(blacklistReason + "，禁止自动或手动发货");
@@ -801,6 +804,11 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             log.warn("【账号{}】订单ID为空，无法自动确认发货", accountId);
             return;
         }
+        XianyuGoodsOrder order = orderMapper.selectByAccountIdAndOrderId(accountId, orderId);
+        if (order != null && "PICKUP".equalsIgnoreCase(order.getDeliveryChannel())) {
+            log.info("【账号{}】自提订单跳过自动确认发货: orderId={}", accountId, orderId);
+            return;
+        }
         log.info("【账号{}】提交异步自动确认发货: orderId={}", accountId, orderId);
         taskExecutor.execute(() -> {
             try {
@@ -864,6 +872,9 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             XianyuGoodsOrder record = orderMapper.selectByAccountIdAndOrderId(xianyuAccountId, orderId);
             if (record == null) {
                 return com.xianyusmart.common.ResultObject.failed("订单记录不存在");
+            }
+            if ("PICKUP".equalsIgnoreCase(record.getDeliveryChannel())) {
+                return com.xianyusmart.common.ResultObject.failed("自提订单不需要发送发货内容");
             }
 
             String blacklistReason = blacklistService.blockedMessage(xianyuAccountId, record.getBuyerUserId());

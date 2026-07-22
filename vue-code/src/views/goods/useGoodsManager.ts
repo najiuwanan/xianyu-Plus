@@ -234,7 +234,7 @@ export function useGoodsManager() {
       const jobs: Array<{ syncId: string; accountName: string }> = []
       let successAccounts = 0
       let successItems = 0
-      const failedAccounts: string[] = []
+      const failedAccounts: Array<{ name: string; reason: string }> = []
       for (const account of targetAccounts) {
         const accountName = account.accountNote || account.unb || `账号 ${account.id}`
         try {
@@ -244,11 +244,14 @@ export function useGoodsManager() {
             successItems += response.data.successCount || 0
             if (response.data.syncId) jobs.push({ syncId: response.data.syncId, accountName })
           } else {
-            failedAccounts.push(accountName)
+            failedAccounts.push({
+              name: accountName,
+              reason: response.msg || '商品列表同步未完成'
+            })
           }
         } catch (error) {
           console.error(`同步账号 ${accountName} 失败:`, error)
-          failedAccounts.push(accountName)
+          failedAccounts.push({ name: accountName, reason: errorMessage(error, '请求失败') })
         }
       }
       await loadGoods()
@@ -256,7 +259,10 @@ export function useGoodsManager() {
         const failureText = failedAccounts.length > 0 ? `，${failedAccounts.length} 个账号失败` : ''
         showSuccess(`已同步 ${successAccounts} 个账号、${successItems} 个商品${failureText}`)
       } else {
-        showError('所有账号同步均失败，请检查账号连接状态')
+        const failures = failedAccounts
+          .map(({ name, reason }) => `${name}：${reason}`)
+          .join('；')
+        showError(failures || '商品同步失败，请稍后重试')
       }
       if (jobs.length > 0) {
         startSyncPolling(jobs, selectedAccountId.value === 0)

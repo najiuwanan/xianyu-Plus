@@ -282,16 +282,27 @@ public class ItemServiceImpl implements ItemService {
                 respDTO.setMessage("刷新成功");
                 
                 if (!Boolean.FALSE.equals(reqDTO.getSyncDetails())) {
-                    String syncId = itemDetailSyncService.startSync(reqDTO.getXianyuAccountId(), allItems);
-                    respDTO.setSyncId(syncId);
+                    try {
+                        String syncId = itemDetailSyncService.startSync(reqDTO.getXianyuAccountId(), allItems);
+                        respDTO.setSyncId(syncId);
+                    } catch (Exception detailSyncException) {
+                        // The list is already saved. A detail-sync failure must not be
+                        // reported to the user as an account connection failure.
+                        log.error("商品基础列表已同步，但详情同步未能启动: accountId={}",
+                                reqDTO.getXianyuAccountId(), detailSyncException);
+                        respDTO.setMessage("商品基础信息已同步，详情补全暂未启动，可稍后重试");
+                    }
                 }
                 
                 log.info("刷新商品数据完成: xianyuAccountId={}, 总数={}, 成功={}, syncId={}", 
                         reqDTO.getXianyuAccountId(), respDTO.getTotalCount(), respDTO.getSuccessCount(), respDTO.getSyncId());
             } else {
                 respDTO.setSuccessCount(0);
-                respDTO.setMessage("没有获取到商品数据");
-                log.warn("刷新商品数据完成，但没有获取到任何商品");
+                // A paid item disappears from the seller's on-sale group. An empty
+                // group is a successful sync, not an account connection error.
+                respDTO.setSuccess(true);
+                respDTO.setMessage("同步完成，当前没有在售商品");
+                log.info("刷新商品数据完成，当前没有在售商品: accountId={}", reqDTO.getXianyuAccountId());
             }
 
             return ResultObject.success(respDTO);

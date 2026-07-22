@@ -178,8 +178,11 @@ const getDeliveryText = (state: number, deliveryStatus?: string) => {
   return '失败'
 }
 
+const isSelfPickup = (order: DeliveryRecordItem) =>
+  (order.deliveryChannel || '').toUpperCase() === 'PICKUP'
+
 const getOrderDeliveryText = (order: DeliveryRecordItem) =>
-  order.blacklisted ? '黑名单拦截' : getDeliveryText(order.state, order.deliveryStatus)
+  order.blacklisted ? '黑名单拦截' : isSelfPickup(order) ? '自提待交接' : getDeliveryText(order.state, order.deliveryStatus)
 
 const getDeliveryColor = (state: number, deliveryStatus?: string) => {
   if (deliveryStatus === 'SKIPPED') return '#637085'
@@ -216,12 +219,14 @@ const getTradeStatusText = (order: DeliveryRecordItem) => order.tradeStatusText 
 
 const canConfirmShipment = (order: DeliveryRecordItem) => {
   return order.state === 1
+    && !isSelfPickup(order)
     && order.deliveryStatus !== 'SKIPPED'
     && !['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')
 }
 
 const canRuleDelivery = (order: DeliveryRecordItem) => {
   if (order.blacklisted) return false
+  if (isSelfPickup(order)) return false
   return Boolean(order.orderId && order.xianyuAccountId && order.xyGoodsId)
     && !['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')
 }
@@ -272,6 +277,7 @@ const runCompensation = async (order: DeliveryRecordItem, action: AutomationActi
 
 const ruleDeliveryReason = (order: DeliveryRecordItem) => {
   if (order.blacklisted) return order.blacklistReason || '黑名单买家禁止手动发货'
+  if (isSelfPickup(order)) return '自提订单不需要物流或虚拟发货'
   if (canRuleDelivery(order)) return '可领取新卡密补发，或发送自定义发货内容'
   if (['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')) return '退款或关闭交易不能发货'
   return '订单信息不完整，暂时不能手动发货'
@@ -279,6 +285,7 @@ const ruleDeliveryReason = (order: DeliveryRecordItem) => {
 
 const confirmShipmentReason = (order: DeliveryRecordItem) => {
   if (canConfirmShipment(order)) return '向闲鱼确认该订单已发货'
+  if (isSelfPickup(order)) return '自提订单不需要确认发货'
   if (['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')) return '退款或关闭交易不能确认发货'
   return order.state === 1 ? '当前订单不满足确认发货条件' : '请先完成发货后再确认'
 }
@@ -303,6 +310,7 @@ type StatusPresentation = {
 
 const getDeliveryMethod = (order: DeliveryRecordItem) => {
   const channel = (order.deliveryChannel || '').toUpperCase()
+  if (channel === 'PICKUP') return '自提'
   if (channel.includes('MANUAL')) return '人工补发'
   if (channel.includes('AUTO') || channel.includes('WS')) return '自动发货'
   return order.deliveryStatus === 'SKIPPED' ? '未启用自动发货' : '自动发货'
@@ -311,6 +319,7 @@ const getDeliveryMethod = (order: DeliveryRecordItem) => {
 const getDeliveryPresentation = (order: DeliveryRecordItem): StatusPresentation => {
   const status = (order.deliveryStatus || '').toUpperCase()
   const reason = order.lastErrorMessage || order.failReason
+  if (isSelfPickup(order)) return { text: '自提待交接', tone: 'muted' }
   if (status === 'COMPLETED' || order.state === 1) return { text: '已发货', tone: 'success' }
   if (status === 'REVIEW_REQUIRED') return { text: '待人工核对', tone: 'warning', reason }
   if (status === 'FAILED' || order.state === -1) return { text: '发货失败', tone: 'danger', reason }

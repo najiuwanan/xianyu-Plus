@@ -59,7 +59,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
 
     @Autowired
     @Lazy
-    private ItemDetailSyncServiceImpl self;
+    private ItemDetailSyncService self;
 
     private final ConcurrentHashMap<String, SyncProgress> progressMap = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, String> accountSyncMap = new ConcurrentHashMap<>();
@@ -125,6 +125,7 @@ public class ItemDetailSyncServiceImpl implements ItemDetailSyncService {
     }
 
     @Async
+    @Override
     public void executeSync(String syncId, Long accountId, List<ItemDTO> items, String cookieStr) {
         SyncProgress progress = progressMap.get(syncId);
         if (progress == null) {

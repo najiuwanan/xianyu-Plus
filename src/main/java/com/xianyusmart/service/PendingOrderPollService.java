@@ -62,7 +62,10 @@ public class PendingOrderPollService {
 
                 XianyuGoodsOrder record = buildOrderRecord(accountId, order);
                 String itemId = (String) commonData.get("itemId");
-                if (isAutoDeliveryEnabled(accountId, itemId)) {
+                if (isSelfPickupOrder(order)) {
+                    markAsSelfPickup(record);
+                    orderMapper.insert(record);
+                } else if (isAutoDeliveryEnabled(accountId, itemId)) {
                     deliveryTaskService.discover(record, DeliveryChannel.HTTP_API);
                 } else {
                     record.setDeliveryStatus(DeliveryStatus.SKIPPED.name());
@@ -232,8 +235,52 @@ public class PendingOrderPollService {
         record.setState(0);
         record.setConfirmState(isShipmentConfirmed(record) ? 1 : 0);
         record.setDeliveryStatus(DeliveryStatus.SKIPPED.name());
-        record.setDeliveryChannel("HISTORY_SYNC");
+        record.setDeliveryChannel(isSelfPickupOrder(order) ? "PICKUP" : "HISTORY_SYNC");
         return record;
+    }
+
+    /**
+     * Self-pickup orders are valid transactions, but have no logistics action
+     * to perform. Keep them in order management and out of the delivery queue.
+     */
+    private void markAsSelfPickup(XianyuGoodsOrder record) {
+        record.setDeliveryStatus(DeliveryStatus.SKIPPED.name());
+        record.setDeliveryChannel("PICKUP");
+        record.setState(0);
+        record.setConfirmState(0);
+    }
+
+    private boolean isSelfPickupOrder(Map<String, Object> order) {
+        return containsSelfPickupMarker(order, false);
+    }
+
+    private boolean containsSelfPickupMarker(Object value, boolean deliveryContext) {
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey()).toLowerCase();
+                boolean nextDeliveryContext = deliveryContext
+                        || key.contains("delivery") || key.contains("logistic")
+                        || key.contains("shipping") || key.contains("pickup") || key.contains("fulfill");
+                if (containsSelfPickupMarker(entry.getValue(), nextDeliveryContext)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (value instanceof Iterable<?> values) {
+            for (Object item : values) {
+                if (containsSelfPickupMarker(item, deliveryContext)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (!deliveryContext || value == null) {
+            return false;
+        }
+        String text = String.valueOf(value).toUpperCase();
+        return text.contains("SELF_PICKUP") || text.contains("PICKUP")
+                || text.contains("自提") || text.contains("自取");
     }
 
     private void applyTradeStatus(XianyuGoodsOrder record, Map<String, Object> commonData,

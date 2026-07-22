@@ -208,6 +208,15 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.8.7".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "修复商品详情同步的异步代理 Bean 类型错误，基础商品同步不会再误报账号连接失败",
+                    "商品售出下架后，“在售”分组为空会被正确视为同步完成",
+                    "同步失败提示展示具体账号与原因，便于定位会话或业务错误",
+                    "自提订单会进入订单管理，并自动跳过虚拟发货、手动发货和确认发货"
+            ));
+            return;
+        }
         if ("1.8.6".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "修复商品列表同步后详情进度停留在 0/1，导致同步按钮一直灰色转圈的问题",

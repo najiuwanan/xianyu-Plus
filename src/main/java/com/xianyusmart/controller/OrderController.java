@@ -124,6 +124,11 @@ public class OrderController {
             if (reqDTO.getOrderId() == null || reqDTO.getOrderId().isEmpty()) {
                 return ResultObject.failed("订单ID不能为空");
             }
+            XianyuGoodsOrder order = orderMapper.selectByAccountIdAndOrderId(
+                    reqDTO.getXianyuAccountId(), reqDTO.getOrderId());
+            if (order != null && "PICKUP".equalsIgnoreCase(order.getDeliveryChannel())) {
+                return ResultObject.failed("自提订单不需要确认发货");
+            }
 
             String result = orderService.confirmShipment(
                     reqDTO.getXianyuAccountId(),

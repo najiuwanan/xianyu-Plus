@@ -11,6 +11,8 @@ import com.xianyusmart.service.DeliveryTaskService;
 import com.xianyusmart.service.BuyerBlacklistService;
 import com.xianyusmart.entity.XianyuGoodsConfig;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
+import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
+import com.xianyusmart.enums.DeliveryStatus;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.event.EventListener;
@@ -46,6 +48,9 @@ public class ChatMessageEventAutoDeliveryListener {
     @Autowired
     private BuyerBlacklistService blacklistService;
 
+    @Autowired
+    private XianyuGoodsOrderMapper orderMapper;
+
     @Async
     @EventListener
     public void handleChatMessageReceived(ChatMessageReceivedEvent event) {
@@ -57,6 +62,11 @@ public class ChatMessageEventAutoDeliveryListener {
                 message.getXyGoodsId(), message.getSId(), message.getOrderId());
 
         try {
+            if (isSelfPickupMessage(message)) {
+                persistSelfPickupOrder(accountId, message);
+                return;
+            }
+
             if (!isPaymentMessage(message)) {
                 return;
             }
@@ -107,6 +117,43 @@ public class ChatMessageEventAutoDeliveryListener {
         }
         return message.getMsgContent().contains("[已付款，待发货]")
                 || message.getMsgContent().contains("[我已付款，等待你发货]");
+    }
+
+    private boolean isSelfPickupMessage(ChatMessageData message) {
+        if (message.getOrderId() == null || message.getOrderId().isBlank()
+                || message.getXyGoodsId() == null || message.getXyGoodsId().isBlank()) {
+            return false;
+        }
+        String source = String.valueOf(message.getMsgContent()) + "\n" + String.valueOf(message.getCompleteMsg());
+        String normalized = source.toUpperCase();
+        return source.contains("自提") || source.contains("自取")
+                || normalized.contains("SELF_PICKUP") || normalized.contains("PICKUP");
+    }
+
+    /** Records a pickup transaction without creating an automatic delivery task. */
+    private void persistSelfPickupOrder(Long accountId, ChatMessageData message) {
+        XianyuGoodsOrder existing = orderMapper.selectByAccountIdAndOrderId(accountId, message.getOrderId());
+        if (existing != null) {
+            return;
+        }
+        XianyuGoodsOrder record = new XianyuGoodsOrder();
+        record.setXianyuAccountId(accountId);
+        record.setXianyuGoodsId(resolveXianyuGoodsId(accountId, message.getXyGoodsId()));
+        record.setXyGoodsId(message.getXyGoodsId());
+        record.setPnmId(message.getPnmId() == null || message.getPnmId().isBlank()
+                ? "pickup_" + message.getOrderId() : message.getPnmId());
+        record.setOrderId(message.getOrderId());
+        record.setBuyerUserId(message.getSenderUserId());
+        record.setBuyerUserName(message.getSenderUserName());
+        record.setSid(message.getSId());
+        record.setState(0);
+        record.setConfirmState(0);
+        record.setDeliveryStatus(DeliveryStatus.SKIPPED.name());
+        record.setDeliveryChannel("PICKUP");
+        record.setTradeStatus("PENDING_SHIPMENT");
+        record.setTradeStatusText("自提待交接");
+        orderMapper.insert(record);
+        log.info("【账号{}】已记录自提订单，跳过自动发货: orderId={}", accountId, message.getOrderId());
     }
 
     private Long resolveXianyuGoodsId(Long accountId, String xyGoodsId) {
