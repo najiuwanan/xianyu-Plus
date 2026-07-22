@@ -208,6 +208,12 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.8.9".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "修复 WebSocket 安全验证提示的前端类型声明，Docker 前端生产构建恢复正常"
+            ));
+            return;
+        }
         if ("1.8.8".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "WebSocket Token 触发安全验证后会暂停自动重连，避免反复刷新 Cookie 和刷屏日志",

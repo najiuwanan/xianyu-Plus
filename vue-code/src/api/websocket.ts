@@ -27,6 +27,7 @@ export function getConnectionStatus(accountId: number) {
 export interface StartConnectionResult {
   needCaptcha?: boolean;
   captchaUrl?: string;
+  message?: string;
 }
 
 export function startConnection(accountId: number) {
