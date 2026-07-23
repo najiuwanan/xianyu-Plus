@@ -31,22 +31,37 @@ interface Emits {
 defineProps<Props>()
 const emit = defineEmits<Emits>()
 
+const tableRoot = ref<HTMLElement | null>(null)
 const isMobile = ref(false)
+const isCompact = ref(false)
 const openedActionMenuId = ref<number | null>(null)
 const failedAvatarIds = ref<Set<number>>(new Set())
+let layoutObserver: ResizeObserver | null = null
+
 const checkScreenSize = () => {
-  isMobile.value = window.innerWidth < 768
+  // The side navigation can leave far less room than window.innerWidth suggests.
+  // Measure this component instead, so split views, browser zoom and smaller
+  // laptops select the layout that actually fits the available content area.
+  const width = tableRoot.value?.clientWidth || window.innerWidth
+  isMobile.value = width < 760
+  isCompact.value = width >= 760 && width < 1180
 }
 
 onMounted(() => {
   checkScreenSize()
   window.addEventListener('resize', checkScreenSize)
   window.addEventListener('click', closeActionMenu)
+  if (tableRoot.value && typeof ResizeObserver !== 'undefined') {
+    layoutObserver = new ResizeObserver(checkScreenSize)
+    layoutObserver.observe(tableRoot.value)
+  }
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkScreenSize)
   window.removeEventListener('click', closeActionMenu)
+  layoutObserver?.disconnect()
+  layoutObserver = null
 })
 
 const closeActionMenu = () => {
@@ -127,6 +142,7 @@ const refreshAvatar = (account: Account) => {
 </script>
 
 <template>
+  <div ref="tableRoot" class="account-table">
   <!-- Mobile: Card View -->
   <div v-if="isMobile" class="card-list" :class="{ 'card-list--loading': loading }">
     <div
@@ -240,7 +256,10 @@ const refreshAvatar = (account: Account) => {
   </div>
 
   <!-- Desktop/Tablet: Account Overview Cards -->
-  <div v-else class="account-overview-list" :class="{ 'account-overview-list--loading': loading }">
+  <div v-else class="account-overview-list" :class="{
+    'account-overview-list--loading': loading,
+    'account-overview-list--compact': isCompact
+  }">
     <article v-for="account in accounts" :key="account.id" class="account-overview-card">
           <div class="account-overview-card__identity">
             <div class="account-identity">
@@ -320,10 +339,11 @@ const refreshAvatar = (account: Account) => {
     </article>
 
     <!-- Empty State -->
-    <div v-if="!loading && accounts.length === 0" class="empty-state">
+  <div v-if="!loading && accounts.length === 0" class="empty-state">
       <div class="empty-state__icon"><IconEmpty /></div>
       <p class="empty-state__text">暂无账号数据</p>
     </div>
+  </div>
   </div>
 </template>
 
@@ -354,6 +374,11 @@ const refreshAvatar = (account: Account) => {
   --c-blur: blur(28px) saturate(1.8);
   --c-shadow-sm: 0 8px 32px rgba(0,0,0,0.10), 0 1.5px 4px rgba(0,0,0,0.06);
   --c-shadow-md: 0 16px 48px rgba(0,0,0,0.16), 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.account-table {
+  min-width: 0;
+  width: 100%;
 }
 
 /* ============================================================
@@ -1106,18 +1131,21 @@ const refreshAvatar = (account: Account) => {
   padding-left: 2px;
 }
 
-@media screen and (min-width: 768px) and (max-width: 1220px) {
-  .account-overview-card {
-    grid-template-columns: minmax(210px, 1.2fr) minmax(180px, 1fr) minmax(200px, 1.1fr) auto;
-  }
+.account-overview-list--compact .account-overview-card {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 
-  .account-overview-card__section--time {
-    grid-column: 1 / 3;
-  }
+.account-overview-list--compact .account-overview-card__identity {
+  grid-column: 1 / -1;
+}
 
-  .account-overview-card__actions {
-    grid-column: 3 / -1;
-  }
+.account-overview-list--compact .account-overview-card__actions {
+  justify-content: flex-start;
+}
+
+.account-overview-list--compact .table__action-group {
+  flex-wrap: wrap;
+  white-space: normal;
 }
 
 .table__action-group {
