@@ -180,6 +180,12 @@ public interface XianyuGoodsOrderMapper {
 
     @Update("UPDATE xianyu_goods_order SET state = #{state}, content = #{content}, fail_reason = #{failReason}, delivery_status = CASE WHEN #{state} = 1 THEN 'COMPLETED' WHEN #{state} = -1 THEN 'FAILED' ELSE delivery_status END WHERE id = #{id}")
     int updateStateContentAndFailReason(@Param("id") Long id, @Param("state") Integer state, @Param("content") String content, @Param("failReason") String failReason);
+
+    /** A pickup transaction must never remain eligible for a logistics task. */
+    @Update("UPDATE xianyu_goods_order SET delivery_status = 'SKIPPED', delivery_channel = 'PICKUP', " +
+            "next_retry_time = NULL, lease_owner = NULL, lease_expire_time = NULL, " +
+            "last_error_code = NULL, last_error_message = NULL WHERE id = #{id}")
+    int markAsSelfPickup(@Param("id") Long id);
     
     @Select("SELECT * FROM xianyu_goods_order WHERE xianyu_account_id = #{accountId} AND xy_goods_id = #{xyGoodsId} AND order_id = #{orderId} LIMIT 1")
     XianyuGoodsOrder selectByOrderId(@Param("accountId") Long accountId, @Param("xyGoodsId") String xyGoodsId, @Param("orderId") String orderId);

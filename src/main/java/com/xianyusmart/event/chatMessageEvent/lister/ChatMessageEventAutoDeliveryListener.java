@@ -67,6 +67,12 @@ public class ChatMessageEventAutoDeliveryListener {
                 return;
             }
 
+            XianyuGoodsOrder existing = message.getOrderId() == null || message.getOrderId().isBlank()
+                    ? null : orderMapper.selectByAccountIdAndOrderId(accountId, message.getOrderId());
+            if (existing != null && "PICKUP".equalsIgnoreCase(existing.getDeliveryChannel())) {
+                return;
+            }
+
             if (!isPaymentMessage(message)) {
                 return;
             }
@@ -120,8 +126,7 @@ public class ChatMessageEventAutoDeliveryListener {
     }
 
     private boolean isSelfPickupMessage(ChatMessageData message) {
-        if (message.getOrderId() == null || message.getOrderId().isBlank()
-                || message.getXyGoodsId() == null || message.getXyGoodsId().isBlank()) {
+        if (message.getOrderId() == null || message.getOrderId().isBlank()) {
             return false;
         }
         String source = String.valueOf(message.getMsgContent()) + "\n" + String.valueOf(message.getCompleteMsg());
@@ -134,11 +139,13 @@ public class ChatMessageEventAutoDeliveryListener {
     private void persistSelfPickupOrder(Long accountId, ChatMessageData message) {
         XianyuGoodsOrder existing = orderMapper.selectByAccountIdAndOrderId(accountId, message.getOrderId());
         if (existing != null) {
+            orderMapper.markAsSelfPickup(existing.getId());
             return;
         }
         XianyuGoodsOrder record = new XianyuGoodsOrder();
         record.setXianyuAccountId(accountId);
-        record.setXianyuGoodsId(resolveXianyuGoodsId(accountId, message.getXyGoodsId()));
+        record.setXianyuGoodsId(message.getXyGoodsId() == null || message.getXyGoodsId().isBlank()
+                ? null : resolveXianyuGoodsId(accountId, message.getXyGoodsId()));
         record.setXyGoodsId(message.getXyGoodsId());
         record.setPnmId(message.getPnmId() == null || message.getPnmId().isBlank()
                 ? "pickup_" + message.getOrderId() : message.getPnmId());

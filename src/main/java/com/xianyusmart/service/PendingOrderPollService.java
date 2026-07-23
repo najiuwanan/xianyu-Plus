@@ -5,6 +5,7 @@ import com.xianyusmart.enums.DeliveryChannel;
 import com.xianyusmart.enums.DeliveryStatus;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -38,6 +39,9 @@ public class PendingOrderPollService {
 
     @Autowired
     private DeliveryTaskService deliveryTaskService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @SuppressWarnings("unchecked")
     public void syncOrdersToDb(Long accountId, List<Map<String, Object>> pendingOrders) {
@@ -117,6 +121,9 @@ public class PendingOrderPollService {
                             snapshot.getTradeStatus(),
                             snapshot.getTradeStatusText()
                     );
+                    if ("PICKUP".equals(snapshot.getDeliveryChannel())) {
+                        orderMapper.markAsSelfPickup(existing.getId());
+                    }
                 }
                 synced++;
             } catch (Exception e) {
@@ -151,20 +158,53 @@ public class PendingOrderPollService {
         LocalDateTime cutoff = LocalDateTime.now().minusDays(HISTORY_DAYS);
         List<Map<String, Object>> recentOrders = new ArrayList<>();
         for (Map<String, Object> order : orders) {
-            Object commonDataObj = order.get("commonData");
-            if (!(commonDataObj instanceof Map)) {
+            Map<String, Object> commonData = commonDataOf(order);
+            if (commonData.isEmpty()) {
                 continue;
             }
-            Map<String, Object> commonData = (Map<String, Object>) commonDataObj;
-            LocalDateTime orderTime = parseOrderTime(commonData.get("createTime"));
-            if (orderTime == null) {
-                orderTime = parseOrderTime(commonData.get("paySuccessTime"));
-            }
+            LocalDateTime orderTime = historyOrderTime(commonData);
             if (orderTime != null && !orderTime.isBefore(cutoff)) {
+                recentOrders.add(order);
+            } else if (orderTime == null && hasOrderId(commonData) && isSelfPickupOrder(order)) {
+                // Some completed pickup rows omit createTime/paySuccessTime from the list API.
+                // They are still valid recent transactions when returned by the newest list pages.
+                // Persist them with the local write time as a display fallback, then let later
+                // history/detail responses fill the actual timestamps.
                 recentOrders.add(order);
             }
         }
         return recentOrders;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> commonDataOf(Map<String, Object> order) {
+        Object commonData = order.get("commonData");
+        if (commonData instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        if (commonData instanceof String text && text.trim().startsWith("{") && objectMapper != null) {
+            try {
+                return objectMapper.readValue(text, Map.class);
+            } catch (Exception exception) {
+                log.debug("无法解析订单 commonData: {}", exception.getMessage());
+            }
+        }
+        return Map.of();
+    }
+
+    private boolean hasOrderId(Map<String, Object> commonData) {
+        String orderId = stringValue(commonData.get("orderId"));
+        return orderId != null && !orderId.isBlank();
+    }
+
+    private LocalDateTime historyOrderTime(Map<String, Object> commonData) {
+        for (String key : List.of("createTime", "paySuccessTime", "orderCreateTime", "orderTime", "gmtCreate", "tradeCreateTime")) {
+            LocalDateTime value = parseOrderTime(commonData.get(key));
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private LocalDateTime parseOrderTime(Object value) {
@@ -214,8 +254,8 @@ public class PendingOrderPollService {
 
     @SuppressWarnings("unchecked")
     private XianyuGoodsOrder buildHistoryRecord(Long accountId, Map<String, Object> order) {
-        Object commonDataObj = order.get("commonData");
-        if (!(commonDataObj instanceof Map)) {
+        Map<String, Object> commonData = commonDataOf(order);
+        if (commonData.isEmpty()) {
             return null;
         }
 
@@ -224,7 +264,6 @@ public class PendingOrderPollService {
             return null;
         }
 
-        Map<String, Object> commonData = (Map<String, Object>) commonDataObj;
         String forcedStatus = stringValue(order.get("_xianyuPlusTradeStatus"));
         String forcedText = stringValue(order.get("_xianyuPlusTradeStatusText"));
         applyTradeStatus(record, commonData, forcedStatus, forcedText);
@@ -258,9 +297,12 @@ public class PendingOrderPollService {
         if (value instanceof Map<?, ?> map) {
             for (Map.Entry<?, ?> entry : map.entrySet()) {
                 String key = entry.getKey() == null ? "" : String.valueOf(entry.getKey()).toLowerCase();
+                if (isSelfPickupFlagKey(key) && isTruthy(entry.getValue())) {
+                    return true;
+                }
                 boolean nextDeliveryContext = deliveryContext
-                        || key.contains("delivery") || key.contains("logistic")
-                        || key.contains("shipping") || key.contains("pickup") || key.contains("fulfill");
+                        || key.contains("delivery") || key.contains("logistic") || key.contains("shipping")
+                        || key.contains("pickup") || key.contains("fulfill") || key.contains("fee");
                 if (containsSelfPickupMarker(entry.getValue(), nextDeliveryContext)) {
                     return true;
                 }
@@ -280,6 +322,27 @@ public class PendingOrderPollService {
         }
         String text = String.valueOf(value).toUpperCase();
         return text.contains("SELF_PICKUP") || text.contains("PICKUP")
+                || text.contains("自提") || text.contains("自取");
+    }
+
+    private boolean isSelfPickupFlagKey(String key) {
+        return key.contains("onlytakeself") || key.contains("onlyselftake")
+                || key.contains("selfpickup") || key.contains("pickuponly");
+    }
+
+    private boolean isTruthy(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        if (value == null) {
+            return false;
+        }
+        String text = String.valueOf(value).trim().toUpperCase();
+        return "TRUE".equals(text) || "1".equals(text) || "YES".equals(text)
+                || "Y".equals(text) || text.contains("SELF_PICKUP") || text.contains("PICKUP")
                 || text.contains("自提") || text.contains("自取");
     }
 
@@ -332,12 +395,14 @@ public class PendingOrderPollService {
 
     @SuppressWarnings("unchecked")
     private XianyuGoodsOrder buildOrderRecord(Long accountId, Map<String, Object> order) {
-        Object commonDataObj = order.get("commonData");
-        Map<String, Object> commonData = (Map<String, Object>) commonDataObj;
+        Map<String, Object> commonData = commonDataOf(order);
+        if (commonData.isEmpty()) {
+            throw new IllegalArgumentException("订单缺少 commonData");
+        }
 
-        String orderId = (String) commonData.get("orderId");
-        String itemId = (String) commonData.get("itemId");
-        String orderStatus = (String) commonData.get("orderStatus");
+        String orderId = stringValue(commonData.get("orderId"));
+        String itemId = stringValue(commonData.get("itemId"));
+        String orderStatus = stringValue(commonData.get("orderStatus"));
 
         String buyerNick = null;
         String buyerUserId = null;
@@ -386,14 +451,24 @@ public class PendingOrderPollService {
         record.setState("待发货".equals(orderStatus) ? 0 : 1);
         record.setConfirmState(0);
 
-        String createTime = (String) commonData.get("createTime");
-        String payTime = (String) commonData.get("paySuccessTime");
+        String createTime = firstText(commonData, "createTime", "orderCreateTime", "orderTime", "gmtCreate", "tradeCreateTime");
+        String payTime = firstText(commonData, "paySuccessTime", "paymentTime", "payTime");
         String consignTime = stringValue(commonData.get("consignTime"));
         if (createTime != null) record.setOrderCreateTime(createTime);
         if (payTime != null) record.setPaySuccessTime(payTime);
         if (consignTime != null && !consignTime.isBlank()) record.setConsignTime(consignTime);
 
         return record;
+    }
+
+    private String firstText(Map<String, Object> values, String... keys) {
+        for (String key : keys) {
+            String value = stringValue(values.get(key));
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     /**
