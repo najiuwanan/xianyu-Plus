@@ -185,11 +185,16 @@ public class PublishCapabilityProbeService {
 
         boolean blocked = blockedHints.stream().anyMatch(categoryText::contains);
         boolean special = specialHints.stream().anyMatch(categoryText::contains);
+        boolean serviceForm = isAssistServiceForm(categoryText, response.getProperties());
         response.setSpecialCategory(special || blocked);
         if (blocked) {
             response.setSupportLevel("BLOCKED");
             response.setSupportLabel("需平台审核或禁止自动发布");
             response.getPublishWarnings().add("检测到高风险商品关键词，系统不会提供自动发布；请先核对闲鱼最新禁限售规则。");
+        } else if (serviceForm) {
+            response.setSupportLevel("SERVICE_FORM");
+            response.setSupportLabel("拼单/助力服务表单");
+            response.getPublishWarnings().add("已识别拼单/助力服务字段；请逐项选择交付周期、服务类型和计价方式后再发布。");
         } else if (special) {
             response.setSupportLevel("SPECIAL_ADAPTER");
             response.setSupportLabel("需要专项适配");
@@ -215,6 +220,21 @@ public class PublishCapabilityProbeService {
             response.getPublishWarnings().add("有 " + dependentCount + " 个联动属性暂无选项，需要先选择品牌、产品或上级属性后再加载。");
         }
         response.getPublishWarnings().add("当前仅完成发布表单预检，尚未上传图片，也没有创建真实商品。");
+    }
+
+    private boolean isAssistServiceForm(String categoryText, List<PublishCapabilityCheckRespDTO.Property> properties) {
+        boolean assistKeyword = categoryText.contains("拼单") || categoryText.contains("助力");
+        if (!assistKeyword || properties == null || properties.isEmpty()) {
+            return false;
+        }
+        int serviceFieldCount = 0;
+        for (PublishCapabilityCheckRespDTO.Property property : properties) {
+            String name = text(property.getPropertyName());
+            if (name.contains("交付周期") || name.contains("服务类型") || name.contains("计价方式")) {
+                serviceFieldCount++;
+            }
+        }
+        return serviceFieldCount >= 3;
     }
 
     private String resolveInputType(Map<String, Object> cardData) {

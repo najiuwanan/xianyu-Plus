@@ -117,6 +117,40 @@ class PublishCapabilityProbeServiceTest {
     }
 
     @Test
+    void shouldIdentifyAssistServiceFormWhenServiceFieldsAreReturned() {
+        XianyuAccount account = new XianyuAccount();
+        account.setId(9L);
+        when(accountMapper.selectById(9L)).thenReturn(account);
+        when(accountService.getCookieByAccountId(9L)).thenReturn("_m_h5_tk=token_exp; unb=buyer");
+
+        String categoryResponse = """
+                {"ret":["SUCCESS::调用成功"],"data":{
+                  "categoryPredictResult":{"catId":"service-1","catName":"拼单/助力"},
+                  "cardList":[
+                    {"cardData":{"propertyId":"1","propertyName":"交付周期","required":true,"valuesList":[{"catName":"10分钟"}]}},
+                    {"cardData":{"propertyId":"2","propertyName":"服务类型","required":true,"valuesList":[{"catName":"助力"}]}},
+                    {"cardData":{"propertyId":"3","propertyName":"计价方式","required":true,"valuesList":[{"catName":"元/次"}]}}
+                  ]
+                }}
+                """;
+        String locationResponse = """
+                {"ret":["SUCCESS::调用成功"],"data":{"commonAddresses":[{"divisionId":"310101"}]}}
+                """;
+        when(apiCallUtils.callApiWithRetry(eq(9L), eq(PublishCapabilityProbeService.CATEGORY_API), any(Map.class),
+                any(String.class), eq("2.0"), eq(null), eq(null)))
+                .thenReturn(new XianyuApiCallUtils.ApiCallResult(true, categoryResponse, null, false));
+        when(apiCallUtils.callApiWithRetry(eq(9L), eq(PublishCapabilityProbeService.LOCATION_API), any(Map.class),
+                any(String.class), eq("1.0"), eq(null), eq(null)))
+                .thenReturn(new XianyuApiCallUtils.ApiCallResult(true, locationResponse, null, false));
+
+        PublishCapabilityCheckRespDTO result = service.check(9L, "书亦烧仙草免单助力");
+
+        assertEquals("SERVICE_FORM", result.getSupportLevel());
+        assertEquals("拼单/助力服务表单", result.getSupportLabel());
+        assertEquals(3, result.getRequiredPropertyCount());
+    }
+
+    @Test
     void shouldStopBeforeNetworkWhenAccountDoesNotExist() {
         when(accountMapper.selectById(99L)).thenReturn(null);
 

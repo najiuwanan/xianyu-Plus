@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { getAccountList } from '@/api/account'
-import { deleteItemPolishRecord, getItemPolishOverview, runItemPolish, type ItemPolishOverview, type ItemPolishRecord } from '@/api/item-polish'
+import { deleteItemPolishRecord, getItemPolishOverview, runItemPolish, runItemPolishBatch, type ItemPolishOverview, type ItemPolishRecord } from '@/api/item-polish'
 import type { Account } from '@/types'
 import { showConfirm, showError, showInfo, showSuccess } from '@/utils'
 
@@ -10,6 +10,7 @@ const selectedAccountId = ref<number | null>(null)
 const overview = ref<ItemPolishOverview | null>(null)
 const loading = ref(false)
 const starting = ref(false)
+const batchStarting = ref(false)
 const deletingRecordId = ref<number | null>(null)
 
 const formatTime = (value?: string) => {
@@ -19,6 +20,7 @@ const formatTime = (value?: string) => {
 }
 
 const isSkippedRecord = (record: ItemPolishRecord) => record.success === 1 && (record.message || '').includes('跳过')
+const eligibleBatchAccounts = computed(() => accounts.value.filter(account => account.status === 1))
 
 const loadOverview = async (silent = false) => {
   if (!selectedAccountId.value) return
@@ -61,6 +63,33 @@ const runNow = async () => {
     showError(`启动擦亮失败：${error.message || '未知错误'}`)
   } finally {
     starting.value = false
+  }
+}
+
+const runAllNow = async () => {
+  if (batchStarting.value || !eligibleBatchAccounts.value.length) return
+  try {
+    await showConfirm(
+      `将按账号错峰执行 ${eligibleBatchAccounts.value.length} 个可用账号的擦亮任务。每个账号会先同步在售商品，再逐件擦亮；单个账号失败不会中断其他账号。`,
+      '全部账号一键擦亮'
+    )
+  } catch {
+    return
+  }
+
+  batchStarting.value = true
+  try {
+    const response = await runItemPolishBatch(eligibleBatchAccounts.value.map(account => Number(account.id)))
+    if (response.code !== 0 && response.code !== 200) throw new Error(response.msg || '批量启动失败')
+    const data = response.data
+    const skipped = (data?.accountResults || []).filter(item => item.status !== 'QUEUED').length
+    showInfo(`${data?.message || '批量擦亮已开始'}${skipped ? `；另有 ${skipped} 个账号正在执行或已跳过` : ''}`)
+    await loadOverview(true)
+    window.setTimeout(() => loadOverview(true), 2500)
+  } catch (error: any) {
+    showError(`批量启动擦亮失败：${error.message || '未知错误'}`)
+  } finally {
+    batchStarting.value = false
   }
 }
 
@@ -109,6 +138,9 @@ onMounted(loadAccounts)
           </option>
         </select>
         <button class="btn btn--secondary" :disabled="loading" @click="loadOverview()">刷新</button>
+        <button class="btn btn--secondary" :disabled="!eligibleBatchAccounts.length || batchStarting" @click="runAllNow">
+          {{ batchStarting ? '批量启动中…' : `全部账号擦亮（${eligibleBatchAccounts.length}）` }}
+        </button>
         <button class="btn btn--primary" :disabled="!selectedAccountId || starting || overview?.running" @click="runNow">
           {{ overview?.running ? '正在同步并擦亮…' : starting ? '启动中…' : '一键擦亮' }}
         </button>
@@ -116,6 +148,7 @@ onMounted(loadAccounts)
     </header>
 
     <section v-if="selectedAccountId" class="polish-layout" :class="{ 'is-loading': loading }">
+      <p class="batch-hint">全部账号擦亮会按账号错峰执行；每个账号的同步、擦亮、风控和记录彼此独立。</p>
       <div class="polish-summary">
         <div class="summary-card">
           <span>可擦亮商品</span>
@@ -151,7 +184,7 @@ onMounted(loadAccounts)
               <tr v-for="record in overview.records" :key="record.id">
                 <td>{{ formatTime(record.createTime) }}</td>
                 <td><strong>{{ record.goodsTitle || '未命名商品' }}</strong><small>ID: {{ record.xyGoodsId }}</small></td>
-                <td>{{ record.triggerType === 'SCHEDULED' ? '每日一键' : '手动一键' }}</td>
+                <td>{{ record.triggerType === 'SCHEDULED' ? '每日一键' : record.triggerType === 'BATCH_MANUAL' ? '批量一键' : '手动一键' }}</td>
                 <td>
                   <span class="result-tag" :class="isSkippedRecord(record) ? 'result-tag--skipped' : (record.success === 1 ? 'result-tag--success' : 'result-tag--danger')">
                     {{ isSkippedRecord(record) ? '已跳过' : (record.success === 1 ? '成功' : '失败') }}
@@ -187,6 +220,7 @@ h1 { font-size: 25px; letter-spacing: -.4px; }
 .polish-select { height: 38px; min-width: 150px; border: 1px solid rgba(60,60,67,.18); border-radius: 9px; padding: 0 10px; background: #fff; color: #1c1c1e; }
 .polish-layout { display: grid; grid-template-columns: 1fr; gap: 18px; transition: opacity .2s; }
 .polish-layout.is-loading { opacity: .6; pointer-events: none; }
+.batch-hint { margin: 0; padding: 11px 13px; border: 1px solid #d1e0ff; border-radius: 10px; background: #f5f8ff; color: #175cd3; font-size: 13px; }
 .polish-card, .summary-card { background: rgba(255,255,255,.9); border: 1px solid rgba(60,60,67,.12); border-radius: 14px; box-shadow: 0 5px 18px rgba(0,0,0,.04); }
 .polish-card { padding: 22px; }
 .card-title-row { justify-content: space-between; gap: 16px; }

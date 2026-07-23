@@ -289,6 +289,14 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.9.3".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "一键擦亮支持全部可用账号批量启动，按账号错峰执行并保留独立结果",
+                    "发布页可识别拼单/助力服务表单，要求完整填写交付周期、服务类型和计价方式",
+                    "其他需要专项资质或特殊流程的类目仍保持拦截，避免按普通商品误发布"
+            ));
+            return;
+        }
         if ("1.9.2".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "闲鱼订单列表接口暂时无权限时，会从本地保存的 WebSocket 自提交易卡片补回近 30 天订单",

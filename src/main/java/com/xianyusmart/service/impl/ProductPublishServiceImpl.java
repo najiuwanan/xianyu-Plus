@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ProductPublishServiceImpl implements ProductPublishService {
 
     static final String PUBLISH_API = "mtop.idle.pc.idleitem.publish";
+    private static final Set<String> SUPPORTED_FORM_LEVELS = Set.of("GENERAL_FORM", "SERVICE_FORM");
     private static final Set<String> DELIVERY_MODES = Set.of("FREE", "FLAT", "NONE", "SELF_PICKUP");
     private static final Set<String> TRUSTED_IMAGE_SUFFIXES = Set.of("alicdn.com", "tbcdn.cn", "goofish.com");
     private static final double DEFAULT_LONGITUDE = 121.4737;
@@ -56,7 +57,7 @@ public class ProductPublishServiceImpl implements ProductPublishService {
         if (!schema.isCategoryApiReady() || !schema.isLocationApiReady()) {
             throw new BusinessException(409, "发布前置检查未通过：" + schema.getSummary());
         }
-        if (!"GENERAL_FORM".equals(schema.getSupportLevel())) {
+        if (!SUPPORTED_FORM_LEVELS.contains(schema.getSupportLevel())) {
             throw new BusinessException(409, "当前类目属于专项流程，暂不允许按普通商品发布：" + schema.getSupportLabel());
         }
         if (schema.getDependentPropertyCount() > 0) {
@@ -64,6 +65,7 @@ public class ProductPublishServiceImpl implements ProductPublishService {
         }
 
         List<Map<String, Object>> labels = resolveLabels(schema, request.getProperties());
+        validateServiceFormLabels(schema, labels);
         Map<String, Object> location = resolveLocation(request);
         Map<String, Object> payload = buildPayload(request, schema, labels, location);
         String cookie = accountService.getCookieByAccountId(request.getAccountId());
@@ -244,6 +246,24 @@ public class ProductPublishServiceImpl implements ProductPublishService {
         label.put("properties", property.getPropertyId() + "##" + property.getPropertyName() + ":" +
                 option.getChannelCategoryId() + "##" + option.getValueName());
         return label;
+    }
+
+    private void validateServiceFormLabels(PublishCapabilityCheckRespDTO schema, List<Map<String, Object>> labels) {
+        if (!"SERVICE_FORM".equals(schema.getSupportLevel())) {
+            return;
+        }
+        boolean hasDeliveryPeriod = false;
+        boolean hasServiceType = false;
+        boolean hasPricing = false;
+        for (Map<String, Object> label : labels) {
+            String propertyName = value(label, "propertyName");
+            hasDeliveryPeriod |= propertyName.contains("交付周期");
+            hasServiceType |= propertyName.contains("服务类型");
+            hasPricing |= propertyName.contains("计价方式");
+        }
+        if (!hasDeliveryPeriod || !hasServiceType || !hasPricing) {
+            throw new BusinessException(400, "拼单/助力服务请完整选择交付周期、服务类型和计价方式");
+        }
     }
 
     private Map<String, Object> resolveLocation(ProductPublishReqDTO request) {

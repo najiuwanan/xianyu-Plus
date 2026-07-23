@@ -84,6 +84,37 @@ class ProductPublishServiceImplTest {
     }
 
     @Test
+    void shouldPublishAssistServiceWithReturnedServiceFields() {
+        ProductPublishReqDTO request = request();
+        request.setTitle("书亦烧仙草拼单助力服务");
+        request.setProperties(List.of(
+                selection("delivery-period", "10m"),
+                selection("service-type", "assist"),
+                selection("pricing", "unit")));
+        PublishCapabilityCheckRespDTO schema = assistServiceSchema();
+        when(probeService.check(7L, request.getTitle())).thenReturn(schema);
+        when(accountService.getCookieByAccountId(7L)).thenReturn("_m_h5_tk=token_exp");
+        when(apiCallUtils.callApiWithRetry(eq(7L), eq(PublishCapabilityProbeService.LOCATION_API), any(Map.class),
+                any(String.class), eq("1.0"), eq(null), eq(null)))
+                .thenReturn(new XianyuApiCallUtils.ApiCallResult(true,
+                        "{\"ret\":[\"SUCCESS\"],\"data\":{\"commonAddresses\":[{\"divisionId\":\"310115\",\"city\":\"上海\"}]}}",
+                        null, false));
+        when(apiCallUtils.callApiWithRetry(eq(7L), eq(ProductPublishServiceImpl.PUBLISH_API), any(Map.class),
+                any(String.class), eq("1.0"), eq(null), eq(null)))
+                .thenReturn(new XianyuApiCallUtils.ApiCallResult(true,
+                        "{\"ret\":[\"SUCCESS\"],\"data\":{\"itemId\":\"service-1\"}}", null, false));
+
+        ProductPublishRespDTO response = service.publish(request);
+
+        assertTrue(response.isSuccess());
+        ArgumentCaptor<Map<String, Object>> payload = ArgumentCaptor.forClass(Map.class);
+        verify(apiCallUtils).callApiWithRetry(eq(7L), eq(ProductPublishServiceImpl.PUBLISH_API), payload.capture(),
+                any(String.class), eq("1.0"), eq(null), eq(null));
+        List<?> labels = (List<?>) payload.getValue().get("itemLabelExtList");
+        assertEquals(3, labels.size());
+    }
+
+    @Test
     void shouldPublishWithSelectedPoiWhenCommonAddressesAreMissing() {
         ProductPublishReqDTO request = request();
         ProductPublishReqDTO.Address addressRequest = new ProductPublishReqDTO.Address();
@@ -170,5 +201,38 @@ class ProductPublishServiceImplTest {
         property.setOptions(List.of(option));
         schema.setProperties(List.of(property));
         return schema;
+    }
+
+    private PublishCapabilityCheckRespDTO assistServiceSchema() {
+        PublishCapabilityCheckRespDTO schema = generalSchema();
+        schema.setSupportLevel("SERVICE_FORM");
+        schema.setSupportLabel("拼单/助力服务表单");
+        schema.setCategoryName("拼单/助力");
+        schema.setProperties(List.of(
+                serviceProperty("delivery-period", "交付周期", "10m", "10分钟"),
+                serviceProperty("service-type", "服务类型", "assist", "助力"),
+                serviceProperty("pricing", "计价方式", "unit", "元/次")));
+        return schema;
+    }
+
+    private PublishCapabilityCheckRespDTO.Property serviceProperty(String id, String name, String valueId, String valueName) {
+        PublishCapabilityCheckRespDTO.Property property = new PublishCapabilityCheckRespDTO.Property();
+        property.setPropertyId(id);
+        property.setPropertyName(name);
+        property.setRequired(true);
+        PublishCapabilityCheckRespDTO.Option option = new PublishCapabilityCheckRespDTO.Option();
+        option.setValueId(valueId);
+        option.setValueName(valueName);
+        option.setChannelCategoryId(valueId);
+        option.setTaobaoCategoryId("50012029");
+        property.setOptions(List.of(option));
+        return property;
+    }
+
+    private ProductPublishReqDTO.PropertySelection selection(String propertyId, String valueKey) {
+        ProductPublishReqDTO.PropertySelection selection = new ProductPublishReqDTO.PropertySelection();
+        selection.setPropertyId(propertyId);
+        selection.setValueKey(valueKey);
+        return selection;
     }
 }

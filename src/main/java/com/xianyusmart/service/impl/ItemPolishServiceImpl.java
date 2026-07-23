@@ -30,6 +30,8 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -50,10 +52,12 @@ public class ItemPolishServiceImpl implements ItemPolishService {
     /** 擦亮接口使用独立的 2.0 协议路径与请求版本，不能复用通用接口的 1.0 默认值。 */
     private static final String PRIMARY_ENDPOINT_VERSION = "2.0";
     private static final String MANUAL_TRIGGER = "MANUAL";
+    private static final String BATCH_MANUAL_TRIGGER = "BATCH_MANUAL";
     private static final String SCHEDULED_TRIGGER = "SCHEDULED";
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
     private static final int DEFAULT_RECORD_LIMIT = 30;
     private static final int MAX_RECORD_LIMIT = 100;
+    private static final int MAX_MANUAL_BATCH_ACCOUNTS = 30;
 
     private final XianyuAccountMapper accountMapper;
     private final XianyuGoodsInfoMapper goodsInfoMapper;
@@ -136,6 +140,76 @@ public class ItemPolishServiceImpl implements ItemPolishService {
         result.put("started", started);
         result.put("message", started ? "一键擦亮任务已开始，将先同步在售商品再依次擦亮" : "该账号正在同步或擦亮，请等待当前任务完成");
         return result;
+    }
+
+    @Override
+    public Map<String, Object> startManualRuns(List<Long> requestedAccountIds) {
+        if (requestedAccountIds == null || requestedAccountIds.isEmpty()) {
+            throw new IllegalArgumentException("请至少选择一个账号");
+        }
+        LinkedHashSet<Long> uniqueAccountIds = new LinkedHashSet<>();
+        for (Long accountId : requestedAccountIds) {
+            if (accountId != null) {
+                uniqueAccountIds.add(accountId);
+            }
+        }
+        if (uniqueAccountIds.isEmpty()) {
+            throw new IllegalArgumentException("请至少选择一个有效账号");
+        }
+        if (uniqueAccountIds.size() > MAX_MANUAL_BATCH_ACCOUNTS) {
+            throw new IllegalArgumentException("一次最多启动 " + MAX_MANUAL_BATCH_ACCOUNTS + " 个账号的擦亮任务");
+        }
+
+        List<Long> queuedAccountIds = new ArrayList<>();
+        List<Map<String, Object>> accountResults = new ArrayList<>();
+        for (Long accountId : uniqueAccountIds) {
+            Map<String, Object> accountResult = new HashMap<>();
+            accountResult.put("accountId", accountId);
+            try {
+                ensureAccountActive(accountId);
+                ensureAutomationNotPaused(accountId);
+                getOrCreateConfig(accountId);
+                if (!runningAccountIds.add(accountId)) {
+                    accountResult.put("status", "RUNNING");
+                    accountResult.put("message", "该账号已有同步或擦亮任务在运行");
+                } else {
+                    queuedAccountIds.add(accountId);
+                    accountResult.put("status", "QUEUED");
+                    accountResult.put("message", "已进入批量擦亮队列");
+                }
+            } catch (Exception exception) {
+                accountResult.put("status", "SKIPPED");
+                accountResult.put("message", messageOf(exception));
+            }
+            accountResults.add(accountResult);
+        }
+
+        if (!queuedAccountIds.isEmpty()) {
+            try {
+                taskExecutor.execute(() -> executeManualBatch(queuedAccountIds));
+        } catch (Exception exception) {
+            queuedAccountIds.forEach(runningAccountIds::remove);
+            throw new IllegalStateException("批量擦亮任务启动失败", exception);
+        }
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("startedCount", queuedAccountIds.size());
+        result.put("requestedCount", uniqueAccountIds.size());
+        result.put("accountResults", accountResults);
+        result.put("message", queuedAccountIds.isEmpty()
+                ? "没有可启动的账号，请检查账号状态或正在执行的任务"
+                : "已将 " + queuedAccountIds.size() + " 个账号加入批量擦亮队列，将按账号错峰执行");
+        return result;
+    }
+
+    private void executeManualBatch(List<Long> accountIds) {
+        for (int index = 0; index < accountIds.size(); index++) {
+            executeRun(accountIds.get(index), BATCH_MANUAL_TRIGGER);
+            if (index < accountIds.size() - 1) {
+                sleepBetweenAccounts();
+            }
+        }
     }
 
     @Override
@@ -233,6 +307,14 @@ public class ItemPolishServiceImpl implements ItemPolishService {
         } catch (Exception e) {
             runningAccountIds.remove(accountId);
             throw e;
+        }
+    }
+
+    private void sleepBetweenAccounts() {
+        try {
+            Thread.sleep(ThreadLocalRandom.current().nextLong(2_000L, 5_001L));
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
         }
     }
 

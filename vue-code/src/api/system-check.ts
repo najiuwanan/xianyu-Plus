@@ -54,7 +54,7 @@ export interface PublishCapabilityResult {
   locationApiReady: boolean
   realPublishTested: boolean
   propertyCount: number
-  supportLevel: 'GENERAL_FORM' | 'SPECIAL_ADAPTER' | 'BLOCKED'
+  supportLevel: 'GENERAL_FORM' | 'SERVICE_FORM' | 'SPECIAL_ADAPTER' | 'BLOCKED'
   supportLabel: string
   specialCategory: boolean
   requiredPropertyCount: number

@@ -18,7 +18,7 @@ export interface ItemPolishRecord {
   xianyuAccountId: number
   xyGoodsId: string
   goodsTitle?: string
-  triggerType: 'MANUAL' | 'SCHEDULED'
+  triggerType: 'MANUAL' | 'BATCH_MANUAL' | 'SCHEDULED'
   success: number
   message?: string
   createTime: string
@@ -52,6 +52,27 @@ export function runItemPolish(accountId: number) {
     url: '/item-polish/run',
     method: 'POST',
     data: { accountId }
+  })
+}
+
+export interface ItemPolishBatchAccountResult {
+  accountId: number
+  status: 'QUEUED' | 'RUNNING' | 'SKIPPED'
+  message: string
+}
+
+export interface ItemPolishBatchResult {
+  startedCount: number
+  requestedCount: number
+  accountResults: ItemPolishBatchAccountResult[]
+  message: string
+}
+
+export function runItemPolishBatch(accountIds: number[]) {
+  return request<ItemPolishBatchResult>({
+    url: '/item-polish/run-batch',
+    method: 'POST',
+    data: { accountIds }
   })
 }
 

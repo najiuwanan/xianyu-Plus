@@ -1,6 +1,7 @@
 package com.xianyusmart.controller;
 
 import com.xianyusmart.common.ResultObject;
+import com.xianyusmart.controller.dto.ItemPolishBatchRunReqDTO;
 import com.xianyusmart.controller.dto.ItemPolishConfigReqDTO;
 import com.xianyusmart.controller.dto.ItemPolishRunReqDTO;
 import com.xianyusmart.entity.XianyuItemPolishConfig;
@@ -54,6 +55,15 @@ public class ItemPolishController {
         try {
             Map<String, Object> result = itemPolishService.startManualRun(request.getAccountId());
             return ResultObject.success(result, String.valueOf(result.get("message")));
+        } catch (IllegalArgumentException e) {
+            return ResultObject.failed(e.getMessage());
+        }
+    }
+
+    @PostMapping("/run-batch")
+    public ResultObject<Map<String, Object>> runBatch(@RequestBody ItemPolishBatchRunReqDTO request) {
+        try {
+            return ResultObject.success(itemPolishService.startManualRuns(request.getAccountIds()));
         } catch (IllegalArgumentException e) {
             return ResultObject.failed(e.getMessage());
         }
