@@ -249,8 +249,16 @@ public class SystemUpdateService {
         if (body == null || body.isBlank()) {
             return;
         }
+        boolean inCodeBlock = false;
         for (String rawLine : body.split("\\R")) {
             String line = rawLine.trim();
+            if (line.startsWith("```")) {
+                inCodeBlock = !inCodeBlock;
+                continue;
+            }
+            if (inCodeBlock) {
+                continue;
+            }
             if (line.isBlank() || line.startsWith("#")) {
                 continue;
             }
