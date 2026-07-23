@@ -289,11 +289,11 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
-        if ("1.9.1".equals(version)) {
+        if ("1.9.2".equals(version)) {
             status.setUpdateHighlights(List.of(
-                    "修复已完成自提订单未进入订单管理的问题，兼容 onlyTakeSelf 标记、缺少商品 ID 的实时订单事件和缺少标准时间字段的订单列表记录",
-                    "自提订单会统一标记为 PICKUP，并退出虚拟发货、手动发货和确认发货等物流任务队列",
-                    "账号管理会依据实际可用宽度自动切换完整、紧凑和卡片布局，13 英寸笔记本、分屏或浏览器缩放下不再横向裁切"
+                    "闲鱼订单列表接口暂时无权限时，会从本地保存的 WebSocket 自提交易卡片补回近 30 天订单",
+                    "WebSocket 交易卡片支持 onlyTakeSelf=true，自提订单统一标记为 PICKUP 并跳过所有物流动作",
+                    "同步提示会显示从本地交易消息补回的自提订单数量"
             ));
             return;
         }
