@@ -281,6 +281,14 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.9.1".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "修复已完成自提订单未进入订单管理的问题，兼容 onlyTakeSelf 标记、缺少商品 ID 的实时订单事件和缺少标准时间字段的订单列表记录",
+                    "自提订单会统一标记为 PICKUP，并退出虚拟发货、手动发货和确认发货等物流任务队列",
+                    "账号管理会依据实际可用宽度自动切换完整、紧凑和卡片布局，13 英寸笔记本、分屏或浏览器缩放下不再横向裁切"
+            ));
+            return;
+        }
         if ("1.9.0".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "修复商品详情同步卡住、异步代理报错及售出下架后同步误报账号异常的问题",
