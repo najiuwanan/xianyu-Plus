@@ -1,9 +1,11 @@
 package com.xianyusmart.service;
 
 import com.xianyusmart.entity.XianyuGoodsOrder;
+import com.xianyusmart.entity.XianyuChatMessage;
 import com.xianyusmart.enums.DeliveryChannel;
 import com.xianyusmart.enums.DeliveryStatus;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
+import com.xianyusmart.mapper.XianyuChatMessageMapper;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -19,20 +21,36 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
 public class PendingOrderPollService {
 
     private static final int HISTORY_DAYS = 30;
+    private static final int LOCAL_PICKUP_CANDIDATE_LIMIT = 500;
     private static final DateTimeFormatter DASHED_ORDER_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter SLASHED_ORDER_TIME = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
+    private static final Set<String> ORDER_ID_KEYS = Set.of("orderid", "tradeid", "tid");
+    private static final Set<String> ITEM_ID_KEYS = Set.of("itemid", "itemidstr", "xygoodsid", "goodsid");
+    private static final Set<String> ORDER_STATUS_KEYS = Set.of("orderstatus", "tradestatus", "statusdesc");
+    private static final Pattern ORDER_ID_IN_TEXT = Pattern.compile(
+            "(?i)(?:order(?:_)?id|trade(?:_)?id|tid)\\s*(?:=|:|%3A)\\s*[\\\"']?([0-9]{6,})");
+    private static final Pattern ITEM_ID_IN_TEXT = Pattern.compile(
+            "(?i)(?:item(?:_)?id|goods(?:_)?id)\\s*(?:=|:|%3A)\\s*[\\\"']?([0-9]{6,})");
 
     @Autowired
     private OrderService orderService;
 
     @Autowired
     private XianyuGoodsOrderMapper orderMapper;
+
+    @Autowired
+    private XianyuChatMessageMapper chatMessageMapper;
 
     @Autowired
     private XianyuGoodsConfigMapper goodsConfigMapper;
@@ -174,6 +192,216 @@ public class PendingOrderPollService {
             }
         }
         return recentOrders;
+    }
+
+    /**
+     * Reconcile self-pickup records from persisted WebSocket cards.
+     *
+     * <p>This is deliberately limited to explicit self-pickup markers. It is
+     * therefore safe to run together with the normal history sync: it creates
+     * or updates an order-management record but never schedules logistics.</p>
+     */
+    public int syncSelfPickupHistoryFromChatMessages(Long accountId) {
+        if (accountId == null) {
+            return 0;
+        }
+        long sinceMillis = System.currentTimeMillis() - HISTORY_DAYS * 24L * 60L * 60L * 1000L;
+        List<XianyuChatMessage> candidates = chatMessageMapper.findRecentSelfPickupCandidates(
+                accountId, sinceMillis, LOCAL_PICKUP_CANDIDATE_LIMIT);
+        if (candidates == null || candidates.isEmpty()) {
+            return 0;
+        }
+
+        Map<String, Map<String, Object>> ordersById = new LinkedHashMap<>();
+        for (XianyuChatMessage message : candidates) {
+            Map<String, Object> order = toSelfPickupHistoryOrder(message);
+            if (order == null) {
+                continue;
+            }
+            String orderId = stringValue(commonDataOf(order).get("orderId"));
+            if (orderId != null && !orderId.isBlank()) {
+                ordersById.putIfAbsent(orderId, order);
+            }
+        }
+        int synced = syncOrderHistoryToDb(accountId, new ArrayList<>(ordersById.values()));
+        if (synced > 0) {
+            log.info("Reconciled {} self-pickup order(s) from local WebSocket cards for accountId={}", synced, accountId);
+        }
+        return synced;
+    }
+
+    private Map<String, Object> toSelfPickupHistoryOrder(XianyuChatMessage message) {
+        String source = String.valueOf(message.getMsgContent()) + "\n" + String.valueOf(message.getCompleteMsg());
+        Object payload = parseMessagePayload(message.getCompleteMsg());
+        if (!containsSelfPickupMarker(payload, false) && !containsSelfPickupText(source)) {
+            return null;
+        }
+
+        String orderId = firstNonBlank(
+                findNestedText(payload, ORDER_ID_KEYS),
+                extractIdFromText(source, ORDER_ID_IN_TEXT));
+        if (orderId == null) {
+            log.debug("Skip local pickup card without an order ID: pnmId={}", message.getPnmId());
+            return null;
+        }
+
+        String itemId = firstNonBlank(message.getXyGoodsId(),
+                findNestedText(payload, ITEM_ID_KEYS), extractIdFromText(source, ITEM_ID_IN_TEXT));
+        String rawStatus = findNestedText(payload, ORDER_STATUS_KEYS);
+
+        Map<String, Object> commonData = new LinkedHashMap<>();
+        commonData.put("orderId", orderId);
+        commonData.put("itemId", itemId);
+        if (message.getMessageTime() != null && message.getMessageTime() > 0) {
+            commonData.put("createTime", message.getMessageTime());
+            commonData.put("paySuccessTime", message.getMessageTime());
+        }
+        if (rawStatus != null) {
+            commonData.put("orderStatus", rawStatus);
+        }
+
+        Map<String, Object> order = new LinkedHashMap<>();
+        order.put("commonData", commonData);
+        order.put("postFee", Map.of("onlyTakeSelf", true));
+        order.put("buyerInfoVO", Map.of(
+                "userNick", nullToEmpty(message.getSenderUserName()),
+                "userId", nullToEmpty(message.getSenderUserId())));
+        order.put("itemVO", Map.of("title", firstNonBlank(findNestedText(payload, Set.of("itemtitle", "goodstitle", "title")), "")));
+        applyLocalMessageTradeStatus(order, source, rawStatus);
+        return order;
+    }
+
+    private Object parseMessagePayload(String completeMsg) {
+        if (completeMsg == null || completeMsg.isBlank() || objectMapper == null) {
+            return Map.of();
+        }
+        try {
+            return objectMapper.readValue(completeMsg, Object.class);
+        } catch (Exception exception) {
+            log.debug("Unable to parse local WebSocket card: {}", exception.getMessage());
+            return Map.of();
+        }
+    }
+
+    private String findNestedText(Object value, Set<String> keys) {
+        return findNestedText(value, keys, 0);
+    }
+
+    private String findNestedText(Object value, Set<String> keys, int depth) {
+        if (value == null || depth > 8) {
+            return null;
+        }
+        if (value instanceof Map<?, ?> map) {
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String key = entry.getKey() == null ? "" : normalizeKey(String.valueOf(entry.getKey()));
+                if (keys.contains(key)) {
+                    String direct = stringValue(entry.getValue());
+                    if (direct != null && !direct.isBlank() && !(entry.getValue() instanceof Map<?, ?>)) {
+                        return direct;
+                    }
+                }
+            }
+            for (Object nested : map.values()) {
+                String found = findNestedText(nested, keys, depth + 1);
+                if (found != null) {
+                    return found;
+                }
+            }
+            return null;
+        }
+        if (value instanceof Iterable<?> iterable) {
+            for (Object nested : iterable) {
+                String found = findNestedText(nested, keys, depth + 1);
+                if (found != null) {
+                    return found;
+                }
+            }
+            return null;
+        }
+        if (value instanceof String text && objectMapper != null) {
+            String trimmed = text.trim();
+            if ((trimmed.startsWith("{") && trimmed.endsWith("}"))
+                    || (trimmed.startsWith("[") && trimmed.endsWith("]"))) {
+                try {
+                    return findNestedText(objectMapper.readValue(trimmed, Object.class), keys, depth + 1);
+                } catch (Exception ignored) {
+                    // A card may contain non-JSON text. Continue with other fields.
+                }
+            }
+        }
+        return null;
+    }
+
+    private String extractIdFromText(String source, Pattern pattern) {
+        if (source == null) {
+            return null;
+        }
+        String normalized = source.replace("\\\"", "\"").replace("%22", "\"");
+        Matcher matcher = pattern.matcher(normalized);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private boolean containsSelfPickupText(String source) {
+        if (source == null) {
+            return false;
+        }
+        String normalized = source.toUpperCase(Locale.ROOT);
+        return source.contains("自提") || source.contains("自取")
+                || normalized.contains("SELF_PICKUP") || normalized.contains("PICKUP")
+                || normalized.contains("ONLYTAKESELF") || normalized.contains("ONLY_SELF_TAKE");
+    }
+
+    private void applyLocalMessageTradeStatus(Map<String, Object> order, String source, String rawStatus) {
+        String normalized = source == null ? "" : source.toUpperCase(Locale.ROOT);
+        if (containsAny(source, "退款成功", "已退款") || normalized.contains("REFUND_SUCCESS")) {
+            order.put("_xianyuPlusTradeStatus", "REFUNDED");
+            order.put("_xianyuPlusTradeStatusText", "自提订单已退款");
+        } else if (containsAny(source, "退款中") || normalized.contains("REFUNDING")) {
+            order.put("_xianyuPlusTradeStatus", "REFUNDING");
+            order.put("_xianyuPlusTradeStatusText", "自提订单退款中");
+        } else if (containsAny(source, "交易关闭", "订单关闭") || normalized.contains("TRADE_CLOSED")) {
+            order.put("_xianyuPlusTradeStatus", "CLOSED");
+            order.put("_xianyuPlusTradeStatusText", "自提订单已关闭");
+        } else if (containsAny(source, "交易成功", "已完成") || normalized.contains("TRADE_SUCCESS")
+                || normalized.contains("TRADE_FINISHED")) {
+            order.put("_xianyuPlusTradeStatus", "COMPLETED");
+            order.put("_xianyuPlusTradeStatusText", "自提订单已完成");
+        } else if (rawStatus != null && !rawStatus.isBlank()) {
+            order.put("_xianyuPlusTradeStatus", "UNKNOWN");
+            order.put("_xianyuPlusTradeStatusText", rawStatus);
+        } else {
+            order.put("_xianyuPlusTradeStatus", "PENDING_SHIPMENT");
+            order.put("_xianyuPlusTradeStatusText", "自提待交接");
+        }
+    }
+
+    private boolean containsAny(String source, String... tokens) {
+        if (source == null) {
+            return false;
+        }
+        for (String token : tokens) {
+            if (source.contains(token)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private String normalizeKey(String key) {
+        return key == null ? "" : key.replace("_", "").replace("-", "").toLowerCase(Locale.ROOT);
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String nullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     @SuppressWarnings("unchecked")

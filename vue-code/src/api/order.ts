@@ -119,6 +119,7 @@ export interface OrderHistorySyncResult {
   soldCount: number
   refundCount: number
   syncedCount: number
+  chatPickupCount: number
   skippedCount: number
 }
 

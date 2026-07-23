@@ -100,7 +100,8 @@ export function useOrderManager() {
       }
       const data = response.data
       const skippedText = data?.skippedCount ? `，已忽略 ${data.skippedCount} 笔 30 天前订单` : ''
-      showSuccess(`已同步近 30 天 ${data?.syncedCount || 0} 笔订单，其中退款订单 ${data?.refundCount || 0} 笔${skippedText}`)
+      const pickupText = data?.chatPickupCount ? `，其中 ${data.chatPickupCount} 笔自提订单来自本地交易消息` : ''
+      showSuccess(`已同步近 30 天 ${data?.syncedCount || 0} 笔订单，其中退款订单 ${data?.refundCount || 0} 笔${pickupText}${skippedText}`)
       queryParams.pageNum = 1
       await loadOrders()
     } catch (error: any) {

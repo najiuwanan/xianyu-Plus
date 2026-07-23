@@ -62,6 +62,24 @@ public interface XianyuChatMessageMapper {
     List<XianyuChatMessage> findByAccountId(@Param("accountId") Long accountId,
                                             @Param("limit") int limit,
                                             @Param("offset") int offset);
+
+    /**
+     * Recent WebSocket transaction cards that may describe a self-pickup order.
+     * The merchant order-list API can temporarily reject a valid session, while
+     * these cards have already been persisted locally by the message listener.
+     */
+    @Select("SELECT * FROM xianyu_chat_message " +
+            "WHERE xianyu_account_id = #{accountId} " +
+            "AND message_time >= #{sinceMillis} " +
+            "AND (LOWER(complete_msg) LIKE '%onlytakeself%' " +
+            "OR LOWER(complete_msg) LIKE '%self_pickup%' " +
+            "OR LOWER(complete_msg) LIKE '%pickup%' " +
+            "OR complete_msg LIKE '%自提%' OR complete_msg LIKE '%自取%' " +
+            "OR msg_content LIKE '%自提%' OR msg_content LIKE '%自取%') " +
+            "ORDER BY message_time DESC, id DESC LIMIT #{limit}")
+    List<XianyuChatMessage> findRecentSelfPickupCandidates(@Param("accountId") Long accountId,
+                                                             @Param("sinceMillis") long sinceMillis,
+                                                             @Param("limit") int limit);
     
     /**
      * 根据s_id查询会话的消息

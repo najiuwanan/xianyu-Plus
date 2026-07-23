@@ -19,6 +19,9 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
+import java.util.Locale;
+import java.util.regex.Pattern;
+
 /**
  * 自动发货事件监听器
  *
@@ -35,6 +38,9 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 public class ChatMessageEventAutoDeliveryListener {
+
+    private static final Pattern ONLY_TAKE_SELF_FLAG = Pattern.compile(
+            "(?i)\\bonlyTakeSelf\\b\\s*[\\\"']?\\s*[:=]\\s*[\\\"']?(?:true|1|yes|y)\\b");
 
     @Autowired
     private XianyuGoodsInfoMapper goodsInfoMapper;
@@ -130,9 +136,10 @@ public class ChatMessageEventAutoDeliveryListener {
             return false;
         }
         String source = String.valueOf(message.getMsgContent()) + "\n" + String.valueOf(message.getCompleteMsg());
-        String normalized = source.toUpperCase();
+        String normalized = source.toUpperCase(Locale.ROOT);
         return source.contains("自提") || source.contains("自取")
-                || normalized.contains("SELF_PICKUP") || normalized.contains("PICKUP");
+                || normalized.contains("SELF_PICKUP") || normalized.contains("PICKUP")
+                || ONLY_TAKE_SELF_FLAG.matcher(source.replace("\\\"", "\"")).find();
     }
 
     /** Records a pickup transaction without creating an automatic delivery task. */

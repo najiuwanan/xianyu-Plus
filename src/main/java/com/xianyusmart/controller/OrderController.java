@@ -225,10 +225,12 @@ public class OrderController {
             // 退款数据后写入，确保同一订单以退款状态为准。
             allOrders.addAll(recentRefundOrders);
             int synced = pendingOrderPollService.syncOrderHistoryToDb(reqDTO.getXianyuAccountId(), allOrders);
+            int chatPickupSynced = pendingOrderPollService.syncSelfPickupHistoryFromChatMessages(reqDTO.getXianyuAccountId());
             return ResultObject.success(Map.of(
                     "soldCount", recentSoldOrders.size(),
                     "refundCount", recentRefundOrders.size(),
-                    "syncedCount", synced,
+                    "syncedCount", synced + chatPickupSynced,
+                    "chatPickupCount", chatPickupSynced,
                     "skippedCount", soldOrders.size() + refundOrders.size() - allOrders.size()
             ));
         } catch (Exception e) {
