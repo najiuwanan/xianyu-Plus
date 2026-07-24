@@ -289,6 +289,13 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.9.6".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "修复自提订单同步时交易卡片缺少商品标题会导致同步失败的问题",
+                    "自提订单缺少标题时会继续写入订单管理，并由本地商品信息补全展示"
+            ));
+            return;
+        }
         if ("1.9.5".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "商品默认回复支持文字和图片：新会话首次咨询自动发送一次，后续不重复推送",
