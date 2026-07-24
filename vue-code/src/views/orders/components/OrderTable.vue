@@ -347,7 +347,9 @@ const getRatePresentation = (order: DeliveryRecordItem): StatusPresentation => {
   switch (order.rateStatus) {
     case 1: return { text: '已评价', tone: 'success' }
     case 2: return { text: '评价失败', tone: 'danger', reason: order.rateError }
-    case 3: return { text: '无需评价', tone: 'muted', reason: order.rateError }
+    case 3: return order.confirmState === 1
+      ? { text: '可重新核验', tone: 'warning', reason: order.rateError || '此前被标记为无需评价，可在更多操作中重新核验' }
+      : { text: '无需评价', tone: 'muted', reason: order.rateError }
     case 4: return { text: '等待确认', tone: 'warning', reason: order.rateError }
     default: return { text: '待评价', tone: 'warning' }
   }

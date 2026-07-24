@@ -289,7 +289,15 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
-        if ("2.0.0".equals(version)) {
+        if ("2.0.1".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "修复多会话场景中卡密自动发货、补发和手动发货可能发送给错误买家的问题",
+                    "发货消息严格使用订单的买家 ID；缺少买家 ID 时停止发送并保留卡密",
+                    "卡密使用记录保存实际买家 ID，方便订单、卡密与会话核对",
+                    "已确认交易支持重新核验评价资格，避免旧记录被“无需评价”永久跳过"
+            ));
+            return;
+        }        if ("2.0.0".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "仪表盘升级为商家待办、账号状态、今日提醒和真实交付趋势，买家待付款不计入商家待办",
                     "左侧导航保留原有功能，统一为深海军蓝底、闲鱼黄选中态与加粗线性图标",

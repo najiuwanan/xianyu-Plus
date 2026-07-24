@@ -2,10 +2,12 @@ package com.xianyusmart.service;
 
 import com.xianyusmart.controller.dto.OrderAutomationQueryReqDTO;
 import com.xianyusmart.controller.dto.OrderAutomationBatchRespDTO;
+import com.xianyusmart.controller.dto.OrderAutomationAvailableActionsDTO;
 import com.xianyusmart.controller.dto.OrderAutomationRetryRespDTO;
 import com.xianyusmart.controller.dto.OrderAutomationSummaryDTO;
 import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.entity.XianyuGoodsOrder;
+import com.xianyusmart.controller.dto.OrderAutomationRecordDTO;
 import com.xianyusmart.mapper.OrderAutomationRecordMapper;
 import com.xianyusmart.mapper.XianyuAccountMapper;
 import org.junit.jupiter.api.Test;
@@ -81,6 +83,21 @@ class OrderAutomationServiceTest {
         verify(automationRecordMapper, never()).markRateWaiting(any(), any(), any());
     }
 
+    @Test
+    void allowsManualRecheckForAPreviouslySkippedRate() {
+        when(automationRecordMapper.countManagedAutomationOrder(8L, "trade-8")).thenReturn(1);
+        OrderAutomationRecordDTO state = new OrderAutomationRecordDTO();
+        state.setRateStatus(3);
+        when(automationRecordMapper.findTimelineState(8L, "trade-8")).thenReturn(state);
+        when(rateService.checkOrderReadyForRate(8L, "trade-8"))
+                .thenReturn(new RateService.PendingRateOrderCheck(false, "待评价列表未找到订单"));
+
+        OrderAutomationAvailableActionsDTO result = service().availableActions(8L, "trade-8");
+
+        assertTrue(result.isRateAvailable());
+        assertEquals("待评价列表未匹配，点击后将由平台评价接口再次核验", result.getRateReason());
+        verify(rateService).checkOrderReadyForRate(8L, "trade-8");
+    }
     @Test
     void normalizesQueryPagingAndUnsupportedStatus() {
         OrderAutomationSummaryDTO summary = new OrderAutomationSummaryDTO();

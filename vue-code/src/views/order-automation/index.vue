@@ -210,7 +210,7 @@ const batchRedFlower = async () => {
   }
 }
 
-const canCheckRate = (enabled: number, status: number) => enabled === 1 && status !== 1 && status !== 3
+const canCheckRate = (record: OrderAutomationRecord) => record.rateEnabled === 1 && record.rateStatus !== 1
 
 const isRetrying = (record: OrderAutomationRecord, action: AutomationAction) =>
   retryingKey.value === `${record.accountId}:${record.orderId}:${action}`
@@ -219,7 +219,7 @@ const statusText = (enabled: number, status: number) => {
   if (enabled !== 1) return '未开启'
   if (status === 1) return '成功'
   if (status === 2) return '失败'
-  if (status === 3) return '无需评价'
+  if (status === 3) return '已跳过'
   if (status === 4) return '待评价待核验'
   return '待执行'
 }
@@ -229,7 +229,13 @@ const rateStatusText = (record: OrderAutomationRecord) => {
   if (record.rateStatus === 4 && /订单暂未完成|未完成交易|交易未完成/.test(record.rateError || '')) {
     return '等待买家确认'
   }
+  if (record.rateStatus === 3 && record.confirmState === 1) return '可重新核验'
   return statusText(record.rateEnabled, record.rateStatus)
+}
+
+const rateStatusClass = (record: OrderAutomationRecord) => {
+  if (record.rateStatus === 3 && record.confirmState === 1) return 'status--waiting'
+  return rateStatusClass(record)
 }
 
 const statusClass = (enabled: number, status: number) => {
@@ -426,7 +432,7 @@ onMounted(async () => {
                 <div v-if="record.tradeStatusText" class="order-time">交易状态：{{ record.tradeStatusText }}</div>
               </td>
               <td>
-                <span class="status" :class="statusClass(record.rateEnabled, record.rateStatus)">
+                <span class="status" :class="rateStatusClass(record)">
                   {{ rateStatusText(record) }}
                 </span>
                 <p v-if="record.rateTime" class="cell-time">{{ formatTime(record.rateTime) }}</p>
@@ -448,7 +454,7 @@ onMounted(async () => {
               </td>
               <td>
                 <div class="actions">
-                  <button v-if="canCheckRate(record.rateEnabled, record.rateStatus)" class="retry-button"
+                  <button v-if="canCheckRate(record)" class="retry-button"
                     :disabled="isRetrying(record, record.rateStatus === 2 ? 'RATE' : 'RATE_CHECK')"
                     @click="retry(record, record.rateStatus === 2 ? 'RATE' : 'RATE_CHECK')">
                     {{ isRetrying(record, record.rateStatus === 2 ? 'RATE' : 'RATE_CHECK')
@@ -459,7 +465,7 @@ onMounted(async () => {
                     :disabled="isRetrying(record, 'RED_FLOWER')" @click="retry(record, 'RED_FLOWER')">
                     {{ isRetrying(record, 'RED_FLOWER') ? '重试中…' : '重试小红花' }}
                   </button>
-                  <span v-if="!canCheckRate(record.rateEnabled, record.rateStatus) && !canRetryRedFlower(record)" class="muted">无需操作</span>
+                  <span v-if="!canCheckRate(record) && !canRetryRedFlower(record)" class="muted">无需操作</span>
                 </div>
               </td>
             </tr>

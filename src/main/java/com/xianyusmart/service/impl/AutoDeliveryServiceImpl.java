@@ -219,7 +219,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             HumanLikeDelayUtils.typingDelay(content.length());
             
             String cid = sId.replace("@goofish", "");
-            String toId = cid;
+            String toId = requireBuyerRecipientId(buyerUserId);
 
             if (blacklistService.isBlacklisted(accountId, buyerUserId)) {
                 log.warn("【账号{}】旧发货入口发送前再次命中黑名单: buyerUserId={}", accountId, buyerUserId);
@@ -449,6 +449,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             int deliveryMode = deliveryConfig.getDeliveryMode() == null ? 1 : deliveryConfig.getDeliveryMode();
             cardDelivery = deliveryMode == 2;
             String cid = sId.replace("@goofish", "");
+            String toId = requireBuyerRecipientId(record.getBuyerUserId());
             DeliveryContext context = DeliveryContext.builder()
                     .recordId(record.getId())
                     .accountId(accountId)
@@ -481,7 +482,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             int sentCount = 0;
             for (String message : messages) {
                 String messageBlacklistReason = blacklistService.blockedMessage(accountId, record.getBuyerUserId());
-                if (messageBlacklistReason != null || !webSocketService.sendMessage(accountId, cid, cid, message)) {
+                if (messageBlacklistReason != null || !webSocketService.sendMessage(accountId, cid, toId, message)) {
                     if (cardDelivery) {
                         if (sentCount == 0) {
                             kamiConfigService.releaseReservation(reservationOrderId);
@@ -495,14 +496,14 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 }
                 sentCount++;
                 messageSent = true;
-                sentMessageSaveService.saveAiAssistantReply(accountId, cid, cid, message, xyGoodsId);
+                sentMessageSaveService.saveAiAssistantReply(accountId, cid, toId, message, xyGoodsId);
             }
 
             if (cardDelivery) {
                 kamiConfigService.commitReservation(
-                        reservationOrderId, orderId, accountId, xyGoodsId, cid, buyerUserName);
+                        reservationOrderId, orderId, accountId, xyGoodsId, toId, buyerUserName);
             }
-            sendDeliveryImages(accountId, xyGoodsId, cid, cid, deliveryConfig, false);
+            sendDeliveryImages(accountId, xyGoodsId, cid, toId, deliveryConfig, false);
             updateRecordState(record.getId(), 1, String.join("\n", messages), null);
             return com.xianyusmart.common.ResultObject.success(
                     cardDelivery ? "已领取新的未使用卡密并发送给买家" : "已按当前商品规则重新发送给买家");
@@ -526,6 +527,10 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             log.info("【账号{}】开始执行自动发货: recordId={}, xyGoodsId={}, orderId={}", accountId, recordId, xyGoodsId, orderId);
 
             XianyuGoodsOrder currentOrder = orderMapper.selectById(recordId);
+            if (currentOrder == null) {
+                updateRecordState(recordId, -1, null, "Order record was not found");
+                return;
+            }
             String blacklistReason = currentOrder == null ? null
                     : blacklistService.blockedMessage(accountId, currentOrder.getBuyerUserId());
             if (blacklistReason != null) {
@@ -575,7 +580,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             int deliveryMode = deliveryConfig.getDeliveryMode() != null ? deliveryConfig.getDeliveryMode() : 1;
             cardDelivery = deliveryMode == 2;
             String cid = sId.replace("@goofish", "");
-            String toId = cid;
+            String toId = requireBuyerRecipientId(currentOrder.getBuyerUserId());
             boolean wsConnected = webSocketService.isConnected(accountId);
 
             DeliveryContext ctx = DeliveryContext.builder()
@@ -639,7 +644,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     anySuccess = true;
                     allContent.append(content);
                     if (cardDelivery) {
-                        kamiConfigService.commitReservation(orderId, orderId, accountId, xyGoodsId, cid, buyerUserName);
+                        kamiConfigService.commitReservation(orderId, orderId, accountId, xyGoodsId, toId, buyerUserName);
                     }
                     log.info("【账号{}】✅ 虚拟发货API成功: recordId={}, result={}", accountId, recordId, deliveryResult);
                     sentMessageSaveService.saveAiAssistantReply(accountId, cid, toId, content, xyGoodsId);
@@ -706,7 +711,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 }
 
                 if (cardDelivery) {
-                    kamiConfigService.commitReservation(orderId, orderId, accountId, xyGoodsId, cid, buyerUserName);
+                    kamiConfigService.commitReservation(orderId, orderId, accountId, xyGoodsId, toId, buyerUserName);
                 }
                 sendDeliveryImages(accountId, xyGoodsId, cid, toId, deliveryConfig, needHumanLikeDelay);
                 log.info("【账号{}】✅ 发货成功[{}/{}]: recordId={}, deliveryMode={}, messageCount={}",
@@ -818,6 +823,14 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
         }
     }
 
+    /** The protocol conversation id is not the buyer id; never route delivery using it. */
+    static String requireBuyerRecipientId(String buyerUserId) {
+        if (buyerUserId == null || buyerUserId.isBlank()) {
+            throw new IllegalStateException("Order is missing the buyer recipient id");
+        }
+        return buyerUserId.replace("@goofish", "");
+    }
+
     private String resolveSellerName(Long accountId) {
         XianyuAccount account = accountMapper.selectById(accountId);
         if (account == null) return String.valueOf(accountId);
@@ -884,7 +897,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     return com.xianyusmart.common.ResultObject.failed("订单缺少买家会话信息，无法发送内容");
                 }
                 String cid = sId.replace("@goofish", "");
-                String toId = cid;
+                String toId = requireBuyerRecipientId(record.getBuyerUserId());
 
                 String finalBlacklistReason = blacklistService.blockedMessage(xianyuAccountId, record.getBuyerUserId());
                 if (finalBlacklistReason != null) {

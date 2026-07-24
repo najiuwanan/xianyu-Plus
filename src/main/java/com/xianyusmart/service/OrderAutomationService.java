@@ -117,10 +117,11 @@ public class OrderAutomationService {
         automationRecordMapper.resolveTerminalRateFailures(accountId);
         OrderAutomationRecordDTO state = automationRecordMapper.findTimelineState(accountId, orderId);
 
-        if (state != null && (Integer.valueOf(1).equals(state.getRateStatus())
-                || Integer.valueOf(3).equals(state.getRateStatus()))) {
-            result.setRateReason("该订单已完成评价或无需评价");
+        if (state != null && Integer.valueOf(1).equals(state.getRateStatus())) {
+            result.setRateReason("该订单已完成评价");
         } else {
+            // “无需评价”可能记录在买家确认前或平台待评价列表尚未同步时；
+            // 已同步的近 30 天正常交易允许用户再次向平台核验，最终仍由评价接口裁决。
             RateService.PendingRateOrderCheck check = rateService.checkOrderReadyForRate(accountId, orderId);
             if (check.ready()) {
                 result.setRateAvailable(true);

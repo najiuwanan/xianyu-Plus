@@ -18,8 +18,18 @@ const updateChecking = ref(false)
 const versionDialogVisible = ref(false)
 const releaseHistory = [
   {
+    version: '2.0.1',
+    label: 'V2.0.1（当前）',
+    highlights: [
+      '修复多买家会话下卡密发货可能发送到错误买家的问题。',
+      '自动发卡、补发与手动发货均严格使用订单实际买家 ID；缺失买家 ID 时停止发送并保留卡密。',
+      '卡密使用记录保存实际买家 ID，便于订单、卡密和会话核对。',
+      '已确认交易支持重新核验评价资格，修复旧记录被“无需评价”永久跳过的问题。'
+    ]
+  },
+  {
     version: '2.0.0',
-    label: 'V2.0.0（当前）',
+    label: 'V2.0.0',
     highlights: [
       '商业化经营看板：今日成交额为深蓝主卡，新增真实“今日订单”指标。',
       '首页集中展示商家待办、账号状态、今日提醒与近 7 / 30 日成功交付趋势；买家待付款不计入商家待办。',
@@ -57,13 +67,13 @@ const releaseHistory = [
     ]
   }
 ] as const
-const selectedReleaseVersion = ref('2.0.0')
+const selectedReleaseVersion = ref('2.0.1')
 const selectedRelease = computed(() => releaseHistory.find(item => item.version === selectedReleaseVersion.value) || releaseHistory[0])
 
 const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV]/, '')}` : '未知版本'
 const releaseHighlights = computed(() => {
   if (updateStatus.value?.updateHighlights?.length) return updateStatus.value.updateHighlights
-  if ((updateStatus.value?.latestVersion || updateStatus.value?.currentVersion || '').replace(/^[vV]/, '').startsWith('2.0.0')) {
+  if ((updateStatus.value?.latestVersion || updateStatus.value?.currentVersion || '').replace(/^[vV]/, '').startsWith('2.0.')) {
     return ['原创闲鱼黄鱼标记、深海军蓝导航与高对比图标', '仪表盘升级为商家待办、账号状态、今日提醒和真实趋势', '一键擦亮统一范围和账号记录；账号快捷入口直达擦亮页', '固定保存栏、卡密清理、实时日志升级与默认回复严格去重', '商品发布简化为核对后确认，保留失败表单方便重试']
   }
   return []
@@ -229,7 +239,7 @@ onUnmounted(() => {
         <p class="version-dialog__status" :class="{ available: updateStatus.updateAvailable }">{{ updateStatus.message }}</p>
         <div class="version-dialog__changes">
           <div class="version-dialog__changes-heading">
-            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.0.0 的版本记录。</p></div>
+            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.0.1 的版本记录。</p></div>
             <label class="version-history-select"><span>查看版本</span><select v-model="selectedReleaseVersion"><option v-for="release in releaseHistory" :key="release.version" :value="release.version">{{ release.label }}</option></select></label>
           </div>
           <ul>
