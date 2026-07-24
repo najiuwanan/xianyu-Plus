@@ -21,7 +21,7 @@ const loadRuntimeLogs = async () => {
   try {
     const response = await getRuntimeLogTail()
     if (response.code === 0 || response.code === 200) {
-      runtimeLogLines.value = response.data?.lines || []
+      runtimeLogLines.value = [...(response.data?.lines || [])].reverse()
       runtimeLogMessage.value = response.data?.message || ''
       runtimeLogUpdatedAt.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
     }

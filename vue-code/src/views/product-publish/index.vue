@@ -28,7 +28,7 @@ const lookupCoordinates = ref<{ longitude: number; latitude: number } | null>(nu
 const customPoiName = ref('')
 const selectedProperties = ref<Record<string, string | string[]>>({})
 const acknowledged = ref(false)
-const confirmation = ref('')
+const confirmation = ref('确认发布')
 const createRequestId = () => globalThis.crypto?.randomUUID?.() ||
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
     const random = Math.floor(Math.random() * 16)
@@ -84,13 +84,13 @@ const canPublish = computed(() => Boolean(
   schema.value.dependentPropertyCount === 0 &&
   requiredPropertiesReady.value &&
   images.value.length && selectedLocationKey.value && form.title.trim().length >= 2 && form.description.trim().length >= 2 &&
-  form.price > 0 && acknowledged.value && confirmation.value === '确认发布' && !publishing.value
+  form.price > 0 && acknowledged.value && !publishing.value
 ))
 const canBatchPublish = computed(() => Boolean(batchMode.value && targetAccountIds.value.length > 1 &&
   batchStates.value.length === targetAccountIds.value.length &&
   batchStates.value.every(state => state.status === 'READY' && state.locationKey) &&
   images.value.length && form.title.trim().length >= 2 && form.description.trim().length >= 2 && form.price > 0 &&
-  acknowledged.value && confirmation.value === '确认发布' && !publishing.value))
+  acknowledged.value && !publishing.value))
 const selectedLocation = computed(() => locations.value.find(location => location.key === selectedLocationKey.value) || null)
 const locationSourceLabel = (source: string) => ({ SELECTED: '平台默认', COMMON: '常用地址', NEARBY: '附近地点' }[source] || '平台地点')
 
@@ -429,7 +429,7 @@ const submit = async () => {
       deliveryMode: form.deliveryMode,
       postFee: form.deliveryMode === 'FLAT' ? form.postFee : undefined,
       acknowledged: acknowledged.value,
-      confirmation: confirmation.value,
+      confirmation: '确认发布',
       address: {
         locationKey: selectedLocationKey.value,
         lookupLongitude: lookupCoordinates.value?.longitude,
@@ -579,7 +579,6 @@ onMounted(async () => {
       <h2>5. 最终确认</h2>
       <div class="confirm-location"><span>{{ batchMode ? '本次发布账号' : '本次发布地点' }}</span><strong>{{ batchMode ? `${batchStates.filter(state => state.status === 'READY').length} 个账号已预检通过` : (customPoiName.trim() || selectedLocation?.displayName || '尚未选择') }}</strong></div>
       <label class="ack"><input v-model="acknowledged" type="checkbox">我已逐项核对账号、图片、价格、库存、类目、商品描述和发布地点，并确认商品符合闲鱼规则。</label>
-      <label><span>输入“确认发布”</span><input v-model="confirmation" placeholder="确认发布"></label>
       <button type="button" class="publish-button" :disabled="batchMode ? !canBatchPublish : !canPublish" @click="submit">{{ publishing ? (batchMode ? '正在逐账号发布…' : '正在发布…') : (batchMode ? `确认发布到 ${targetAccountIds.length} 个账号` : '确认并真实发布') }}</button>
     </section>
   </main>
