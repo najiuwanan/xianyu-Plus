@@ -381,6 +381,7 @@ public class ItemServiceImpl implements ItemService {
                         itemWithConfig.setXianyuAutoReplyOn(config.getXianyuAutoReplyOn());
                         itemWithConfig.setXianyuAutoReplyContextOn(config.getXianyuAutoReplyContextOn());
                         itemWithConfig.setXianyuKeywordReplyOn(config.getXianyuKeywordReplyOn());
+                        itemWithConfig.setProductDefaultReplyOn(config.getProductDefaultReplyOn());
                         itemWithConfig.setHumanInterventionOn(config.getHumanInterventionOn());
                         itemWithConfig.setHumanInterventionMinutes(config.getHumanInterventionMinutes());
                     } else {
@@ -388,6 +389,7 @@ public class ItemServiceImpl implements ItemService {
                         itemWithConfig.setXianyuAutoReplyOn(0);
                         itemWithConfig.setXianyuAutoReplyContextOn(0);
                         itemWithConfig.setXianyuKeywordReplyOn(0);
+                        itemWithConfig.setProductDefaultReplyOn(0);
                         itemWithConfig.setHumanInterventionOn(0);
                         itemWithConfig.setHumanInterventionMinutes(10);
                     }
@@ -405,6 +407,7 @@ public class ItemServiceImpl implements ItemService {
                     itemWithConfig.setXianyuAutoReplyOn(0);
                     itemWithConfig.setXianyuAutoReplyContextOn(0);
                     itemWithConfig.setXianyuKeywordReplyOn(0);
+                    itemWithConfig.setProductDefaultReplyOn(0);
                     itemWithConfig.setHumanInterventionOn(0);
                     itemWithConfig.setHumanInterventionMinutes(10);
                 }
@@ -524,6 +527,7 @@ public class ItemServiceImpl implements ItemService {
                 itemWithConfig.setXianyuAutoReplyOn(config.getXianyuAutoReplyOn());
                 itemWithConfig.setXianyuAutoReplyContextOn(config.getXianyuAutoReplyContextOn() != null ? config.getXianyuAutoReplyContextOn() : 1);
                 itemWithConfig.setXianyuKeywordReplyOn(config.getXianyuKeywordReplyOn());
+                itemWithConfig.setProductDefaultReplyOn(config.getProductDefaultReplyOn());
                 itemWithConfig.setHumanInterventionOn(config.getHumanInterventionOn());
                 itemWithConfig.setHumanInterventionMinutes(config.getHumanInterventionMinutes());
             } else {
@@ -531,6 +535,7 @@ public class ItemServiceImpl implements ItemService {
                 itemWithConfig.setXianyuAutoReplyOn(0);
                 itemWithConfig.setXianyuAutoReplyContextOn(1);
                 itemWithConfig.setXianyuKeywordReplyOn(0);
+                itemWithConfig.setProductDefaultReplyOn(0);
                 itemWithConfig.setHumanInterventionOn(0);
                 itemWithConfig.setHumanInterventionMinutes(10);
             }
@@ -557,6 +562,7 @@ public class ItemServiceImpl implements ItemService {
             itemWithConfig.setXianyuAutoReplyOn(0);
             itemWithConfig.setXianyuAutoReplyContextOn(1);
             itemWithConfig.setXianyuKeywordReplyOn(0);
+            itemWithConfig.setProductDefaultReplyOn(0);
             itemWithConfig.setHumanInterventionOn(0);
             itemWithConfig.setHumanInterventionMinutes(10);
         }
@@ -1155,6 +1161,98 @@ public class ItemServiceImpl implements ItemService {
             log.error("更新自动回复配置失败", e);
             return ResultObject.failed("更新自动回复配置失败: " + e.getMessage());
         }
+    }
+
+    @Override
+    public ResultObject<ProductDefaultReplyConfigRespDTO> getProductDefaultReplyConfig(ProductDefaultReplyConfigReqDTO reqDTO) {
+        if (reqDTO == null || reqDTO.getXianyuAccountId() == null || isBlank(reqDTO.getXyGoodsId())) {
+            return ResultObject.failed("账号和商品不能为空");
+        }
+        XianyuGoodsConfig config = autoDeliveryService.getGoodsConfig(
+                reqDTO.getXianyuAccountId(), reqDTO.getXyGoodsId().trim());
+        ProductDefaultReplyConfigRespDTO response = new ProductDefaultReplyConfigRespDTO();
+        if (config != null) {
+            response.setProductDefaultReplyOn(enabled(config.getProductDefaultReplyOn()));
+            response.setProductDefaultReplyText(config.getProductDefaultReplyText());
+            response.setProductDefaultReplyImageUrl(config.getProductDefaultReplyImageUrl());
+        }
+        return ResultObject.success(response);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public ResultObject<?> updateProductDefaultReplyConfig(ProductDefaultReplyConfigReqDTO reqDTO) {
+        String validationError = validateProductDefaultReplyConfig(reqDTO);
+        if (validationError != null) {
+            return ResultObject.failed(validationError);
+        }
+        try {
+            String goodsId = reqDTO.getXyGoodsId().trim();
+            XianyuGoodsInfo goods = goodsInfoMapper.selectOne(
+                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<XianyuGoodsInfo>()
+                            .eq(XianyuGoodsInfo::getXianyuAccountId, reqDTO.getXianyuAccountId())
+                            .eq(XianyuGoodsInfo::getXyGoodId, goodsId));
+            if (goods == null) {
+                return ResultObject.failed("商品不存在、已删除或不属于当前账号，请刷新后重试");
+            }
+
+            XianyuGoodsConfig config = ensureGoodsConfig(goods);
+            config.setProductDefaultReplyOn(enabled(reqDTO.getProductDefaultReplyOn()));
+            config.setProductDefaultReplyText(trimToNull(reqDTO.getProductDefaultReplyText()));
+            config.setProductDefaultReplyImageUrl(normalizeImageUrl(reqDTO.getProductDefaultReplyImageUrl()));
+            config.setUpdateTime(nowText());
+            autoDeliveryService.saveOrUpdateGoodsConfig(config);
+            return ResultObject.success(null, "商品默认回复已保存");
+        } catch (Exception e) {
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            log.error("保存商品默认回复失败: accountId={}, goodsId={}",
+                    reqDTO.getXianyuAccountId(), reqDTO.getXyGoodsId(), e);
+            return ResultObject.failed("保存商品默认回复失败: " + e.getMessage());
+        }
+    }
+
+    private String validateProductDefaultReplyConfig(ProductDefaultReplyConfigReqDTO reqDTO) {
+        if (reqDTO == null || reqDTO.getXianyuAccountId() == null || isBlank(reqDTO.getXyGoodsId())) {
+            return "账号和商品不能为空";
+        }
+        if (!isSwitchValue(reqDTO.getProductDefaultReplyOn())) {
+            return "默认回复开关只能选择开启或关闭";
+        }
+        String text = trimToNull(reqDTO.getProductDefaultReplyText());
+        String imageUrl = normalizeImageUrl(reqDTO.getProductDefaultReplyImageUrl());
+        if (text != null && text.length() > 2000) {
+            return "默认回复文字不能超过 2000 个字符";
+        }
+        if (imageUrl != null && imageUrl.length() > 1000) {
+            return "默认回复图片地址过长";
+        }
+        if (imageUrl != null && !(imageUrl.startsWith("https://") || imageUrl.startsWith("http://"))) {
+            return "默认回复图片地址必须以 http:// 或 https:// 开头";
+        }
+        if (enabled(reqDTO.getProductDefaultReplyOn()) == 1 && text == null && imageUrl == null) {
+            return "开启默认回复后，请至少填写文字或上传一张图片";
+        }
+        return null;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private Integer enabled(Integer value) {
+        return Integer.valueOf(1).equals(value) ? 1 : 0;
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    /** 闲鱼上传接口偶尔返回协议相对地址，持久化前统一为 HTTPS。 */
+    private String normalizeImageUrl(String value) {
+        String normalized = trimToNull(value);
+        return normalized != null && normalized.startsWith("//") ? "https:" + normalized : normalized;
     }
 
     /**

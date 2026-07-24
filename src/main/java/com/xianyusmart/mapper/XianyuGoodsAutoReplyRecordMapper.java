@@ -44,6 +44,12 @@ public interface XianyuGoodsAutoReplyRecordMapper {
     @Select("SELECT * FROM xianyu_goods_auto_reply_record WHERE xianyu_account_id = #{accountId} AND s_id = #{sId} ORDER BY create_time DESC LIMIT 1")
     XianyuGoodsAutoReplyRecord selectLatestByAccountIdAndSId(@Param("accountId") Long accountId, @Param("sId") String sId);
 
+    /** 同一会话的商品默认回复已成功发送后，不再重复发送。 */
+    @Select("SELECT EXISTS(SELECT 1 FROM xianyu_goods_auto_reply_record WHERE xianyu_account_id = #{accountId} AND s_id = #{sId} AND reply_type = #{replyType} AND state = 1)")
+    boolean hasSuccessfulReplyTypeByAccountAndSId(@Param("accountId") Long accountId,
+                                                  @Param("sId") String sId,
+                                                  @Param("replyType") Integer replyType);
+
     @Select("SELECT * FROM xianyu_goods_auto_reply_record WHERE id = #{id}")
     XianyuGoodsAutoReplyRecord selectById(@Param("id") Long id);
 

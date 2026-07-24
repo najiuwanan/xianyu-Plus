@@ -34,6 +34,9 @@ public class ReplyStrategyResolver {
     private BargainReplyStrategy bargainReplyStrategy;
 
     @Autowired
+    private ProductDefaultReplyStrategy productDefaultReplyStrategy;
+
+    @Autowired
     private com.xianyusmart.service.bargain.BargainDecisionService bargainDecisionService;
 
     public ReplyStrategy resolve(List<ChatMessageData> messageList) {
@@ -49,6 +52,11 @@ public class ReplyStrategyResolver {
                 .filter(value -> value != null && !value.isBlank())
                 .reduce((left, right) -> left + "\n" + right)
                 .orElse("");
+
+        // 商品默认回复只在买家新会话的第一轮发送，成功后同一会话继续走议价、关键词和 AI。
+        if (productDefaultReplyStrategy.shouldReply(config, lastMessage)) {
+            return productDefaultReplyStrategy;
+        }
 
         if (lastMessage.getSenderUserId() != null
                 && bargainDecisionService.shouldNegotiate(config, combinedBuyerMessage)) {

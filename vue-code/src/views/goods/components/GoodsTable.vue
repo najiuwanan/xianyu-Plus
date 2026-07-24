@@ -132,6 +132,7 @@ const handleImgError = (e: Event) => {
               <span v-if="item.xianyuAutoDeliveryOn === 1" class="goods-card__mode-tag goods-card__mode-tag--delivery">{{ item.autoDeliveryType === 2 ? '卡密发货' : '文本发货' }}</span>
               <span v-if="item.xianyuAutoReplyOn === 1" class="goods-card__mode-tag goods-card__mode-tag--ai">AI</span>
               <span v-if="item.xianyuKeywordReplyOn === 1" class="goods-card__mode-tag goods-card__mode-tag--keyword">关键词</span>
+              <span v-if="item.productDefaultReplyOn === 1" class="goods-card__mode-tag goods-card__mode-tag--default">默认回复</span>
             </div>
           </div>
         </div>
@@ -248,7 +249,8 @@ const handleImgError = (e: Event) => {
             <div class="reply-mode-tags">
               <span v-if="item.xianyuAutoReplyOn === 1" class="reply-mode-tag reply-mode-tag--ai">AI</span>
               <span v-if="item.xianyuKeywordReplyOn === 1" class="reply-mode-tag reply-mode-tag--keyword">关键词</span>
-              <span v-if="item.xianyuAutoReplyOn !== 1 && item.xianyuKeywordReplyOn !== 1" class="reply-mode-tag reply-mode-tag--off">-</span>
+              <span v-if="item.productDefaultReplyOn === 1" class="reply-mode-tag reply-mode-tag--default">默认</span>
+              <span v-if="item.xianyuAutoReplyOn !== 1 && item.xianyuKeywordReplyOn !== 1 && item.productDefaultReplyOn !== 1" class="reply-mode-tag reply-mode-tag--off">-</span>
             </div>
           </td>
           <td class="table__td table__td--actions">
@@ -1016,6 +1018,11 @@ const handleImgError = (e: Event) => {
   background: rgba(52, 199, 89, 0.1);
 }
 
+.reply-mode-tag--default {
+  color: #b7791f;
+  background: rgba(237, 180, 59, 0.16);
+}
+
 .reply-mode-tag--delivery {
   color: #af52de;
   background: rgba(175, 82, 222, 0.1);
@@ -1043,6 +1050,11 @@ const handleImgError = (e: Event) => {
 .goods-card__mode-tag--keyword {
   color: #34c759;
   background: rgba(52, 199, 89, 0.1);
+}
+
+.goods-card__mode-tag--default {
+  color: #b7791f;
+  background: rgba(237, 180, 59, 0.16);
 }
 
 .goods-card__mode-tag--delivery {

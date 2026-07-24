@@ -24,6 +24,7 @@ export interface GoodsItemWithConfig {
   xianyuAutoReplyOn: number;
   xianyuAutoReplyContextOn: number;
   xianyuKeywordReplyOn: number;
+  productDefaultReplyOn?: number;
   humanInterventionOn: number;
   humanInterventionMinutes: number;
   autoDeliveryType?: number;
@@ -187,6 +188,37 @@ export function updateAutoReplyConfig(data: {
 }) {
   return request({
     url: '/items/updateRagAutoReplyConfig',
+    method: 'POST',
+    data
+  });
+}
+
+export interface ProductDefaultReplyConfigResponse {
+  productDefaultReplyOn: number;
+  productDefaultReplyText?: string;
+  productDefaultReplyImageUrl?: string;
+}
+
+export function getProductDefaultReplyConfig(data: {
+  xianyuAccountId: number;
+  xyGoodsId: string;
+}) {
+  return request<ProductDefaultReplyConfigResponse>({
+    url: '/items/getProductDefaultReplyConfig',
+    method: 'POST',
+    data
+  });
+}
+
+export function updateProductDefaultReplyConfig(data: {
+  xianyuAccountId: number;
+  xyGoodsId: string;
+  productDefaultReplyOn: number;
+  productDefaultReplyText?: string;
+  productDefaultReplyImageUrl?: string;
+}) {
+  return request({
+    url: '/items/updateProductDefaultReplyConfig',
     method: 'POST',
     data
   });

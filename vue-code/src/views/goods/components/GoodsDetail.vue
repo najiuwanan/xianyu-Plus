@@ -37,6 +37,12 @@ const skuList = ref<GoodsSku[]>([])
 const skuPropertyList = ref<GoodsSkuProperty[]>([])
 const errorMessage = (error: unknown, fallback: string) => error instanceof Error ? error.message : fallback
 
+const hasAnyReplyEnabled = computed(() => Boolean(goodsDetail.value && (
+  goodsDetail.value.xianyuAutoReplyOn === 1
+  || goodsDetail.value.xianyuKeywordReplyOn === 1
+  || goodsDetail.value.productDefaultReplyOn === 1
+)))
+
 const isMobile = ref(false)
 const checkScreenSize = () => {
   isMobile.value = window.innerWidth < 768
@@ -366,9 +372,9 @@ onBeforeUnmount(() => {
                 <div class="detail-info__config-right">
                   <span
                     class="detail-info__config-value"
-                    :class="{ 'detail-info__config-value--on': goodsDetail.xianyuAutoReplyOn === 1 }"
+                    :class="{ 'detail-info__config-value--on': hasAnyReplyEnabled }"
                   >
-                    {{ goodsDetail.xianyuAutoReplyOn === 1 ? '已开启' : '已关闭' }}
+                    {{ hasAnyReplyEnabled ? '已开启' : '已关闭' }}
                   </span>
                   <button
                     class="detail-info__config-btn detail-info__config-btn--reply"
@@ -539,9 +545,9 @@ onBeforeUnmount(() => {
                     <div class="detail-info__config-right">
                       <span
                         class="detail-info__config-value"
-                        :class="{ 'detail-info__config-value--on': goodsDetail.xianyuAutoReplyOn === 1 }"
+                        :class="{ 'detail-info__config-value--on': hasAnyReplyEnabled }"
                       >
-                        {{ goodsDetail.xianyuAutoReplyOn === 1 ? '已开启' : '已关闭' }}
+                        {{ hasAnyReplyEnabled ? '已开启' : '已关闭' }}
                       </span>
                       <button
                         class="detail-info__config-btn detail-info__config-btn--reply"

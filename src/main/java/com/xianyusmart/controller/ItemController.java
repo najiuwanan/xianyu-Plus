@@ -243,6 +243,19 @@ public class ItemController {
             return ResultObject.failed("更新自动回复配置失败: " + e.getMessage());
         }
     }
+
+    /** 获取商品默认回复（文字和图片）配置。 */
+    @PostMapping("/getProductDefaultReplyConfig")
+    public ResultObject<ProductDefaultReplyConfigRespDTO> getProductDefaultReplyConfig(
+            @RequestBody ProductDefaultReplyConfigReqDTO reqDTO) {
+        return itemService.getProductDefaultReplyConfig(reqDTO);
+    }
+
+    /** 保存商品默认回复（文字和图片）配置。 */
+    @PostMapping("/updateProductDefaultReplyConfig")
+    public ResultObject<?> updateProductDefaultReplyConfig(@RequestBody ProductDefaultReplyConfigReqDTO reqDTO) {
+        return itemService.updateProductDefaultReplyConfig(reqDTO);
+    }
     
     /**
      * 获取自动回复记录

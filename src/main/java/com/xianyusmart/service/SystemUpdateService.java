@@ -289,6 +289,14 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.9.5".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "商品默认回复支持文字和图片：新会话首次咨询自动发送一次，后续不重复推送",
+                    "默认回复图片会上传到当前账号的闲鱼图片服务，商品列表会显示已启用状态",
+                    "关闭本商品 AI 自动回复后，AI 主回复和关键词 AI 润色都不会调用系统 AI"
+            ));
+            return;
+        }
         if ("1.9.3".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "一键擦亮支持全部可用账号批量启动，按账号错峰执行并保留独立结果",

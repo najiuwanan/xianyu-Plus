@@ -21,8 +21,8 @@ public interface XianyuGoodsConfigMapper {
     /**
      * 插入配置
      */
-    @Insert("INSERT INTO xianyu_goods_config (xianyu_account_id, xianyu_goods_id, xy_goods_id, xianyu_auto_delivery_on, xianyu_auto_reply_on, xianyu_auto_reply_context_on, xianyu_keyword_reply_on, human_intervention_on, human_intervention_minutes, fixed_material, ai_prompt, ai_bargain_on, ai_bargain_floor_price, ai_bargain_step_amount, ai_bargain_max_rounds, ai_bargain_style, ai_bargain_floor_reply, ai_bargain_instructions) " +
-            "VALUES (#{xianyuAccountId}, #{xianyuGoodsId}, #{xyGoodsId}, #{xianyuAutoDeliveryOn}, #{xianyuAutoReplyOn}, #{xianyuAutoReplyContextOn}, #{xianyuKeywordReplyOn}, #{humanInterventionOn}, #{humanInterventionMinutes}, #{fixedMaterial}, #{aiPrompt}, #{aiBargainOn}, #{aiBargainFloorPrice}, #{aiBargainStepAmount}, #{aiBargainMaxRounds}, #{aiBargainStyle}, #{aiBargainFloorReply}, #{aiBargainInstructions})")
+    @Insert("INSERT INTO xianyu_goods_config (xianyu_account_id, xianyu_goods_id, xy_goods_id, xianyu_auto_delivery_on, xianyu_auto_reply_on, xianyu_auto_reply_context_on, xianyu_keyword_reply_on, product_default_reply_on, product_default_reply_text, product_default_reply_image_url, human_intervention_on, human_intervention_minutes, fixed_material, ai_prompt, ai_bargain_on, ai_bargain_floor_price, ai_bargain_step_amount, ai_bargain_max_rounds, ai_bargain_style, ai_bargain_floor_reply, ai_bargain_instructions) " +
+            "VALUES (#{xianyuAccountId}, #{xianyuGoodsId}, #{xyGoodsId}, #{xianyuAutoDeliveryOn}, #{xianyuAutoReplyOn}, #{xianyuAutoReplyContextOn}, #{xianyuKeywordReplyOn}, #{productDefaultReplyOn}, #{productDefaultReplyText}, #{productDefaultReplyImageUrl}, #{humanInterventionOn}, #{humanInterventionMinutes}, #{fixedMaterial}, #{aiPrompt}, #{aiBargainOn}, #{aiBargainFloorPrice}, #{aiBargainStepAmount}, #{aiBargainMaxRounds}, #{aiBargainStyle}, #{aiBargainFloorReply}, #{aiBargainInstructions})")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(XianyuGoodsConfig config);
     
@@ -33,6 +33,9 @@ public interface XianyuGoodsConfigMapper {
             "xianyu_auto_reply_on = #{xianyuAutoReplyOn}, " +
             "xianyu_auto_reply_context_on = #{xianyuAutoReplyContextOn}, " +
             "xianyu_keyword_reply_on = #{xianyuKeywordReplyOn}, " +
+            "product_default_reply_on = #{productDefaultReplyOn}, " +
+            "product_default_reply_text = #{productDefaultReplyText}, " +
+            "product_default_reply_image_url = #{productDefaultReplyImageUrl}, " +
             "human_intervention_on = #{humanInterventionOn}, " +
             "human_intervention_minutes = #{humanInterventionMinutes}, " +
             "fixed_material = #{fixedMaterial}, " +

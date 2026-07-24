@@ -73,6 +73,12 @@ public interface ItemService {
      */
     ResultObject<?> updateRagAutoReplyConfig(UpdateRagAutoReplyConfigReqDTO reqDTO);
 
+    /** 获取商品默认回复配置。 */
+    ResultObject<ProductDefaultReplyConfigRespDTO> getProductDefaultReplyConfig(ProductDefaultReplyConfigReqDTO reqDTO);
+
+    /** 保存商品默认回复配置。 */
+    ResultObject<?> updateProductDefaultReplyConfig(ProductDefaultReplyConfigReqDTO reqDTO);
+
     /** 批量更新商品自动化开关，并可将默认发货来源关联到指定卡券。 */
     ResultObject<BatchUpdateGoodsConfigRespDTO> batchUpdateGoodsConfig(BatchUpdateGoodsConfigReqDTO reqDTO);
 }

@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { getKamiConfigs, type KamiConfig } from '@/api/kami-config'
-import { batchUpdateGoodsConfig, updateAutoConfirmShipment, type GoodsItemWithConfig } from '@/api/goods'
+import {
+  batchUpdateGoodsConfig,
+  getProductDefaultReplyConfig,
+  updateAutoConfirmShipment,
+  updateProductDefaultReplyConfig,
+  type GoodsItemWithConfig
+} from '@/api/goods'
 import { getAutoDeliveryConfigsByGoodsId } from '@/api/auto-delivery-config'
 import { getFixedMaterial, saveFixedMaterial } from '@/api/ai'
+import { uploadImage } from '@/api/image'
 import { showError, showSuccess } from '@/utils'
 
 interface Props {
@@ -21,6 +28,8 @@ const emit = defineEmits<{
 
 const loading = ref(false)
 const saving = ref(false)
+const defaultReplyImageUploading = ref(false)
+const defaultReplyImageInput = ref<HTMLInputElement | null>(null)
 const kamiConfigs = ref<KamiConfig[]>([])
 const form = reactive({
   deliveryEnabled: false,
@@ -28,6 +37,9 @@ const form = reactive({
   autoConfirmShipment: false,
   aiEnabled: false,
   keywordEnabled: false,
+  productDefaultReplyEnabled: false,
+  productDefaultReplyText: '',
+  productDefaultReplyImageUrl: '',
   aiPrompt: '',
   fixedMaterial: '',
   bargainEnabled: false,
@@ -55,6 +67,9 @@ const loadConfig = async () => {
   form.autoConfirmShipment = false
   form.aiEnabled = props.item.xianyuAutoReplyOn === 1
   form.keywordEnabled = props.item.xianyuKeywordReplyOn === 1
+  form.productDefaultReplyEnabled = props.item.productDefaultReplyOn === 1
+  form.productDefaultReplyText = ''
+  form.productDefaultReplyImageUrl = ''
   form.aiPrompt = ''
   form.fixedMaterial = ''
   form.bargainEnabled = false
@@ -66,10 +81,11 @@ const loadConfig = async () => {
   form.bargainInstructions = ''
   form.kamiConfigId = props.item.kamiConfigId ?? ''
   try {
-    const [kamiResponse, materialResponse, deliveryConfigResponse] = await Promise.all([
+    const [kamiResponse, materialResponse, deliveryConfigResponse, defaultReplyResponse] = await Promise.all([
       getKamiConfigs(),
       getFixedMaterial({ accountId: props.accountId, goodsId: props.item.item.xyGoodId }),
-      getAutoDeliveryConfigsByGoodsId({ xianyuAccountId: props.accountId, xyGoodsId: props.item.item.xyGoodId })
+      getAutoDeliveryConfigsByGoodsId({ xianyuAccountId: props.accountId, xyGoodsId: props.item.item.xyGoodId }),
+      getProductDefaultReplyConfig({ xianyuAccountId: props.accountId, xyGoodsId: props.item.item.xyGoodId })
     ])
     if (kamiResponse.code === 0 || kamiResponse.code === 200) {
       kamiConfigs.value = kamiResponse.data || []
@@ -92,6 +108,11 @@ const loadConfig = async () => {
       const defaultConfig = (deliveryConfigResponse.data || []).find((config) => config.skuId == null)
       form.autoConfirmShipment = defaultConfig?.autoConfirmShipment === 1
     }
+    if ((defaultReplyResponse.code === 0 || defaultReplyResponse.code === 200) && defaultReplyResponse.data) {
+      form.productDefaultReplyEnabled = defaultReplyResponse.data.productDefaultReplyOn === 1
+      form.productDefaultReplyText = defaultReplyResponse.data.productDefaultReplyText || ''
+      form.productDefaultReplyImageUrl = defaultReplyResponse.data.productDefaultReplyImageUrl || ''
+    }
   } catch (error) {
     console.error('加载商品配置失败', error)
     showError('商品配置加载失败，请稍后重试')
@@ -102,6 +123,12 @@ const loadConfig = async () => {
 
 const save = async () => {
   if (!props.item || !props.accountId || saving.value) return
+  const defaultReplyText = form.productDefaultReplyText.trim()
+  const defaultReplyImageUrl = form.productDefaultReplyImageUrl.trim()
+  if (form.productDefaultReplyEnabled && !defaultReplyText && !defaultReplyImageUrl) {
+    showError('开启商品默认回复后，请填写文字或上传一张图片')
+    return
+  }
   const listPrice = Number(props.item.item.soldPrice)
   if (form.bargainEnabled) {
     if (!form.bargainFloorPrice || form.bargainFloorPrice <= 0) {
@@ -159,6 +186,17 @@ const save = async () => {
     const material = await materialResponse.json()
     if (material.code !== 0 && material.code !== 200) throw new Error(material.msg || '保存商品 AI 资料失败')
 
+    const defaultReplyResult = await updateProductDefaultReplyConfig({
+      xianyuAccountId: props.accountId,
+      xyGoodsId: props.item.item.xyGoodId,
+      productDefaultReplyOn: form.productDefaultReplyEnabled ? 1 : 0,
+      productDefaultReplyText: defaultReplyText || undefined,
+      productDefaultReplyImageUrl: defaultReplyImageUrl || undefined
+    })
+    if (defaultReplyResult.code !== 0 && defaultReplyResult.code !== 200) {
+      throw new Error(defaultReplyResult.msg || '保存商品默认回复失败')
+    }
+
     showSuccess('商品配置已保存')
     emit('saved')
     emit('update:modelValue', false)
@@ -167,6 +205,39 @@ const save = async () => {
     showError(error?.message || '保存商品配置失败，请稍后重试')
   } finally {
     saving.value = false
+  }
+}
+
+const chooseDefaultReplyImage = () => defaultReplyImageInput.value?.click()
+
+const uploadDefaultReplyImage = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file || !props.accountId) return
+  if (!file.type.startsWith('image/')) {
+    showError('请选择图片文件')
+    input.value = ''
+    return
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showError('图片不能超过 10MB')
+    input.value = ''
+    return
+  }
+  defaultReplyImageUploading.value = true
+  try {
+    const result = await uploadImage(props.accountId, file)
+    if ((result.code === 0 || result.code === 200) && result.data) {
+      form.productDefaultReplyImageUrl = result.data
+      showSuccess('默认回复图片已上传')
+    } else {
+      throw new Error(result.msg || '图片上传失败')
+    }
+  } catch (error: unknown) {
+    showError(error instanceof Error ? error.message : '图片上传失败')
+  } finally {
+    defaultReplyImageUploading.value = false
+    input.value = ''
   }
 }
 
@@ -182,13 +253,44 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
             <div>
               <p class="goods-config-dialog__eyebrow">商品配置</p>
               <h2>{{ itemTitle }}</h2>
-              <p>把发货、商品专属 AI 与关键词回复放在同一个地方管理。</p>
+              <p>把发货、默认回复、商品专属 AI 与关键词回复放在同一个地方管理。</p>
             </div>
             <button class="goods-config-dialog__close" type="button" aria-label="关闭" @click="close">×</button>
           </header>
 
           <div v-if="loading" class="goods-config-dialog__loading">正在加载商品配置…</div>
           <div v-else class="goods-config-dialog__content">
+            <section class="config-section">
+              <div class="config-section__title">
+                <div>
+                  <h3>商品默认回复</h3>
+                  <p>买家首次咨询此商品时自动发送一次；后续消息再按议价、关键词和 AI 规则处理。</p>
+                </div>
+                <label class="switch">
+                  <input v-model="form.productDefaultReplyEnabled" type="checkbox" />
+                  <span></span>
+                </label>
+              </div>
+              <template v-if="form.productDefaultReplyEnabled">
+                <label class="field">
+                  <span>默认回复文字</span>
+                  <textarea v-model="form.productDefaultReplyText" rows="3" maxlength="2000" placeholder="例如：您好，商品在售。下方图片包含使用/下单说明，有问题请继续留言。"></textarea>
+                </label>
+                <div class="default-reply-image">
+                  <div>
+                    <span class="field-label">默认回复图片</span>
+                    <p>上传后会自动转存到当前闲鱼账号的图片服务，买家会收到这张图片。</p>
+                  </div>
+                  <input ref="defaultReplyImageInput" class="default-reply-image__input" type="file" accept="image/jpeg,image/png,image/gif,image/webp" @change="uploadDefaultReplyImage" />
+                  <button class="text-action" type="button" :disabled="defaultReplyImageUploading" @click="chooseDefaultReplyImage">
+                    {{ defaultReplyImageUploading ? '上传中…' : (form.productDefaultReplyImageUrl ? '重新上传图片' : '上传图片') }}
+                  </button>
+                  <button v-if="form.productDefaultReplyImageUrl" class="text-action text-action--danger" type="button" :disabled="defaultReplyImageUploading" @click="form.productDefaultReplyImageUrl = ''">移除图片</button>
+                  <img v-if="form.productDefaultReplyImageUrl" :src="form.productDefaultReplyImageUrl" class="default-reply-image__preview" alt="默认回复图片预览" />
+                </div>
+              </template>
+            </section>
+
             <section class="config-section">
               <div class="config-section__title">
                 <div>
@@ -224,8 +326,8 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
             <section class="config-section">
               <div class="config-section__title">
                 <div>
-                  <h3>商品专属 AI 回复</h3>
-                  <p>优先使用这份提示词和固定资料；未填写时才回退到系统 AI 设置。</p>
+                  <h3>启用本商品 AI 自动回复</h3>
+                  <p>关闭后，本商品绝不会调用系统 AI。开启后优先使用下方资料；未填写时才使用系统 AI 的模型与全局提示词。</p>
                 </div>
                 <label class="switch">
                   <input v-model="form.aiEnabled" type="checkbox" />
@@ -310,7 +412,7 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 
             <section class="config-tip">
               <strong>回复优先级</strong>
-              <span>黑名单/人工接管 → AI 议价 → 关键词规则 → 商品专属 AI → 系统 AI 兜底</span>
+              <span>黑名单/人工接管 → 商品默认回复（新会话首次）→ AI 议价 → 关键词规则 → 商品专属 AI → 系统 AI 兜底</span>
             </section>
           </div>
 
@@ -356,6 +458,13 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 .switch input:checked + span { background: #31c66a; }
 .switch input:checked + span::after { transform: translateX(20px); }
 .text-action { margin-top: 14px; border: 0; background: transparent; color: #1a79e8; font: inherit; cursor: pointer; padding: 0; }
+.text-action:disabled { opacity: .55; cursor: not-allowed; }
+.text-action--danger { margin-left: 14px; color: #e15858; }
+.default-reply-image { display: grid; gap: 8px; margin-top: 16px; }
+.default-reply-image p { margin: 0; }
+.field-label { color: #536079; font-size: 13px; font-weight: 600; }
+.default-reply-image__input { display: none; }
+.default-reply-image__preview { max-width: min(260px, 100%); max-height: 220px; border: 1px solid #dce3ec; border-radius: 10px; object-fit: cover; }
 .config-tip { display: flex; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: 10px; background: #fff6dc; color: #86620d; font-size: 13px; }
 .goods-config-dialog__footer { display: flex; justify-content: flex-end; gap: 10px; padding: 18px 28px 24px; border-top: 1px solid #eee7d9; }
 .btn { min-width: 92px; height: 38px; border-radius: 10px; padding: 0 16px; font: inherit; cursor: pointer; }

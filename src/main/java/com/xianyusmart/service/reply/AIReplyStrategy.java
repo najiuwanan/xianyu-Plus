@@ -46,6 +46,11 @@ public class AIReplyStrategy implements ReplyStrategy {
 
         try {
             XianyuGoodsConfig goodsConfig = goodsConfigMapper.selectByAccountAndGoodsId(accountId, xyGoodsId);
+            // 系统设置只提供模型与兜底提示词。商品开关关闭时，任何路径都不得调用 AI。
+            if (goodsConfig == null || !Integer.valueOf(1).equals(goodsConfig.getXianyuAutoReplyOn())) {
+                log.debug("【账号{}】商品 AI 自动回复未开启，拒绝调用系统 AI: xyGoodsId={}", accountId, xyGoodsId);
+                return ReplyResult.fail();
+            }
             String fixedMaterial = productAiContextBuilder.build(goodsConfig);
 
             XianyuGoodsInfo goodsInfo = goodsInfoMapper.selectOne(

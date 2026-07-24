@@ -28,7 +28,7 @@ public class AutoReplyBackupHandler implements DataBackupHandler {
     @Override
     public Map<String, Object> exportData() {
         List<Map<String, Object>> configs = jdbcTemplate.queryForList(
-                "SELECT c.xy_goods_id, c.xianyu_auto_reply_on, c.xianyu_auto_reply_context_on, c.fixed_material, c.ai_prompt, " +
+                "SELECT c.xy_goods_id, c.xianyu_auto_reply_on, c.xianyu_auto_reply_context_on, c.product_default_reply_on, c.product_default_reply_text, c.product_default_reply_image_url, c.fixed_material, c.ai_prompt, " +
                 "c.ai_bargain_on, c.ai_bargain_floor_price, c.ai_bargain_step_amount, c.ai_bargain_max_rounds, " +
                 "c.ai_bargain_style, c.ai_bargain_floor_reply, c.ai_bargain_instructions, a.unb " +
                 "FROM xianyu_goods_config c " +
@@ -43,6 +43,9 @@ public class AutoReplyBackupHandler implements DataBackupHandler {
             map.put("xyGoodsId", config.get("xy_goods_id"));
             map.put("autoReplyOn", config.get("xianyu_auto_reply_on"));
             map.put("autoReplyContextOn", config.get("xianyu_auto_reply_context_on"));
+            map.put("productDefaultReplyOn", config.get("product_default_reply_on"));
+            map.put("productDefaultReplyText", config.get("product_default_reply_text"));
+            map.put("productDefaultReplyImageUrl", config.get("product_default_reply_image_url"));
             map.put("fixedMaterial", config.get("fixed_material"));
             map.put("aiPrompt", config.get("ai_prompt"));
             map.put("aiBargainOn", config.get("ai_bargain_on"));
@@ -89,6 +92,9 @@ public class AutoReplyBackupHandler implements DataBackupHandler {
 
                 Integer autoReplyOn = map.get("autoReplyOn") != null ? ((Number) map.get("autoReplyOn")).intValue() : null;
                 Integer autoReplyContextOn = map.get("autoReplyContextOn") != null ? ((Number) map.get("autoReplyContextOn")).intValue() : null;
+                Integer productDefaultReplyOn = numberValue(map.get("productDefaultReplyOn"), 0);
+                String productDefaultReplyText = (String) map.get("productDefaultReplyText");
+                String productDefaultReplyImageUrl = (String) map.get("productDefaultReplyImageUrl");
                 String fixedMaterial = (String) map.get("fixedMaterial");
                 String aiPrompt = (String) map.get("aiPrompt");
                 Integer aiBargainOn = numberValue(map.get("aiBargainOn"), 0);
@@ -105,14 +111,16 @@ public class AutoReplyBackupHandler implements DataBackupHandler {
 
                 if (existing.isEmpty()) {
                     jdbcTemplate.update(
-                            "INSERT INTO xianyu_goods_config (xianyu_account_id, xy_goods_id, xianyu_auto_reply_on, xianyu_auto_reply_context_on, fixed_material, ai_prompt, ai_bargain_on, ai_bargain_floor_price, ai_bargain_step_amount, ai_bargain_max_rounds, ai_bargain_style, ai_bargain_floor_reply, ai_bargain_instructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                            accountId, xyGoodsId, autoReplyOn, autoReplyContextOn, fixedMaterial, aiPrompt,
+                            "INSERT INTO xianyu_goods_config (xianyu_account_id, xy_goods_id, xianyu_auto_reply_on, xianyu_auto_reply_context_on, product_default_reply_on, product_default_reply_text, product_default_reply_image_url, fixed_material, ai_prompt, ai_bargain_on, ai_bargain_floor_price, ai_bargain_step_amount, ai_bargain_max_rounds, ai_bargain_style, ai_bargain_floor_reply, ai_bargain_instructions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                            accountId, xyGoodsId, autoReplyOn, autoReplyContextOn, productDefaultReplyOn,
+                            productDefaultReplyText, productDefaultReplyImageUrl, fixedMaterial, aiPrompt,
                             aiBargainOn, aiBargainFloorPrice, aiBargainStepAmount, aiBargainMaxRounds,
                             aiBargainStyle, aiBargainFloorReply, aiBargainInstructions);
                 } else {
                     jdbcTemplate.update(
-                            "UPDATE xianyu_goods_config SET xianyu_auto_reply_on = ?, xianyu_auto_reply_context_on = ?, fixed_material = ?, ai_prompt = ?, ai_bargain_on = ?, ai_bargain_floor_price = ?, ai_bargain_step_amount = ?, ai_bargain_max_rounds = ?, ai_bargain_style = ?, ai_bargain_floor_reply = ?, ai_bargain_instructions = ? WHERE xianyu_account_id = ? AND xy_goods_id = ?",
-                            autoReplyOn, autoReplyContextOn, fixedMaterial, aiPrompt, aiBargainOn,
+                            "UPDATE xianyu_goods_config SET xianyu_auto_reply_on = ?, xianyu_auto_reply_context_on = ?, product_default_reply_on = ?, product_default_reply_text = ?, product_default_reply_image_url = ?, fixed_material = ?, ai_prompt = ?, ai_bargain_on = ?, ai_bargain_floor_price = ?, ai_bargain_step_amount = ?, ai_bargain_max_rounds = ?, ai_bargain_style = ?, ai_bargain_floor_reply = ?, ai_bargain_instructions = ? WHERE xianyu_account_id = ? AND xy_goods_id = ?",
+                            autoReplyOn, autoReplyContextOn, productDefaultReplyOn, productDefaultReplyText,
+                            productDefaultReplyImageUrl, fixedMaterial, aiPrompt, aiBargainOn,
                             aiBargainFloorPrice, aiBargainStepAmount, aiBargainMaxRounds, aiBargainStyle,
                             aiBargainFloorReply, aiBargainInstructions, accountId, xyGoodsId);
                 }

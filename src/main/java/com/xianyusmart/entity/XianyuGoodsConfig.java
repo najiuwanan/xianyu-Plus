@@ -47,6 +47,15 @@ public class XianyuGoodsConfig {
     
     private Integer xianyuKeywordReplyOn = 0;
 
+    /** 商品默认回复开关：同一买家会话仅发送一次。 */
+    private Integer productDefaultReplyOn = 0;
+
+    /** 商品默认回复文字。 */
+    private String productDefaultReplyText;
+
+    /** 已上传到闲鱼 CDN 的商品默认回复图片地址。 */
+    private String productDefaultReplyImageUrl;
+
     /**
      * 人工干预开关：1-开启，0-关闭，默认关闭
      * 开启后延时任务到期时若卖家已人工回复则取消自动回复
