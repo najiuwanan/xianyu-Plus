@@ -16,6 +16,49 @@ const drawerVisible = ref(false)
 const updateStatus = ref<SystemUpdateStatus | null>(null)
 const updateChecking = ref(false)
 const versionDialogVisible = ref(false)
+const releaseHistory = [
+  {
+    version: '2.0.0',
+    label: 'V2.0.0（当前）',
+    highlights: [
+      '商业化经营看板：今日成交额为深蓝主卡，新增真实“今日订单”指标。',
+      '首页集中展示商家待办、账号状态、今日提醒与近 7 / 30 日成功交付趋势；买家待付款不计入商家待办。',
+      '深海军蓝导航与原创黄色鱼标记，菜单、图标和分组标题均提高对比度与可读性。',
+      '账号设置升级为分组右侧抽屉，一键擦亮支持全部账号汇总、错峰执行和账号记录。',
+      '固定保存栏、已使用卡密安全清理、实时日志筛选/暂停/复制、商品发布确认简化。',
+      '默认回复以账号 + 商品 + 买家严格去重；自提订单展示、账号归属和下单通知同步优化。'
+    ]
+  },
+  {
+    version: '1.9.9',
+    label: 'V1.9.9',
+    highlights: [
+      'Session 过期后改为等待 2 小时后统一自动续期，减少短时间重复刷新。',
+      '续期等待期间暂停 Token 短间隔重试与 WebSocket 自动重连，避免重复刷屏。',
+      '续期成功自动恢复连接；失败时引导手动更新 Cookie。'
+    ]
+  },
+  {
+    version: '1.9.8',
+    label: 'V1.9.8',
+    highlights: [
+      '下单通知调整为每笔订单只推送一次，普通订单和自提订单均会通知。',
+      '通知增加账号备注和账号 ID，便于多账号识别成交归属。',
+      '商品默认回复支持仅首次回复和每条消息都回复；首次模式按买家和商品去重。'
+    ]
+  },
+  {
+    version: '1.9.7',
+    label: 'V1.9.7',
+    highlights: [
+      '自提订单同步优先补全买家和商品信息，缺失时明确显示信息同步中。',
+      '订单详情统一显示自提待交接，无需发货，不再误报发货失败。',
+      '历史订单识别为自提后会修正旧状态，并继续保留在订单管理。'
+    ]
+  }
+] as const
+const selectedReleaseVersion = ref('2.0.0')
+const selectedRelease = computed(() => releaseHistory.find(item => item.version === selectedReleaseVersion.value) || releaseHistory[0])
 
 const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV]/, '')}` : '未知版本'
 const releaseHighlights = computed(() => {
@@ -185,11 +228,13 @@ onUnmounted(() => {
         </div>
         <p class="version-dialog__status" :class="{ available: updateStatus.updateAvailable }">{{ updateStatus.message }}</p>
         <div class="version-dialog__changes">
-          <h3>{{ updateStatus.updateAvailable ? '本次可以更新的内容' : '当前版本主要内容' }}</h3>
-          <ul v-if="releaseHighlights.length">
-            <li v-for="item in releaseHighlights" :key="item">{{ item }}</li>
+          <div class="version-dialog__changes-heading">
+            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.0.0 的版本记录。</p></div>
+            <label class="version-history-select"><span>查看版本</span><select v-model="selectedReleaseVersion"><option v-for="release in releaseHistory" :key="release.version" :value="release.version">{{ release.label }}</option></select></label>
+          </div>
+          <ul>
+            <li v-for="item in selectedRelease.highlights" :key="item">{{ item }}</li>
           </ul>
-          <p v-else>{{ updateStatus.latestMessage || '版本说明同步中' }}</p>
         </div>
         <footer>
           <span>更新命令：<code>cd ~/xianyu-Plus && ./update.sh</code></span>
@@ -240,7 +285,14 @@ onUnmounted(() => {
 .version-dialog__versions > div.is-latest { border-color: #f0d27d; background: #fffbec; }
 .version-dialog__versions small { color: #7a8799; }.version-dialog__versions strong { color: #1d3557; font-size: 20px; }.version-dialog__versions code { color: #8190a4; font-size: 11px; }
 .version-dialog__status { margin: 8px 24px 0; padding: 10px 12px; border-radius: 10px; color: #315f91; background: #edf6ff; font-size: 13px; }.version-dialog__status.available { color: #805900; background: #fff4cf; }
-.version-dialog__changes { padding: 18px 24px 20px; }.version-dialog__changes h3 { margin: 0 0 10px; color: #283b57; font-size: 15px; }.version-dialog__changes ul { display: grid; gap: 8px; margin: 0; padding-left: 20px; color: #53627a; font-size: 13px; line-height: 1.55; }.version-dialog__changes p { color: #718096; font-size: 13px; }
+.version-dialog__changes { padding: 18px 24px 20px; }
+.version-dialog__changes-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.version-dialog__changes h3 { margin: 0; color: #283b57; font-size: 15px; }
+.version-dialog__changes-heading p { margin: 4px 0 0; color: #718096; font-size: 12px; }
+.version-history-select { display: grid; gap: 4px; color: #718096; font-size: 10px; font-weight: 700; text-align: right; }
+.version-history-select select { min-width: 136px; height: 32px; padding: 0 26px 0 10px; border: 1px solid #d5dfeb; border-radius: 8px; outline: none; background: #fff; color: #284264; font-size: 12px; font-weight: 750; cursor: pointer; }
+.version-history-select select:focus { border-color: #75a8df; box-shadow: 0 0 0 3px rgba(61, 132, 210, .12); }
+.version-dialog__changes ul { display: grid; gap: 8px; margin: 0; padding-left: 20px; color: #53627a; font-size: 13px; line-height: 1.55; }
 .version-dialog > footer { display: flex; align-items: center; gap: 9px; padding: 14px 24px; border-top: 1px solid #edf0f4; background: #fafbfd; }.version-dialog > footer span { min-width: 0; margin-right: auto; color: #6f7e92; font-size: 11px; }.version-dialog > footer span code { color: #335b87; }.version-dialog > footer a,.version-dialog > footer button { padding: 8px 13px; border: 1px solid #d5deea; border-radius: 9px; background: #fff; color: #315b89; font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer; }
 .workspace-main { flex: 1; min-width: 0; overflow: auto; padding: 28px 32px 36px; background: var(--xy-page); }
 
