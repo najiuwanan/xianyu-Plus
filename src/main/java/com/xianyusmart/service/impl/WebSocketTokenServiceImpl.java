@@ -17,6 +17,8 @@ import com.xianyusmart.utils.XianyuSignUtils;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.net.URLEncoder;
@@ -65,6 +67,14 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
     @Autowired
     private EmailNotifyService emailNotifyService;
 
+    @Autowired
+    @Qualifier("webSocketScheduler")
+    private java.util.concurrent.ScheduledExecutorService webSocketScheduler;
+
+    @Autowired
+    @Lazy
+    private com.xianyusmart.service.WebSocketService webSocketService;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
@@ -98,6 +108,11 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
      * Cookie过期时hasLogin重试最大次数
      */
     private static final int MAX_COOKIE_RETRY_COUNT = 2;
+
+    /** Session expires can produce a reconnect storm; defer the browser refresh for two hours. */
+    private static final long SESSION_EXPIRY_RENEWAL_DELAY_HOURS = 2;
+
+    private final Map<Long, java.util.concurrent.ScheduledFuture<?>> sessionRenewalTasks = new ConcurrentHashMap<>();
 
     /**
      * 重试间隔基础值（毫秒）
@@ -483,21 +498,9 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
             response.contains("令牌过期"));
 
         if (isSessionExpired) {
-            log.warn("【账号{}】检测到Session/令牌过期，尝试通过hasLogin自动续期...", accountId);
-            // 不立即标记为过期，先尝试自动续期
-            // updateCookieStatus(accountId, 2);
-
-            operationLogService.log(accountId,
-                com.xianyusmart.constants.OperationConstants.Type.REFRESH,
-                com.xianyusmart.constants.OperationConstants.Module.TOKEN,
-                "Session过期，尝试自动续期",
-                com.xianyusmart.constants.OperationConstants.Status.FAIL,
-                com.xianyusmart.constants.OperationConstants.TargetType.TOKEN,
-                String.valueOf(accountId),
-                null, null, "Session过期", null);
-
-            // 直接尝试通过hasLogin刷新，而不是抛出异常
-            return refreshTokenViaHasLogin(accountId, 0);
+            scheduleSessionExpiryRenewal(accountId);
+            throw new com.xianyusmart.exception.CookieExpiredException(
+                    "Session已过期，已安排2小时后自动续期");
         }
 
         if (retryCount < MAX_TOKEN_RETRY_COUNT) {
@@ -746,6 +749,59 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
     @Override
     public boolean isCaptchaPending(Long accountId) {
         return accountId != null && pendingCaptchaAccounts.containsKey(accountId);
+    }
+
+    @Override
+    public boolean isSessionRenewalPending(Long accountId) {
+        java.util.concurrent.ScheduledFuture<?> task = accountId == null ? null : sessionRenewalTasks.get(accountId);
+        return task != null && !task.isDone() && !task.isCancelled();
+    }
+
+    private void scheduleSessionExpiryRenewal(Long accountId) {
+        sessionRenewalTasks.compute(accountId, (id, existingTask) -> {
+            if (existingTask != null && !existingTask.isDone() && !existingTask.isCancelled()) {
+                log.info("【账号{}】Session已过期，自动续期已安排，跳过重复请求", id);
+                return existingTask;
+            }
+
+            operationLogService.log(id,
+                    com.xianyusmart.constants.OperationConstants.Type.REFRESH,
+                    com.xianyusmart.constants.OperationConstants.Module.TOKEN,
+                    "Session过期，已安排2小时后自动续期",
+                    com.xianyusmart.constants.OperationConstants.Status.PARTIAL,
+                    com.xianyusmart.constants.OperationConstants.TargetType.TOKEN,
+                    String.valueOf(id),
+                    null, null, "自动续期将在2小时后执行", null);
+            log.warn("【账号{}】检测到Session/令牌过期，2小时后尝试自动续期", id);
+
+            return webSocketScheduler.schedule(() -> {
+                sessionRenewalTasks.remove(id);
+                try {
+                    log.info("【账号{}】Session过期等待结束，开始自动续期", id);
+                    boolean refreshed = cookieRefreshService.refreshCookie(id);
+                    if (refreshed) {
+                        operationLogService.log(id,
+                                com.xianyusmart.constants.OperationConstants.Type.REFRESH,
+                                com.xianyusmart.constants.OperationConstants.Module.TOKEN,
+                                "Session过期后自动续期成功，准备重连WebSocket",
+                                com.xianyusmart.constants.OperationConstants.Status.SUCCESS,
+                                com.xianyusmart.constants.OperationConstants.TargetType.TOKEN,
+                                String.valueOf(id), null, null, null, null);
+                        webSocketService.startWebSocket(id);
+                    } else {
+                        operationLogService.log(id,
+                                com.xianyusmart.constants.OperationConstants.Type.REFRESH,
+                                com.xianyusmart.constants.OperationConstants.Module.TOKEN,
+                                "Session过期后自动续期失败，请手动更新Cookie",
+                                com.xianyusmart.constants.OperationConstants.Status.FAIL,
+                                com.xianyusmart.constants.OperationConstants.TargetType.TOKEN,
+                                String.valueOf(id), null, null, "自动续期失败", null);
+                    }
+                } catch (Exception e) {
+                    log.error("【账号{}】Session过期后的自动续期异常", id, e);
+                }
+            }, SESSION_EXPIRY_RENEWAL_DELAY_HOURS, TimeUnit.HOURS);
+        });
     }
 
     /**

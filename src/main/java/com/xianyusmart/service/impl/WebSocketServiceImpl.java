@@ -629,6 +629,10 @@ public class WebSocketServiceImpl implements WebSocketService {
      * 4. Token刷新失败时，在token_retry_interval后重试
      */
     private void refreshTokenAndReconnect(Long accountId) {
+        if (tokenService.isSessionRenewalPending(accountId)) {
+            log.info("【账号{}】Session过期自动续期等待中，暂停Token刷新与重连", accountId);
+            return;
+        }
         try {
             log.info("【账号{}】开始刷新Token并重连...", accountId);
             
@@ -691,6 +695,10 @@ public class WebSocketServiceImpl implements WebSocketService {
      * 调度Token刷新重试
      */
     private void scheduleTokenRefreshRetry(Long accountId) {
+        if (tokenService.isSessionRenewalPending(accountId)) {
+            log.info("【账号{}】Session过期自动续期等待中，不安排短间隔Token重试", accountId);
+            return;
+        }
         // 同一账号只保留一个任务，凭证更新或连接停止时可立即取消
         tokenRetryTasks.compute(accountId, (id, existingTask) -> {
             if (existingTask != null && !existingTask.isDone()) {
@@ -727,6 +735,10 @@ public class WebSocketServiceImpl implements WebSocketService {
      * @param isManualRestart 是否主动重启（Token刷新等）
      */
     private void scheduleReconnect(Long accountId, int delaySeconds, boolean isManualRestart) {
+        if (tokenService.isSessionRenewalPending(accountId)) {
+            log.info("【账号{}】Session过期自动续期等待中，不安排WebSocket重连", accountId);
+            return;
+        }
         if (tokenService.isCaptchaPending(accountId)) {
             log.warn("【账号{}】正在等待人工安全验证，已暂停WebSocket自动重连", accountId);
             return;
@@ -757,6 +769,10 @@ public class WebSocketServiceImpl implements WebSocketService {
         ScheduledFuture<?> reconnectTask = webSocketScheduler.schedule(() -> {
             try {
                 reconnectTasks.remove(accountId);
+                if (tokenService.isSessionRenewalPending(accountId)) {
+                    log.info("【账号{}】Session过期自动续期等待中，跳过本次WebSocket重连", accountId);
+                    return;
+                }
                 
                 // 停止当前连接和心跳
                 stopWebSocket(accountId);

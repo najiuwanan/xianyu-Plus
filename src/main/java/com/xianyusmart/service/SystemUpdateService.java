@@ -289,6 +289,14 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.9.9".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "检测到 Session 过期后不再立即反复刷新，统一改为等待 2 小时后自动续期一次",
+                    "Session 续期等待期间暂停 Token 短间隔重试和 WebSocket 自动重连，避免操作日志重复刷屏",
+                    "自动续期成功后会自动重连 WebSocket；续期失败时提示手动更新 Cookie"
+            ));
+            return;
+        }
         if ("1.9.8".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "下单通知调整为每笔订单仅推送一次，普通订单和自提订单都会推送，且不会再因自动发货成功重复通知",
