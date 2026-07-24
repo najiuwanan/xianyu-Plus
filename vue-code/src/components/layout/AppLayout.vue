@@ -207,13 +207,13 @@ onUnmounted(() => {
 .layout-container { width: 100%; }
 .workspace { flex: 1; flex-direction: column; overflow: hidden; }
 
-.sidebar { width: 236px; flex: 0 0 236px; display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(180deg, #102a43, #081b31) !important; border-right: 0; }
-.brand { width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 18px 16px; border: 0; border-bottom: 1px solid rgba(255,255,255,.1); background: transparent; color: #fff; text-align: left; }
-.brand__mark { width: 40px; height: 40px; display: grid; place-items: center; flex: 0 0 auto; }
+.sidebar { width: 252px; flex: 0 0 252px; display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(180deg, #102a43, #081b31) !important; border-right: 0; }
+.brand { width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 11px; padding: 18px 17px; border: 0; border-bottom: 1px solid rgba(255,255,255,.1); background: transparent; color: #fff; text-align: left; }
+.brand__mark { width: 42px; height: 42px; display: grid; place-items: center; flex: 0 0 auto; }
 .brand__copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.brand__copy strong { overflow: hidden; color: #fff; font-size: 16px; letter-spacing: -.4px; line-height: 21px; text-overflow: ellipsis; white-space: nowrap; }
+.brand__copy strong { overflow: hidden; color: #fff; font-size: 15px; letter-spacing: -.2px; line-height: 21px; text-overflow: ellipsis; white-space: nowrap; }
 .brand__copy strong em { color: #ffd35c; font-size: 12px; font-style: normal; font-weight: 700; letter-spacing: 0; }
-.brand__copy small { overflow: hidden; color: rgba(224,235,250,.66); font-size: 11px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.brand__copy small { overflow: hidden; color: rgba(224,235,250,.66); font-size: 11px; line-height: 16px; font-weight: 650; color: rgba(232, 240, 250, .8); text-overflow: ellipsis; white-space: nowrap; }
 
 .workspace-header { height: 70px; display: flex; flex: 0 0 70px; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid #e9edf3; background: rgba(255,255,255,.96); }
 .workspace-header__actions { min-width: 0; display: flex; align-items: center; gap: 14px; }

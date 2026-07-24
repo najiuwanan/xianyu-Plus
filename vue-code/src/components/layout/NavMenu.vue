@@ -135,14 +135,14 @@ watch(() => route.path, () => {
 
 :global(.sidebar) .nav-menu, :global(.drawer-menu) .nav-menu { padding-top: 14px; }
 :global(.sidebar) .nav-menu-section-title, :global(.sidebar) .nav-menu-divider-text,
-:global(.drawer-menu) .nav-menu-section-title, :global(.drawer-menu) .nav-menu-divider-text { color: rgba(213, 224, 239, .56); font-weight: 750; }
+:global(.drawer-menu) .nav-menu-section-title, :global(.drawer-menu) .nav-menu-divider-text { color: rgba(222, 232, 245, .78); font-weight: 800; }
 :global(.sidebar) .nav-menu-section-title, :global(.drawer-menu) .nav-menu-section-title { margin-left: 20px; }
-:global(.sidebar) .nav-menu-item, :global(.drawer-menu) .nav-menu-item { margin: 2px 10px; border-radius: 8px; color: rgba(231, 239, 249, .86); font-weight: 600; }
+:global(.sidebar) .nav-menu-item, :global(.drawer-menu) .nav-menu-item { margin: 2px 10px; border-radius: 8px; color: rgba(241, 246, 252, .96); font-weight: 650; }
 :global(.sidebar) .nav-menu-item:hover, :global(.drawer-menu) .nav-menu-item:hover { background: rgba(255, 255, 255, .08); color: #fff; }
 :global(.sidebar) .nav-menu-item--active, :global(.drawer-menu) .nav-menu-item--active { background: #FFDA44 !important; color: #172033; font-weight: 800; box-shadow: none; }
 :global(.sidebar) .nav-menu-group--active .nav-menu-group__trigger, :global(.drawer-menu) .nav-menu-group--active .nav-menu-group__trigger { background: rgba(255,255,255,.08); color: #fff; }
 :global(.sidebar) .nav-menu-submenu::before, :global(.drawer-menu) .nav-menu-submenu::before { background: rgba(255, 255, 255, .16); }
-:global(.sidebar) .nav-menu-submenu__item, :global(.drawer-menu) .nav-menu-submenu__item { color: rgba(218, 231, 247, .72); font-weight: 600; }
+:global(.sidebar) .nav-menu-submenu__item, :global(.drawer-menu) .nav-menu-submenu__item { color: rgba(225, 235, 247, .9); font-weight: 650; }
 :global(.sidebar) .nav-menu-submenu__item:hover, :global(.drawer-menu) .nav-menu-submenu__item:hover { background: rgba(255,255,255,.07); color: #fff; }
 :global(.sidebar) .nav-menu-submenu__item--active, :global(.drawer-menu) .nav-menu-submenu__item--active { background: rgba(255, 218, 68, .16); color: #FFDA44; font-weight: 800; }
 

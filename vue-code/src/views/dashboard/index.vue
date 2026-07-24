@@ -129,8 +129,9 @@ onMounted(() => {
   <div class="merchant-dashboard" :aria-busy="loading">
     <header class="merchant-dashboard__header">
       <div>
+        <span class="dashboard-eyebrow">商家经营中心 · TODAY</span>
         <h1>运营总览</h1>
-        <p>优先处理商家需要动作的订单、消息与异常。</p>
+        <p>核心经营数据、商家待办与账号风险，一屏集中处理。</p>
       </div>
       <div class="dashboard-header__actions">
         <button class="button button--secondary" :disabled="loading" @click="loadStatistics">
@@ -147,15 +148,19 @@ onMounted(() => {
         <span class="metric-card__icon metric-card__icon--amber">¥</span>
         <div><span>今日成交额</span><strong>¥{{ money(stats.todayRevenue) }}</strong><small>已完成交付订单的金额</small></div>
       </article>
-      <article class="metric-card metric-card--action" @click="go('/orders')">
+      <article class="metric-card metric-card--action metric-card--orders" @click="go('/orders')">
+        <span class="metric-card__icon metric-card__icon--blue"><IconClipboard /></span>
+        <div><span>今日订单</span><strong>{{ stats.todayOrderCount }}</strong><small>今日已成交的订单数量</small></div>
+      </article>
+      <article class="metric-card metric-card--action metric-card--pending" @click="go('/orders')">
         <span class="metric-card__icon metric-card__icon--amber"><IconClipboard /></span>
         <div><span>待处理订单</span><strong>{{ pendingOrderCount }}</strong><small>待发货、自提待交付、异常或人工介入</small></div>
       </article>
-      <article class="metric-card metric-card--action" @click="go('/messages')">
+      <article class="metric-card metric-card--action metric-card--messages" @click="go('/messages')">
         <span class="metric-card__icon metric-card__icon--blue"><IconMessage /></span>
         <div><span>未读消息</span><strong>{{ stats.unreadMessageCount }}</strong><small>需要人工查看的买家消息</small></div>
       </article>
-      <article class="metric-card metric-card--action" @click="go('/order-automation')">
+      <article class="metric-card metric-card--action metric-card--exceptions" @click="go('/order-automation')">
         <span class="metric-card__icon metric-card__icon--red"><IconAlert /></span>
         <div><span>异常提醒</span><strong>{{ exceptionCount }}</strong><small>自动化执行中的异常与重试</small></div>
       </article>
