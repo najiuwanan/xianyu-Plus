@@ -33,7 +33,7 @@ public class ProductDefaultReplyStrategy implements ReplyStrategy {
         ChatMessageData lastMessage = messageList.get(messageList.size() - 1);
         XianyuGoodsConfig config = goodsConfigMapper.selectByAccountAndGoodsId(
                 lastMessage.getXianyuAccountId(), lastMessage.getXyGoodsId());
-        if (!shouldReply(config, lastMessage)) {
+        if (!hasReplyContent(config)) {
             return ReplyResult.fail();
         }
 
@@ -64,11 +64,11 @@ public class ProductDefaultReplyStrategy implements ReplyStrategy {
         }
         String buyerUserId = trimToNull(message.getSenderUserId());
         if (buyerUserId != null) {
-            return !replyRecordMapper.hasSuccessfulReplyTypeByAccountAndGoodsAndBuyer(
+            return !replyRecordMapper.hasActiveReplyTypeByAccountAndGoodsAndBuyer(
                     message.getXianyuAccountId(), message.getXyGoodsId(), buyerUserId, REPLY_TYPE_PRODUCT_DEFAULT);
         }
         String sessionId = trimToNull(message.getSId());
-        return sessionId != null && !replyRecordMapper.hasSuccessfulReplyTypeByAccountAndSId(
+        return sessionId != null && !replyRecordMapper.hasActiveReplyTypeByAccountAndSId(
                 message.getXianyuAccountId(), sessionId, REPLY_TYPE_PRODUCT_DEFAULT);
     }
 
@@ -76,5 +76,12 @@ public class ProductDefaultReplyStrategy implements ReplyStrategy {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean hasReplyContent(XianyuGoodsConfig config) {
+        return config != null
+                && Integer.valueOf(1).equals(config.getProductDefaultReplyOn())
+                && (trimToNull(config.getProductDefaultReplyText()) != null
+                || trimToNull(config.getProductDefaultReplyImageUrl()) != null);
     }
 }

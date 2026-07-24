@@ -1,5 +1,10 @@
 :root {
-  --xy-page: #f8f7f3;
+  --xy-navy-950: #081b31;
+  --xy-navy-900: #0d2745;
+  --xy-navy-800: #15395f;
+  --xy-blue: #287df0;
+  --xy-blue-soft: #eaf3ff;
+  --xy-page: #f6f7fb;
   --xy-surface: #ffffff;
   --xy-surface-muted: #fcfbf8;
   --xy-ink: #1f3556;
@@ -7,7 +12,7 @@
   --xy-muted: #748198;
   --xy-border: #e5e4df;
   --xy-border-soft: #efeee9;
-  --xy-amber: #f4b400;
+  --xy-amber: #f6b700;
   --xy-amber-deep: #a96f00;
   --xy-amber-soft: #fff3cf;
   --xy-success: #1a9b68;

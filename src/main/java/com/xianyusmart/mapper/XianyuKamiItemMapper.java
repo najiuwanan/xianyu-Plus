@@ -55,6 +55,10 @@ public interface XianyuKamiItemMapper extends BaseMapper<XianyuKamiItem> {
     @Delete("DELETE FROM xianyu_kami_item WHERE id = #{id} AND status IN (0, 1)")
     int deleteIfNotPending(@Param("id") Long id);
 
+    /** Deletes only completed-used codes in the selected card library. */
+    @Delete("DELETE FROM xianyu_kami_item WHERE kami_config_id = #{kamiConfigId} AND status = 1")
+    int deleteUsedByConfigId(@Param("kamiConfigId") Long kamiConfigId);
+
     @Update("UPDATE xianyu_kami_item SET status = 1, order_id = #{orderId}, used_time = NOW(3) WHERE id = #{id} AND status = 0")
     int markUsed(@Param("id") Long id, @Param("orderId") String orderId);
 

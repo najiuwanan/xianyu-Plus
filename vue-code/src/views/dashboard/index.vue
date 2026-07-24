@@ -109,27 +109,42 @@ onMounted(() => {
     <section class="metric-grid" aria-label="今日经营指标">
       <article class="metric-card metric-card--revenue">
         <span class="metric-card__icon metric-card__icon--amber">¥</span>
-        <div><span>今日成交额</span><strong>¥{{ money(stats.todayRevenue) }}</strong><small>成功交付订单的金额</small></div>
+        <div><span>今日成交额</span><strong>¥{{ money(stats.todayRevenue) }}</strong><small>已完成交付订单的金额</small></div>
       </article>
-      <article class="metric-card">
+      <article class="metric-card metric-card--action" @click="go('/order-automation')">
         <span class="metric-card__icon metric-card__icon--blue"><IconClipboard /></span>
-        <div><span>今日订单数</span><strong>{{ stats.todayOrderCount }}</strong><small>按闲鱼下单时间统计</small></div>
+        <div><span>自动化待处理</span><strong>{{ stats.pendingTaskCount }}</strong><small>待执行、重试或处理中的任务</small></div>
       </article>
-      <article class="metric-card">
-        <span class="metric-card__icon metric-card__icon--purple">Σ</span>
-        <div><span>总订单数</span><strong>{{ stats.totalOrderCount }}</strong><small>当前已同步订单总数</small></div>
-      </article>
-      <article class="metric-card">
-        <span class="metric-card__icon metric-card__icon--green"><IconTruck /></span>
-        <div><span>今日自动发货</span><strong>{{ stats.todayDeliveryCount }}</strong><small>笔订单已完成交付</small></div>
-      </article>
-      <article class="metric-card">
+      <article class="metric-card metric-card--action" @click="go('/messages')">
         <span class="metric-card__icon metric-card__icon--blue"><IconMessage /></span>
-        <div><span>未读客服消息</span><strong>{{ stats.unreadMessageCount }}</strong><small>买家尚未人工查看的消息</small></div>
+        <div><span>未读消息</span><strong>{{ stats.unreadMessageCount }}</strong><small>需要人工查看的买家消息</small></div>
       </article>
-      <article class="metric-card">
-        <span class="metric-card__icon metric-card__icon--amber"><IconAlert /></span>
-        <div><span>自动化异常</span><strong>{{ exceptionCount }}</strong><small>发货、评价、求花与擦亮失败</small></div>
+      <article class="metric-card metric-card--action" @click="go('/order-automation')">
+        <span class="metric-card__icon metric-card__icon--red"><IconAlert /></span>
+        <div><span>异常提醒</span><strong>{{ exceptionCount }}</strong><small>发货、评价、求花与擦亮异常</small></div>
+      </article>
+    </section>
+
+    <section class="dashboard-workspace" aria-label="运营概况">
+      <article class="dashboard-panel dashboard-panel--overview">
+        <div class="panel-heading">
+          <div><h2>运营概况</h2><p>只汇总当前已同步的真实经营数据。</p></div>
+          <button class="dashboard-link" type="button" @click="go('/accounts')">管理账号</button>
+        </div>
+        <div class="overview-grid">
+          <button type="button" class="overview-item" @click="go('/accounts')"><span>已接入账号</span><strong>{{ stats.accountCount }}</strong><small>个账号</small></button>
+          <button type="button" class="overview-item" @click="go('/goods')"><span>在售商品</span><strong>{{ stats.sellingItemCount }}</strong><small>件商品</small></button>
+          <button type="button" class="overview-item" @click="go('/kami-config')"><span>可用卡密</span><strong>{{ stats.availableKamiCount }}</strong><small>条库存</small></button>
+          <button type="button" class="overview-item" @click="go('/order-automation')"><span>待人工复核</span><strong>{{ stats.reviewRequiredCount }}</strong><small>项任务</small></button>
+        </div>
+      </article>
+      <article class="dashboard-panel dashboard-panel--guide">
+        <div class="panel-heading"><div><h2>商家工作台</h2><p>快速前往最常用的处理入口。</p></div></div>
+        <div class="guide-actions">
+          <button type="button" @click="go('/orders')"><IconClipboard /><span>订单管理</span><small>查看商家需要处理的订单</small></button>
+          <button type="button" @click="go('/messages')"><IconMessage /><span>在线客服</span><small>处理买家消息与人工介入</small></button>
+          <button type="button" @click="go('/order-automation')"><IconTruck /><span>自动化中心</span><small>查看任务执行与异常</small></button>
+        </div>
       </article>
     </section>
 

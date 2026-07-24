@@ -35,8 +35,6 @@ class ProductDefaultReplyStrategyTest {
         config.setProductDefaultReplyImageUrl("https://img.example.com/guide.jpg");
         ChatMessageData message = message();
         when(goodsConfigMapper.selectByAccountAndGoodsId(1L, "goods-1")).thenReturn(config);
-        when(replyRecordMapper.hasSuccessfulReplyTypeByAccountAndSId(1L, "session@goofish", 5)).thenReturn(false);
-
         ReplyStrategy.ReplyResult result = strategy.execute(List.of(message));
 
         assertTrue(result.isSuccess());
@@ -52,7 +50,7 @@ class ProductDefaultReplyStrategyTest {
         config.setProductDefaultReplyOn(1);
         config.setProductDefaultReplyText("您好");
         ChatMessageData message = message();
-        when(replyRecordMapper.hasSuccessfulReplyTypeByAccountAndSId(1L, "session@goofish", 5)).thenReturn(true);
+        when(replyRecordMapper.hasActiveReplyTypeByAccountAndSId(1L, "session@goofish", 5)).thenReturn(true);
 
         assertFalse(strategy.shouldReply(config, message));
     }
@@ -66,7 +64,7 @@ class ProductDefaultReplyStrategyTest {
         ChatMessageData message = message();
         message.setSenderUserId("buyer-1");
         message.setSId("a-new-session-id");
-        when(replyRecordMapper.hasSuccessfulReplyTypeByAccountAndGoodsAndBuyer(1L, "goods-1", "buyer-1", 5))
+        when(replyRecordMapper.hasActiveReplyTypeByAccountAndGoodsAndBuyer(1L, "goods-1", "buyer-1", 5))
                 .thenReturn(true);
 
         assertFalse(strategy.shouldReply(config, message));

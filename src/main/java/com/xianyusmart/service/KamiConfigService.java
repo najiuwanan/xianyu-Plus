@@ -28,6 +28,8 @@ public interface KamiConfigService {
     ResultObject<Void> deleteKamiItem(Long id);
 
     ResultObject<Void> resetKamiItem(Long id);
+    ResultObject<Integer> clearUsedKamiItems(Long kamiConfigId);
+
 
     XianyuKamiItem acquireKami(Long kamiConfigId, String orderId);
 

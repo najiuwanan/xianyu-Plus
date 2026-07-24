@@ -3,6 +3,7 @@ import { computed, onMounted, onUnmounted, provide, ref, shallowRef } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import NavMenu from './NavMenu.vue'
 import UserMenu from './UserMenu.vue'
+import BrandMark from '@/components/BrandMark.vue'
 import { getSystemUpdateStatus, type SystemUpdateStatus } from '@/api/system'
 
 const route = useRoute()
@@ -105,10 +106,10 @@ onUnmounted(() => {
     <div v-if="isDesktop" class="layout-container">
       <aside class="sidebar">
         <div class="brand">
-          <span class="brand__mark" aria-hidden="true">XP</span>
+          <span class="brand__mark"><BrandMark /></span>
           <span class="brand__copy">
-            <strong>XianYuPlus</strong>
-            <small>智能经营助手</small>
+            <strong>XianYuPlus <em>2.0</em></strong>
+            <small>多账号卖家助手</small>
           </span>
         </div>
         <NavMenu />
@@ -153,8 +154,8 @@ onUnmounted(() => {
         <aside class="drawer-menu" @click.stop>
           <div class="drawer-header">
             <div class="brand brand--drawer">
-              <span class="brand__mark" aria-hidden="true">XP</span>
-              <span class="brand__copy"><strong>XianYuPlus</strong><small>智能经营助手</small></span>
+              <span class="brand__mark"><BrandMark /></span>
+              <span class="brand__copy"><strong>XianYuPlus <em>2.0</em></strong><small>多账号卖家助手</small></span>
             </div>
             <button class="drawer-close-btn" type="button" aria-label="关闭导航菜单" @click="closeDrawer">×</button>
           </div>
@@ -198,14 +199,15 @@ onUnmounted(() => {
 .layout-container { width: 100%; }
 .workspace { flex: 1; flex-direction: column; overflow: hidden; }
 
-.sidebar { width: 236px; flex: 0 0 236px; display: flex; flex-direction: column; overflow: hidden; background: var(--xy-surface); border-right: 1px solid var(--xy-border); }
-.brand { width: 100%; display: flex; align-items: center; gap: 11px; padding: 24px 22px 18px; border: 0; border-bottom: 1px solid var(--xy-border-soft); background: transparent; color: var(--xy-ink); text-align: left; }
-.brand__mark { width: 38px; height: 38px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 10px; background: var(--xy-amber); color: #172d4f; font-size: 16px; font-weight: 800; letter-spacing: -1.5px; }
+.sidebar { width: 252px; flex: 0 0 252px; display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(180deg, var(--xy-navy-900), var(--xy-navy-950)); border-right: 0; }
+.brand { width: 100%; display: flex; align-items: center; gap: 11px; padding: 24px 22px 20px; border: 0; border-bottom: 1px solid rgba(255,255,255,.1); background: transparent; color: #fff; text-align: left; }
+.brand__mark { width: 40px; height: 40px; display: grid; place-items: center; flex: 0 0 auto; }
 .brand__copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.brand__copy strong { color: #182d4f; font-size: 18px; letter-spacing: -0.5px; line-height: 22px; }
-.brand__copy small { color: var(--xy-muted); font-size: 11px; line-height: 16px; }
+.brand__copy strong { color: #fff; font-size: 18px; letter-spacing: -.5px; line-height: 22px; }
+.brand__copy strong em { color: #ffd35c; font-size: 12px; font-style: normal; font-weight: 700; letter-spacing: 0; }
+.brand__copy small { color: rgba(224,235,250,.66); font-size: 11px; line-height: 16px; }
 
-.workspace-header { height: 70px; display: flex; flex: 0 0 70px; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid var(--xy-border-soft); background: rgba(255, 255, 255, .88); }
+.workspace-header { height: 70px; display: flex; flex: 0 0 70px; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid #e9edf3; background: rgba(255,255,255,.96); }
 .workspace-header__actions { min-width: 0; display: flex; align-items: center; gap: 14px; }
 .workspace-notice { min-width: 0; max-width: 520px; display: inline-flex; align-items: center; gap: 7px; padding: 5px 7px 5px 9px; border: 1px solid #dce7f7; border-radius: 999px; background: #f7fbff; color: #47627f; font-size: 12px; white-space: nowrap; }
 .workspace-notice--available { border-color: #efd07a; background: #fffbec; color: #77590a; }
@@ -242,7 +244,7 @@ onUnmounted(() => {
 .menu-toggle-btn span { height: 2px; border-radius: 2px; background: var(--xy-ink); }
 
 .drawer-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(22, 34, 55, .36); }
-.drawer-menu { width: min(300px, 86vw); height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--xy-surface); box-shadow: 16px 0 40px rgba(20, 40, 70, .16); }
+.drawer-menu { width: min(300px, 86vw); height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--xy-navy-900); box-shadow: 16px 0 40px rgba(20, 40, 70, .28); }
 .drawer-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--xy-border-soft); }
 .brand--drawer { flex: 1; border: 0; }
 .drawer-close-btn { width: 36px; height: 36px; display: grid; place-items: center; margin-right: 16px; border: 1px solid var(--xy-border); border-radius: 8px; background: var(--xy-surface); color: var(--xy-muted); font-size: 22px; line-height: 1; cursor: pointer; }
