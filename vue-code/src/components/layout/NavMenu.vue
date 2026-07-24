@@ -133,6 +133,19 @@ watch(() => route.path, () => {
   letter-spacing: .3px;
 }
 
+:global(.sidebar) .nav-menu { padding-top: 16px; }
+:global(.sidebar) .nav-menu-section-title,
+:global(.sidebar) .nav-menu-divider-text { color: rgba(214, 228, 248, .54); }
+:global(.sidebar) .nav-menu-section-title { margin-left: 22px; }
+:global(.sidebar) .nav-menu-item { color: rgba(231, 239, 250, .78); margin: 2px 12px; border-radius: 10px; }
+:global(.sidebar) .nav-menu-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+:global(.sidebar) .nav-menu-item--active { background: rgba(61, 133, 238, .24) !important; color: #fff; box-shadow: inset 0 0 0 1px rgba(125, 180, 255, .14); }
+:global(.sidebar) .nav-menu-group--active .nav-menu-group__trigger { background: rgba(255,255,255,.08); color: #fff; }
+:global(.sidebar) .nav-menu-submenu::before { background: rgba(197, 220, 250, .18); }
+:global(.sidebar) .nav-menu-submenu__item { color: rgba(218, 231, 247, .64); }
+:global(.sidebar) .nav-menu-submenu__item:hover { background: rgba(255,255,255,.07); color: #fff; }
+:global(.sidebar) .nav-menu-submenu__item--active { background: rgba(61, 133, 238, .18); color: #fff; }
+
 .nav-menu-section-title { margin: 0 22px 7px; }
 
 .nav-menu-item {

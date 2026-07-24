@@ -181,6 +181,10 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             record.setBuyerUserName(lastMessage.getSenderUserName());
             record.setBuyerMessage(buyerMessage);
             record.setState(0);
+            boolean productDefaultReply = strategy instanceof ProductDefaultReplyStrategy;
+            if (productDefaultReply) {
+                record.setReplyType(ProductDefaultReplyStrategy.REPLY_TYPE_PRODUCT_DEFAULT);
+            }
             
             if (existingRecordId == null) {
                 int insertResult = autoReplyRecordMapper.insert(record);
@@ -190,6 +194,9 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                 }
             } else {
                 record.setId(existingRecordId);
+                if (productDefaultReply) {
+                    autoReplyRecordMapper.updateReplyType(existingRecordId, ProductDefaultReplyStrategy.REPLY_TYPE_PRODUCT_DEFAULT);
+                }
             }
             
             // 6. 执行回复策略

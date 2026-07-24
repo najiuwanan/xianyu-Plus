@@ -161,8 +161,8 @@ const refreshAvatar = (account: Account) => {
           <span v-else>{{ (account.accountNote || account.unb || '未').charAt(0) }}</span>
         </button>
         <div class="account-card__info">
-          <span class="account-card__name">{{ account.accountNote || '未命名账号' }}</span>
-          <span class="account-card__unb">UNB: {{ account.unb }}</span>
+          <span class="account-card__name">{{ account.unb || '未命名账号' }}</span>
+          <span class="account-card__unb">ID: {{ account.id }} · 备注：{{ account.accountNote || '添加备注' }}</span>
         </div>
         <span
           class="account-card__status"
@@ -228,7 +228,7 @@ const refreshAvatar = (account: Account) => {
         </button>
         <div class="account-card__more-wrap" @click.stop>
           <button class="account-card__btn account-card__btn--more" type="button" @click="toggleActionMenu($event, account.id)">
-            <span>更多操作</span>
+            <span>自动化设置</span>
             <span class="account-card__more-caret">⌄</span>
           </button>
           <Transition name="action-menu">
@@ -273,8 +273,8 @@ const refreshAvatar = (account: Account) => {
                 <span v-else>{{ (account.accountNote || account.unb || '鱼').charAt(0) }}</span>
               </button>
               <div class="account-identity__content">
-                <strong>{{ account.accountNote || '未命名账号' }}</strong>
-                <span>UNB：{{ account.unb }} · ID：{{ account.id }}</span>
+                <strong>{{ account.unb || '未命名账号' }}</strong>
+                <span>UNB：{{ account.unb }} · ID：{{ account.id }} · 备注：{{ account.accountNote || '添加备注' }}</span>
               </div>
             </div>
           </div>
@@ -317,7 +317,7 @@ const refreshAvatar = (account: Account) => {
               </button>
               <div class="table__action-menu-wrap" @click.stop>
                 <button class="table__action table__action--more" type="button" @click="toggleActionMenu($event, account.id)">
-                  <span>更多操作</span>
+                  <span>自动化设置</span>
                   <span class="table__action-caret">⌄</span>
                 </button>
                 <Transition name="action-menu">

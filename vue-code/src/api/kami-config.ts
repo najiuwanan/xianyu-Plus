@@ -184,6 +184,14 @@ export function deleteKamiItem(id: number) {
     params: { id }
   });
 }
+export function clearUsedKamiItems(kamiConfigId: number) {
+  return request<number>({
+    url: '/kami-config/item/clear-used',
+    method: 'POST',
+    params: { kamiConfigId }
+  });
+}
+
 
 export function resetKamiItem(id: number) {
   return request({

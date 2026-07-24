@@ -228,7 +228,6 @@ const handleSubmit = async () => {
 
         <div class="modal-footer">
           <button class="modal-btn modal-btn-cancel" @click="handleClose">取消</button>
-          <div class="modal-divider"></div>
           <button class="modal-btn modal-btn-primary" :disabled="polishConfigLoading" @click="handleSubmit">{{ polishConfigLoading ? '加载设置中…' : '保存' }}</button>
         </div>
       </div>
@@ -244,20 +243,19 @@ const handleSubmit = async () => {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-end;
   z-index: 2000;
   animation: fadeIn 0.2s ease;
 }
 
 .modal {
-  width: min(480px, calc(100vw - 32px));
-  max-height: min(85vh, 680px);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  width: min(600px, 100vw);
+  height: 100%;
+  max-height: none;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: -18px 0 50px rgba(12, 31, 56, .2);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -265,6 +263,7 @@ const handleSubmit = async () => {
 }
 
 .modal-header {
+  flex: 0 0 auto;
   padding: 18px 20px;
   display: flex;
   align-items: center;
@@ -294,8 +293,11 @@ const handleSubmit = async () => {
 }
 
 .modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 20px;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .editor-tabs {
@@ -531,16 +533,24 @@ const handleSubmit = async () => {
 
 .modal-footer {
   display: flex;
-  height: 48px;
-  border-top: 0.5px solid rgba(0, 0, 0, 0.1);
+  flex: 0 0 auto;
+  gap: 10px;
+  padding: 16px 20px;
+  border-top: 1px solid #e7ebf0;
+  background: #fff;
+  box-shadow: 0 -8px 22px rgba(24, 43, 68, .05);
 }
 
 .modal-btn {
-  flex: 1;
-  border: none;
-  background: transparent;
-  font-size: 16px;
-  font-weight: 500;
+  min-width: 94px;
+  height: 38px;
+  padding: 0 16px;
+  border: 1px solid #d5deea;
+  border-radius: 9px;
+  background: #fff;
+  color: #49617f;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
   transition: opacity 0.15s;
   -webkit-tap-highlight-color: transparent;
@@ -559,16 +569,13 @@ const handleSubmit = async () => {
 }
 
 .modal-btn-primary {
-  color: #007aff;
-  font-weight: 500;
+  margin-left: auto;
+  border-color: #287df0;
+  background: #287df0;
+  color: #fff;
 }
 
 .modal-btn:disabled { cursor: not-allowed; opacity: .5; }
-
-.modal-divider {
-  width: 0.5px;
-  background: rgba(0, 0, 0, 0.1);
-}
 
 @keyframes fadeIn {
   from {
@@ -581,11 +588,11 @@ const handleSubmit = async () => {
 
 @keyframes scaleIn {
   from {
-    transform: scale(0.9);
+    transform: translateX(28px);
     opacity: 0;
   }
   to {
-    transform: scale(1);
+    transform: translateX(0);
     opacity: 1;
   }
 }

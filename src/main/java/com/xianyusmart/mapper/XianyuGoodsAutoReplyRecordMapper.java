@@ -45,17 +45,20 @@ public interface XianyuGoodsAutoReplyRecordMapper {
     XianyuGoodsAutoReplyRecord selectLatestByAccountIdAndSId(@Param("accountId") Long accountId, @Param("sId") String sId);
 
     /** 同一会话的商品默认回复已成功发送后，不再重复发送。 */
-    @Select("SELECT EXISTS(SELECT 1 FROM xianyu_goods_auto_reply_record WHERE xianyu_account_id = #{accountId} AND s_id = #{sId} AND reply_type = #{replyType} AND state = 1)")
-    boolean hasSuccessfulReplyTypeByAccountAndSId(@Param("accountId") Long accountId,
+    @Select("SELECT EXISTS(SELECT 1 FROM xianyu_goods_auto_reply_record WHERE xianyu_account_id = #{accountId} AND s_id = #{sId} AND reply_type = #{replyType} AND state IN (0, 1, 2))")
+    boolean hasActiveReplyTypeByAccountAndSId(@Param("accountId") Long accountId,
                                                   @Param("sId") String sId,
                                                   @Param("replyType") Integer replyType);
 
     /** 同一买家咨询同一商品时，默认回复只允许成功发送一次。 */
-    @Select("SELECT EXISTS(SELECT 1 FROM xianyu_goods_auto_reply_record WHERE xianyu_account_id = #{accountId} AND xy_goods_id = #{xyGoodsId} AND buyer_user_id = #{buyerUserId} AND reply_type = #{replyType} AND state = 1)")
-    boolean hasSuccessfulReplyTypeByAccountAndGoodsAndBuyer(@Param("accountId") Long accountId,
+    @Select("SELECT EXISTS(SELECT 1 FROM xianyu_goods_auto_reply_record WHERE xianyu_account_id = #{accountId} AND xy_goods_id = #{xyGoodsId} AND buyer_user_id = #{buyerUserId} AND reply_type = #{replyType} AND state IN (0, 1, 2))")
+    boolean hasActiveReplyTypeByAccountAndGoodsAndBuyer(@Param("accountId") Long accountId,
                                                              @Param("xyGoodsId") String xyGoodsId,
                                                              @Param("buyerUserId") String buyerUserId,
-                                                             @Param("replyType") Integer replyType);
+                                                         @Param("replyType") Integer replyType);
+
+    @Update("UPDATE xianyu_goods_auto_reply_record SET reply_type = #{replyType} WHERE id = #{id}")
+    int updateReplyType(@Param("id") Long id, @Param("replyType") Integer replyType);
 
     @Select("SELECT * FROM xianyu_goods_auto_reply_record WHERE id = #{id}")
     XianyuGoodsAutoReplyRecord selectById(@Param("id") Long id);

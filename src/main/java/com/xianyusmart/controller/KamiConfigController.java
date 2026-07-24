@@ -139,6 +139,16 @@ public class KamiConfigController {
         }
     }
 
+    @PostMapping("/item/clear-used")
+    public ResultObject<Integer> clearUsedKamiItems(@RequestParam("kamiConfigId") Long kamiConfigId) {
+        try {
+            return kamiConfigService.clearUsedKamiItems(kamiConfigId);
+        } catch (Exception e) {
+            log.error("Failed to clear used card codes, kamiConfigId={}", kamiConfigId, e);
+            return ResultObject.failed("Failed to clear used card codes: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/item/reset")
     public ResultObject<Void> resetKamiItem(@RequestParam("id") Long id) {
         try {

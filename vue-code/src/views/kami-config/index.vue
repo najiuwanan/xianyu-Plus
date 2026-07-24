@@ -9,6 +9,7 @@ import {
   queryKamiItems,
   batchImportKamiItems,
   deleteKamiItem,
+  clearUsedKamiItems,
   resetKamiItem,
   exportKamiItems,
   testKamiApi,
@@ -113,6 +114,7 @@ const rulesExpanded = ref(false)
 
 const filterStatus = ref<number | undefined>(undefined)
 const filterKeyword = ref('')
+const clearingUsedItems = ref(false)
 
 const checkScreenSize = () => {
   isMobile.value = window.innerWidth < 768
@@ -520,6 +522,36 @@ const handleDeleteItem = async (item: KamiItem) => {
   } catch {}
 }
 
+const handleClearUsedItems = async () => {
+  const config = selectedConfig.value
+  if (!config || !isLocalSource.value) return
+
+  const usedCount = config.usedCount || 0
+  if (usedCount === 0) {
+    toast.info('\u5f53\u524d\u5361\u5238\u5e93\u6ca1\u6709\u5df2\u4f7f\u7528\u7684\u5361\u5bc6')
+    return
+  }
+
+  try {
+    await showConfirm(
+      `\u5c06\u6c38\u4e45\u5220\u9664\u5f53\u524d\u5361\u5238\u5e93\u4e2d\u7684 ${usedCount} \u6761\u5df2\u4f7f\u7528\u5361\u5bc6\u3002\u672a\u4f7f\u7528\u3001\u53d1\u8d27\u5904\u7406\u4e2d\u548c\u5f85\u6838\u5bf9\u7684\u5361\u5bc6\u4e0d\u4f1a\u53d7\u5230\u5f71\u54cd\u3002\u5220\u9664\u540e\u65e0\u6cd5\u6062\u590d\u3002`,
+      '\u4e8c\u6b21\u786e\u8ba4\uff1a\u6e05\u7406\u5df2\u4f7f\u7528\u5361\u5bc6'
+    )
+    clearingUsedItems.value = true
+    const res = await clearUsedKamiItems(config.id)
+    if (res.code === 200) {
+      toast.success(`\u5df2\u6e05\u7406 ${res.data || 0} \u6761\u5df2\u4f7f\u7528\u5361\u5bc6`)
+      await loadKamiConfigs()
+      await loadKamiItems()
+    } else {
+      toast.error(res.msg || '\u6e05\u7406\u5931\u8d25')
+    }
+  } catch {
+    // User cancellation intentionally has no feedback.
+  } finally {
+    clearingUsedItems.value = false
+  }
+}
 const handleResetItem = async (item: KamiItem) => {
   try {
     await showConfirm('确定重置该卡券为未使用状态？', '重置确认')
@@ -699,6 +731,7 @@ onUnmounted(() => {
             <button class="btn-default btn-sm" @click="openRelatedGoodsDialog">关联商品 {{ selectedConfig?.relatedGoodsCount || 0 }}</button>
             <button class="btn-primary btn-sm" @click="openApiDialog">编辑卡券库</button>
             <template v-if="isLocalSource">
+              <button class="btn-danger btn-sm" :disabled="clearingUsedItems" @click="handleClearUsedItems">{{ clearingUsedItems ? '\u6e05\u7406\u4e2d\u2026' : `\u6e05\u7406\u5df2\u4f7f\u7528\uff08${selectedConfig?.usedCount || 0}\uff09` }}</button>
               <button class="btn-success btn-sm" @click="openExportDialog">导出</button>
               <button class="btn-warning btn-sm" @click="openAlertDialog">预警</button>
             </template>
@@ -823,6 +856,8 @@ onUnmounted(() => {
                 <button class="btn-default" @click="openRelatedGoodsDialog">关联商品 {{ selectedConfig.relatedGoodsCount || 0 }}</button>
                 <button class="btn-primary" @click="openApiDialog">编辑卡券库</button>
                 <template v-if="isLocalSource">
+                  <button class="btn-danger" :disabled="clearingUsedItems" @click="handleClearUsedItems">{{ clearingUsedItems ? '\u6e05\u7406\u4e2d\u2026' : `\u6e05\u7406\u5df2\u4f7f\u7528\uff08${selectedConfig.usedCount || 0}\uff09` }}</button>
+              <button class="btn-danger btn-sm" :disabled="clearingUsedItems" @click="handleClearUsedItems">{{ clearingUsedItems ? '\u6e05\u7406\u4e2d\u2026' : `\u6e05\u7406\u5df2\u4f7f\u7528\uff08${selectedConfig?.usedCount || 0}\uff09` }}</button>
                   <button class="btn-success" @click="openExportDialog">导出</button>
                   <button class="btn-warning" @click="openAlertDialog">预警配置</button>
                 </template>

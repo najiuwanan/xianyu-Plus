@@ -345,6 +345,31 @@ public class KamiConfigServiceImpl implements KamiConfigService {
 
     @Override
     @Transactional
+    public ResultObject<Integer> clearUsedKamiItems(Long kamiConfigId) {
+        try {
+            if (kamiConfigId == null) {
+                return ResultObject.failed("Card library is required");
+            }
+            XianyuKamiConfig config = kamiConfigMapper.selectById(kamiConfigId);
+            if (config == null) {
+                return ResultObject.failed("Card library not found");
+            }
+            if (!Integer.valueOf(1).equals(config.getSourceType())) {
+                return ResultObject.failed("Only local card libraries can clear used codes");
+            }
+
+            int deleted = kamiItemMapper.deleteUsedByConfigId(kamiConfigId);
+            refreshConfigCounts(kamiConfigId);
+            return ResultObject.success(deleted, "Cleared " + deleted + " used card codes");
+        } catch (Exception e) {
+            log.error("Failed to clear used card codes, kamiConfigId={}", kamiConfigId, e);
+            return ResultObject.failed("Failed to clear used card codes: " + e.getMessage());
+        }
+    }
+
+
+    @Override
+    @Transactional
     public ResultObject<Void> resetKamiItem(Long id) {
         try {
             XianyuKamiItem item = kamiItemMapper.selectById(id);

@@ -441,14 +441,14 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 
 <style scoped>
 .goods-config-mask { position: fixed; inset: 0; z-index: 2100; display: grid; place-items: center; padding: 24px; background: rgba(18, 26, 40, .46); backdrop-filter: blur(4px); }
-.goods-config-dialog { width: min(760px, 100%); max-height: min(820px, calc(100vh - 48px)); overflow: auto; border: 1px solid rgba(255,255,255,.65); border-radius: 20px; background: #fffdf8; box-shadow: 0 24px 64px rgba(21, 36, 58, .25); }
-.goods-config-dialog__header { display: flex; justify-content: space-between; gap: 20px; padding: 24px 28px 20px; border-bottom: 1px solid #eee7d9; }
+.goods-config-dialog { width: min(760px, 100%); max-height: min(820px, calc(100vh - 48px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid rgba(255,255,255,.65); border-radius: 20px; background: #fffdf8; box-shadow: 0 24px 64px rgba(21, 36, 58, .25); }
+.goods-config-dialog__header { position: relative; z-index: 1; display: flex; flex: 0 0 auto; justify-content: space-between; gap: 20px; padding: 24px 28px 20px; border-bottom: 1px solid #eee7d9; background: #fffdf8; }
 .goods-config-dialog__eyebrow { margin: 0 0 6px; color: #a56b00; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
 .goods-config-dialog h2 { margin: 0; color: #172844; font-size: 21px; }
 .goods-config-dialog__header p:not(.goods-config-dialog__eyebrow) { margin: 8px 0 0; color: #758097; font-size: 13px; }
 .goods-config-dialog__close { width: 34px; height: 34px; border: 0; border-radius: 10px; background: #f4f5f7; color: #677087; cursor: pointer; font-size: 24px; line-height: 30px; }
-.goods-config-dialog__content { display: grid; gap: 14px; padding: 20px 28px; }
-.goods-config-dialog__loading { padding: 56px; color: #667085; text-align: center; }
+.goods-config-dialog__content { min-height: 0; display: grid; flex: 1 1 auto; gap: 14px; overflow: auto; padding: 20px 28px; overscroll-behavior: contain; }
+.goods-config-dialog__loading { min-height: 0; flex: 1 1 auto; overflow: auto; padding: 56px; color: #667085; text-align: center; }
 .config-section { padding: 18px; border: 1px solid #e6eaf0; border-radius: 14px; background: #fff; }
 .config-section__title { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
 .config-section__sub-option { margin-top: 14px; padding-top: 14px; border-top: 1px dashed #e5eaf1; }
@@ -477,12 +477,12 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 .default-reply-image__input { display: none; }
 .default-reply-image__preview { max-width: min(260px, 100%); max-height: 220px; border: 1px solid #dce3ec; border-radius: 10px; object-fit: cover; }
 .config-tip { display: flex; gap: 12px; flex-wrap: wrap; padding: 12px 14px; border-radius: 10px; background: #fff6dc; color: #86620d; font-size: 13px; }
-.goods-config-dialog__footer { display: flex; justify-content: flex-end; gap: 10px; padding: 18px 28px 24px; border-top: 1px solid #eee7d9; }
+.goods-config-dialog__footer { position: relative; z-index: 1; display: flex; flex: 0 0 auto; justify-content: flex-end; gap: 10px; padding: 16px 28px; border-top: 1px solid #eee7d9; background: #fffdf8; box-shadow: 0 -8px 20px rgba(35, 51, 74, .04); }
 .btn { min-width: 92px; height: 38px; border-radius: 10px; padding: 0 16px; font: inherit; cursor: pointer; }
 .btn--secondary { border: 1px solid #d8e0eb; background: white; color: #49617f; }
 .btn--primary { border: 0; background: linear-gradient(135deg, #ffbf00, #f3a800); color: #292013; font-weight: 700; box-shadow: 0 7px 16px rgba(240,174,0,.24); }
 .btn:disabled { opacity: .55; cursor: not-allowed; }
 .goods-config-fade-enter-active, .goods-config-fade-leave-active { transition: opacity .18s ease; }
 .goods-config-fade-enter-from, .goods-config-fade-leave-to { opacity: 0; }
-@media (max-width: 620px) { .goods-config-mask { padding: 0; align-items: end; } .goods-config-dialog { width: 100%; max-height: 92vh; border-radius: 20px 20px 0 0; } .goods-config-dialog__header, .goods-config-dialog__content, .goods-config-dialog__footer { padding-left: 18px; padding-right: 18px; } .bargain-grid { grid-template-columns: 1fr; } .bargain-grid__wide { grid-column: auto; } }
+@media (max-width: 620px) { .goods-config-mask { padding: 0; align-items: end; } .goods-config-dialog { width: 100%; max-height: 92vh; border-radius: 20px 20px 0 0; } .goods-config-dialog__header, .goods-config-dialog__content, .goods-config-dialog__footer { padding-left: 18px; padding-right: 18px; } .goods-config-dialog__footer { padding-top: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom)); } .bargain-grid { grid-template-columns: 1fr; } .bargain-grid__wide { grid-column: auto; } }
 </style>
