@@ -18,6 +18,14 @@ const updateChecking = ref(false)
 const versionDialogVisible = ref(false)
 
 const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV]/, '')}` : '未知版本'
+const releaseHighlights = computed(() => {
+  if (updateStatus.value?.updateHighlights?.length) return updateStatus.value.updateHighlights
+  if ((updateStatus.value?.latestVersion || updateStatus.value?.currentVersion || '').replace(/^[vV]/, '').startsWith('2.0.0')) {
+    return ['多账号运营工作台与深蓝导航', '一键擦亮统一范围和账号记录', '固定保存栏、卡密清理与实时日志升级', '默认回复去重与商品发布确认简化']
+  }
+  return []
+})
+
 const updateSummary = computed(() => {
   if (!updateStatus.value) return '正在检查 GitHub 更新…'
   const current = displayVersion(updateStatus.value.currentVersion)
@@ -199,13 +207,13 @@ onUnmounted(() => {
 .layout-container { width: 100%; }
 .workspace { flex: 1; flex-direction: column; overflow: hidden; }
 
-.sidebar { width: 252px; flex: 0 0 252px; display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(180deg, var(--xy-navy-900), var(--xy-navy-950)); border-right: 0; }
-.brand { width: 100%; display: flex; align-items: center; gap: 11px; padding: 24px 22px 20px; border: 0; border-bottom: 1px solid rgba(255,255,255,.1); background: transparent; color: #fff; text-align: left; }
+.sidebar { width: 236px; flex: 0 0 236px; display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(180deg, var(--xy-navy-900), var(--xy-navy-950)); border-right: 0; }
+.brand { width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 18px 16px; border: 0; border-bottom: 1px solid rgba(255,255,255,.1); background: transparent; color: #fff; text-align: left; }
 .brand__mark { width: 40px; height: 40px; display: grid; place-items: center; flex: 0 0 auto; }
 .brand__copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
-.brand__copy strong { color: #fff; font-size: 18px; letter-spacing: -.5px; line-height: 22px; }
+.brand__copy strong { overflow: hidden; color: #fff; font-size: 16px; letter-spacing: -.4px; line-height: 21px; text-overflow: ellipsis; white-space: nowrap; }
 .brand__copy strong em { color: #ffd35c; font-size: 12px; font-style: normal; font-weight: 700; letter-spacing: 0; }
-.brand__copy small { color: rgba(224,235,250,.66); font-size: 11px; line-height: 16px; }
+.brand__copy small { overflow: hidden; color: rgba(224,235,250,.66); font-size: 11px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
 
 .workspace-header { height: 70px; display: flex; flex: 0 0 70px; align-items: center; justify-content: space-between; padding: 0 32px; border-bottom: 1px solid #e9edf3; background: rgba(255,255,255,.96); }
 .workspace-header__actions { min-width: 0; display: flex; align-items: center; gap: 14px; }
