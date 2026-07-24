@@ -57,6 +57,31 @@ class ProductDefaultReplyStrategyTest {
         assertFalse(strategy.shouldReply(config, message));
     }
 
+    @Test
+    void onlyOnceModeUsesStableBuyerAndGoodsInsteadOfChangingSessionId() {
+        XianyuGoodsConfig config = new XianyuGoodsConfig();
+        config.setProductDefaultReplyOn(1);
+        config.setProductDefaultReplyMode(ProductDefaultReplyStrategy.REPLY_MODE_ONCE_PER_BUYER_AND_GOODS);
+        config.setProductDefaultReplyText("您好");
+        ChatMessageData message = message();
+        message.setSenderUserId("buyer-1");
+        message.setSId("a-new-session-id");
+        when(replyRecordMapper.hasSuccessfulReplyTypeByAccountAndGoodsAndBuyer(1L, "goods-1", "buyer-1", 5))
+                .thenReturn(true);
+
+        assertFalse(strategy.shouldReply(config, message));
+    }
+
+    @Test
+    void everyMessageModeDoesNotApplyTheOnceOnlyDeduplication() {
+        XianyuGoodsConfig config = new XianyuGoodsConfig();
+        config.setProductDefaultReplyOn(1);
+        config.setProductDefaultReplyMode(ProductDefaultReplyStrategy.REPLY_MODE_EVERY_MESSAGE);
+        config.setProductDefaultReplyText("您好");
+
+        assertTrue(strategy.shouldReply(config, message()));
+    }
+
     private ChatMessageData message() {
         ChatMessageData message = new ChatMessageData();
         message.setXianyuAccountId(1L);

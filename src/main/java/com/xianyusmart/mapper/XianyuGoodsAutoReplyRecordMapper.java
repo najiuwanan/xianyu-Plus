@@ -50,6 +50,13 @@ public interface XianyuGoodsAutoReplyRecordMapper {
                                                   @Param("sId") String sId,
                                                   @Param("replyType") Integer replyType);
 
+    /** 同一买家咨询同一商品时，默认回复只允许成功发送一次。 */
+    @Select("SELECT EXISTS(SELECT 1 FROM xianyu_goods_auto_reply_record WHERE xianyu_account_id = #{accountId} AND xy_goods_id = #{xyGoodsId} AND buyer_user_id = #{buyerUserId} AND reply_type = #{replyType} AND state = 1)")
+    boolean hasSuccessfulReplyTypeByAccountAndGoodsAndBuyer(@Param("accountId") Long accountId,
+                                                             @Param("xyGoodsId") String xyGoodsId,
+                                                             @Param("buyerUserId") String buyerUserId,
+                                                             @Param("replyType") Integer replyType);
+
     @Select("SELECT * FROM xianyu_goods_auto_reply_record WHERE id = #{id}")
     XianyuGoodsAutoReplyRecord selectById(@Param("id") Long id);
 

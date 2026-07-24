@@ -6,6 +6,7 @@ import lombok.Data;
 @Data
 public class ProductDefaultReplyConfigRespDTO {
     private Integer productDefaultReplyOn = 0;
+    private Integer productDefaultReplyMode = 1;
     private String productDefaultReplyText;
     private String productDefaultReplyImageUrl;
 }

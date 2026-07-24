@@ -8,6 +8,7 @@ public class ProductDefaultReplyConfigReqDTO {
     private Long xianyuAccountId;
     private String xyGoodsId;
     private Integer productDefaultReplyOn;
+    private Integer productDefaultReplyMode = 1;
     private String productDefaultReplyText;
     private String productDefaultReplyImageUrl;
 }

@@ -289,6 +289,14 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.9.8".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "下单通知调整为每笔订单仅推送一次，普通订单和自提订单都会推送，且不会再因自动发货成功重复通知",
+                    "新订单通知增加账号备注和账号 ID，多账号场景可直接识别是哪个账号成交",
+                    "商品默认回复新增“仅首次回复”和“每条消息都回复”设置；仅首次回复按买家和商品去重，避免会话变化导致重复回复"
+            ));
+            return;
+        }
         if ("1.9.7".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "自提订单同步会优先补全买家和商品信息，缺失时明确显示信息同步中",

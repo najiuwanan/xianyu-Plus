@@ -718,23 +718,6 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             if (anySuccess) {
                 updateRecordState(recordId, 1, allContent.toString(), null);
                 
-                // --- 触发多渠道通知 ---
-                try {
-                    String goodsName = "未知商品";
-                    XianyuGoodsInfo goods = goodsInfoMapper.selectOne(new LambdaQueryWrapper<XianyuGoodsInfo>().eq(XianyuGoodsInfo::getXyGoodId, xyGoodsId));
-                    if (goods != null) {
-                        goodsName = goods.getTitle() != null ? goods.getTitle() : goodsName;
-                    }
-                    java.util.Map<String, Object> params = new java.util.HashMap<>();
-                    params.put("orderId", orderId);
-                    params.put("goodsName", goodsName);
-                    params.put("buyerName", buyerUserName);
-                    params.put("content", allContent.toString());
-                    notificationChannelService.dispatchMessage("AUTO_DELIVERY", accountId, params);
-                } catch (Exception e) {
-                    log.error("触发多渠道通知失败", e);
-                }
-
                 XianyuGoodsAutoDeliveryConfig baseConfig = autoDeliveryConfigMapper.findByAccountIdAndGoodsIdNoSku(accountId, xyGoodsId);
                 boolean autoConfirm = (baseConfig != null && baseConfig.getAutoConfirmShipment() != null && baseConfig.getAutoConfirmShipment() == 1);
                 if (autoConfirm) {

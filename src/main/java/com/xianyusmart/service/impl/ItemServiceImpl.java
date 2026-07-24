@@ -1173,6 +1173,7 @@ public class ItemServiceImpl implements ItemService {
         ProductDefaultReplyConfigRespDTO response = new ProductDefaultReplyConfigRespDTO();
         if (config != null) {
             response.setProductDefaultReplyOn(enabled(config.getProductDefaultReplyOn()));
+            response.setProductDefaultReplyMode(normalizeProductDefaultReplyMode(config.getProductDefaultReplyMode()));
             response.setProductDefaultReplyText(config.getProductDefaultReplyText());
             response.setProductDefaultReplyImageUrl(config.getProductDefaultReplyImageUrl());
         }
@@ -1198,6 +1199,7 @@ public class ItemServiceImpl implements ItemService {
 
             XianyuGoodsConfig config = ensureGoodsConfig(goods);
             config.setProductDefaultReplyOn(enabled(reqDTO.getProductDefaultReplyOn()));
+            config.setProductDefaultReplyMode(normalizeProductDefaultReplyMode(reqDTO.getProductDefaultReplyMode()));
             config.setProductDefaultReplyText(trimToNull(reqDTO.getProductDefaultReplyText()));
             config.setProductDefaultReplyImageUrl(normalizeImageUrl(reqDTO.getProductDefaultReplyImageUrl()));
             config.setUpdateTime(nowText());
@@ -1217,6 +1219,11 @@ public class ItemServiceImpl implements ItemService {
         }
         if (!isSwitchValue(reqDTO.getProductDefaultReplyOn())) {
             return "默认回复开关只能选择开启或关闭";
+        }
+        if (reqDTO.getProductDefaultReplyMode() != null
+                && reqDTO.getProductDefaultReplyMode() != 1
+                && reqDTO.getProductDefaultReplyMode() != 2) {
+            return "默认回复频率只能选择仅首次回复或每条消息回复";
         }
         String text = trimToNull(reqDTO.getProductDefaultReplyText());
         String imageUrl = normalizeImageUrl(reqDTO.getProductDefaultReplyImageUrl());
@@ -1241,6 +1248,10 @@ public class ItemServiceImpl implements ItemService {
 
     private Integer enabled(Integer value) {
         return Integer.valueOf(1).equals(value) ? 1 : 0;
+    }
+
+    private Integer normalizeProductDefaultReplyMode(Integer value) {
+        return Integer.valueOf(2).equals(value) ? 2 : 1;
     }
 
     private String trimToNull(String value) {

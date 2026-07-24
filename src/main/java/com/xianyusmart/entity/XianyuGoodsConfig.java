@@ -50,6 +50,9 @@ public class XianyuGoodsConfig {
     /** 商品默认回复开关：同一买家会话仅发送一次。 */
     private Integer productDefaultReplyOn = 0;
 
+    /** 商品默认回复频率：1=同一买家同一商品仅一次，2=每条消息都回复。 */
+    private Integer productDefaultReplyMode = 1;
+
     /** 商品默认回复文字。 */
     private String productDefaultReplyText;
 

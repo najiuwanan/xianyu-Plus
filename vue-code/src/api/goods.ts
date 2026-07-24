@@ -25,6 +25,7 @@ export interface GoodsItemWithConfig {
   xianyuAutoReplyContextOn: number;
   xianyuKeywordReplyOn: number;
   productDefaultReplyOn?: number;
+  productDefaultReplyMode?: number;
   humanInterventionOn: number;
   humanInterventionMinutes: number;
   autoDeliveryType?: number;
@@ -195,6 +196,7 @@ export function updateAutoReplyConfig(data: {
 
 export interface ProductDefaultReplyConfigResponse {
   productDefaultReplyOn: number;
+  productDefaultReplyMode: number;
   productDefaultReplyText?: string;
   productDefaultReplyImageUrl?: string;
 }
@@ -214,6 +216,7 @@ export function updateProductDefaultReplyConfig(data: {
   xianyuAccountId: number;
   xyGoodsId: string;
   productDefaultReplyOn: number;
+  productDefaultReplyMode?: number;
   productDefaultReplyText?: string;
   productDefaultReplyImageUrl?: string;
 }) {

@@ -16,6 +16,8 @@ import java.util.List;
 public class ProductDefaultReplyStrategy implements ReplyStrategy {
 
     public static final int REPLY_TYPE_PRODUCT_DEFAULT = 5;
+    public static final int REPLY_MODE_ONCE_PER_BUYER_AND_GOODS = 1;
+    public static final int REPLY_MODE_EVERY_MESSAGE = 2;
 
     private final XianyuGoodsConfigMapper goodsConfigMapper;
     private final XianyuGoodsAutoReplyRecordMapper replyRecordMapper;
@@ -57,8 +59,17 @@ public class ProductDefaultReplyStrategy implements ReplyStrategy {
                 && trimToNull(config.getProductDefaultReplyImageUrl()) == null) {
             return false;
         }
-        return !replyRecordMapper.hasSuccessfulReplyTypeByAccountAndSId(
-                message.getXianyuAccountId(), message.getSId(), REPLY_TYPE_PRODUCT_DEFAULT);
+        if (Integer.valueOf(REPLY_MODE_EVERY_MESSAGE).equals(config.getProductDefaultReplyMode())) {
+            return true;
+        }
+        String buyerUserId = trimToNull(message.getSenderUserId());
+        if (buyerUserId != null) {
+            return !replyRecordMapper.hasSuccessfulReplyTypeByAccountAndGoodsAndBuyer(
+                    message.getXianyuAccountId(), message.getXyGoodsId(), buyerUserId, REPLY_TYPE_PRODUCT_DEFAULT);
+        }
+        String sessionId = trimToNull(message.getSId());
+        return sessionId != null && !replyRecordMapper.hasSuccessfulReplyTypeByAccountAndSId(
+                message.getXianyuAccountId(), sessionId, REPLY_TYPE_PRODUCT_DEFAULT);
     }
 
     private String trimToNull(String value) {

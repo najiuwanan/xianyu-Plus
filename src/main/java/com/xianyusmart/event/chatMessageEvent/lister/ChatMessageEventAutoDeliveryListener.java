@@ -8,6 +8,7 @@ import com.xianyusmart.event.chatMessageEvent.ChatMessageData;
 import com.xianyusmart.event.chatMessageEvent.ChatMessageReceivedEvent;
 import com.xianyusmart.mapper.XianyuGoodsInfoMapper;
 import com.xianyusmart.service.DeliveryTaskService;
+import com.xianyusmart.service.NotificationChannelService;
 import com.xianyusmart.service.BuyerBlacklistService;
 import com.xianyusmart.entity.XianyuGoodsConfig;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
@@ -57,6 +58,9 @@ public class ChatMessageEventAutoDeliveryListener {
     @Autowired
     private XianyuGoodsOrderMapper orderMapper;
 
+    @Autowired
+    private NotificationChannelService notificationChannelService;
+
     @Async
     @EventListener
     public void handleChatMessageReceived(ChatMessageReceivedEvent event) {
@@ -69,13 +73,15 @@ public class ChatMessageEventAutoDeliveryListener {
 
         try {
             if (isSelfPickupMessage(message)) {
-                persistSelfPickupOrder(accountId, message);
+                if (persistSelfPickupOrder(accountId, message)) {
+                    notifyNewOrder(accountId, message);
+                }
                 return;
             }
 
             XianyuGoodsOrder existing = message.getOrderId() == null || message.getOrderId().isBlank()
                     ? null : orderMapper.selectByAccountIdAndOrderId(accountId, message.getOrderId());
-            if (existing != null && "PICKUP".equalsIgnoreCase(existing.getDeliveryChannel())) {
+            if (existing != null) {
                 return;
             }
 
@@ -83,15 +89,8 @@ public class ChatMessageEventAutoDeliveryListener {
                 return;
             }
 
-            if (message.getXyGoodsId() == null || message.getSId() == null
-                    || message.getOrderId() == null || message.getOrderId().isBlank()) {
+            if (message.getOrderId() == null || message.getOrderId().isBlank()) {
                 log.warn("【账号{}】消息缺少商品ID或会话ID，无法触发自动发货: pnmId={}", accountId, message.getPnmId());
-                return;
-            }
-
-            if (blacklistService.isBlacklisted(accountId, message.getSenderUserId())) {
-                log.warn("【账号{}】黑名单买家订单已拦截，不创建自动发货任务: buyerUserId={}, orderId={}",
-                        accountId, message.getSenderUserId(), message.getOrderId());
                 return;
             }
 
@@ -100,13 +99,13 @@ public class ChatMessageEventAutoDeliveryListener {
                     accountId, message.getXyGoodsId(), message.getSenderUserId(), message.getOrderId());
 
             Long xianyuGoodsId = resolveXianyuGoodsId(accountId, message.getXyGoodsId());
-            if (xianyuGoodsId == null) {
-                return;
-            }
-
             XianyuGoodsConfig goodsConfig = goodsConfigMapper.selectByAccountAndGoodsId(accountId, message.getXyGoodsId());
-            if (goodsConfig == null || goodsConfig.getXianyuAutoDeliveryOn() == null || goodsConfig.getXianyuAutoDeliveryOn() != 1) {
-                log.info("【账号{}】商品未开启自动发货，跳过: xyGoodsId={}", accountId, message.getXyGoodsId());
+            boolean autoDeliveryEnabled = xianyuGoodsId != null && goodsConfig != null
+                    && Integer.valueOf(1).equals(goodsConfig.getXianyuAutoDeliveryOn());
+            boolean blacklisted = blacklistService.isBlacklisted(accountId, message.getSenderUserId());
+            if (!autoDeliveryEnabled || blacklisted) {
+                recordOrderWithoutDelivery(accountId, xianyuGoodsId, message, blacklisted);
+                notifyNewOrder(accountId, message);
                 return;
             }
 
@@ -114,6 +113,7 @@ public class ChatMessageEventAutoDeliveryListener {
             if (recordId == null) {
                 return;
             }
+            notifyNewOrder(accountId, message);
 
         } catch (Exception e) {
             log.error("【账号{}】处理自动发货异常: pnmId={}", accountId, message.getPnmId(), e);
@@ -143,11 +143,11 @@ public class ChatMessageEventAutoDeliveryListener {
     }
 
     /** Records a pickup transaction without creating an automatic delivery task. */
-    private void persistSelfPickupOrder(Long accountId, ChatMessageData message) {
+    private boolean persistSelfPickupOrder(Long accountId, ChatMessageData message) {
         XianyuGoodsOrder existing = orderMapper.selectByAccountIdAndOrderId(accountId, message.getOrderId());
         if (existing != null) {
             orderMapper.markAsSelfPickup(existing.getId());
-            return;
+            return false;
         }
         XianyuGoodsOrder record = new XianyuGoodsOrder();
         record.setXianyuAccountId(accountId);
@@ -168,9 +168,36 @@ public class ChatMessageEventAutoDeliveryListener {
         record.setTradeStatusText("自提待交接");
         orderMapper.insert(record);
         log.info("【账号{}】已记录自提订单，跳过自动发货: orderId={}", accountId, message.getOrderId());
+        return true;
+    }
+
+    private void notifyNewOrder(Long accountId, ChatMessageData message) {
+        try {
+            String goodsName = "信息同步中";
+            if (message.getXyGoodsId() != null && !message.getXyGoodsId().isBlank()) {
+                XianyuGoodsInfo goods = goodsInfoMapper.selectOne(new QueryWrapper<XianyuGoodsInfo>()
+                        .eq("xy_good_id", message.getXyGoodsId())
+                        .eq("xianyu_account_id", accountId));
+                if (goods != null && goods.getTitle() != null && !goods.getTitle().isBlank()) {
+                    goodsName = goods.getTitle();
+                }
+            }
+            java.util.Map<String, Object> params = new java.util.HashMap<>();
+            params.put("orderId", message.getOrderId());
+            params.put("goodsName", goodsName);
+            params.put("buyerName", message.getSenderUserName() == null ? "信息同步中" : message.getSenderUserName());
+            if (notificationChannelService != null) {
+                notificationChannelService.dispatchMessage("AUTO_DELIVERY", accountId, params);
+            }
+        } catch (Exception e) {
+            log.warn("【账号{}】新订单通知发送失败: orderId={}", accountId, message.getOrderId(), e);
+        }
     }
 
     private Long resolveXianyuGoodsId(Long accountId, String xyGoodsId) {
+        if (xyGoodsId == null || xyGoodsId.isBlank()) {
+            return null;
+        }
         QueryWrapper<XianyuGoodsInfo> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("xy_good_id", xyGoodsId);
         queryWrapper.eq("xianyu_account_id", accountId);
@@ -203,5 +230,29 @@ public class ChatMessageEventAutoDeliveryListener {
         } catch (Exception e) {
             throw new RuntimeException("创建订单记录失败", e);
         }
+    }
+
+    /** Records every paid order but keeps non-automatic orders out of the delivery queue. */
+    private void recordOrderWithoutDelivery(Long accountId, Long xianyuGoodsId,
+                                            ChatMessageData message, boolean blacklisted) {
+        XianyuGoodsOrder record = new XianyuGoodsOrder();
+        record.setXianyuAccountId(accountId);
+        record.setXianyuGoodsId(xianyuGoodsId);
+        record.setXyGoodsId(message.getXyGoodsId());
+        record.setPnmId(message.getPnmId() == null || message.getPnmId().isBlank()
+                ? "order_" + message.getOrderId() : message.getPnmId());
+        record.setOrderId(message.getOrderId());
+        record.setBuyerUserId(message.getSenderUserId());
+        record.setBuyerUserName(message.getSenderUserName());
+        record.setSid(message.getSId());
+        record.setState(0);
+        record.setConfirmState(0);
+        record.setDeliveryStatus(DeliveryStatus.SKIPPED.name());
+        record.setDeliveryChannel("ORDER_NOTIFICATION");
+        record.setTradeStatus("PENDING_SHIPMENT");
+        record.setTradeStatusText(blacklisted ? "黑名单买家，未进入自动发货" : "等待卖家处理");
+        orderMapper.insert(record);
+        log.info("【账号{}】记录新订单但不创建自动发货任务: orderId={}, blacklisted={}",
+                accountId, message.getOrderId(), blacklisted);
     }
 }

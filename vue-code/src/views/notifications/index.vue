@@ -97,14 +97,14 @@
         <div class="checkbox-group">
           <div class="notify-item">
             <label class="checkbox-label">
-              <input type="checkbox" v-model="formConfig.notifyAutoDelivery" /> 自动发货成功通知
+              <input type="checkbox" v-model="formConfig.notifyAutoDelivery" /> 新订单通知（每笔仅一次）
             </label>
             <div class="template-config" v-if="formConfig.notifyAutoDelivery">
               <div class="template-config__header">
                 <label>自定义正文模板</label>
                 <button type="button" @click="restoreTemplate('AUTO_DELIVERY')">恢复示例</button>
               </div>
-              <p class="template-variables">可用变量：{orderId}、{goodsName}、{buyerName}、{content}</p>
+              <p class="template-variables">可用变量：{accountNote}、{accountId}、{orderId}、{goodsName}、{buyerName}</p>
               <textarea v-model="formConfig.templates.AUTO_DELIVERY.content" rows="5"></textarea>
             </div>
           </div>
@@ -292,7 +292,7 @@ const EMAIL_WS_DISCONNECT_NOTIFY_KEY = 'email_notify_ws_disconnect_enabled'
 const EMAIL_COOKIE_EXPIRE_NOTIFY_KEY = 'email_notify_cookie_expire_enabled'
 
 const templateExamples = {
-  AUTO_DELIVERY: '订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}\n发货内容：\n{content}',
+  AUTO_DELIVERY: '账号：{accountNote}（ID：{accountId}）\n订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}',
   ACCOUNT_OFFLINE: '账号：{accountNote}（ID：{accountId}）\n原因：{reason}',
   NEW_MESSAGE: '商品：{goodsName}\n买家：{buyerName}\n买家消息：\n{msgContent}\n原因：{reason}',
   AUTOMATION_EXCEPTION: '类型：{action}\n账号：{accountNote}（ID：{accountId}）\n订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}\n原因：{reason}'

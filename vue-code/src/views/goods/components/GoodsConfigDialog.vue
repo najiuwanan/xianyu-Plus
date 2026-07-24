@@ -38,6 +38,7 @@ const form = reactive({
   aiEnabled: false,
   keywordEnabled: false,
   productDefaultReplyEnabled: false,
+  productDefaultReplyMode: 1,
   productDefaultReplyText: '',
   productDefaultReplyImageUrl: '',
   aiPrompt: '',
@@ -68,6 +69,7 @@ const loadConfig = async () => {
   form.aiEnabled = props.item.xianyuAutoReplyOn === 1
   form.keywordEnabled = props.item.xianyuKeywordReplyOn === 1
   form.productDefaultReplyEnabled = props.item.productDefaultReplyOn === 1
+  form.productDefaultReplyMode = props.item.productDefaultReplyMode === 2 ? 2 : 1
   form.productDefaultReplyText = ''
   form.productDefaultReplyImageUrl = ''
   form.aiPrompt = ''
@@ -110,6 +112,7 @@ const loadConfig = async () => {
     }
     if ((defaultReplyResponse.code === 0 || defaultReplyResponse.code === 200) && defaultReplyResponse.data) {
       form.productDefaultReplyEnabled = defaultReplyResponse.data.productDefaultReplyOn === 1
+      form.productDefaultReplyMode = defaultReplyResponse.data.productDefaultReplyMode === 2 ? 2 : 1
       form.productDefaultReplyText = defaultReplyResponse.data.productDefaultReplyText || ''
       form.productDefaultReplyImageUrl = defaultReplyResponse.data.productDefaultReplyImageUrl || ''
     }
@@ -190,6 +193,7 @@ const save = async () => {
       xianyuAccountId: props.accountId,
       xyGoodsId: props.item.item.xyGoodId,
       productDefaultReplyOn: form.productDefaultReplyEnabled ? 1 : 0,
+      productDefaultReplyMode: form.productDefaultReplyMode,
       productDefaultReplyText: defaultReplyText || undefined,
       productDefaultReplyImageUrl: defaultReplyImageUrl || undefined
     })
@@ -272,6 +276,13 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
                 </label>
               </div>
               <template v-if="form.productDefaultReplyEnabled">
+                <label class="field">
+                  <span>回复频率</span>
+                  <select v-model.number="form.productDefaultReplyMode">
+                    <option :value="1">仅首次回复（同一买家咨询同一商品只回复一次）</option>
+                    <option :value="2">每条消息都回复</option>
+                  </select>
+                </label>
                 <label class="field">
                   <span>默认回复文字</span>
                   <textarea v-model="form.productDefaultReplyText" rows="3" maxlength="2000" placeholder="例如：您好，商品在售。下方图片包含使用/下单说明，有问题请继续留言。"></textarea>
