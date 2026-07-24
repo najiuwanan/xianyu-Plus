@@ -266,7 +266,10 @@ public class PendingOrderPollService {
         order.put("buyerInfoVO", Map.of(
                 "userNick", nullToEmpty(message.getSenderUserName()),
                 "userId", nullToEmpty(message.getSenderUserId())));
-        order.put("itemVO", Map.of("title", firstNonBlank(findNestedText(payload, Set.of("itemtitle", "goodstitle", "title")), "")));
+        // Map.of does not accept null. Some self-pickup transaction cards carry an
+        // item id but omit the title, so keep the record importable in that case.
+        String itemTitle = firstNonBlank(findNestedText(payload, Set.of("itemtitle", "goodstitle", "title")), "");
+        order.put("itemVO", Map.of("title", nullToEmpty(itemTitle)));
         applyLocalMessageTradeStatus(order, source, rawStatus);
         return order;
     }

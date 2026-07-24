@@ -1,12 +1,15 @@
 package com.xianyusmart.service;
 
+import com.xianyusmart.entity.XianyuChatMessage;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class PendingOrderPollServiceTest {
 
@@ -36,5 +39,26 @@ class PendingOrderPollServiceTest {
                 .filterRecentHistoryOrders(List.of(pickupOrder));
 
         assertEquals(List.of(pickupOrder), filtered);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void importsPickupCardWhenItOmitsTheGoodsTitle() throws Exception {
+        XianyuChatMessage message = new XianyuChatMessage();
+        message.setPnmId("pickup-message-1");
+        message.setMsgContent("SELF_PICKUP orderId=123456");
+        message.setCompleteMsg("");
+        message.setXyGoodsId("item-1");
+
+        PendingOrderPollService service = new PendingOrderPollService();
+        Method method = PendingOrderPollService.class
+                .getDeclaredMethod("toSelfPickupHistoryOrder", XianyuChatMessage.class);
+        method.setAccessible(true);
+
+        Map<String, Object> order = (Map<String, Object>) method.invoke(service, message);
+
+        assertNotNull(order);
+        Map<String, Object> item = (Map<String, Object>) order.get("itemVO");
+        assertEquals("", item.get("title"));
     }
 }
