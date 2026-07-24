@@ -181,6 +181,9 @@ const getDeliveryText = (state: number, deliveryStatus?: string) => {
 const isSelfPickup = (order: DeliveryRecordItem) =>
   (order.deliveryChannel || '').toUpperCase() === 'PICKUP'
 
+const getOrderIdentityText = (order: DeliveryRecordItem, value?: string) =>
+  value || (isSelfPickup(order) ? '信息同步中' : '-')
+
 const getOrderDeliveryText = (order: DeliveryRecordItem) =>
   order.blacklisted ? '黑名单拦截' : isSelfPickup(order) ? '自提待交接' : getDeliveryText(order.state, order.deliveryStatus)
 
@@ -329,6 +332,16 @@ const getDeliveryPresentation = (order: DeliveryRecordItem): StatusPresentation 
   return { text: '等待发货', tone: 'warning' }
 }
 
+const getDetailDeliveryPresentation = (order: any): StatusPresentation => {
+  if (isSelfPickup(order)) return { text: '自提待交接（无需发货）', tone: 'muted' }
+  return getDeliveryPresentation(order)
+}
+
+const getDetailDeliveryColor = (order: any) => {
+  const tone = getDetailDeliveryPresentation(order).tone
+  return tone === 'success' ? '#34c759' : tone === 'danger' ? '#ff3b30' : tone === 'warning' ? '#ff9f0a' : '#637085'
+}
+
 const getRatePresentation = (order: DeliveryRecordItem): StatusPresentation => {
   if (order.rateEnabled !== 1) return { text: '未启用', tone: 'muted' }
   switch (order.rateStatus) {
@@ -398,7 +411,7 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
         <div class="order-card__row">
           <IconShoppingBag />
           <span class="order-card__label">商品</span>
-          <span class="order-card__value text-ellipsis-10" :title="order.goodsTitle || '-'">{{ order.goodsTitle || '-' }}</span>
+          <span class="order-card__value text-ellipsis-10" :title="getOrderIdentityText(order, order.goodsTitle)">{{ getOrderIdentityText(order, order.goodsTitle) }}</span>
         </div>
         <div v-if="order.skuName" class="order-card__row">
           <span class="order-card__label"></span>
@@ -408,7 +421,7 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
         <div class="order-card__row">
           <IconUser />
           <span class="order-card__label">买家</span>
-          <span class="order-card__value">{{ order.buyerUserName || '-' }}</span>
+          <span class="order-card__value">{{ getOrderIdentityText(order, order.buyerUserName) }}</span>
         </div>
         <div class="order-card__row">
           <IconClock />
@@ -473,9 +486,9 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
           </td>
           <td class="table__td table__td--product">
             <div class="order-title-cell">
-              <span class="order-title-cell__name text-ellipsis-10" :title="order.goodsTitle || '-'">{{ order.goodsTitle || '-' }}</span>
+              <span class="order-title-cell__name text-ellipsis-10" :title="getOrderIdentityText(order, order.goodsTitle)">{{ getOrderIdentityText(order, order.goodsTitle) }}</span>
               <span v-if="order.skuName" class="order-title-cell__meta">规格：{{ order.skuName }}</span>
-              <span class="order-title-cell__meta">买家：{{ order.buyerUserName || '-' }}</span>
+              <span class="order-title-cell__meta">买家：{{ getOrderIdentityText(order, order.buyerUserName) }}</span>
             </div>
           </td>
           <td class="table__td table__td--trade">
@@ -657,15 +670,15 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
                   </div>
                   <div class="detail-dialog__row">
                     <span class="detail-dialog__label">发货状态</span>
-                    <span class="detail-dialog__value" :style="{ color: detailData.state === 1 ? '#34c759' : '#ff3b30' }">{{ detailData.state === 1 ? '成功' : '失败' }}</span>
+                    <span class="detail-dialog__value" :style="{ color: getDetailDeliveryColor(detailData) }">{{ getDetailDeliveryPresentation(detailData).text }}</span>
                   </div>
-                  <div v-if="detailData.failReason" class="detail-dialog__row">
+                  <div v-if="detailData.failReason && !isSelfPickup(detailData)" class="detail-dialog__row">
                     <span class="detail-dialog__label">失败原因</span>
                     <span class="detail-dialog__value detail-dialog__fail">{{ detailData.failReason }}</span>
                   </div>
                   <div class="detail-dialog__row">
-                    <span class="detail-dialog__label">确认状态</span>
-                    <span class="detail-dialog__value">{{ detailData.confirmState === 1 ? '已确认' : '未确认' }}</span>
+                    <span class="detail-dialog__label">{{ isSelfPickup(detailData) ? '交接状态' : '确认状态' }}</span>
+                    <span class="detail-dialog__value">{{ isSelfPickup(detailData) ? '等待买家自提' : (detailData.confirmState === 1 ? '已确认' : '未确认') }}</span>
                   </div>
                   <div v-if="detailData.createTime" class="detail-dialog__row">
                     <span class="detail-dialog__label">记录时间</span>

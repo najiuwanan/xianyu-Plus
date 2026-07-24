@@ -289,6 +289,14 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("1.9.7".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "自提订单同步会优先补全买家和商品信息，缺失时明确显示信息同步中",
+                    "自提订单详情统一显示自提待交接，无需发货，不再误报发货失败",
+                    "历史订单被识别为自提后会清除旧的发货失败状态，并继续留在订单管理"
+            ));
+            return;
+        }
         if ("1.9.6".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "修复自提订单同步时交易卡片缺少商品标题会导致同步失败的问题",

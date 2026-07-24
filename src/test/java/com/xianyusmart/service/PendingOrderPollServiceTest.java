@@ -1,8 +1,10 @@
 package com.xianyusmart.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xianyusmart.entity.XianyuChatMessage;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
@@ -60,5 +62,32 @@ class PendingOrderPollServiceTest {
         assertNotNull(order);
         Map<String, Object> item = (Map<String, Object>) order.get("itemVO");
         assertEquals("", item.get("title"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void importsBuyerAndGoodsDetailsFromPickupCardPayload() throws Exception {
+        XianyuChatMessage message = new XianyuChatMessage();
+        message.setPnmId("pickup-message-2");
+        message.setCompleteMsg("""
+                {"onlyTakeSelf":true,"orderId":"123457","itemTitle":"祖传水杯","merchantBuyerVO":{"userNick":"测试买家","userId":"buyer-1"}}
+                """);
+        message.setXyGoodsId("item-2");
+
+        PendingOrderPollService service = new PendingOrderPollService();
+        Field mapperField = PendingOrderPollService.class.getDeclaredField("objectMapper");
+        mapperField.setAccessible(true);
+        mapperField.set(service, new ObjectMapper());
+        Method method = PendingOrderPollService.class
+                .getDeclaredMethod("toSelfPickupHistoryOrder", XianyuChatMessage.class);
+        method.setAccessible(true);
+
+        Map<String, Object> order = (Map<String, Object>) method.invoke(service, message);
+
+        Map<String, Object> item = (Map<String, Object>) order.get("itemVO");
+        Map<String, Object> buyer = (Map<String, Object>) order.get("buyerInfoVO");
+        assertEquals("祖传水杯", item.get("title"));
+        assertEquals("测试买家", buyer.get("userNick"));
+        assertEquals("buyer-1", buyer.get("userId"));
     }
 }

@@ -33,6 +33,7 @@ public class PendingOrderPollService {
 
     private static final int HISTORY_DAYS = 30;
     private static final int LOCAL_PICKUP_CANDIDATE_LIMIT = 500;
+    private static final int LOCAL_PICKUP_DETAIL_ENRICH_LIMIT = 20;
     private static final DateTimeFormatter DASHED_ORDER_TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final DateTimeFormatter SLASHED_ORDER_TIME = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
     private static final Set<String> ORDER_ID_KEYS = Set.of("orderid", "tradeid", "tid");
@@ -224,10 +225,31 @@ public class PendingOrderPollService {
             }
         }
         int synced = syncOrderHistoryToDb(accountId, new ArrayList<>(ordersById.values()));
+        enrichMissingPickupDetails(accountId, ordersById.keySet());
         if (synced > 0) {
             log.info("Reconciled {} self-pickup order(s) from local WebSocket cards for accountId={}", synced, accountId);
         }
         return synced;
+    }
+
+    /**
+     * WebSocket pickup cards may omit the buyer and item title.  Enrich only a
+     * small number of incomplete records so manual sync can return useful data
+     * immediately without turning a history sync into an unbounded detail poll.
+     */
+    private void enrichMissingPickupDetails(Long accountId, Iterable<String> orderIds) {
+        int attempted = 0;
+        for (String orderId : orderIds) {
+            if (attempted >= LOCAL_PICKUP_DETAIL_ENRICH_LIMIT) {
+                return;
+            }
+            XianyuGoodsOrder record = orderMapper.selectByAccountIdAndOrderId(accountId, orderId);
+            if (record == null || (!isBlank(record.getBuyerUserName()) && !isBlank(record.getGoodsTitle()))) {
+                continue;
+            }
+            enrichFromDetailApi(accountId, orderId, record);
+            attempted++;
+        }
     }
 
     private Map<String, Object> toSelfPickupHistoryOrder(XianyuChatMessage message) {
@@ -263,12 +285,19 @@ public class PendingOrderPollService {
         Map<String, Object> order = new LinkedHashMap<>();
         order.put("commonData", commonData);
         order.put("postFee", Map.of("onlyTakeSelf", true));
+        String buyerNick = firstNonBlank(
+                message.getSenderUserName(),
+                findNestedText(payload, Set.of("buyername", "buyernick", "buyerusername", "usernick")));
+        String buyerUserId = firstNonBlank(
+                message.getSenderUserId(),
+                findNestedText(payload, Set.of("buyerid", "buyeruserid", "userid")));
         order.put("buyerInfoVO", Map.of(
-                "userNick", nullToEmpty(message.getSenderUserName()),
-                "userId", nullToEmpty(message.getSenderUserId())));
+                "userNick", nullToEmpty(buyerNick),
+                "userId", nullToEmpty(buyerUserId)));
         // Map.of does not accept null. Some self-pickup transaction cards carry an
         // item id but omit the title, so keep the record importable in that case.
-        String itemTitle = firstNonBlank(findNestedText(payload, Set.of("itemtitle", "goodstitle", "title")), "");
+        String itemTitle = firstNonBlank(findNestedText(payload,
+                Set.of("itemtitle", "goodstitle", "goodsname", "itemname", "title")), "");
         order.put("itemVO", Map.of("title", nullToEmpty(itemTitle)));
         applyLocalMessageTradeStatus(order, source, rawStatus);
         return order;
@@ -614,6 +643,10 @@ public class PendingOrderPollService {
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 
     private boolean isAutoDeliveryEnabled(Long accountId, String xyGoodsId) {

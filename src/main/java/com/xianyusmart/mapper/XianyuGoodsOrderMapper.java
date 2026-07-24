@@ -182,7 +182,8 @@ public interface XianyuGoodsOrderMapper {
     int updateStateContentAndFailReason(@Param("id") Long id, @Param("state") Integer state, @Param("content") String content, @Param("failReason") String failReason);
 
     /** A pickup transaction must never remain eligible for a logistics task. */
-    @Update("UPDATE xianyu_goods_order SET delivery_status = 'SKIPPED', delivery_channel = 'PICKUP', " +
+    @Update("UPDATE xianyu_goods_order SET state = 0, confirm_state = 0, fail_reason = NULL, " +
+            "delivery_status = 'SKIPPED', delivery_channel = 'PICKUP', " +
             "next_retry_time = NULL, lease_owner = NULL, lease_expire_time = NULL, " +
             "last_error_code = NULL, last_error_message = NULL WHERE id = #{id}")
     int markAsSelfPickup(@Param("id") Long id);
@@ -393,7 +394,15 @@ public interface XianyuGoodsOrderMapper {
     @Update("UPDATE xianyu_goods_order SET sku_name = #{skuName} WHERE id = #{id}")
     int updateSkuName(@Param("id") Long id, @Param("skuName") String skuName);
 
-    @Update("UPDATE xianyu_goods_order SET buyer_user_name = #{buyerUserName}, order_create_time = #{orderCreateTime}, pay_success_time = #{paySuccessTime}, consign_time = #{consignTime}, sku_name = #{skuName}, goods_title = #{goodsTitle}, total_price = #{totalPrice}, buy_num = #{buyNum} WHERE id = #{id}")
+    @Update("UPDATE xianyu_goods_order SET " +
+            "buyer_user_name = COALESCE(NULLIF(#{buyerUserName}, ''), buyer_user_name), " +
+            "order_create_time = COALESCE(NULLIF(#{orderCreateTime}, ''), order_create_time), " +
+            "pay_success_time = COALESCE(NULLIF(#{paySuccessTime}, ''), pay_success_time), " +
+            "consign_time = COALESCE(NULLIF(#{consignTime}, ''), consign_time), " +
+            "sku_name = COALESCE(NULLIF(#{skuName}, ''), sku_name), " +
+            "goods_title = COALESCE(NULLIF(#{goodsTitle}, ''), goods_title), " +
+            "total_price = COALESCE(NULLIF(#{totalPrice}, ''), total_price), " +
+            "buy_num = COALESCE(#{buyNum}, buy_num) WHERE id = #{id}")
     int updateOrderDetail(@Param("id") Long id, @Param("buyerUserName") String buyerUserName, @Param("orderCreateTime") String orderCreateTime, @Param("paySuccessTime") String paySuccessTime, @Param("consignTime") String consignTime, @Param("skuName") String skuName, @Param("goodsTitle") String goodsTitle, @Param("totalPrice") String totalPrice, @Param("buyNum") Integer buyNum);
 
     @Update("UPDATE xianyu_goods_order SET " +
