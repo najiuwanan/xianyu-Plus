@@ -235,7 +235,7 @@ const rateStatusText = (record: OrderAutomationRecord) => {
 
 const rateStatusClass = (record: OrderAutomationRecord) => {
   if (record.rateStatus === 3 && record.confirmState === 1) return 'status--waiting'
-  return rateStatusClass(record)
+  return statusClass(record.rateEnabled, record.rateStatus)
 }
 
 const statusClass = (enabled: number, status: number) => {
