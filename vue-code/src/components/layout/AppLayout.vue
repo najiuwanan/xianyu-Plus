@@ -21,7 +21,7 @@ const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV
 const releaseHighlights = computed(() => {
   if (updateStatus.value?.updateHighlights?.length) return updateStatus.value.updateHighlights
   if ((updateStatus.value?.latestVersion || updateStatus.value?.currentVersion || '').replace(/^[vV]/, '').startsWith('2.0.0')) {
-    return ['多账号运营工作台与深蓝导航', '一键擦亮统一范围和账号记录', '固定保存栏、卡密清理与实时日志升级', '默认回复去重与商品发布确认简化']
+    return ['原创闲鱼黄鱼标记、深海军蓝导航与高对比图标', '仪表盘升级为商家待办、账号状态、今日提醒和真实趋势', '一键擦亮统一范围和账号记录；账号快捷入口直达擦亮页', '固定保存栏、卡密清理、实时日志升级与默认回复严格去重', '商品发布简化为核对后确认，保留失败表单方便重试']
   }
   return []
 })
