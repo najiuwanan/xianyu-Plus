@@ -95,28 +95,62 @@ public class ItemPolishServiceImpl implements ItemPolishService {
 
     @Override
     public Map<String, Object> getOverview(Long accountId, int recordLimit) {
-        validateAccount(accountId);
-        XianyuItemPolishConfig config = getOrCreateConfig(accountId);
         int limit = recordLimit <= 0 ? DEFAULT_RECORD_LIMIT : Math.min(recordLimit, MAX_RECORD_LIMIT);
-        List<XianyuItemPolishRecord> records = recordMapper.selectList(
-                new LambdaQueryWrapper<XianyuItemPolishRecord>()
-                        .eq(XianyuItemPolishRecord::getXianyuAccountId, accountId)
-                        .orderByDesc(XianyuItemPolishRecord::getCreateTime)
-                        .last("LIMIT " + limit));
-        long onSaleCount = goodsInfoMapper.selectCount(
-                new LambdaQueryWrapper<XianyuGoodsInfo>()
-                        .eq(XianyuGoodsInfo::getXianyuAccountId, accountId)
-                        .eq(XianyuGoodsInfo::getStatus, 0));
+        LambdaQueryWrapper<XianyuItemPolishRecord> recordQuery = new LambdaQueryWrapper<XianyuItemPolishRecord>()
+                .orderByDesc(XianyuItemPolishRecord::getCreateTime)
+                .last("LIMIT " + limit);
+        if (accountId != null) {
+            validateAccount(accountId);
+            recordQuery.eq(XianyuItemPolishRecord::getXianyuAccountId, accountId);
+        }
+        List<XianyuItemPolishRecord> records = recordMapper.selectList(recordQuery);
+        enrichRecordAccounts(records);
+
+        XianyuItemPolishConfig config;
+        long onSaleCount;
+        boolean running;
+        if (accountId != null) {
+            config = getOrCreateConfig(accountId);
+            onSaleCount = goodsInfoMapper.selectCount(new LambdaQueryWrapper<XianyuGoodsInfo>()
+                    .eq(XianyuGoodsInfo::getXianyuAccountId, accountId)
+                    .eq(XianyuGoodsInfo::getStatus, 0));
+            running = runningAccountIds.contains(accountId);
+        } else {
+            List<XianyuItemPolishConfig> configs = configMapper.selectList(null);
+            config = new XianyuItemPolishConfig();
+            config.setLastRunTotal(configs.stream().mapToInt(item -> item.getLastRunTotal() == null ? 0 : item.getLastRunTotal()).sum());
+            config.setLastRunSuccess(configs.stream().mapToInt(item -> item.getLastRunSuccess() == null ? 0 : item.getLastRunSuccess()).sum());
+            config.setLastRunFailed(configs.stream().mapToInt(item -> item.getLastRunFailed() == null ? 0 : item.getLastRunFailed()).sum());
+            config.setLastRunAt(configs.stream().map(XianyuItemPolishConfig::getLastRunAt)
+                    .filter(java.util.Objects::nonNull).max(java.time.LocalDateTime::compareTo).orElse(null));
+            config.setLastRunMessage("All accounts aggregate");
+            onSaleCount = goodsInfoMapper.selectCount(new LambdaQueryWrapper<XianyuGoodsInfo>()
+                    .eq(XianyuGoodsInfo::getStatus, 0));
+            running = !runningAccountIds.isEmpty();
+        }
 
         Map<String, Object> result = new HashMap<>();
         result.put("config", config);
         result.put("records", records);
         result.put("onSaleCount", onSaleCount);
-        result.put("running", runningAccountIds.contains(accountId));
+        result.put("running", running);
+        result.put("allAccounts", accountId == null);
         return result;
     }
 
-    @Override
+    private void enrichRecordAccounts(List<XianyuItemPolishRecord> records) {
+        if (records.isEmpty()) return;
+        Map<Long, XianyuAccount> accounts = accountMapper.selectList(null).stream()
+                .collect(java.util.stream.Collectors.toMap(XianyuAccount::getId, account -> account, (left, right) -> left));
+        for (XianyuItemPolishRecord record : records) {
+            XianyuAccount account = accounts.get(record.getXianyuAccountId());
+            if (account != null) {
+                record.setAccountNote(account.getAccountNote());
+                record.setAccountUnb(account.getUnb());
+            }
+        }
+    }
+@Override
     public XianyuItemPolishConfig saveConfig(Long accountId, Integer enabled, String scheduleTime) {
         validateAccount(accountId);
         XianyuItemPolishConfig config = getOrCreateConfig(accountId);

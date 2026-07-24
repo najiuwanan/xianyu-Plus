@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { getAccountList } from '@/api/account'
 import { deleteItemPolishRecord, getItemPolishOverview, runItemPolish, runItemPolishBatch, type ItemPolishOverview, type ItemPolishRecord } from '@/api/item-polish'
 import type { Account } from '@/types'
 import { showConfirm, showError, showInfo, showSuccess } from '@/utils'
 
+const route = useRoute()
 const accounts = ref<Account[]>([])
 const selectedAccountId = ref<number | null>(null)
 const overview = ref<ItemPolishOverview | null>(null)
@@ -20,13 +22,14 @@ const formatTime = (value?: string) => {
 }
 
 const isSkippedRecord = (record: ItemPolishRecord) => record.success === 1 && (record.message || '').includes('跳过')
+const isAllAccounts = computed(() => selectedAccountId.value === null)
 const eligibleBatchAccounts = computed(() => accounts.value.filter(account => account.status === 1))
 
 const loadOverview = async (silent = false) => {
   if (!selectedAccountId.value) return
   if (!silent) loading.value = true
   try {
-    const response = await getItemPolishOverview(selectedAccountId.value)
+    const response = await getItemPolishOverview(selectedAccountId.value ?? undefined)
     if (response.code !== 0 && response.code !== 200) throw new Error(response.msg || '加载失败')
     overview.value = response.data || null
   } catch (error: any) {
@@ -51,6 +54,7 @@ const loadAccounts = async () => {
 }
 
 const runNow = async () => {
+  if (isAllAccounts.value) return runAllNow()
   if (!selectedAccountId.value || starting.value || overview.value?.running) return
   starting.value = true
   try {
@@ -65,7 +69,6 @@ const runNow = async () => {
     starting.value = false
   }
 }
-
 const runAllNow = async () => {
   if (batchStarting.value || !eligibleBatchAccounts.value.length) return
   try {
@@ -94,7 +97,7 @@ const runAllNow = async () => {
 }
 
 const deleteRecord = async (record: ItemPolishRecord) => {
-  if (!selectedAccountId.value || deletingRecordId.value !== null) return
+  if (deletingRecordId.value !== null) return
   try {
     await showConfirm(
       `确定删除「${record.goodsTitle || '未命名商品'}」的这条擦亮记录吗？删除后，自动化执行中心中的对应待处理记录也会一并移除。`,
@@ -106,7 +109,7 @@ const deleteRecord = async (record: ItemPolishRecord) => {
 
   deletingRecordId.value = record.id
   try {
-    const response = await deleteItemPolishRecord(selectedAccountId.value, record.id)
+    const response = await deleteItemPolishRecord(selectedAccountId.value ?? record.xianyuAccountId, record.id)
     if (response.code !== 0 && response.code !== 200) throw new Error(response.msg || '删除失败')
     showSuccess('执行记录已删除')
     await loadOverview(true)
@@ -133,21 +136,17 @@ onMounted(loadAccounts)
       </div>
       <div class="polish-page__actions">
         <select v-model="selectedAccountId" class="polish-select" @change="handleAccountChange">
+          <option :value="null">全部账号（{{ eligibleBatchAccounts.length }}）</option>
           <option v-for="account in accounts" :key="account.id" :value="Number(account.id)">
             {{ account.accountNote || account.unb }}
           </option>
         </select>
         <button class="btn btn--secondary" :disabled="loading" @click="loadOverview()">刷新</button>
-        <button class="btn btn--secondary" :disabled="!eligibleBatchAccounts.length || batchStarting" @click="runAllNow">
-          {{ batchStarting ? '批量启动中…' : `全部账号擦亮（${eligibleBatchAccounts.length}）` }}
-        </button>
-        <button class="btn btn--primary" :disabled="!selectedAccountId || starting || overview?.running" @click="runNow">
-          {{ overview?.running ? '正在同步并擦亮…' : starting ? '启动中…' : '一键擦亮' }}
-        </button>
+        <button class="btn btn--primary" :disabled="isAllAccounts ? (!eligibleBatchAccounts.length || batchStarting) : (starting || overview?.running)" @click="runNow">{{ isAllAccounts ? (batchStarting ? '启动全部账号中…' : '一键擦亮全部账号') : (overview?.running ? '正在同步并擦亮…' : starting ? '启动中…' : '一键擦亮') }}</button>
       </div>
     </header>
 
-    <section v-if="selectedAccountId" class="polish-layout" :class="{ 'is-loading': loading }">
+    <section v-if="accounts.length" class="polish-layout" :class="{ 'is-loading': loading }">
       <p class="batch-hint">全部账号擦亮会按账号错峰执行；每个账号的同步、擦亮、风控和记录彼此独立。</p>
       <div class="polish-summary">
         <div class="summary-card">
@@ -178,7 +177,7 @@ onMounted(loadAccounts)
         <div class="history-wrap">
           <table v-if="overview?.records.length" class="history-table">
             <thead>
-              <tr><th>时间</th><th>商品</th><th>触发方式</th><th>结果</th><th>说明</th><th class="history-table__action-header">操作</th></tr>
+              <tr><th>时间</th><th>账号</th><th>商品</th><th>触发方式</th><th>结果</th><th>说明</th><th class="history-table__action-header">操作</th></tr>
             </thead>
             <tbody>
               <tr v-for="record in overview.records" :key="record.id">

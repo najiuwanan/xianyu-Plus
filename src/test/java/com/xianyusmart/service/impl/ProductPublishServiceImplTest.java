@@ -148,9 +148,9 @@ class ProductPublishServiceImplTest {
     }
 
     @Test
-    void shouldRequireDoubleConfirmationBeforeAnyNetworkCall() {
+    void shouldRequireAcknowledgementBeforeAnyNetworkCall() {
         ProductPublishReqDTO request = request();
-        request.setConfirmation("发布");
+        request.setAcknowledged(false);
 
         assertThrows(BusinessException.class, () -> service.publish(request));
         verify(probeService, never()).check(any(), any());

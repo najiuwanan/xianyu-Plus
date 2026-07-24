@@ -76,7 +76,7 @@ const HeaderSelectors = defineComponent({
             handleAccountChange()
           }
         }, [
-          h('option', { value: '', disabled: true, selected: !queryParams.xianyuAccountId }, '账号'),
+          h('option', { value: '', selected: !queryParams.xianyuAccountId }, '全部账号'),
           ...accounts.value.map(account => h('option', {
             value: String(account.id),
             selected: queryParams.xianyuAccountId === account.id
@@ -190,7 +190,7 @@ const executeCustomDelivery = async () => {
       <div class="orders__actions">
         <div class="orders__select-wrap">
           <select v-model="queryParams.xianyuAccountId" class="orders__select" @change="handleAccountChange">
-            <option :value="undefined" disabled>选择账号</option>
+            <option :value="undefined">全部账号</option>
             <option v-for="account in accounts" :key="account.id" :value="account.id">
               {{ account.accountNote || account.unb || `账号${account.id}` }}
             </option>

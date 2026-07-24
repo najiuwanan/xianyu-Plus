@@ -26,6 +26,7 @@ interface Emits {
   (e: 'refreshAvatar', account: Account): void
   (e: 'connection', account: Account): void
   (e: 'automationSettings', account: Account, section: AutomationSection): void
+  (e: 'polishShortcut', account: Account): void
 }
 
 defineProps<Props>()
@@ -237,6 +238,7 @@ const refreshAvatar = (account: Account) => {
               <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'rate'))">自动评价</button>
               <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'flower'))">自动小红花</button>
               <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'polish'))">每日自动擦亮</button>
+              <button type="button" role="menuitem" @click="runAction($event, () => emit('polishShortcut', account))">一键擦亮设置 / 查看记录</button>
               <div class="account-action-menu__divider"></div>
               <button type="button" role="menuitem" @click="runAction($event, () => emit('edit', account))"><IconEdit /> 编辑账号资料</button>
               <button type="button" role="menuitem" :disabled="!isRiskPaused(account)" @click="runAction($event, () => emit('resumeAutomation', account))">恢复自动化</button>
@@ -326,6 +328,7 @@ const refreshAvatar = (account: Account) => {
                     <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'rate'))">自动评价</button>
                     <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'flower'))">自动小红花</button>
                     <button type="button" role="menuitem" @click="runAction($event, () => emit('automationSettings', account, 'polish'))">每日自动擦亮</button>
+              <button type="button" role="menuitem" @click="runAction($event, () => emit('polishShortcut', account))">一键擦亮设置 / 查看记录</button>
                     <div class="account-action-menu__divider"></div>
                     <button type="button" role="menuitem" @click="runAction($event, () => emit('edit', account))"><IconEdit /> 编辑账号资料</button>
                     <button type="button" role="menuitem" :disabled="!isRiskPaused(account)" @click="runAction($event, () => emit('resumeAutomation', account))">恢复自动化</button>

@@ -123,8 +123,8 @@ public class ProductPublishServiceImpl implements ProductPublishService {
         if (request == null || request.getAccountId() == null) {
             throw new BusinessException(400, "请选择发布账号");
         }
-        if (!request.isAcknowledged() || !"确认发布".equals(request.getConfirmation())) {
-            throw new BusinessException(400, "请勾选风险确认并输入“确认发布”");
+        if (!request.isAcknowledged()) {
+            throw new BusinessException(400, "Please confirm the pre-publish checklist");
         }
         if (request.getRequestId() == null || request.getRequestId().isBlank()) {
             throw new BusinessException(400, "发布请求缺少唯一编号，请刷新页面重试");

@@ -31,7 +31,7 @@ export interface ItemPolishOverview {
   running: boolean
 }
 
-export function getItemPolishOverview(accountId: number, recordLimit = 30) {
+export function getItemPolishOverview(accountId?: number, recordLimit = 30) {
   return request<ItemPolishOverview>({
     url: '/item-polish/overview',
     method: 'GET',

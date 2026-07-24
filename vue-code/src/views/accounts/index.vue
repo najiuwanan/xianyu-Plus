@@ -49,6 +49,8 @@ const syncConnectionSelection = () => {
   }
 }
 
+const openPolish = (account: Account) => router.push({ path: '/item-polish', query: { accountId: String(account.id) } })
+
 const openConnection = (account: Account) => {
   selectedConnectionAccountId.value = Number(account.id)
   router.replace({
@@ -115,6 +117,7 @@ void loadAccounts();
           @resume-automation="resumeAutomation"
           @refresh-avatar="refreshAccountAvatar"
           @connection="openConnection"
+          @polish-shortcut="openPolish"
         />
       </div>
       <aside v-if="selectedConnectionAccount" class="accounts__connection-panel">

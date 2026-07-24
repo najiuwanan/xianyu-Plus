@@ -28,7 +28,6 @@ const lookupCoordinates = ref<{ longitude: number; latitude: number } | null>(nu
 const customPoiName = ref('')
 const selectedProperties = ref<Record<string, string | string[]>>({})
 const acknowledged = ref(false)
-const confirmation = ref('确认发布')
 const createRequestId = () => globalThis.crypto?.randomUUID?.() ||
   'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {
     const random = Math.floor(Math.random() * 16)
@@ -142,7 +141,6 @@ watch(targetAccountIds, () => { batchStates.value = [] }, { deep: true })
 watch(batchMode, () => {
   batchStates.value = []
   acknowledged.value = false
-  confirmation.value = ''
 })
 watch(() => form.title, () => {
   if (schema.value && form.title.trim()) {
@@ -392,7 +390,7 @@ const submitBatch = async () => {
         accountId: state.accountId, requestId: createRequestId(), title: form.title.trim(), description: state.description,
         price: form.price, originalPrice: form.originalPrice > 0 ? form.originalPrice : undefined, quantity: form.quantity,
         deliveryMode: form.deliveryMode, postFee: form.deliveryMode === 'FLAT' ? form.postFee : undefined,
-        acknowledged: true, confirmation: '确认发布',
+        acknowledged: true,
         address: { locationKey: state.locationKey }, images: images.value, properties: state.properties
       })
       if (!result.data?.success) throw new Error(result.data?.message || '发布结果无法确认')
@@ -409,7 +407,6 @@ const submitBatch = async () => {
   const success = batchStates.value.filter(state => state.status === 'PUBLISHED').length
   toast[success === batchStates.value.length ? 'success' : 'warning'](`批量发布完成：成功 ${success}，失败 ${batchStates.value.length - success}`)
   acknowledged.value = false
-  confirmation.value = ''
 }
 
 const submit = async () => {
@@ -429,7 +426,6 @@ const submit = async () => {
       deliveryMode: form.deliveryMode,
       postFee: form.deliveryMode === 'FLAT' ? form.postFee : undefined,
       acknowledged: acknowledged.value,
-      confirmation: '确认发布',
       address: {
         locationKey: selectedLocationKey.value,
         lookupLongitude: lookupCoordinates.value?.longitude,
@@ -443,7 +439,6 @@ const submit = async () => {
       toast.success(result.data.message || '商品发布成功')
       requestId.value = createRequestId()
       acknowledged.value = false
-      confirmation.value = ''
     } else {
       toast.warning(result.data?.message || '发布结果暂时无法确认，请同步商品列表检查')
     }

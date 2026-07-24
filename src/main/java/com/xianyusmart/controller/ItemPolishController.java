@@ -30,7 +30,7 @@ public class ItemPolishController {
     }
 
     @GetMapping("/overview")
-    public ResultObject<Map<String, Object>> overview(@RequestParam Long accountId,
+    public ResultObject<Map<String, Object>> overview(@RequestParam(required = false) Long accountId,
                                                        @RequestParam(required = false) Integer recordLimit) {
         try {
             return ResultObject.success(itemPolishService.getOverview(accountId,

@@ -2,6 +2,7 @@ package com.xianyusmart.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
@@ -11,6 +12,12 @@ import java.time.LocalDateTime;
 @Data
 @TableName("xianyu_item_polish_record")
 public class XianyuItemPolishRecord {
+
+    @TableField(exist = false)
+    private String accountNote;
+
+    @TableField(exist = false)
+    private String accountUnb;
 
     @TableId(type = IdType.AUTO)
     private Long id;

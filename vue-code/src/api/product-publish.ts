@@ -22,7 +22,6 @@ export interface ProductPublishRequest {
   deliveryMode: 'FREE' | 'FLAT' | 'NONE' | 'SELF_PICKUP'
   postFee?: number
   acknowledged: boolean
-  confirmation: string
   address: {
     locationKey: string
     lookupLongitude?: number
