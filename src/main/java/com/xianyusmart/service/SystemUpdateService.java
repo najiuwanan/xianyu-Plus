@@ -289,6 +289,15 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("2.0.0".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "仪表盘升级为商家待办、账号状态、今日提醒和真实交付趋势，买家待付款不计入商家待办",
+                    "左侧导航保留原有功能，统一为深海军蓝底、闲鱼黄选中态与加粗线性图标",
+                    "账号抽屉、一键擦亮、固定保存栏、卡密清理、实时日志和默认回复去重全面升级",
+                    "商品发布确认简化，自提订单展示修复；GitHub Release 与版本弹窗均提供完整中文说明"
+            ));
+            return;
+        }
         if ("1.9.9".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "检测到 Session 过期后不再立即反复刷新，统一改为等待 2 小时后自动续期一次",

@@ -186,10 +186,10 @@ onUnmounted(() => {
         <p class="version-dialog__status" :class="{ available: updateStatus.updateAvailable }">{{ updateStatus.message }}</p>
         <div class="version-dialog__changes">
           <h3>{{ updateStatus.updateAvailable ? '本次可以更新的内容' : '当前版本主要内容' }}</h3>
-          <ul v-if="updateStatus.updateHighlights?.length">
-            <li v-for="item in updateStatus.updateHighlights" :key="item">{{ item }}</li>
+          <ul v-if="releaseHighlights.length">
+            <li v-for="item in releaseHighlights" :key="item">{{ item }}</li>
           </ul>
-          <p v-else>{{ updateStatus.latestMessage || '暂无版本说明' }}</p>
+          <p v-else>{{ updateStatus.latestMessage || '版本说明同步中' }}</p>
         </div>
         <footer>
           <span>更新命令：<code>cd ~/xianyu-Plus && ./update.sh</code></span>
@@ -207,7 +207,7 @@ onUnmounted(() => {
 .layout-container { width: 100%; }
 .workspace { flex: 1; flex-direction: column; overflow: hidden; }
 
-.sidebar { width: 236px; flex: 0 0 236px; display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(180deg, var(--xy-navy-900), var(--xy-navy-950)); border-right: 0; }
+.sidebar { width: 236px; flex: 0 0 236px; display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(180deg, #102a43, #081b31) !important; border-right: 0; }
 .brand { width: 100%; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 18px 16px; border: 0; border-bottom: 1px solid rgba(255,255,255,.1); background: transparent; color: #fff; text-align: left; }
 .brand__mark { width: 40px; height: 40px; display: grid; place-items: center; flex: 0 0 auto; }
 .brand__copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
@@ -252,7 +252,7 @@ onUnmounted(() => {
 .menu-toggle-btn span { height: 2px; border-radius: 2px; background: var(--xy-ink); }
 
 .drawer-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(22, 34, 55, .36); }
-.drawer-menu { width: min(300px, 86vw); height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--xy-navy-900); box-shadow: 16px 0 40px rgba(20, 40, 70, .28); }
+.drawer-menu { width: min(300px, 86vw); height: 100%; display: flex; flex-direction: column; overflow: hidden; background: #102a43 !important; box-shadow: 16px 0 40px rgba(20, 40, 70, .28); }
 .drawer-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--xy-border-soft); }
 .brand--drawer { flex: 1; border: 0; }
 .drawer-close-btn { width: 36px; height: 36px; display: grid; place-items: center; margin-right: 16px; border: 1px solid var(--xy-border); border-radius: 8px; background: var(--xy-surface); color: var(--xy-muted); font-size: 22px; line-height: 1; cursor: pointer; }
