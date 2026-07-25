@@ -37,4 +37,16 @@ class AutoDeliveryServiceImplTest {
                 AutoDeliveryServiceImpl.requireExternalBuyerRecipientId(
                         "localSeller", java.util.List.of(localAccount)));
     }
+
+    @Test
+    void rejectsDeliveryWhenTheChatBuyerDiffersFromTheOrderBuyer() {
+        assertThrows(IllegalStateException.class, () ->
+                AutoDeliveryServiceImpl.requireVerifiedBuyerRecipientId("chat-buyer", "order-buyer"));
+    }
+
+    @Test
+    void acceptsDeliveryOnlyWhenTheChatBuyerMatchesTheOrderBuyer() {
+        assertEquals("buyer-42", AutoDeliveryServiceImpl.requireVerifiedBuyerRecipientId(
+                "buyer-42@goofish", "buyer-42"));
+    }
 }

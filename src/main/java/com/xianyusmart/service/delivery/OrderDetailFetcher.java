@@ -37,6 +37,7 @@ public class OrderDetailFetcher {
         public String skuId;
         public String skuName;
         public String buyerUserName;
+        public String buyerUserId;
         public String orderCreateTime;
         public String paySuccessTime;
         public String consignTime;
@@ -113,6 +114,10 @@ public class OrderDetailFetcher {
             Object userNick = buyer.get("userNick");
             if (userNick instanceof String) {
                 info.buyerUserName = (String) userNick;
+            }
+            Object userId = buyer.get("userId");
+            if (userId != null && !String.valueOf(userId).isBlank()) {
+                info.buyerUserId = String.valueOf(userId);
             }
         }
     }
