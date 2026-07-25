@@ -18,8 +18,18 @@ const updateChecking = ref(false)
 const versionDialogVisible = ref(false)
 const releaseHistory = [
   {
+    version: '2.0.10',
+    label: 'V2.0.10（当前）',
+    highlights: [
+      '修复 Docker 后端构建缺少前端安全检查源码，导致一键安装或更新中止的问题。',
+      '安装与更新脚本保持原命令不变，拉取最新 main 后可直接重新构建。',
+      '前端源码只进入临时构建层，不会增加最终运行镜像内容。',
+      '本版本不新增数据库迁移，升级时继续保留 V30 数据结构。'
+    ]
+  },
+  {
     version: '2.0.9',
-    label: 'V2.0.9（当前）',
+    label: 'V2.0.9',
     highlights: [
       '发货 API 改为明确四态结果；令牌过期、空响应和缺少可核验数据不会提交卡密或伪报成功。',
       '发货、图片和自动回复在外部发送前持久化防重标记；租约失效或发送后异常统一转人工核对。',
@@ -137,7 +147,7 @@ const releaseHistory = [
     ]
   }
 ] as const
-const selectedReleaseVersion = ref('2.0.9')
+const selectedReleaseVersion = ref('2.0.10')
 const selectedRelease = computed(() => releaseHistory.find(item => item.version === selectedReleaseVersion.value) || releaseHistory[0])
 
 const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV]/, '')}` : '未知版本'
@@ -309,7 +319,7 @@ onUnmounted(() => {
         <p class="version-dialog__status" :class="{ available: updateStatus.updateAvailable }">{{ updateStatus.message }}</p>
         <div class="version-dialog__changes">
           <div class="version-dialog__changes-heading">
-            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.0.9 的正式版本记录。</p></div>
+            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.0.10 的正式版本记录。</p></div>
             <label class="version-history-select"><span>查看版本</span><select v-model="selectedReleaseVersion"><option v-for="release in releaseHistory" :key="release.version" :value="release.version">{{ release.label }}</option></select></label>
           </div>
           <ul>

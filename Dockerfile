@@ -32,6 +32,9 @@ COPY src/ src/
 # 复制前端构建产物到 static 目录，覆盖源码中旧的静态文件
 COPY --from=frontend-build /app/vue-code/../src/main/resources/static src/main/resources/static/
 
+# 后端安全回归会检查前端消息渲染源码；构建阶段保留源码，但不会进入最终运行镜像
+COPY --from=frontend-build /app/vue-code/src vue-code/src
+
 # 构建 JAR并执行测试
 RUN --mount=type=cache,target=/root/.m2/repository ./mvnw clean package
 

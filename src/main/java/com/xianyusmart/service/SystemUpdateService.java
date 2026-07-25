@@ -289,6 +289,15 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("2.0.10".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "修复 Docker 后端构建缺少前端安全检查源码，导致一键安装或更新中止的问题",
+                    "安装与更新脚本保持原命令不变，拉取最新 main 后可直接重新构建",
+                    "前端源码只进入临时构建层，不会增加最终运行镜像内容",
+                    "本版本不新增数据库迁移，升级时继续保留 V30 数据结构"
+            ));
+            return;
+        }
         if ("2.0.9".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "发货 API 使用明确四态结果，令牌过期、空响应和缺少可核验数据不会提交卡密或伪报成功",

@@ -1,3 +1,35 @@
+## V2.0.10（2026-07-25）
+
+### 一键安装与更新修复
+
+- 修复 Docker 后端构建阶段缺少 `vue-code/src`，导致 2.0.9 一键安装或更新在安全回归测试中报 `NoSuchFileException` 并中止的问题。
+- 后端构建阶段从已完成前端检查的构建层复制前端源码，保留消息渲染安全测试；源码仅用于构建验证，不会进入最终运行镜像。
+- `install.sh` 与 `update.sh` 继续使用原有一键命令，用户拉取最新 `main` 后可直接重新构建，无需手工修改 Dockerfile。
+- 本版本不新增数据库迁移，已完成的 V30 数据结构会原样保留。
+
+### 验证
+
+- 完整运行前端 Vue/TypeScript 类型检查和生产构建。
+- 完整运行后端测试与干净 JAR 打包。
+- 验证 Docker 多阶段构建可在后端测试阶段读取前端安全检查源码。
+
+### 升级
+
+```bash
+cd ~/xianyu-Plus
+git pull origin main
+./update.sh
+```
+
+首次安装仍使用：
+
+```bash
+git clone https://github.com/najiuwanan/xianyu-Plus.git
+cd xianyu-Plus
+chmod +x install.sh
+./install.sh
+```
+
 ## V2.0.9（2026-07-25）
 
 ### 自动发货与卡密安全
