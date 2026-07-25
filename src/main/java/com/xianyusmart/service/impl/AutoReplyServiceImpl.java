@@ -293,7 +293,14 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             boolean sendSuccess = true;
             boolean hasReplyContent = false;
             String cid = sId.replace("@goofish", "");
-            String toId = cid;
+            String senderUserId = lastMessage.getSenderUserId();
+            if (senderUserId == null || senderUserId.isBlank()) {
+                log.error("【账号{}】自动回复缺少买家接收方 ID，取消发送: sId={}", accountId, sId);
+                updateRecordState(record.getId(), -1, null);
+                return;
+            }
+            // cid identifies the conversation; toId must always be the message sender (buyer).
+            String toId = requireReplyRecipientId(senderUserId);
             
             for (ReplyStrategy.ReplyResult.ReplyItem item : replyResult.getItems()) {
                 if (blacklistService.isBlacklisted(accountId, lastMessage.getSenderUserId())
@@ -388,6 +395,12 @@ public class AutoReplyServiceImpl implements AutoReplyService {
         };
     }
     
+    static String requireReplyRecipientId(String senderUserId) {
+        if (senderUserId == null || senderUserId.isBlank()) {
+            throw new IllegalStateException("Reply is missing the buyer recipient id");
+        }
+        return senderUserId.replace("@goofish", "");
+    }
     private void updateRecordState(Long recordId, Integer state, String replyContent) {
         try {
             autoReplyRecordMapper.updateStateAndContent(recordId, state, replyContent);
