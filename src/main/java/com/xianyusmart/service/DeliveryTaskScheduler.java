@@ -163,6 +163,8 @@ public class DeliveryTaskScheduler {
             XianyuGoodsOrder result = orderMapper.selectById(task.getId());
             if (result != null && Integer.valueOf(1).equals(result.getState())) {
                 deliveryTaskService.complete(task.getId(), workerId);
+            } else if (requiresBuyerVerification(result)) {
+                deliveryTaskService.deferBuyerVerification(task.getId(), workerId, result.getFailReason());
             } else if (requiresManualReview(task, result)) {
                 deliveryTaskService.markReviewRequired(task.getId(), workerId, result != null ? result.getFailReason() : null);
             } else {
@@ -176,6 +178,10 @@ public class DeliveryTaskScheduler {
         }
     }
 
+    private boolean requiresBuyerVerification(XianyuGoodsOrder result) {
+        return result != null && result.getFailReason() != null
+                && result.getFailReason().startsWith(AutoDeliveryServiceImpl.BUYER_VERIFICATION_PENDING_PREFIX);
+    }
     private boolean requiresManualReview(XianyuGoodsOrder task, XianyuGoodsOrder result) {
         return kamiItemMapper.countByOrderAndStatus(task.getOrderId(), KamiStatus.REVIEW_REQUIRED.getCode()) > 0
                 || (result != null && result.getFailReason() != null

@@ -1,9 +1,22 @@
 package com.xianyusmart.service.impl;
 
+import com.xianyusmart.entity.XianyuGoodsConfig;
+import com.xianyusmart.entity.XianyuGoodsOrder;
+import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
+import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
+import com.xianyusmart.service.BuyerBlacklistService;
+import com.xianyusmart.service.delivery.OrderDetailFetcher;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 class AutoDeliveryServiceImplTest {
 
@@ -48,5 +61,36 @@ class AutoDeliveryServiceImplTest {
     void acceptsDeliveryOnlyWhenTheChatBuyerMatchesTheOrderBuyer() {
         assertEquals("buyer-42", AutoDeliveryServiceImpl.requireVerifiedBuyerRecipientId(
                 "buyer-42@goofish", "buyer-42"));
+    }
+
+    @Test
+    void defersDeliveryWhenOrderBuyerCannotBeVerified() {
+        XianyuGoodsOrderMapper orderMapper = mock(XianyuGoodsOrderMapper.class);
+        XianyuGoodsConfigMapper goodsConfigMapper = mock(XianyuGoodsConfigMapper.class);
+        BuyerBlacklistService blacklistService = mock(BuyerBlacklistService.class);
+        OrderDetailFetcher orderDetailFetcher = mock(OrderDetailFetcher.class);
+
+        XianyuGoodsOrder order = new XianyuGoodsOrder();
+        order.setBuyerUserId("buyer-42");
+        XianyuGoodsConfig goodsConfig = new XianyuGoodsConfig();
+        goodsConfig.setXianyuAutoDeliveryOn(1);
+
+        when(orderMapper.selectById(11L)).thenReturn(order);
+        when(blacklistService.blockedMessage(7L, "buyer-42")).thenReturn(null);
+        when(goodsConfigMapper.selectByAccountAndGoodsId(7L, "goods-1")).thenReturn(goodsConfig);
+        when(orderDetailFetcher.fetch(7L, "goods-1", "order-1")).thenReturn(null);
+
+        AutoDeliveryServiceImpl service = new AutoDeliveryServiceImpl();
+        ReflectionTestUtils.setField(service, "orderMapper", orderMapper);
+        ReflectionTestUtils.setField(service, "goodsConfigMapper", goodsConfigMapper);
+        ReflectionTestUtils.setField(service, "blacklistService", blacklistService);
+        ReflectionTestUtils.setField(service, "orderDetailFetcher", orderDetailFetcher);
+
+        service.executeDelivery(11L, 7L, "goods-1", "buyer-42@goofish", "order-1", "buyer", false);
+
+        verify(orderMapper).updateStateContentAndFailReason(
+                eq(11L), eq(0), isNull(),
+                argThat(reason -> reason.startsWith(AutoDeliveryServiceImpl.BUYER_VERIFICATION_PENDING_PREFIX)
+                        && reason.contains("Cookie")));
     }
 }

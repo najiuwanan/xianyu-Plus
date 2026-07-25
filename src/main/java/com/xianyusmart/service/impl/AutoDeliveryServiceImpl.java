@@ -54,6 +54,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
     /** A retry could duplicate text that has already reached the buyer. */
     public static final String PARTIAL_DELIVERY_REVIEW_PREFIX = "PARTIAL_DELIVERY_REVIEW: ";
+    public static final String BUYER_VERIFICATION_PENDING_PREFIX = "BUYER_VERIFICATION_PENDING: ";
     private final Set<String> activeManualRedeliveries = ConcurrentHashMap.newKeySet();
     
     @Autowired
@@ -554,10 +555,10 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
             OrderDetailFetcher.OrderDetailInfo orderDetail = orderDetailFetcher.fetch(accountId, xyGoodsId, orderId);
             if (orderDetail == null && orderId != null && !orderId.isEmpty()) {
-                log.warn("【账号{}】获取订单详情失败(可能Cookie过期或API异常)，中断发货: orderId={}", accountId, orderId);
-                String failReason = "获取订单详情失败(可能Cookie过期)，请检查Cookie状态";
-                updateRecordState(recordId, -1, null, failReason);
-                emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, failReason);
+                log.warn("【账号{}】订单买家身份暂时无法核验，延迟重试: orderId={}", accountId, orderId);
+                String failReason = BUYER_VERIFICATION_PENDING_PREFIX
+                        + "订单详情查询失败，可能是 Cookie 失效或平台接口暂时异常；卡密未发送，将自动重试";
+                updateRecordState(recordId, 0, null, failReason);
                 return;
             }
             String orderSkuId = orderDetail != null ? orderDetail.skuId : null;
@@ -753,9 +754,13 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 updateRecordState(recordId, 1, allContent.toString(), null);
                 return;
             }
-            String failReason = "发货异常: " + e.getMessage();
-            updateRecordState(recordId, -1, null, failReason);
-            emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, failReason);
+            String errorMessage = e.getMessage() == null ? "未知异常" : e.getMessage();
+            boolean verificationPending = errorMessage.startsWith(BUYER_VERIFICATION_PENDING_PREFIX);
+            String failReason = verificationPending ? errorMessage : "发货异常: " + errorMessage;
+            updateRecordState(recordId, verificationPending ? 0 : -1, null, failReason);
+            if (!verificationPending) {
+                emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, failReason);
+            }
         }
     }
 
@@ -861,7 +866,8 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
         String recordedRecipientId = requireBuyerRecipientId(recordedBuyerUserId);
         String platformRecipientId = requireBuyerRecipientId(platformBuyerUserId);
         if (!recordedRecipientId.equals(platformRecipientId)) {
-            throw new IllegalStateException("Order buyer identity does not match the delivery conversation; delivery is blocked");
+            throw new IllegalStateException(BUYER_VERIFICATION_PENDING_PREFIX
+                    + "订单详情买家与触发会话买家不一致；卡密未发送，等待重新核验");
         }
         return recordedRecipientId;
     }

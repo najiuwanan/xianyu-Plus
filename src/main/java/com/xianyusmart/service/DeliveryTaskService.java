@@ -15,6 +15,8 @@ public interface DeliveryTaskService {
 
     void retryOrFail(Long taskId, String workerId, String errorMessage);
 
+    void deferBuyerVerification(Long taskId, String workerId, String reason);
+
     void markReviewRequired(Long taskId, String workerId, String errorMessage);
 
     boolean renewLease(Long taskId, String workerId);

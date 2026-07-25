@@ -41,4 +41,22 @@ class DeliveryTaskServiceImplTest {
 
         verify(orderMapper).renewTaskLease(2L, "worker-a", 120);
     }
+
+    @Test
+    void defersBuyerVerificationWithoutMarkingTheTaskFailed() {
+        XianyuGoodsOrderMapper orderMapper = mock(XianyuGoodsOrderMapper.class);
+        DeliveryTaskServiceImpl service = new DeliveryTaskServiceImpl(orderMapper);
+        String reason = "BUYER_VERIFICATION_PENDING: recipient not verified";
+        when(orderMapper.deferBuyerVerificationTask(3L, "worker-a", reason)).thenReturn(1);
+
+        service.deferBuyerVerification(3L, "worker-a", reason);
+
+        verify(orderMapper).deferBuyerVerificationTask(3L, "worker-a", reason);
+        verify(orderMapper, never()).retryOrFailTask(
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString());
+    }
 }

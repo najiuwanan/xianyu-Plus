@@ -238,6 +238,12 @@ public interface XianyuGoodsOrderMapper {
     int retryOrFailTask(@Param("id") Long id, @Param("status") String status,
                         @Param("nextRetryTime") java.time.LocalDateTime nextRetryTime,
                         @Param("errorMessage") String errorMessage, @Param("workerId") String workerId);
+    @Update("UPDATE xianyu_goods_order SET state = 0, delivery_status = 'RETRY_WAIT', " +
+            "next_retry_time = DATE_ADD(NOW(3), INTERVAL 5 MINUTE), lease_owner = NULL, lease_expire_time = NULL, " +
+            "last_error_code = 'BUYER_VERIFICATION_PENDING', last_error_message = #{reason}, fail_reason = #{reason} " +
+            "WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId} AND lease_expire_time > NOW(3)")
+    int deferBuyerVerificationTask(@Param("id") Long id, @Param("workerId") String workerId,
+                                   @Param("reason") String reason);
 
     @Update("UPDATE xianyu_goods_order SET delivery_status = 'REVIEW_REQUIRED', next_retry_time = NULL, " +
             "lease_owner = NULL, lease_expire_time = NULL, last_error_code = 'DELIVERY_UNCERTAIN', last_error_message = #{errorMessage} " +

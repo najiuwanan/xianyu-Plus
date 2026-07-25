@@ -111,6 +111,16 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
     }
 
     @Override
+    public void deferBuyerVerification(Long taskId, String workerId, String reason) {
+        String safeReason = reason == null ? "订单买家身份暂时无法核验，卡密未发送" :
+                reason.substring(0, Math.min(reason.length(), 500));
+        if (orderMapper.deferBuyerVerificationTask(taskId, workerId, safeReason) == 0) {
+            log.warn("任务租约已失效，忽略买家身份延迟核验: taskId={}", taskId);
+        } else {
+            log.warn("订单买家身份待核验，五分钟后重试: taskId={}", taskId);
+        }
+    }
+    @Override
     public void markReviewRequired(Long taskId, String workerId, String errorMessage) {
         String safeMessage = errorMessage == null ? "发送结果不确定，请人工核对" :
                 errorMessage.substring(0, Math.min(errorMessage.length(), 500));
