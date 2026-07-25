@@ -22,6 +22,13 @@ public interface XianyuApiKamiDeliveryMapper extends BaseMapper<XianyuApiKamiDel
             "response_time = NULL WHERE id = #{id} AND state = 2")
     int claimFailedForRetry(@Param("id") Long id, @Param("requestTime") LocalDateTime requestTime);
 
+    @Update("UPDATE xianyu_api_kami_delivery SET error_message = NULL, request_time = #{requestTime}, " +
+            "response_time = NULL WHERE id = #{id} AND state = 0 " +
+            "AND (request_time IS NULL OR request_time < #{staleBefore})")
+    int claimStaleRequestForRetry(@Param("id") Long id,
+                                  @Param("requestTime") LocalDateTime requestTime,
+                                  @Param("staleBefore") LocalDateTime staleBefore);
+
     @Update("UPDATE xianyu_api_kami_delivery SET state = 1, delivery_content = #{content}, error_message = NULL, " +
             "response_time = #{responseTime} WHERE id = #{id} AND state = 0")
     int markReady(@Param("id") Long id, @Param("content") String content,

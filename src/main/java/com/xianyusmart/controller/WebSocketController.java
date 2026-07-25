@@ -200,8 +200,8 @@ public class WebSocketController {
     @PostMapping("/sendMessage")
     public ResultObject<String> sendMessage(@RequestBody SendMessageReqDTO reqDTO) {
         try {
-            log.info("发送消息请求: xianyuAccountId={}, cid={}, toId={}, text={}", 
-                    reqDTO.getXianyuAccountId(), reqDTO.getCid(), reqDTO.getToId(), reqDTO.getText());
+            log.info("发送消息请求: xianyuAccountId={}, cid={}, toId={}, textLength={}",
+                    reqDTO.getXianyuAccountId(), reqDTO.getCid(), reqDTO.getToId(), safeLength(reqDTO.getText()));
             
             // 参数校验
             if (reqDTO.getXianyuAccountId() == null) {
@@ -260,8 +260,8 @@ public class WebSocketController {
     @PostMapping("/sendImageMessage")
     public ResultObject<String> sendImageMessage(@RequestBody SendImageMessageReqDTO reqDTO) {
         try {
-            log.info("发送图片消息请求: xianyuAccountId={}, cid={}, toId={}, imageUrl={}", 
-                    reqDTO.getXianyuAccountId(), reqDTO.getCid(), reqDTO.getToId(), reqDTO.getImageUrl());
+            log.info("发送图片消息请求: xianyuAccountId={}, cid={}, toId={}",
+                    reqDTO.getXianyuAccountId(), reqDTO.getCid(), reqDTO.getToId());
             
             // 参数校验
             if (reqDTO.getXianyuAccountId() == null) {
@@ -340,9 +340,6 @@ public class WebSocketController {
             respDTO.setConnected(connected);
             respDTO.setStatus(connected ? "已连接" : "未连接");
 
-            // 获取Cookie状态和Cookie值
-            com.xianyusmart.service.AccountService accountService =
-                    applicationContext.getBean(com.xianyusmart.service.AccountService.class);
 
             // 查询Cookie信息
             com.xianyusmart.mapper.XianyuCookieMapper cookieMapper =
@@ -357,9 +354,12 @@ public class WebSocketController {
 
             if (cookie != null) {
                 respDTO.setCookieStatus(cookie.getCookieStatus());
-                respDTO.setCookieText(cookie.getCookieText());
-                respDTO.setMH5Tk(cookie.getMH5Tk());
-                respDTO.setWebsocketToken(cookie.getWebsocketToken());
+                respDTO.setCookieConfigured(cookie.getCookieText() != null
+                        && !cookie.getCookieText().isBlank());
+                respDTO.setMh5TkConfigured(cookie.getMH5Tk() != null
+                        && !cookie.getMH5Tk().isBlank());
+                respDTO.setWebsocketTokenConfigured(cookie.getWebsocketToken() != null
+                        && !cookie.getWebsocketToken().isBlank());
                 respDTO.setTokenExpireTime(cookie.getTokenExpireTime());
 
                 // 构建简洁的状态信息
@@ -383,8 +383,9 @@ public class WebSocketController {
                 log.debug("✅ WebSocket状态: {}", statusInfo);
             } else {
                 respDTO.setCookieStatus(null);
-                respDTO.setCookieText(null);
-                respDTO.setWebsocketToken(null);
+                respDTO.setCookieConfigured(false);
+                respDTO.setMh5TkConfigured(false);
+                respDTO.setWebsocketTokenConfigured(false);
                 respDTO.setTokenExpireTime(null);
 
                 log.warn("⚠️ WebSocket状态: 账号ID={}, 连接={}, Cookie=未找到",
@@ -433,6 +434,10 @@ public class WebSocketController {
                 return "未知状态(" + cookieStatus + ")";
         }
     }
+    private int safeLength(String value) {
+        return value == null ? 0 : value.length();
+    }
+
     
     /**
      * 清除验证等待状态
@@ -920,9 +925,9 @@ public class WebSocketController {
         private Boolean connected;     // 是否已连接
         private String status;         // 连接状态描述
         private Integer cookieStatus;  // Cookie状态 1:有效 2:过期 3:失效
-        private String cookieText;     // Cookie值
-        private String mH5Tk;          // H5 Token (_m_h5_tk)
-        private String websocketToken; // WebSocket Token
+        private Boolean cookieConfigured;         // Cookie是否已配置，不返回凭证正文
+        private Boolean mh5TkConfigured;          // H5 Token是否已配置
+        private Boolean websocketTokenConfigured; // WebSocket Token是否已配置
         private Long tokenExpireTime;  // Token过期时间戳（毫秒）
         private Boolean autoDeliveryOn; // 是否有商品开启了自动发货
         private Boolean autoReplyOn;     // 是否有商品开启了自动回复

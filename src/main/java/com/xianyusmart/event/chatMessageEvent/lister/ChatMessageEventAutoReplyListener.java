@@ -67,9 +67,9 @@ public class ChatMessageEventAutoReplyListener {
     public void handleChatMessageReceived(ChatMessageReceivedEvent event) {
         ChatMessageData message = event.getMessageData();
 
-        log.info("【账号{}】[AutoReplyListener]收到ChatMessageReceivedEvent事件: pnmId={}, contentType={}, senderUserId={}, msgContent={}, xyGoodsId={}, sId={}", 
+        log.info("【账号{}】[AutoReplyListener]收到聊天事件: pnmId={}, contentType={}, senderUserId={}, xyGoodsId={}, sId={}",
                 message.getXianyuAccountId(), message.getPnmId(), message.getContentType(),
-                message.getSenderUserId(), message.getMsgContent(), message.getXyGoodsId(), message.getSId());
+                message.getSenderUserId(), message.getXyGoodsId(), message.getSId());
         
         try {
             // 1. 判断是否为用户消息（contentType=1）
@@ -130,9 +130,9 @@ public class ChatMessageEventAutoReplyListener {
                 return;
             }
             
-            log.info("【账号{}】检测到用户消息（非自己发送），提交延时回复任务: xyGoodsId={}, sId={}, content={}", 
-                    message.getXianyuAccountId(), message.getXyGoodsId(), 
-                    message.getSId(), message.getMsgContent());
+            log.info("【账号{}】检测到用户消息（非自己发送），提交延时回复任务: xyGoodsId={}, sId={}, contentLength={}",
+                    message.getXianyuAccountId(), message.getXyGoodsId(),
+                    message.getSId(), message.getMsgContent().length());
             
             // 8. 提交延时任务（N秒后执行自动回复）
             // 如果该会话已有待执行的任务，会先取消旧任务再提交新任务

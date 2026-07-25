@@ -26,11 +26,15 @@ import com.xianyusmart.service.reply.HumanTakeoverManager;
 import com.xianyusmart.service.reply.ProductDefaultReplyStrategy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+import java.util.function.BooleanSupplier;
 
 @Slf4j
 @Service
@@ -96,7 +100,13 @@ public class AutoReplyServiceImpl implements AutoReplyService {
 
     @Override
     public void executeAutoReply(List<ChatMessageData> messageList, Long existingRecordId) {
-        if (messageList == null || messageList.isEmpty()) {
+        executeAutoReply(messageList, existingRecordId, () -> true);
+    }
+
+    @Override
+    public void executeAutoReply(List<ChatMessageData> messageList, Long existingRecordId,
+                                 BooleanSupplier executionAllowed) {
+        if (messageList == null || messageList.isEmpty() || !executionAllowed.getAsBoolean()) {
             log.warn("消息列表为空，无法执行自动回复");
             return;
         }
@@ -128,8 +138,8 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                 .reduce((a, b) -> a + "\n" + b)
                 .orElse("");
         
-        log.info("【账号{}】开始执行自动回复: xyGoodsId={}, sId={}, 触发消息数={}, buyerMessage={}", 
-                accountId, xyGoodsId, sId, messageList.size(), buyerMessage);
+        log.info("【账号{}】开始执行自动回复: xyGoodsId={}, sId={}, 触发消息数={}, buyerMessageLength={}",
+                accountId, xyGoodsId, sId, messageList.size(), buyerMessage.length());
         
         try {
             // 1. 检查是否有任何回复开关开启
@@ -182,25 +192,50 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             record.setBuyerMessage(buyerMessage);
             record.setState(0);
             boolean productDefaultReply = strategy instanceof ProductDefaultReplyStrategy;
+            String dedupKey = null;
             if (productDefaultReply) {
                 record.setReplyType(ProductDefaultReplyStrategy.REPLY_TYPE_PRODUCT_DEFAULT);
-            }
-            
-            if (existingRecordId == null) {
-                int insertResult = autoReplyRecordMapper.insert(record);
-                if (insertResult <= 0) {
-                    log.info("【账号{}】该消息已处理过，跳过自动回复: sId={}, pnmId={}", accountId, sId, pnmId);
-                    return;
-                }
-            } else {
-                record.setId(existingRecordId);
-                if (productDefaultReply) {
-                    autoReplyRecordMapper.updateReplyType(existingRecordId, ProductDefaultReplyStrategy.REPLY_TYPE_PRODUCT_DEFAULT);
+                XianyuGoodsConfig replyConfig = goodsConfigMapper.selectByAccountAndGoodsId(accountId, xyGoodsId);
+                if (replyConfig == null || !Integer.valueOf(ProductDefaultReplyStrategy.REPLY_MODE_EVERY_MESSAGE)
+                        .equals(replyConfig.getProductDefaultReplyMode())) {
+                    dedupKey = buildProductDefaultDedupKey(accountId, xyGoodsId,
+                            lastMessage.getSenderUserId(), sId);
+                    record.setDedupKey(dedupKey);
                 }
             }
-            
+
+            try {
+                if (existingRecordId == null) {
+                    int insertResult = autoReplyRecordMapper.insert(record);
+                    if (insertResult <= 0) {
+                        log.info("【账号{}】回复任务已被原子去重: sId={}, pnmId={}", accountId, sId, pnmId);
+                        return;
+                    }
+                } else {
+                    record.setId(existingRecordId);
+                    if (productDefaultReply && autoReplyRecordMapper.updateReplyTypeAndDedupKey(
+                            existingRecordId, ProductDefaultReplyStrategy.REPLY_TYPE_PRODUCT_DEFAULT, dedupKey) == 0) {
+                        return;
+                    }
+                }
+            } catch (DuplicateKeyException duplicate) {
+                if (existingRecordId != null) autoReplyRecordMapper.cancelById(existingRecordId);
+                log.info("【账号{}】仅首次回复已被另一任务占位: xyGoodsId={}, buyerUserId={}",
+                        accountId, xyGoodsId, lastMessage.getSenderUserId());
+                return;
+            }
+
+            if (!executionAllowed.getAsBoolean()) {
+                log.warn("【账号{}】自动回复任务租约已失效，生成回复前终止: recordId={}", accountId, record.getId());
+                return;
+            }
+
             // 6. 执行回复策略
             ReplyStrategy.ReplyResult replyResult = strategy.execute(messageList);
+            if (!executionAllowed.getAsBoolean()) {
+                log.warn("【账号{}】自动回复任务租约已失效，禁止发送已生成内容: recordId={}", accountId, record.getId());
+                return;
+            }
             
             if (!replyResult.isSuccess() || replyResult.getItems() == null || replyResult.getItems().isEmpty()) {
                 log.warn("【账号{}】回复策略未生成有效内容", accountId);
@@ -303,6 +338,10 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             String toId = requireReplyRecipientId(senderUserId);
             
             for (ReplyStrategy.ReplyResult.ReplyItem item : replyResult.getItems()) {
+                if (!executionAllowed.getAsBoolean()) {
+                    log.warn("【账号{}】自动回复任务租约已失效，停止剩余发送: recordId={}", accountId, record.getId());
+                    return;
+                }
                 if (blacklistService.isBlacklisted(accountId, lastMessage.getSenderUserId())
                         || takeoverManager.isTakenOver(accountId, sId)
                         || !isReplyTypeEnabled(accountId, xyGoodsId, item.getReplyType())) {
@@ -315,7 +354,7 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                     boolean imageSent = webSocketService.sendImageMessageWithResult(accountId, cid, toId, item.getImageUrl(), 0, 0);
                     if (!imageSent) {
                         sendSuccess = false;
-                        log.warn("【账号{}】发送回复图片失败: {}", accountId, item.getImageUrl());
+                        log.warn("【账号{}】发送回复图片失败", accountId);
                     } else {
                         sentMessageSaveService.saveAiImageReply(accountId, cid, toId, item.getImageUrl(), xyGoodsId);
                     }
@@ -330,6 +369,11 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             }
             sendSuccess = hasReplyContent && sendSuccess;
             
+            if (!executionAllowed.getAsBoolean()) {
+                log.warn("【账号{}】自动回复任务租约已失效，禁止旧任务提交结果: recordId={}", accountId, record.getId());
+                return;
+            }
+
             // 9. 更新记录状态
             if (sendSuccess) {
                 log.info("【账号{}】自动回复成功: xyGoodsId={}, sId={}", accountId, xyGoodsId, sId);
@@ -344,6 +388,10 @@ public class AutoReplyServiceImpl implements AutoReplyService {
             }
             
         } catch (Exception e) {
+            if (!executionAllowed.getAsBoolean()) {
+                log.warn("【账号{}】自动回复任务租约已失效，忽略旧任务异常: recordId={}", accountId, existingRecordId);
+                return;
+            }
             log.error("【账号{}】执行自动回复异常: xyGoodsId={}, sId={}", accountId, xyGoodsId, sId, e);
         }
     }
@@ -395,6 +443,18 @@ public class AutoReplyServiceImpl implements AutoReplyService {
         };
     }
     
+    static String buildProductDefaultDedupKey(Long accountId, String xyGoodsId,
+                                               String buyerUserId, String sId) {
+        String buyerScope = buyerUserId == null || buyerUserId.isBlank() ? sId : buyerUserId;
+        if (accountId == null || xyGoodsId == null || xyGoodsId.isBlank()
+                || buyerScope == null || buyerScope.isBlank()) {
+            throw new IllegalStateException("Product default reply is missing its deduplication scope");
+        }
+        String raw = accountId + "|" + xyGoodsId + "|" + buyerScope.replace("@goofish", "")
+                + "|" + ProductDefaultReplyStrategy.REPLY_TYPE_PRODUCT_DEFAULT;
+        return "PD:" + UUID.nameUUIDFromBytes(raw.getBytes(StandardCharsets.UTF_8));
+    }
+
     static String requireReplyRecipientId(String senderUserId) {
         if (senderUserId == null || senderUserId.isBlank()) {
             throw new IllegalStateException("Reply is missing the buyer recipient id");

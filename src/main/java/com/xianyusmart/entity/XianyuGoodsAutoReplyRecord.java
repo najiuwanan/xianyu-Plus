@@ -64,6 +64,9 @@ public class XianyuGoodsAutoReplyRecord {
      * 回复类型：1-关键词匹配，2-AI智能回复
      */
     private Integer replyType;
+
+    /** Atomic slot for once-only reply modes; null for every-message mode. */
+    private String dedupKey;
     
     /**
      * 匹配的关键词

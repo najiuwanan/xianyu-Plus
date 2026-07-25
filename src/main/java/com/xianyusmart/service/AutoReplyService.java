@@ -3,6 +3,7 @@ package com.xianyusmart.service;
 import com.xianyusmart.event.chatMessageEvent.ChatMessageData;
 
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 /**
  * 自动回复服务接口
@@ -26,6 +27,11 @@ public interface AutoReplyService {
     void executeAutoReply(List<ChatMessageData> messageList);
 
     void executeAutoReply(List<ChatMessageData> messageList, Long recordId);
+
+    default void executeAutoReply(List<ChatMessageData> messageList, Long recordId,
+                                  BooleanSupplier executionAllowed) {
+        executeAutoReply(messageList, recordId);
+    }
     
     /**
      * 检查商品是否开启自动回复

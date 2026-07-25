@@ -274,34 +274,9 @@ public class SyncMessageHandler extends AbstractLwpHandler {
             String orderId = extractOrderIdFromMessage(message.getCompleteMsg());
             messageData.setOrderId(orderId);
             
-            log.info("【账号{}】准备发布ChatMessageReceivedEvent事件，完整消息对象: \n" +
-                    "  pnmId={}\n" +
-                    "  sId={}\n" +
-                    "  lwp={}\n" +
-                    "  contentType={}\n" +
-                    "  msgContent={}\n" +
-                    "  xyGoodsId={}\n" +
-                    "  reminderUrl={}\n" +
-                    "  senderUserId={}\n" +
-                    "  senderUserName={}\n" +
-                    "  senderAppV={}\n" +
-                    "  senderOsType={}\n" +
-                    "  messageTime={}\n" +
-                    "  orderId={}", 
-                    message.getXianyuAccountId(),
-                    message.getPnmId(),
-                    message.getSId(),
-                    message.getLwp(),
-                    message.getContentType(),
-                    message.getMsgContent(),
-                    message.getXyGoodsId(),
-                    message.getReminderUrl(),
-                    message.getSenderUserId(),
-                    message.getSenderUserName(),
-                    message.getSenderAppV(),
-                    message.getSenderOsType(),
-                    message.getMessageTime(),
-                    orderId);
+            log.info("【账号{}】准备发布聊天事件: pnmId={}, contentType={}, contentLength={}, xyGoodsId={}, sId={}, orderId={}",
+                    message.getXianyuAccountId(), message.getPnmId(), message.getContentType(),
+                    message.getMsgContent() == null ? 0 : message.getMsgContent().length(), message.getXyGoodsId(), message.getSId(), orderId);
             
             ChatMessageReceivedEvent event = new ChatMessageReceivedEvent(this, messageData);
             eventPublisher.publishEvent(event);
@@ -397,7 +372,7 @@ public class SyncMessageHandler extends AbstractLwpHandler {
                             Object button = ((Map<?, ?>) exContent).get("button");
                             if (button instanceof Map) {
                                 String targetUrl = (String) ((Map<?, ?>) button).get("targetUrl");
-                                log.info("📋 提取订单ID: targetUrl={}", targetUrl);
+                                log.debug("从消息卡片提取订单ID成功");
                                 
                                 if (targetUrl != null) {
                                     return extractOrderIdFromUrl(targetUrl);
@@ -434,7 +409,7 @@ public class SyncMessageHandler extends AbstractLwpHandler {
                                     Object button = ((Map<?, ?>) exContent).get("button");
                                     if (button instanceof Map) {
                                         String targetUrl = (String) ((Map<?, ?>) button).get("targetUrl");
-                                        log.info("📋 提取订单ID: targetUrl={}", targetUrl);
+                                        log.debug("从消息卡片提取订单ID成功");
                                         
                                         if (targetUrl != null) {
                                             return extractOrderIdFromUrl(targetUrl);

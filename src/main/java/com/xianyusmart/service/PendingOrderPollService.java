@@ -77,7 +77,12 @@ public class PendingOrderPollService {
                 if (existing != null) {
                     enrichFromDetailApi(accountId, orderId, existing);
                     String itemId = (String) commonData.get("itemId");
-                    if (!Integer.valueOf(1).equals(existing.getState()) && isAutoDeliveryEnabled(accountId, itemId)) {
+                    boolean selfPickup = "PICKUP".equalsIgnoreCase(existing.getDeliveryChannel())
+                            || isSelfPickupOrder(order);
+                    if (selfPickup) {
+                        orderMapper.markAsSelfPickup(existing.getId());
+                    } else if (!Integer.valueOf(1).equals(existing.getState())
+                            && isAutoDeliveryEnabled(accountId, itemId)) {
                         deliveryTaskService.requeue(existing.getId());
                     }
                     continue;

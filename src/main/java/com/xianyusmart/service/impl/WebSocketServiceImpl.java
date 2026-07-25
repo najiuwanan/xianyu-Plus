@@ -895,35 +895,15 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     @Override
     public boolean sendMessage(Long accountId, String cid, String toId, String text) {
-        try {
-            log.info("发送消息: accountId={}, cid={}, toId={}, text={}", accountId, cid, toId, text);
-            
-            // 获取WebSocket客户端
-            XianyuWebSocketClient client = webSocketClients.get(accountId);
-            if (client == null) {
-                log.error("WebSocket客户端不存在: accountId={}", accountId);
-                return false;
-            }
-            
-            if (!client.isConnected()) {
-                log.error("WebSocket未连接: accountId={}", accountId);
-                return false;
-            }
-            
-            // 发送消息
-            client.sendMessage(cid, toId, text);
-            return true;
-            
-        } catch (Exception e) {
-            log.error("发送消息失败: accountId={}, cid={}, toId={}", accountId, cid, toId, e);
-            return false;
-        }
+        // 仅写入本地 Socket 不代表送达，所有业务发送统一等待平台回执。
+        return sendMessageWithResult(accountId, cid, toId, text);
     }
 
     @Override
     public boolean sendMessageWithResult(Long accountId, String cid, String toId, String text) {
         try {
-            log.info("发送消息(等待结果): accountId={}, cid={}, toId={}, text={}", accountId, cid, toId, text);
+            log.info("发送消息(等待结果): accountId={}, cid={}, toId={}, textLength={}",
+                    accountId, cid, toId, text == null ? 0 : text.length());
             
             XianyuWebSocketClient client = webSocketClients.get(accountId);
             if (client == null) {
@@ -953,35 +933,14 @@ public class WebSocketServiceImpl implements WebSocketService {
     
     @Override
     public boolean sendImageMessage(Long accountId, String cid, String toId, String imageUrl, int width, int height) {
-        try {
-            log.info("发送图片消息: accountId={}, cid={}, toId={}, url={}, size={}x{}", 
-                    accountId, cid, toId, imageUrl, width, height);
-            
-            XianyuWebSocketClient client = webSocketClients.get(accountId);
-            if (client == null) {
-                log.error("WebSocket客户端不存在: accountId={}", accountId);
-                return false;
-            }
-            
-            if (!client.isConnected()) {
-                log.error("WebSocket未连接: accountId={}", accountId);
-                return false;
-            }
-            
-            client.sendImageMessage(cid, toId, imageUrl, width, height);
-            return true;
-            
-        } catch (Exception e) {
-            log.error("发送图片消息失败: accountId={}, cid={}, toId={}", accountId, cid, toId, e);
-            return false;
-        }
+        return sendImageMessageWithResult(accountId, cid, toId, imageUrl, width, height);
     }
 
     @Override
     public boolean sendImageMessageWithResult(Long accountId, String cid, String toId, String imageUrl, int width, int height) {
         try {
-            log.info("发送图片消息(等待结果): accountId={}, cid={}, toId={}, url={}, size={}x{}",
-                    accountId, cid, toId, imageUrl, width, height);
+            log.info("发送图片消息(等待结果): accountId={}, cid={}, toId={}, size={}x{}",
+                    accountId, cid, toId, width, height);
 
             XianyuWebSocketClient client = webSocketClients.get(accountId);
             if (client == null) {

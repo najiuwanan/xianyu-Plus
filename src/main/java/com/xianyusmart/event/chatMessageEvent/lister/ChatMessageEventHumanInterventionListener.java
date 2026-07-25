@@ -76,8 +76,8 @@ public class ChatMessageEventHumanInterventionListener {
                 return;
             }
 
-            log.info("【账号{}】[HumanInterventionListener]检测到卖家手动回复，触发人工接管: xyGoodsId={}, sId={}, content={}",
-                    message.getXianyuAccountId(), message.getXyGoodsId(), message.getSId(), message.getMsgContent());
+            log.info("【账号{}】[HumanInterventionListener]检测到卖家手动回复，触发人工接管: xyGoodsId={}, sId={}",
+                    message.getXianyuAccountId(), message.getXyGoodsId(), message.getSId());
 
             // 4. 触发人工接管（内部会检查人工干预开关、标记接管、取消待执行延时任务）
             autoReplyDelayService.recordSellerManualReply(

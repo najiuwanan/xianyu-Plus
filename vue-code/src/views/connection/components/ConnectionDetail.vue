@@ -22,10 +22,9 @@ interface ConnectionStatus {
   connected: boolean
   status: string
   cookieStatus?: number
-  cookieText?: string
-  mH5Tk?: string
-  mh5Tk?: string
-  websocketToken?: string
+  cookieConfigured?: boolean
+  mh5TkConfigured?: boolean
+  websocketTokenConfigured?: boolean
   tokenExpireTime?: number
   autoDeliveryOn?: boolean
   autoReplyOn?: boolean
@@ -278,7 +277,7 @@ onBeforeUnmount(() => {
       v-if="connectionStatus"
       v-model="showManualUpdateCookieDialog"
       :account-id="accountId || 0"
-      :current-cookie="connectionStatus.cookieText || ''"
+      current-cookie=""
       @success="handleManualUpdateCookieSuccess"
     />
     <QRUpdateDialog

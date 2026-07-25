@@ -107,7 +107,8 @@ public class OrderServiceImpl implements OrderService {
                 log.error("【账号{}】❌ 闲鱼新发货API失败: {}", accountId, errorMsg);
 
                 if (result.isTokenExpired()) {
-                    return "令牌过期，请稍后重试或手动更新Cookie";
+                    log.warn("【账号{}】操作未完成：令牌过期且自动刷新失败", accountId);
+                    return null;
                 }
 
                 if (errorMsg != null && errorMsg.contains("ORDER_ALREADY_DELIVERY")) {
@@ -164,7 +165,8 @@ public class OrderServiceImpl implements OrderService {
                 log.error("【账号{}】❌ 闲鱼API确认发货失败: {}", accountId, errorMsg);
                 
                 if (result.isTokenExpired()) {
-                    return "令牌过期，请稍后重试或手动更新Cookie";
+                    log.warn("【账号{}】操作未完成：令牌过期且自动刷新失败", accountId);
+                    return null;
                 }
 
                 if (errorMsg != null && errorMsg.contains("ORDER_ALREADY_DELIVERY")) {

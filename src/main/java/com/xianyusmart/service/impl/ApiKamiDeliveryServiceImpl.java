@@ -77,9 +77,16 @@ public class ApiKamiDeliveryServiceImpl implements ApiKamiDeliveryService {
                 return record.getDeliveryContent();
             }
             if (STATE_REQUESTING == safeState(record)) {
-                throw new BusinessException(409, "外部 API 正在为该订单领取卡券，请稍后重试");
-            }
-            if (apiKamiDeliveryMapper.claimFailedForRetry(record.getId(), LocalDateTime.now()) != 1) {
+                LocalDateTime now = LocalDateTime.now();
+                long staleSeconds = Math.max(60L, normalizeTimeout(config.getApiTimeoutSeconds()) * 2L);
+                if (apiKamiDeliveryMapper.claimStaleRequestForRetry(
+                        record.getId(), now, now.minusSeconds(staleSeconds)) != 1) {
+                    throw new BusinessException(409, "外部 API 正在为该订单领取卡券，请稍后重试");
+                }
+                record.setRequestTime(now);
+                log.warn("【账号{}】已回收超时的外部 API 卡券任务: configId={}, orderId={}",
+                        context.getAccountId(), config.getId(), context.getOrderId());
+            } else if (apiKamiDeliveryMapper.claimFailedForRetry(record.getId(), LocalDateTime.now()) != 1) {
                 throw new BusinessException(409, "外部 API 卡券正在处理，请稍后重试");
             }
         } else {

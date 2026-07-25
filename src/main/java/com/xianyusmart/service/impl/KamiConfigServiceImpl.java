@@ -74,6 +74,12 @@ public class KamiConfigServiceImpl implements KamiConfigService {
     private final ConcurrentHashMap<Long, Long> stockOutEmailSentTime = new ConcurrentHashMap<>();
 
     private static final long STOCK_OUT_EMAIL_INTERVAL_MS = 10 * 60 * 1000L;
+
+    private void markTransactionRollbackOnly() {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.interceptor.TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        }
+    }
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
@@ -212,6 +218,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             kamiConfigMapper.deleteById(id);
             return ResultObject.success(null);
         } catch (Exception e) {
+            markTransactionRollbackOnly();
             log.error("删除卡密配置失败", e);
             return ResultObject.failed("删除卡密配置失败: " + e.getMessage());
         }
@@ -243,6 +250,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             refreshConfigCounts(reqDTO.getKamiConfigId());
             return ResultObject.success(toItemRespDTO(item));
         } catch (Exception e) {
+            markTransactionRollbackOnly();
             log.error("添加卡密失败", e);
             return ResultObject.failed("添加卡密失败: " + e.getMessage());
         }
@@ -287,6 +295,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
                     : String.format("成功导入%d条", added);
             return ResultObject.success(added, msg);
         } catch (Exception e) {
+            markTransactionRollbackOnly();
             log.error("批量导入卡密失败", e);
             return ResultObject.failed("批量导入卡密失败: " + e.getMessage());
         }
@@ -338,6 +347,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             refreshConfigCounts(item.getKamiConfigId());
             return ResultObject.success(null);
         } catch (Exception e) {
+            markTransactionRollbackOnly();
             log.error("删除卡密失败", e);
             return ResultObject.failed("删除卡密失败: " + e.getMessage());
         }
@@ -362,6 +372,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             refreshConfigCounts(kamiConfigId);
             return ResultObject.success(deleted, "Cleared " + deleted + " used card codes");
         } catch (Exception e) {
+            markTransactionRollbackOnly();
             log.error("Failed to clear used card codes, kamiConfigId={}", kamiConfigId, e);
             return ResultObject.failed("Failed to clear used card codes: " + e.getMessage());
         }
@@ -383,6 +394,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             refreshConfigCounts(item.getKamiConfigId());
             return ResultObject.success(null);
         } catch (Exception e) {
+            markTransactionRollbackOnly();
             log.error("重置卡密状态失败", e);
             return ResultObject.failed("重置卡密状态失败: " + e.getMessage());
         }
@@ -395,6 +407,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             List<XianyuKamiItem> items = reserveKami(kamiConfigId, orderId, 1);
             return items.isEmpty() ? null : items.getFirst();
         } catch (BusinessException e) {
+            markTransactionRollbackOnly();
             return null;
         }
     }
@@ -644,6 +657,7 @@ public class KamiConfigServiceImpl implements KamiConfigService {
             }
             return ResultObject.success(desiredKeys.size(), "已关联 " + desiredKeys.size() + " 个商品");
         } catch (Exception e) {
+            markTransactionRollbackOnly();
             log.error("保存卡券库关联商品失败", e);
             return ResultObject.failed("保存关联商品失败: " + e.getMessage());
         }

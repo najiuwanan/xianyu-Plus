@@ -213,7 +213,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             }
             
             String content = deliveryConfig.getAutoDeliveryContent();
-            log.info("【账号{}】准备发送自动发货消息: content={}", accountId, content);
+            log.info("【账号{}】准备发送自动发货消息: contentLength={}", accountId, content.length());
 
             HumanLikeDelayUtils.mediumDelay();
             HumanLikeDelayUtils.thinkingDelay();
@@ -235,8 +235,8 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             recordAutoDelivery(accountId, xyGoodsId, buyerUserId, buyerUserName, content, success ? 1 : 0, null, orderId);
             
             if (success) {
-                log.info("【账号{}】自动发货成功: xyGoodsId={}, buyerUserName={}, content={}", 
-                        accountId, xyGoodsId, buyerUserName, content);
+                log.info("【账号{}】自动发货成功: xyGoodsId={}, contentLength={}",
+                        accountId, xyGoodsId, content.length());
                 sentMessageSaveService.saveAiAssistantReply(accountId, cid, toId, content, xyGoodsId);
             } else {
                 log.error("【账号{}】自动发货失败: xyGoodsId={}", accountId, xyGoodsId);
@@ -490,14 +490,10 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 String messageBlacklistReason = blacklistService.blockedMessage(accountId, record.getBuyerUserId());
                 if (messageBlacklistReason != null || !webSocketService.sendMessage(accountId, cid, toId, message)) {
                     if (cardDelivery) {
-                        if (sentCount == 0) {
-                            kamiConfigService.releaseReservation(reservationOrderId);
-                        } else {
                             kamiConfigService.markReservationReviewRequired(reservationOrderId);
-                        }
                     }
                     return com.xianyusmart.common.ResultObject.failed(sentCount == 0
-                            ? "补发内容发送失败，新卡密已退回可用库存"
+                            ? "补发内容未取得平台送达确认，新卡密已转为待核对"
                             : "部分发货消息已发送，剩余消息失败，请人工核对");
                 }
                 sentCount++;
@@ -525,11 +521,19 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
     @Override
     public void executeDelivery(Long recordId, Long accountId, String xyGoodsId, String sId, String orderId, String buyerUserName, boolean needHumanLikeDelay) {
+        executeDelivery(recordId, accountId, xyGoodsId, sId, orderId, buyerUserName, needHumanLikeDelay, () -> true);
+    }
+
+    @Override
+    public void executeDelivery(Long recordId, Long accountId, String xyGoodsId, String sId,
+                                String orderId, String buyerUserName, boolean needHumanLikeDelay,
+                                java.util.function.BooleanSupplier executionAllowed) {
         boolean cardDelivery = false;
         boolean cardDeliveryAttempted = false;
         boolean anySuccess = false;
         StringBuilder allContent = new StringBuilder();
         try {
+            ensureExecutionAllowed(executionAllowed);
             log.info("【账号{}】开始执行自动发货: recordId={}, xyGoodsId={}, orderId={}", accountId, recordId, xyGoodsId, orderId);
 
             XianyuGoodsOrder currentOrder = orderMapper.selectById(recordId);
@@ -647,7 +651,11 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 }
 
                 content = messageTemplateRenderer.joinForSingleMessageChannel(content);
+                ensureExecutionAllowed(executionAllowed);
+                cardDeliveryAttempted = cardDelivery;
                 String deliveryResult = orderService.consignDummyDelivery(accountId, orderId, content, imageUrls);
+                if (deliveryResult != null) anySuccess = true;
+                ensureExecutionAllowed(executionAllowed);
                 if (deliveryResult != null) {
                     anySuccess = true;
                     allContent.append(content);
@@ -671,6 +679,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             for (int i = 0; i < deliveryCount; i++) {
                 log.info("【账号{}】发货第{}/{}次: orderId={}", accountId, i + 1, deliveryCount, orderId);
 
+                ensureExecutionAllowed(executionAllowed);
                 String content = deliveryStrategyResolver.resolve(deliveryMode, ctx);
 
                 if (content == null) {
@@ -693,12 +702,14 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
                     cardDeliveryAttempted = cardDelivery;
                     String finalBlacklistReason = blacklistService.blockedMessage(accountId, currentOrder.getBuyerUserId());
+                    ensureExecutionAllowed(executionAllowed);
                     boolean success = finalBlacklistReason == null
                             && webSocketService.sendMessage(accountId, cid, toId, message);
+                    if (success) anySuccess = true;
+                    ensureExecutionAllowed(executionAllowed);
                     if (!success) {
                         if (cardDelivery) {
-                            if (sentInThisDelivery == 0) kamiConfigService.releaseReservation(orderId);
-                            else kamiConfigService.markReservationReviewRequired(orderId);
+                            kamiConfigService.markReservationReviewRequired(orderId);
                         }
                         String failReason = finalBlacklistReason != null ? finalBlacklistReason
                                 : (sentInThisDelivery == 0 && !anySuccess ? "消息发送失败"
@@ -718,6 +729,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     if (needHumanLikeDelay) HumanLikeDelayUtils.thinkingDelay();
                 }
 
+                ensureExecutionAllowed(executionAllowed);
                 if (cardDelivery) {
                     kamiConfigService.commitReservation(orderId, orderId, accountId, xyGoodsId, toId, buyerUserName);
                 }
@@ -728,6 +740,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
             } // end else (wsConnected)
 
+            ensureExecutionAllowed(executionAllowed);
             if (anySuccess) {
                 updateRecordState(recordId, 1, allContent.toString(), null);
                 
@@ -740,6 +753,17 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 
             }
 
+        } catch (DeliveryLeaseLostException leaseLost) {
+            if (cardDelivery) {
+                if (anySuccess || cardDeliveryAttempted) kamiConfigService.markReservationReviewRequired(orderId);
+                else kamiConfigService.releaseReservation(orderId);
+            }
+            if (anySuccess) {
+                updateRecordState(recordId, -1, allContent.toString(),
+                        PARTIAL_DELIVERY_REVIEW_PREFIX + "发货任务租约已失效，发送结果需要人工核对。");
+            }
+            log.warn("【账号{}】发货任务租约已失效，旧任务已停止: recordId={}", accountId, recordId);
+            return;
         } catch (Exception e) {
             if (cardDelivery) {
                 if (cardDeliveryAttempted) {
@@ -884,6 +908,15 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
     }
 
     /** The protocol conversation id is not the buyer id; never route delivery using it. */
+    private void ensureExecutionAllowed(java.util.function.BooleanSupplier executionAllowed) {
+        if (executionAllowed == null || !executionAllowed.getAsBoolean()) {
+            throw new DeliveryLeaseLostException();
+        }
+    }
+
+    private static class DeliveryLeaseLostException extends RuntimeException {
+    }
+
     static String requireBuyerRecipientId(String buyerUserId) {
         if (buyerUserId == null || buyerUserId.isBlank()) {
             throw new IllegalStateException("Order is missing the buyer recipient id");

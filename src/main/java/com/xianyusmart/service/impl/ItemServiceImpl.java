@@ -796,7 +796,7 @@ public class ItemServiceImpl implements ItemService {
                         for (Map<String, Object> card : cardList) {
                             Map<String, Object> cardData = (Map<String, Object>) card.get("cardData");
                             if (cardData != null) {
-                                log.info("商品cardData: {}", cardData);
+                                log.debug("解析商品卡片字段: {}", cardData.keySet());
                                 ItemDTO itemDTO = objectMapper.convertValue(cardData, ItemDTO.class);
                                 respDTO.getItems().add(itemDTO);
                             }

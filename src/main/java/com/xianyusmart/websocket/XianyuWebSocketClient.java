@@ -544,7 +544,8 @@ public class XianyuWebSocketClient extends WebSocketClient {
         try {
             String cleanCid = cid.replace("@goofish", "");
             String cleanToId = toId.replace("@goofish", "");
-            log.info("【账号{}】准备发送消息: cleanCid={}, cleanToId={}, text={}", accountId, cleanCid, cleanToId, text);
+            log.info("【账号{}】准备发送消息: cleanCid={}, cleanToId={}, textLength={}",
+                    accountId, cleanCid, cleanToId, text == null ? 0 : text.length());
 
             Map<String, Object> textContent = new HashMap<>();
             textContent.put("contentType", 1);
@@ -639,8 +640,8 @@ public class XianyuWebSocketClient extends WebSocketClient {
             String cleanCid = cid.replace("@goofish", "");
             String cleanToId = toId.replace("@goofish", "");
             
-            log.info("【账号{}】准备发送消息: cleanCid={}, cleanToId={}, text={}", 
-                    accountId, cleanCid, cleanToId, text);
+            log.info("【账号{}】准备发送消息: cleanCid={}, cleanToId={}, textLength={}",
+                    accountId, cleanCid, cleanToId, text == null ? 0 : text.length());
             
             Map<String, Object> textContent = new HashMap<>();
             textContent.put("contentType", 1);
@@ -707,7 +708,7 @@ public class XianyuWebSocketClient extends WebSocketClient {
             pendingResponses.put(mid, future);
             
             String messageJson = objectMapper.writeValueAsString(message);
-            log.debug("【账号{}】发送消息JSON: {}", accountId, messageJson);
+            log.debug("【账号{}】发送消息帧已生成: mid={}, payloadLength={}", accountId, mid, messageJson.length());
             send(messageJson);
             log.info("【账号{}】消息已发送到WebSocket，等待响应: mid={}", accountId, mid);
             
@@ -721,8 +722,8 @@ public class XianyuWebSocketClient extends WebSocketClient {
                 }
                 return success;
             } catch (java.util.concurrent.TimeoutException e) {
-                log.warn("【账号{}】消息发送超时(10秒)，视为发送成功: mid={}", accountId, mid);
-                return true;
+                log.warn("【账号{}】消息发送超时(10秒)，未取得服务端回执: mid={}", accountId, mid);
+                return false;
             } finally {
                 pendingResponses.remove(mid);
             }
@@ -752,8 +753,8 @@ public class XianyuWebSocketClient extends WebSocketClient {
             String cleanCid = cid.replace("@goofish", "");
             String cleanToId = toId.replace("@goofish", "");
             
-            log.info("{}准备发送图片消息: cid={}, toId={}, url={}, size={}x{}", 
-                    logPrefix(), cleanCid, cleanToId, imageUrl, width, height);
+            log.info("{}准备发送图片消息: cid={}, toId={}, size={}x{}",
+                    logPrefix(), cleanCid, cleanToId, width, height);
             
             // 构造图片消息内容
             Map<String, Object> imageContent = new HashMap<>();
@@ -773,7 +774,6 @@ public class XianyuWebSocketClient extends WebSocketClient {
             String imageJson = objectMapper.writeValueAsString(imageContent);
             String imageBase64 = java.util.Base64.getEncoder().encodeToString(imageJson.getBytes("UTF-8"));
             
-            log.debug("{}图片内容JSON: {}", logPrefix(), imageJson);
             
             // 构造消息体
             Map<String, Object> messageBody = new HashMap<>();
@@ -827,9 +827,8 @@ public class XianyuWebSocketClient extends WebSocketClient {
             
             // 发送
             String messageJson = objectMapper.writeValueAsString(message);
-            log.debug("{}发送图片消息JSON: {}", logPrefix(), messageJson);
             send(messageJson);
-            log.info("{}✅ 图片消息已发送: {}", logPrefix(), imageUrl);
+            log.info("{}✅ 图片消息已发送", logPrefix());
             
         } catch (Exception e) {
             log.error("{}❌ 发送图片消息失败: cid={}, toId={}", logPrefix(), cid, toId, e);
@@ -849,8 +848,8 @@ public class XianyuWebSocketClient extends WebSocketClient {
             String cleanCid = cid.replace("@goofish", "");
             String cleanToId = toId.replace("@goofish", "");
 
-            log.info("{}准备发送图片消息(等待结果): cid={}, toId={}, url={}, size={}x{}",
-                    logPrefix(), cleanCid, cleanToId, imageUrl, width, height);
+            log.info("{}准备发送图片消息(等待结果): cid={}, toId={}, size={}x{}",
+                    logPrefix(), cleanCid, cleanToId, width, height);
 
             Map<String, Object> imageContent = new HashMap<>();
             imageContent.put("contentType", 2);
@@ -936,8 +935,8 @@ public class XianyuWebSocketClient extends WebSocketClient {
                 }
                 return success;
             } catch (java.util.concurrent.TimeoutException e) {
-                log.warn("{}图片消息发送超时(10秒)，视为发送成功: mid={}", logPrefix(), mid);
-                return true;
+                log.warn("{}图片消息发送超时(10秒)，未取得服务端回执: mid={}", logPrefix(), mid);
+                return false;
             } finally {
                 pendingResponses.remove(mid);
             }

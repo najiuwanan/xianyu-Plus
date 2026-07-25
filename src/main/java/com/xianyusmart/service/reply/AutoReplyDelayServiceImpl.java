@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PreDestroy;
@@ -82,6 +83,9 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final String workerId = "reply-" + UUID.randomUUID().toString().substring(0, 8);
+
+    @Value("${app.reply.lease-seconds:120}")
+    private int leaseSeconds;
     
     /** 延时任务调度线程池 */
     @Autowired
@@ -317,7 +321,7 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
         String taskKey = buildTaskKey(lastMessage.getXianyuAccountId(), lastMessage.getSId());
         pendingTasks.remove(taskKey);
         pendingMessages.remove(taskKey);
-        if (autoReplyRecordMapper.claim(recordId, workerId, 120) == 0) {
+        if (autoReplyRecordMapper.claim(recordId, workerId, leaseSeconds) == 0) {
             return;
         }
         taskExecutor.execute(() -> executeClaimedTask(recordId, messages));
@@ -327,6 +331,14 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
         ChatMessageData lastMessage = messages.getLast();
         Long accountId = lastMessage.getXianyuAccountId();
         String sId = lastMessage.getSId();
+        java.util.concurrent.atomic.AtomicBoolean leaseActive = new java.util.concurrent.atomic.AtomicBoolean(true);
+        long renewalSeconds = Math.max(10L, leaseSeconds / 3L);
+        ScheduledFuture<?> renewal = scheduler.scheduleAtFixedRate(() -> {
+            if (autoReplyRecordMapper.renewLease(recordId, workerId, leaseSeconds) == 0) {
+                leaseActive.set(false);
+                log.warn("自动回复任务续租失败，旧任务将停止发送: recordId={}", recordId);
+            }
+        }, renewalSeconds, renewalSeconds, TimeUnit.SECONDS);
         try {
             if (!isAccountActive(accountId)) {
                 log.info("【账号{}】已禁用或不可用，取消自动回复: sId={}", accountId, sId);
@@ -349,14 +361,21 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
                 autoReplyRecordMapper.cancelById(recordId);
                 return;
             }
-            autoReplyService.executeAutoReply(messages, recordId);
+            autoReplyService.executeAutoReply(messages, recordId, leaseActive::get);
+            if (!leaseActive.get()) {
+                return;
+            }
             XianyuGoodsAutoReplyRecord result = autoReplyRecordMapper.selectById(recordId);
             if (result != null && Integer.valueOf(2).equals(result.getState())) {
-                autoReplyRecordMapper.updateStateAndContent(recordId, -1, null);
+                autoReplyRecordMapper.failClaimedIfOwned(recordId, workerId);
             }
         } catch (Exception e) {
-            log.error("【账号{}】执行持久化延时回复异常: sId={}", accountId, sId, e);
-            autoReplyRecordMapper.updateStateAndContent(recordId, -1, null);
+            if (leaseActive.get()) {
+                log.error("【账号{}】执行持久化延时回复异常: sId={}", accountId, sId, e);
+                autoReplyRecordMapper.failClaimedIfOwned(recordId, workerId);
+            }
+        } finally {
+            renewal.cancel(false);
         }
     }
 

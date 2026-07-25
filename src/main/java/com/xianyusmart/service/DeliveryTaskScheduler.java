@@ -143,11 +143,13 @@ public class DeliveryTaskScheduler {
             log.warn("【账号{}】自动化保护已暂停，跳过自动发货任务 taskId={}", task.getXianyuAccountId(), task.getId());
             return;
         }
+        AtomicBoolean leaseActive = new AtomicBoolean(true);
         long renewalSeconds = Math.max(10, leaseSeconds / 2L);
         ScheduledFuture<?> renewal = taskScheduler.scheduleAtFixedRate(
                 () -> {
                     if (!deliveryTaskService.renewLease(task.getId(), workerId)) {
-                        log.warn("发货任务续租失败，任务可能已被其他工作线程接管: taskId={}", task.getId());
+                        leaseActive.set(false);
+                        log.warn("发货任务续租失败，旧任务将立即停止发送: taskId={}", task.getId());
                     }
                 }, Duration.ofSeconds(renewalSeconds));
         try {
@@ -158,8 +160,11 @@ public class DeliveryTaskScheduler {
             }
             autoDeliveryService.executeDelivery(
                     task.getId(), task.getXianyuAccountId(), task.getXyGoodsId(), sId,
-                    task.getOrderId(), task.getBuyerUserName(), false);
+                    task.getOrderId(), task.getBuyerUserName(), false, leaseActive::get);
 
+            if (!leaseActive.get()) {
+                return;
+            }
             XianyuGoodsOrder result = orderMapper.selectById(task.getId());
             if (result != null && Integer.valueOf(1).equals(result.getState())) {
                 deliveryTaskService.complete(task.getId(), workerId);

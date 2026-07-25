@@ -18,16 +18,29 @@ export function showConfirm(message: string, title: string = '确认'): Promise<
       overflow:hidden;
       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
     `
-    dialog.innerHTML = `
-      <div style="padding:20px 20px 4px;text-align:center;">
-        <div style="font-size:17px;font-weight:600;color:#1c1c1e;margin-bottom:8px;">${title}</div>
-        <div style="font-size:14px;color:rgba(28,28,30,.72);line-height:1.5;">${message}</div>
-      </div>
-      <div style="display:flex;border-top:0.5px solid rgba(60,60,67,.12);margin-top:16px;">
-        <button id="confirm-cancel" style="flex:1;border:none;background:transparent;font-size:16px;font-weight:500;color:rgba(28,28,30,.55);cursor:pointer;padding:12px 0;-webkit-tap-highlight-color:transparent;font-family:inherit;">取消</button>
-        <button id="confirm-ok" style="flex:1;border:none;border-left:0.5px solid rgba(60,60,67,.12);background:transparent;font-size:16px;font-weight:600;color:#0A84FF;cursor:pointer;padding:12px 0;-webkit-tap-highlight-color:transparent;font-family:inherit;">确定</button>
-      </div>
-    `
+    const content = document.createElement('div')
+    content.style.cssText = 'padding:20px 20px 4px;text-align:center;'
+    const titleElement = document.createElement('div')
+    titleElement.style.cssText = 'font-size:17px;font-weight:600;color:#1c1c1e;margin-bottom:8px;'
+    titleElement.textContent = title
+    const messageElement = document.createElement('div')
+    messageElement.style.cssText = 'font-size:14px;color:rgba(28,28,30,.72);line-height:1.5;'
+    messageElement.textContent = message
+
+    const actions = document.createElement('div')
+    actions.style.cssText = 'display:flex;border-top:0.5px solid rgba(60,60,67,.12);margin-top:16px;'
+    const cancelButton = document.createElement('button')
+    cancelButton.type = 'button'
+    cancelButton.style.cssText = 'flex:1;border:none;background:transparent;font-size:16px;font-weight:500;color:rgba(28,28,30,.55);cursor:pointer;padding:12px 0;-webkit-tap-highlight-color:transparent;font-family:inherit;'
+    cancelButton.textContent = '取消'
+    const confirmButton = document.createElement('button')
+    confirmButton.type = 'button'
+    confirmButton.style.cssText = 'flex:1;border:none;border-left:0.5px solid rgba(60,60,67,.12);background:transparent;font-size:16px;font-weight:600;color:#0A84FF;cursor:pointer;padding:12px 0;-webkit-tap-highlight-color:transparent;font-family:inherit;'
+    confirmButton.textContent = '确定'
+
+    content.append(titleElement, messageElement)
+    actions.append(cancelButton, confirmButton)
+    dialog.append(content, actions)
     overlay.appendChild(dialog)
     document.body.appendChild(overlay)
 
@@ -36,11 +49,11 @@ export function showConfirm(message: string, title: string = '确认'): Promise<
       setTimeout(() => overlay.remove(), 150)
     }
 
-    dialog.querySelector('#confirm-cancel')!.addEventListener('click', () => {
+    cancelButton.addEventListener('click', () => {
       cleanup()
       reject('cancel')
     })
-    dialog.querySelector('#confirm-ok')!.addEventListener('click', () => {
+    confirmButton.addEventListener('click', () => {
       cleanup()
       resolve()
     })

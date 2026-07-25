@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import IconCookie from '@/components/icons/IconCookie.vue'
 import IconKey from '@/components/icons/IconKey.vue'
 import IconQrCode from '@/components/icons/IconQrCode.vue'
@@ -10,10 +9,9 @@ interface ConnectionStatus {
   connected?: boolean
   status?: string
   cookieStatus?: number
-  cookieText?: string
-  mH5Tk?: string
-  mh5Tk?: string
-  websocketToken?: string
+  cookieConfigured?: boolean
+  mh5TkConfigured?: boolean
+  websocketTokenConfigured?: boolean
   tokenExpireTime?: number
 }
 
@@ -28,10 +26,8 @@ interface Emits {
   (e: 'manual-update'): void
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 const emit = defineEmits<Emits>()
-
-const h5Token = computed(() => props.connectionStatus?.mH5Tk || props.connectionStatus?.mh5Tk)
 
 const getCookieStatusColor = (status?: number) => {
   if (status === 1) return '#30D158'
@@ -47,24 +43,24 @@ const getCookieStatusText = (status?: number) => {
   return '未知'
 }
 
-const getTokenStatusText = (timestamp?: number) => {
-  if (!timestamp) return '未设置'
+const getTokenStatusText = (configured?: boolean, timestamp?: number) => {
+  if (!configured) return '未设置'
+  if (!timestamp) return '已配置'
   return Date.now() > timestamp ? '已过期' : '有效'
 }
 
-const getTokenStatusColor = (timestamp?: number) => {
-  if (!timestamp) return 'rgba(28,28,30,.55)'
+const getTokenStatusColor = (configured?: boolean, timestamp?: number) => {
+  if (!configured) return 'rgba(28,28,30,.55)'
+  if (!timestamp) return '#30D158'
   return Date.now() > timestamp ? '#FF453A' : '#30D158'
 }
 
-const getMH5TkStatusText = (token?: string) => {
-  if (!token) return '未设置'
-  return '有效'
+const getConfiguredStatusText = (configured?: boolean) => {
+  return configured ? '已配置' : '未设置'
 }
 
-const getMH5TkStatusColor = (token?: string) => {
-  if (!token) return 'rgba(28,28,30,.55)'
-  return '#30D158'
+const getConfiguredStatusColor = (configured?: boolean) => {
+  return configured ? '#30D158' : 'rgba(28,28,30,.55)'
 }
 
 const formatTimestamp = (timestamp?: number) => {
@@ -126,15 +122,11 @@ const handleManualUpdate = () => {
                   </div>
                   <span class="credential-item__name">Cookie 凭证</span>
                 </div>
-                <span class="credential-item__status" :style="{ color: getCookieStatusColor(connectionStatus?.cookieStatus) }">
-                  {{ getCookieStatusText(connectionStatus?.cookieStatus) }}
+                <span class="credential-item__status" :style="{ color: connectionStatus?.cookieConfigured ? getCookieStatusColor(connectionStatus?.cookieStatus) : 'rgba(28,28,30,.55)' }">
+                  {{ connectionStatus?.cookieConfigured ? getCookieStatusText(connectionStatus?.cookieStatus) : '未设置' }}
                 </span>
               </div>
-              <div v-if="connectionStatus?.cookieText" class="credential-item__value">
-                {{ connectionStatus.cookieText.substring(0, 80) }}...
-                <span class="credential-item__meta">{{ connectionStatus.cookieText.length }} 字符</span>
-              </div>
-              <div v-else class="credential-item__value credential-item__value--empty">未设置</div>
+              <div class="credential-item__value" :class="{ 'credential-item__value--empty': !connectionStatus?.cookieConfigured }">{{ connectionStatus?.cookieConfigured ? '已安全配置（凭证内容不在页面显示）' : '未设置' }}</div>
             </div>
 
             <!-- WebSocket Token -->
@@ -146,15 +138,11 @@ const handleManualUpdate = () => {
                   </div>
                   <span class="credential-item__name">WebSocket Token</span>
                 </div>
-                <span class="credential-item__status" :style="{ color: getTokenStatusColor(connectionStatus?.tokenExpireTime) }">
-                  {{ getTokenStatusText(connectionStatus?.tokenExpireTime) }}
+                <span class="credential-item__status" :style="{ color: getTokenStatusColor(connectionStatus?.websocketTokenConfigured, connectionStatus?.tokenExpireTime) }">
+                  {{ getTokenStatusText(connectionStatus?.websocketTokenConfigured, connectionStatus?.tokenExpireTime) }}
                 </span>
               </div>
-              <div v-if="connectionStatus?.websocketToken" class="credential-item__value">
-                {{ connectionStatus.websocketToken.substring(0, 60) }}...
-                <span class="credential-item__meta">{{ connectionStatus.websocketToken.length }} 字符</span>
-              </div>
-              <div v-else class="credential-item__value credential-item__value--empty">未设置</div>
+              <div class="credential-item__value" :class="{ 'credential-item__value--empty': !connectionStatus?.websocketTokenConfigured }">{{ connectionStatus?.websocketTokenConfigured ? '已安全配置（凭证内容不在页面显示）' : '未设置' }}</div>
               <div v-if="connectionStatus?.tokenExpireTime" class="credential-item__expire">
                 过期时间: {{ formatTimestamp(connectionStatus.tokenExpireTime) }}
               </div>
@@ -169,15 +157,11 @@ const handleManualUpdate = () => {
                   </div>
                   <span class="credential-item__name">H5 Token (_m_h5_tk)</span>
                 </div>
-                <span class="credential-item__status" :style="{ color: getMH5TkStatusColor(h5Token) }">
-                  {{ getMH5TkStatusText(h5Token) }}
+                <span class="credential-item__status" :style="{ color: getConfiguredStatusColor(connectionStatus?.mh5TkConfigured) }">
+                  {{ getConfiguredStatusText(connectionStatus?.mh5TkConfigured) }}
                 </span>
               </div>
-              <div v-if="h5Token" class="credential-item__value">
-                {{ h5Token.substring(0, 60) }}...
-                <span class="credential-item__meta">{{ h5Token.length }} 字符</span>
-              </div>
-              <div v-else class="credential-item__value credential-item__value--empty">未设置</div>
+              <div class="credential-item__value" :class="{ 'credential-item__value--empty': !connectionStatus?.mh5TkConfigured }">{{ connectionStatus?.mh5TkConfigured ? '已安全配置（凭证内容不在页面显示）' : '未设置' }}</div>
             </div>
           </div>
         </div>

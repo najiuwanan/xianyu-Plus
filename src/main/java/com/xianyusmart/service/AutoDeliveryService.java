@@ -2,6 +2,7 @@ package com.xianyusmart.service;
 
 import com.xianyusmart.common.ResultObject;
 import com.xianyusmart.controller.dto.TriggerAutoDeliveryReqDTO;
+import java.util.function.BooleanSupplier;
 import com.xianyusmart.entity.XianyuGoodsAutoDeliveryConfig;
 import com.xianyusmart.entity.XianyuGoodsConfig;
 
@@ -73,6 +74,12 @@ public interface AutoDeliveryService {
      * @param needHumanLikeDelay 是否模拟人工延迟
      */
     void executeDelivery(Long recordId, Long accountId, String xyGoodsId, String sId, String orderId, String buyerUserName, boolean needHumanLikeDelay);
+
+    default void executeDelivery(Long recordId, Long accountId, String xyGoodsId, String sId,
+                                 String orderId, String buyerUserName, boolean needHumanLikeDelay,
+                                 BooleanSupplier executionAllowed) {
+        executeDelivery(recordId, accountId, xyGoodsId, sId, orderId, buyerUserName, needHumanLikeDelay);
+    }
 
     /**
      * 更新自动确认发货开关

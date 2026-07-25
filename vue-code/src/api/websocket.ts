@@ -7,8 +7,9 @@ export interface WebSocketStatus {
   connected: boolean;
   status: string;
   cookieStatus?: number;      // Cookie状态 1:有效 2:过期 3:失效
-  cookieText?: string;        // Cookie值
-  websocketToken?: string;    // WebSocket Token
+  cookieConfigured?: boolean;         // Cookie是否已配置
+  mh5TkConfigured?: boolean;          // H5 Token是否已配置
+  websocketTokenConfigured?: boolean; // WebSocket Token是否已配置
   tokenExpireTime?: number;   // Token过期时间戳（毫秒）
   autoDeliveryOn?: boolean;   // 是否有商品开启了自动发货
   autoReplyOn?: boolean;      // 是否有商品开启了自动回复

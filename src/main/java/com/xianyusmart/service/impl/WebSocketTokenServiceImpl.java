@@ -65,6 +65,9 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
     private OperationLogService operationLogService;
 
     @Autowired
+    private CredentialUpdateCoordinator credentialUpdateCoordinator;
+
+    @Autowired
     private EmailNotifyService emailNotifyService;
 
     @Autowired
@@ -124,10 +127,6 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
      */
     private static final long RETRY_INTERVAL_RANDOM = 1000;
 
-    /**
-     * 每个账号的Token获取锁，防止并发获取
-     */
-    private final Map<Long, Object> tokenLocks = new ConcurrentHashMap<>();
 
     /**
      * 共享的OkHttpClient（用于发送token API请求）
@@ -139,18 +138,11 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
             .followRedirects(true)
             .build();
 
-    /**
-     * 获取账号级别的锁对象
-     */
-    private Object getTokenLock(Long accountId) {
-        return tokenLocks.computeIfAbsent(accountId, k -> new Object());
-    }
 
     @Override
     public String getAccessToken(Long accountId) {
-        synchronized (getTokenLock(accountId)) {
-            return getAccessTokenWithRetry(accountId, 0);
-        }
+        return credentialUpdateCoordinator.withAccountLock(accountId,
+                () -> getAccessTokenWithRetry(accountId, 0));
     }
 
     /**
@@ -718,7 +710,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
 
     @Override
     public void saveToken(Long accountId, String token) {
-        saveTokenToDatabase(accountId, token);
+        credentialUpdateCoordinator.withAccountLock(accountId, () -> saveTokenToDatabase(accountId, token));
     }
 
     @Override
@@ -809,7 +801,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
      */
     @Override
     public String refreshToken(Long accountId) {
-        synchronized (getTokenLock(accountId)) {
+        return credentialUpdateCoordinator.withAccountLock(accountId, () -> {
             try {
                 log.info("【账号{}】开始刷新WebSocket token...", accountId);
 
@@ -835,7 +827,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                 log.error("【账号{}】刷新WebSocket token异常", accountId, e);
                 return null;
             }
-        }
+        });
     }
 
     /**

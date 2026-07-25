@@ -64,12 +64,21 @@ public class AccountServiceImpl implements AccountService {
 
     @Autowired
     private XianyuAiBargainSessionMapper bargainSessionMapper;
+
+    @Autowired
+    private CredentialUpdateCoordinator credentialUpdateCoordinator;
     
     private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     
     /**
      * 获取当前时间字符串
      */
+    private void markTransactionRollbackOnly() {
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()) {
+            org.springframework.transaction.interceptor.TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+        }
+    }
+
     private String getCurrentTimeString() {
         return LocalDateTime.now().format(DATETIME_FORMATTER);
     }
@@ -292,6 +301,11 @@ public class AccountServiceImpl implements AccountService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean updateCookie(Long accountId, String cookieText) {
+        return credentialUpdateCoordinator.withAccountLock(accountId,
+                () -> updateCookieLocked(accountId, cookieText));
+    }
+
+    private boolean updateCookieLocked(Long accountId, String cookieText) {
         try {
             log.info("更新Cookie: accountId={}", accountId);
 
@@ -323,6 +337,7 @@ public class AccountServiceImpl implements AccountService {
             return true;
 
         } catch (Exception e) {
+            markTransactionRollbackOnly();
             log.error("更新Cookie失败: accountId={}", accountId, e);
             return false;
         }
@@ -418,6 +433,11 @@ public class AccountServiceImpl implements AccountService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean updateCookieStatus(Long accountId, Integer cookieStatus, boolean sendNotify) {
+        return credentialUpdateCoordinator.withAccountLock(accountId,
+                () -> updateCookieStatusLocked(accountId, cookieStatus, sendNotify));
+    }
+
+    private boolean updateCookieStatusLocked(Long accountId, Integer cookieStatus, boolean sendNotify) {
         try {
             log.info("更新Cookie状态: accountId={}, cookieStatus={}, sendNotify={}", accountId, cookieStatus, sendNotify);
 
@@ -457,6 +477,7 @@ public class AccountServiceImpl implements AccountService {
             return true;
 
         } catch (Exception e) {
+            markTransactionRollbackOnly();
             log.error("更新Cookie状态失败: accountId={}, cookieStatus={}", accountId, cookieStatus, e);
             return false;
         }
@@ -523,6 +544,11 @@ public class AccountServiceImpl implements AccountService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean updateAccountCookie(Long accountId, String unb, String cookieText) {
+        return credentialUpdateCoordinator.withAccountLock(accountId,
+                () -> updateAccountCookieLocked(accountId, unb, cookieText));
+    }
+
+    private boolean updateAccountCookieLocked(Long accountId, String unb, String cookieText) {
         try {
             log.info("更新账号Cookie: accountId={}, unb={}", accountId, unb);
 
@@ -572,6 +598,7 @@ public class AccountServiceImpl implements AccountService {
             return true;
 
         } catch (Exception e) {
+            markTransactionRollbackOnly();
             log.error("更新账号Cookie失败: accountId={}, unb={}", accountId, unb, e);
             return false;
         }

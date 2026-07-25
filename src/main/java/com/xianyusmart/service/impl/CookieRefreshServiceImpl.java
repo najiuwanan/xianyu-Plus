@@ -54,6 +54,9 @@ public class CookieRefreshServiceImpl implements CookieRefreshService {
     private OperationLogService operationLogService;
 
     @Autowired
+    private CredentialUpdateCoordinator credentialUpdateCoordinator;
+
+    @Autowired
     private PlaywrightManager playwrightManager;
 
     @Autowired(required = false)
@@ -61,7 +64,6 @@ public class CookieRefreshServiceImpl implements CookieRefreshService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    private final Map<Long, Object> refreshLocks = new ConcurrentHashMap<>();
 
     private static final long BROWSER_REFRESH_COOLDOWN_MS = 30 * 60 * 1000L;
     private final Map<Long, Long> lastBrowserRefreshTime = new ConcurrentHashMap<>();
@@ -69,25 +71,17 @@ public class CookieRefreshServiceImpl implements CookieRefreshService {
     public CookieRefreshServiceImpl() {
     }
 
-    /**
-     * 获取账号级别的锁对象
-     */
-    private Object getRefreshLock(Long accountId) {
-        return refreshLocks.computeIfAbsent(accountId, k -> new Object());
-    }
 
     @Override
     public boolean checkLoginStatus(Long accountId) {
-        synchronized (getRefreshLock(accountId)) {
-            return doCheckLoginStatus(accountId, true); // 记录操作日志
-        }
+        return credentialUpdateCoordinator.withAccountLock(accountId,
+                () -> doCheckLoginStatus(accountId, true));
     }
 
     @Override
     public boolean checkLoginStatusQuietly(Long accountId) {
-        synchronized (getRefreshLock(accountId)) {
-            return doCheckLoginStatus(accountId, false); // 不记录操作日志
-        }
+        return credentialUpdateCoordinator.withAccountLock(accountId,
+                () -> doCheckLoginStatus(accountId, false));
     }
 
     /**
@@ -336,7 +330,7 @@ public class CookieRefreshServiceImpl implements CookieRefreshService {
 
     @Override
     public boolean refreshCookie(Long accountId) {
-        synchronized (getRefreshLock(accountId)) {
+        return credentialUpdateCoordinator.withAccountLock(accountId, () -> {
             try {
                 log.info("【账号{}】开始刷新Cookie...", accountId);
 
@@ -401,7 +395,7 @@ public class CookieRefreshServiceImpl implements CookieRefreshService {
 
                 return false;
             }
-        }
+        });
     }
 
     private boolean refreshCookieWithBrowser(Long accountId) {
