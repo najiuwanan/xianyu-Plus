@@ -32,6 +32,12 @@ public interface AutoReplyService {
                                   BooleanSupplier executionAllowed) {
         executeAutoReply(messageList, recordId);
     }
+
+    default void executeAutoReply(List<ChatMessageData> messageList, Long recordId,
+                                  BooleanSupplier executionAllowed,
+                                  BooleanSupplier externalAttemptAllowed) {
+        executeAutoReply(messageList, recordId, executionAllowed);
+    }
     
     /**
      * 检查商品是否开启自动回复

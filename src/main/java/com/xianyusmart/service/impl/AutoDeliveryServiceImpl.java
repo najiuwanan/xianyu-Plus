@@ -12,6 +12,7 @@ import com.xianyusmart.service.AutoDeliveryService;
 import com.xianyusmart.service.EmailNotifyService;
 import com.xianyusmart.service.KamiConfigService;
 import com.xianyusmart.service.BuyerBlacklistService;
+import com.xianyusmart.service.DeliveryAttemptResult;
 import com.xianyusmart.service.OrderService;
 import com.xianyusmart.service.RedFlowerService;
 import com.xianyusmart.service.NotificationChannelService;
@@ -505,7 +506,14 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 kamiConfigService.commitReservation(
                         reservationOrderId, orderId, accountId, xyGoodsId, toId, buyerUserName);
             }
-            sendDeliveryImages(accountId, xyGoodsId, cid, toId, deliveryConfig, false);
+            ImageDeliveryResult imageResult = sendDeliveryImages(
+                    accountId, xyGoodsId, cid, toId, deliveryConfig, false);
+            if (!imageResult.success()) {
+                String reason = PARTIAL_DELIVERY_REVIEW_PREFIX + "文字内容已发送，但配置的发货图片仅成功 "
+                        + imageResult.sent() + "/" + imageResult.configured() + "，请人工核对。";
+                updateRecordState(record.getId(), -1, String.join("\n", messages), reason);
+                return com.xianyusmart.common.ResultObject.failed(reason);
+            }
             updateRecordState(record.getId(), 1, String.join("\n", messages), null);
             return com.xianyusmart.common.ResultObject.success(
                     cardDelivery ? "已领取新的未使用卡密并发送给买家" : "已按当前商品规则重新发送给买家");
@@ -528,6 +536,15 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
     public void executeDelivery(Long recordId, Long accountId, String xyGoodsId, String sId,
                                 String orderId, String buyerUserName, boolean needHumanLikeDelay,
                                 java.util.function.BooleanSupplier executionAllowed) {
+        executeDelivery(recordId, accountId, xyGoodsId, sId, orderId, buyerUserName,
+                needHumanLikeDelay, executionAllowed, executionAllowed);
+    }
+
+    @Override
+    public void executeDelivery(Long recordId, Long accountId, String xyGoodsId, String sId,
+                                String orderId, String buyerUserName, boolean needHumanLikeDelay,
+                                java.util.function.BooleanSupplier executionAllowed,
+                                java.util.function.BooleanSupplier externalAttemptAllowed) {
         boolean cardDelivery = false;
         boolean cardDeliveryAttempted = false;
         boolean anySuccess = false;
@@ -652,25 +669,42 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
                 content = messageTemplateRenderer.joinForSingleMessageChannel(content);
                 ensureExecutionAllowed(executionAllowed);
+                ensureExternalAttemptAllowed(externalAttemptAllowed);
                 cardDeliveryAttempted = cardDelivery;
-                String deliveryResult = orderService.consignDummyDelivery(accountId, orderId, content, imageUrls);
-                if (deliveryResult != null) anySuccess = true;
+                DeliveryAttemptResult deliveryResult = orderService.consignDummyDelivery(
+                        accountId, orderId, content, imageUrls);
                 ensureExecutionAllowed(executionAllowed);
-                if (deliveryResult != null) {
+                if (deliveryResult.status() == DeliveryAttemptResult.Status.CONFIRMED) {
                     anySuccess = true;
                     allContent.append(content);
                     if (cardDelivery) {
                         kamiConfigService.commitReservation(orderId, orderId, accountId, xyGoodsId, toId, buyerUserName);
                     }
-                    log.info("【账号{}】✅ 虚拟发货API成功: recordId={}, result={}", accountId, recordId, deliveryResult);
+                    log.info("【账号{}】✅ 虚拟发货API成功: recordId={}, result={}",
+                            accountId, recordId, deliveryResult.message());
                     sentMessageSaveService.saveAiAssistantReply(accountId, cid, toId, content, xyGoodsId);
+                } else if (deliveryResult.status() == DeliveryAttemptResult.Status.ALREADY_DELIVERED) {
+                    if (cardDelivery) {
+                        kamiConfigService.releaseReservation(orderId);
+                    }
+                    anySuccess = true;
+                    log.info("【账号{}】订单此前已发货，本次预占卡密已安全退回: recordId={}", accountId, recordId);
+                } else if (deliveryResult.status() == DeliveryAttemptResult.Status.UNCERTAIN) {
+                    if (cardDelivery) {
+                        kamiConfigService.markReservationReviewRequired(orderId);
+                    }
+                    String failReason = PARTIAL_DELIVERY_REVIEW_PREFIX + deliveryResult.message();
+                    updateRecordState(recordId, -1, null, failReason);
+                    emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, failReason);
+                    return;
                 } else {
                     if (cardDelivery) {
                         kamiConfigService.releaseReservation(orderId);
                     }
-                    log.error("【账号{}】❌ 虚拟发货API失败: recordId={}", accountId, recordId);
-                    updateRecordState(recordId, -1, content, "虚拟发货API失败");
-                    emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, "虚拟发货API失败");
+                    String failReason = "虚拟发货API被平台拒绝: " + deliveryResult.message();
+                    log.error("【账号{}】❌ {}: recordId={}", accountId, failReason, recordId);
+                    updateRecordState(recordId, -1, null, failReason);
+                    emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, failReason);
                     return;
                 }
             } else {
@@ -703,8 +737,11 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     cardDeliveryAttempted = cardDelivery;
                     String finalBlacklistReason = blacklistService.blockedMessage(accountId, currentOrder.getBuyerUserId());
                     ensureExecutionAllowed(executionAllowed);
-                    boolean success = finalBlacklistReason == null
-                            && webSocketService.sendMessage(accountId, cid, toId, message);
+                    boolean success = false;
+                    if (finalBlacklistReason == null) {
+                        ensureExternalAttemptAllowed(externalAttemptAllowed);
+                        success = webSocketService.sendMessage(accountId, cid, toId, message);
+                    }
                     if (success) anySuccess = true;
                     ensureExecutionAllowed(executionAllowed);
                     if (!success) {
@@ -733,7 +770,15 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 if (cardDelivery) {
                     kamiConfigService.commitReservation(orderId, orderId, accountId, xyGoodsId, toId, buyerUserName);
                 }
-                sendDeliveryImages(accountId, xyGoodsId, cid, toId, deliveryConfig, needHumanLikeDelay);
+                ImageDeliveryResult imageResult = sendDeliveryImages(
+                        accountId, xyGoodsId, cid, toId, deliveryConfig, needHumanLikeDelay);
+                if (!imageResult.success()) {
+                    String failReason = PARTIAL_DELIVERY_REVIEW_PREFIX + "文字内容已发送，但配置的发货图片仅成功 "
+                            + imageResult.sent() + "/" + imageResult.configured() + "，请人工核对后处理。";
+                    updateRecordState(recordId, -1, allContent.toString(), failReason);
+                    emailNotifyService.sendAutoDeliveryFailEmail(null, xyGoodsId, orderId, failReason);
+                    return;
+                }
                 log.info("【账号{}】✅ 发货成功[{}/{}]: recordId={}, deliveryMode={}, messageCount={}",
                         accountId, i + 1, deliveryCount, recordId, deliveryMode, messages.size());
             }
@@ -774,8 +819,8 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             }
             log.error("【账号{}】执行自动发货异常: recordId={}, xyGoodsId={}", accountId, recordId, xyGoodsId, e);
             if (anySuccess) {
-                // 外部消息已发送成功，后续异常不能把已履约订单回写为失败
-                updateRecordState(recordId, 1, allContent.toString(), null);
+                updateRecordState(recordId, -1, allContent.toString(),
+                        PARTIAL_DELIVERY_REVIEW_PREFIX + "外部消息发送后本地处理异常，请人工核对卡密与买家消息。" );
                 return;
             }
             String errorMessage = e.getMessage() == null ? "未知异常" : e.getMessage();
@@ -788,20 +833,26 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
         }
     }
 
-    private void sendDeliveryImages(Long accountId, String xyGoodsId, String cid, String toId,
-                                    XianyuGoodsAutoDeliveryConfig deliveryConfig, boolean needHumanLikeDelay) {
+    private ImageDeliveryResult sendDeliveryImages(Long accountId, String xyGoodsId, String cid, String toId,
+                                                   XianyuGoodsAutoDeliveryConfig deliveryConfig,
+                                                   boolean needHumanLikeDelay) {
         String imageUrlStr = deliveryConfig.getAutoDeliveryImageUrl();
         if (imageUrlStr == null || imageUrlStr.trim().isEmpty()) {
-            return;
+            return new ImageDeliveryResult(0, 0, 0);
         }
         String[] imageUrls = imageUrlStr.split(",");
+        int configured = 0;
+        int sent = 0;
+        int failed = 0;
         for (int i = 0; i < imageUrls.length; i++) {
             try {
                 String url = imageUrls[i].trim();
                 if (url.isEmpty()) continue;
+                configured++;
                 if (blacklistService.isBlacklisted(accountId, toId)) {
                     log.warn("【账号{}】买家在发货图片发送前进入黑名单，停止剩余图片: buyerUserId={}", accountId, toId);
-                    return;
+                    failed++;
+                    continue;
                 }
                 if (i > 0) {
                     if (needHumanLikeDelay) {
@@ -812,15 +863,23 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 }
                 boolean imgSuccess = webSocketService.sendImageMessage(accountId, cid, toId, url, 800, 800);
                 if (imgSuccess) {
+                    sent++;
                     log.info("【账号{}】自动发货图片[{}/{}]发送成功: xyGoodsId={}", accountId, i + 1, imageUrls.length, xyGoodsId);
                     sentMessageSaveService.saveManualImageReply(accountId, cid, toId, url, xyGoodsId);
                 } else {
+                    failed++;
                     log.warn("【账号{}】自动发货图片[{}/{}]发送失败: xyGoodsId={}", accountId, i + 1, imageUrls.length, xyGoodsId);
                 }
             } catch (Exception e) {
+                failed++;
                 log.error("【账号{}】自动发货图片[{}/{}]发送异常: xyGoodsId={}", accountId, i + 1, imageUrls.length, xyGoodsId, e);
             }
         }
+        return new ImageDeliveryResult(configured, sent, failed);
+    }
+
+    private record ImageDeliveryResult(int configured, int sent, int failed) {
+        boolean success() { return failed == 0 && sent == configured; }
     }
 
     private void executeAutoConfirmShipment(Long accountId, String orderId) {
@@ -833,29 +892,24 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             log.info("【账号{}】自提订单跳过自动确认发货: orderId={}", accountId, orderId);
             return;
         }
-        log.info("【账号{}】提交异步自动确认发货: orderId={}", accountId, orderId);
-        taskExecutor.execute(() -> {
-            try {
-                HumanLikeDelayUtils.longDelay();
-                String result = orderService.confirmShipment(accountId, orderId);
-                if (result != null) {
-                    log.info("【账号{}】✅ 自动确认发货成功: orderId={}", accountId, orderId);
-                    orderMapper.updateConfirmState(accountId, orderId);
-                    redFlowerService.requestAfterShipmentConfirmed(accountId, orderId);
-                } else {
-                    log.error("【账号{}】❌ 自动确认发货失败: orderId={}", accountId, orderId);
-                }
-            } catch (Exception e) {
-                log.error("【账号{}】自动确认发货异常: orderId={}", accountId, orderId, e);
-            }
-        });
+        int queued = orderMapper.enqueueConfirmShipment(accountId, orderId);
+        log.info("【账号{}】自动确认发货已进入持久化队列: orderId={}, queued={}", accountId, orderId, queued);
     }
 
     private void updateRecordState(Long recordId, Integer state, String content, String failReason) {
         try {
-            orderMapper.updateStateContentAndFailReason(recordId, state, content, failReason);
+            if (orderMapper.updateStateContentAndFailReason(recordId, state, content, failReason) != 1) {
+                throw new IllegalStateException("订单状态更新未命中记录");
+            }
         } catch (Exception e) {
             log.error("更新订单状态失败: recordId={}, state={}", recordId, state, e);
+            throw new IllegalStateException("订单状态更新失败", e);
+        }
+    }
+
+    private void ensureExternalAttemptAllowed(java.util.function.BooleanSupplier externalAttemptAllowed) {
+        if (externalAttemptAllowed == null || !externalAttemptAllowed.getAsBoolean()) {
+            throw new DeliveryLeaseLostException();
         }
     }
 

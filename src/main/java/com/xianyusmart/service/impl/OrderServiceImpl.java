@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.xianyusmart.service.AccountService;
+import com.xianyusmart.service.DeliveryAttemptResult;
 import com.xianyusmart.service.OrderService;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -45,14 +46,14 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public String consignDummyDelivery(Long accountId, String orderId, String tradeText, List<String> imageUrls) {
+    public DeliveryAttemptResult consignDummyDelivery(Long accountId, String orderId, String tradeText, List<String> imageUrls) {
         try {
             log.info("【账号{}】开始调用闲鱼新发货API(虚拟发货): orderId={}", accountId, orderId);
 
             String cookieStr = accountService.getCookieByAccountId(accountId);
             if (cookieStr == null || cookieStr.isEmpty()) {
                 log.error("【账号{}】未找到Cookie", accountId);
-                return null;
+                return DeliveryAttemptResult.rejected("未找到可用 Cookie");
             }
 
             String limitedText = tradeText;
@@ -108,29 +109,32 @@ public class OrderServiceImpl implements OrderService {
 
                 if (result.isTokenExpired()) {
                     log.warn("【账号{}】操作未完成：令牌过期且自动刷新失败", accountId);
-                    return null;
+                    return DeliveryAttemptResult.rejected("令牌过期且自动刷新失败");
                 }
 
                 if (errorMsg != null && errorMsg.contains("ORDER_ALREADY_DELIVERY")) {
-                    log.info("【账号{}】订单已发货(ORDER_ALREADY_DELIVERY)，视为成功: orderId={}", accountId, orderId);
-                    return "虚拟发货成功(已发货)";
+                    log.info("【账号{}】平台确认订单此前已发货，本次内容未发送: orderId={}", accountId, orderId);
+                    return DeliveryAttemptResult.alreadyDelivered("平台确认订单此前已发货，本次内容未发送");
                 }
 
-                return null;
+                if (result.getResponse() == null || result.getResponse().isBlank()) {
+                    return DeliveryAttemptResult.uncertain("虚拟发货请求未取得平台响应，发送结果需要人工核对");
+                }
+                return DeliveryAttemptResult.rejected(errorMsg == null ? "平台拒绝虚拟发货请求" : errorMsg);
             }
 
             Map<String, Object> responseData = result.extractData();
             if (responseData != null) {
                 log.info("【账号{}】✅ 闲鱼新发货API成功: orderId={}", accountId, orderId);
-                return "虚拟发货成功";
+                return DeliveryAttemptResult.confirmed("虚拟发货成功");
             } else {
                 log.error("【账号{}】响应数据格式错误", accountId);
-                return null;
+                return DeliveryAttemptResult.uncertain("平台返回成功但缺少可核验数据，发送结果需要人工核对");
             }
 
         } catch (Exception e) {
             log.error("【账号{}】调用闲鱼新发货API异常: orderId={}", accountId, orderId, e);
-            return null;
+            return DeliveryAttemptResult.uncertain("虚拟发货调用异常，发送结果需要人工核对");
         }
     }
     

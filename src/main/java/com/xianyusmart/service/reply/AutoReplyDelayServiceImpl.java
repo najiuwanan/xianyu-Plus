@@ -275,6 +275,7 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
         if (!automationScheduleService.tryAcquire(AutomationScheduleService.DELAYED_REPLY)) {
             return;
         }
+        autoReplyRecordMapper.markExpiredExternalAttemptsForReview();
         for (XianyuGoodsAutoReplyRecord record : autoReplyRecordMapper.findDue(20)) {
             try {
                 List<ChatMessageData> messages = objectMapper.readValue(
@@ -332,6 +333,7 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
         Long accountId = lastMessage.getXianyuAccountId();
         String sId = lastMessage.getSId();
         java.util.concurrent.atomic.AtomicBoolean leaseActive = new java.util.concurrent.atomic.AtomicBoolean(true);
+        java.util.concurrent.atomic.AtomicBoolean externalAttemptStarted = new java.util.concurrent.atomic.AtomicBoolean(false);
         long renewalSeconds = Math.max(10L, leaseSeconds / 3L);
         ScheduledFuture<?> renewal = scheduler.scheduleAtFixedRate(() -> {
             if (autoReplyRecordMapper.renewLease(recordId, workerId, leaseSeconds) == 0) {
@@ -361,18 +363,40 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
                 autoReplyRecordMapper.cancelById(recordId);
                 return;
             }
-            autoReplyService.executeAutoReply(messages, recordId, leaseActive::get);
+            java.util.function.BooleanSupplier executionAllowed = () -> leaseActive.get()
+                    && autoReplyRecordMapper.countActiveLease(recordId, workerId) > 0;
+            java.util.function.BooleanSupplier externalAttemptAllowed = () -> {
+                if (!executionAllowed.getAsBoolean()) {
+                    return false;
+                }
+                if (externalAttemptStarted.compareAndSet(false, true)) {
+                    return autoReplyRecordMapper.markExternalAttemptStarted(recordId, workerId) == 1;
+                }
+                return executionAllowed.getAsBoolean();
+            };
+            autoReplyService.executeAutoReply(messages, recordId, executionAllowed, externalAttemptAllowed);
             if (!leaseActive.get()) {
                 return;
             }
             XianyuGoodsAutoReplyRecord result = autoReplyRecordMapper.selectById(recordId);
             if (result != null && Integer.valueOf(2).equals(result.getState())) {
-                autoReplyRecordMapper.failClaimedIfOwned(recordId, workerId);
+                if ("EXTERNAL_SEND_STARTED".equals(result.getLastErrorCode())) {
+                    autoReplyRecordMapper.markReviewRequiredIfOwned(recordId, workerId,
+                            "外部回复发送已开始但本地结果未提交，请人工核对");
+                } else {
+                    autoReplyRecordMapper.failClaimedIfOwned(recordId, workerId);
+                }
             }
         } catch (Exception e) {
             if (leaseActive.get()) {
                 log.error("【账号{}】执行持久化延时回复异常: sId={}", accountId, sId, e);
-                autoReplyRecordMapper.failClaimedIfOwned(recordId, workerId);
+                XianyuGoodsAutoReplyRecord current = autoReplyRecordMapper.selectById(recordId);
+                if (current != null && "EXTERNAL_SEND_STARTED".equals(current.getLastErrorCode())) {
+                    autoReplyRecordMapper.markReviewRequiredIfOwned(recordId, workerId,
+                            "外部回复发送后任务异常，请人工核对");
+                } else {
+                    autoReplyRecordMapper.failClaimedIfOwned(recordId, workerId);
+                }
             }
         } finally {
             renewal.cancel(false);

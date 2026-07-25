@@ -307,6 +307,10 @@ public class OrderAutomationService {
         }
         String feedback = StringUtils.hasText(account.getAutoRateText())
                 ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
+        if (!tryClaimRate(accountId, orderId)) {
+            return new OrderAutomationRetryRespDTO(false, "RATE_CHECK",
+                    "该订单评价任务正在执行或已完成，请稍后刷新状态");
+        }
         boolean success = rateService.rateBuyer(accountId, orderId, feedback);
         if (success && isRateWaiting(accountId, orderId)) {
             return new OrderAutomationRetryRespDTO(true, "RATE_CHECK", "平台确认订单暂未完成，已保留等待评价状态");
@@ -359,8 +363,10 @@ public class OrderAutomationService {
         String feedback = StringUtils.hasText(account.getAutoRateText())
                 ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
         for (String orderId : candidates) {
-            // The pending-rate list may lag behind or omit an order in some page variants, so the
-            // final rate API remains authoritative. Every platform request is still rate-limited.
+            if (!tryClaimRate(accountId, orderId)) {
+                continue;
+            }
+            // 待评价列表可能滞后，最终仍由平台评价接口裁决；原子占位保证手动与定时任务不并发发送。
             rateService.rateBuyer(accountId, orderId, feedback);
             if (!sleepBetweenRateRequests(requestIntervalSeconds)) {
                 return;
@@ -381,6 +387,10 @@ public class OrderAutomationService {
     private void processRateAttempt(OrderAutomationBatchRespDTO result, XianyuAccount account, String orderId) {
         String feedback = StringUtils.hasText(account.getAutoRateText())
                 ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
+        if (!tryClaimRate(account.getId(), orderId)) {
+            result.setWaitingCount(result.getWaitingCount() + 1);
+            return;
+        }
         if (!rateService.rateBuyer(account.getId(), orderId, feedback)) {
             result.setFailedCount(result.getFailedCount() + 1);
             return;
@@ -403,6 +413,12 @@ public class OrderAutomationService {
         boolean success = redFlowerService.retryRedFlower(accountId, orderId);
         return new OrderAutomationRetryRespDTO(success, "RED_FLOWER",
                 success ? "小红花重试成功" : "小红花重试失败，失败原因和下次重试时间已更新");
+    }
+
+    private boolean tryClaimRate(Long accountId, String orderId) {
+        if (accountId == null || !StringUtils.hasText(orderId)) return false;
+        if (automationRecordMapper.insertRateClaim(accountId, orderId) == 1) return true;
+        return automationRecordMapper.claimExistingRateAttempt(accountId, orderId) == 1;
     }
 
     private String normalizeStatus(String status) {

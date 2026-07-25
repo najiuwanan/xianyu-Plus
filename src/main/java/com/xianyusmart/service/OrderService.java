@@ -26,7 +26,7 @@ public interface OrderService {
      */
     String confirmShipmentToXianyu(Long accountId, String orderId);
 
-    String consignDummyDelivery(Long accountId, String orderId, String tradeText, List<String> imageUrls);
+    DeliveryAttemptResult consignDummyDelivery(Long accountId, String orderId, String tradeText, List<String> imageUrls);
 
     /**
      * 获取订单详情

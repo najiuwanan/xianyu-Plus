@@ -6,7 +6,16 @@ import type { Account } from '@/types'
 
 const isMerchantActionOrder = (order: DeliveryRecordVO) => {
   const trade = `${order.tradeStatus || ''} ${order.tradeStatusText || ''}`.toUpperCase()
-  return !trade.includes('PENDING_PAYMENT') && !trade.includes('待付款') && !trade.includes('等待付款')
+  if (trade.includes('PENDING_PAYMENT') || trade.includes('待付款') || trade.includes('等待付款')) return false
+  const delivery = String(order.deliveryStatus || '').toUpperCase()
+  const terminal = ['COMPLETED', 'FINISHED', 'REFUNDED', 'CLOSED'].some(status => trade.includes(status))
+  if (['FAILED', 'REVIEW_REQUIRED'].includes(delivery)) return true
+  if (['PENDING', 'PROCESSING', 'RETRY_WAIT'].includes(delivery)) return !terminal
+  if (String(order.deliveryChannel || '').toUpperCase() === 'PICKUP') {
+    return !terminal
+  }
+  if (trade.includes('PENDING_SHIPMENT') && Number(order.confirmState || 0) !== 1) return true
+  return trade.includes('REFUNDING') || trade.includes('退款中') || trade.includes('售后')
 }
 
 export function useDashboard() {
@@ -22,6 +31,7 @@ export function useDashboard() {
     todayRevenue: 0,
     todayDeliveryCount: 0,
     todayReplyCount: 0,
+    merchantActionOrderCount: 0,
     pendingTaskCount: 0,
     reviewRequiredCount: 0,
     failedTaskCount: 0,
@@ -41,7 +51,7 @@ export function useDashboard() {
       const [overviewResult, accountResult, orderResult] = await Promise.allSettled([
         getDashboardOverview(),
         getAccountList(),
-        queryDeliveryRecordList({ orderStatus: 0, pageNum: 1, pageSize: 20 })
+        queryDeliveryRecordList({ pageNum: 1, pageSize: 100 })
       ])
 
       if (overviewResult.status === 'fulfilled') {
@@ -50,6 +60,7 @@ export function useDashboard() {
           Object.assign(stats, res.data.stats || {})
           trends.value = res.data.trends || []
           automationExceptionCount.value = Number(res.data.automationExceptionCount || 0)
+          pendingOrderCount.value = Number(res.data.stats?.merchantActionOrderCount || 0)
         }
       }
 
@@ -61,8 +72,6 @@ export function useDashboard() {
       if (orderResult.status === 'fulfilled') {
         const records = (orderResult.value.data?.records || []).filter(isMerchantActionOrder)
         pendingOrders.value = records.slice(0, 5)
-        // 订单接口没有按交易状态单独计数，因此首页只显示已同步且已排除待付款的真实商家待办。
-        pendingOrderCount.value = records.length
       }
     } finally {
       loading.value = false

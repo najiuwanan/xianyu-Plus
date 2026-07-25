@@ -32,6 +32,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 外部 API 卡券来源实现。
@@ -48,6 +49,7 @@ public class ApiKamiDeliveryServiceImpl implements ApiKamiDeliveryService {
     private static final int STATE_REQUESTING = 0;
     private static final int STATE_READY = 1;
     private static final int STATE_FAILED = 2;
+    private static final int STATE_REVIEW_REQUIRED = 3;
     private static final int DEFAULT_TIMEOUT_SECONDS = 10;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -70,6 +72,7 @@ public class ApiKamiDeliveryServiceImpl implements ApiKamiDeliveryService {
 
         XianyuApiKamiDelivery record = apiKamiDeliveryMapper.findByConfigAndOrder(
                 config.getId(), context.getAccountId(), context.getOrderId());
+        String requestToken;
         if (record != null) {
             if (STATE_READY == safeState(record) && !isBlank(record.getDeliveryContent())) {
                 log.info("【账号{}】外部 API 卡券命中订单缓存: configId={}, orderId={}",
@@ -79,21 +82,28 @@ public class ApiKamiDeliveryServiceImpl implements ApiKamiDeliveryService {
             if (STATE_REQUESTING == safeState(record)) {
                 LocalDateTime now = LocalDateTime.now();
                 long staleSeconds = Math.max(60L, normalizeTimeout(config.getApiTimeoutSeconds()) * 2L);
-                if (apiKamiDeliveryMapper.claimStaleRequestForRetry(
-                        record.getId(), now, now.minusSeconds(staleSeconds)) != 1) {
+                if (apiKamiDeliveryMapper.markStaleRequestForReview(
+                        record.getId(), record.getRequestToken(), now, now.minusSeconds(staleSeconds)) != 1) {
                     throw new BusinessException(409, "外部 API 正在为该订单领取卡券，请稍后重试");
                 }
-                record.setRequestTime(now);
-                log.warn("【账号{}】已回收超时的外部 API 卡券任务: configId={}, orderId={}",
+                log.error("【账号{}】外部 API 卡券任务超时，已转人工核对且禁止重复取卡: configId={}, orderId={}",
                         context.getAccountId(), config.getId(), context.getOrderId());
-            } else if (apiKamiDeliveryMapper.claimFailedForRetry(record.getId(), LocalDateTime.now()) != 1) {
+                throw new BusinessException(409, "外部 API 卡券请求结果待核对，请确认供应商是否已扣卡");
+            } else if (STATE_REVIEW_REQUIRED == safeState(record)) {
+                throw new BusinessException(409, "外部 API 卡券请求结果待核对，请先人工确认供应商记录");
+            }
+            requestToken = UUID.randomUUID().toString();
+            if (apiKamiDeliveryMapper.claimFailedForRetry(record.getId(), requestToken, LocalDateTime.now()) != 1) {
                 throw new BusinessException(409, "外部 API 卡券正在处理，请稍后重试");
             }
+            record.setRequestToken(requestToken);
         } else {
+            requestToken = UUID.randomUUID().toString();
             record = new XianyuApiKamiDelivery();
             record.setKamiConfigId(config.getId());
             record.setXianyuAccountId(context.getAccountId());
             record.setOrderId(context.getOrderId());
+            record.setRequestToken(requestToken);
             record.setState(STATE_REQUESTING);
             record.setRequestTime(LocalDateTime.now());
             try {
@@ -108,23 +118,43 @@ public class ApiKamiDeliveryServiceImpl implements ApiKamiDeliveryService {
             }
         }
 
+        ApiCallResult result;
         try {
-            ApiCallResult result = execute(config, buildVariables(context));
+            result = execute(config, buildVariables(context));
             if (isBlank(result.content())) {
                 throw new BusinessException(502, "外部 API 未返回可用卡券内容");
             }
-            apiKamiDeliveryMapper.markReady(record.getId(), result.content(), LocalDateTime.now());
-            log.info("【账号{}】外部 API 卡券领取成功: configId={}, orderId={}, contentLen={}",
-                    context.getAccountId(), config.getId(), context.getOrderId(), result.content().length());
-            return result.content();
         } catch (BusinessException e) {
-            markFailed(record.getId(), e.getMessage());
+            if (Integer.valueOf(400).equals(e.getCode())) {
+                markFailed(record.getId(), requestToken, e.getMessage());
+            } else {
+                markReviewRequired(record.getId(), requestToken,
+                        "外部供应商请求结果不确定：" + conciseMessage(e.getMessage()));
+            }
             throw e;
         } catch (Exception e) {
-            String message = "外部 API 获取卡券失败: " + conciseMessage(e.getMessage());
-            markFailed(record.getId(), message);
+            String message = "外部 API 获取卡券结果不确定: " + conciseMessage(e.getMessage());
+            markReviewRequired(record.getId(), requestToken, message);
             throw new BusinessException(502, message, e);
         }
+
+        try {
+            if (apiKamiDeliveryMapper.markReady(
+                    record.getId(), result.content(), requestToken, LocalDateTime.now()) != 1) {
+                XianyuApiKamiDelivery latest = apiKamiDeliveryMapper.selectById(record.getId());
+                if (latest != null && STATE_READY == safeState(latest) && !isBlank(latest.getDeliveryContent())) {
+                    return latest.getDeliveryContent();
+                }
+                throw new BusinessException(409, "供应商已返回卡券，但本地结果未落库，请人工核对后再处理");
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BusinessException(409, "供应商已返回卡券，但本地保存失败，请人工核对", e);
+        }
+        log.info("【账号{}】外部 API 卡券领取成功: configId={}, orderId={}, contentLen={}",
+                context.getAccountId(), config.getId(), context.getOrderId(), result.content().length());
+        return result.content();
     }
 
     @Override
@@ -399,11 +429,20 @@ public class ApiKamiDeliveryServiceImpl implements ApiKamiDeliveryService {
         return variables;
     }
 
-    private void markFailed(Long recordId, String message) {
+    private void markFailed(Long recordId, String requestToken, String message) {
         try {
-            apiKamiDeliveryMapper.markFailed(recordId, conciseMessage(message), LocalDateTime.now());
+            apiKamiDeliveryMapper.markFailed(recordId, conciseMessage(message), requestToken, LocalDateTime.now());
         } catch (Exception e) {
             log.warn("外部 API 卡券失败状态写入异常: recordId={}", recordId, e);
+        }
+    }
+
+    private void markReviewRequired(Long recordId, String requestToken, String message) {
+        try {
+            apiKamiDeliveryMapper.markReviewRequired(
+                    recordId, conciseMessage(message), requestToken, LocalDateTime.now());
+        } catch (Exception e) {
+            log.warn("外部 API 卡券待核对状态写入异常: recordId={}", recordId, e);
         }
     }
 

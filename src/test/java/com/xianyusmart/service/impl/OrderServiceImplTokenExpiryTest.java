@@ -1,12 +1,14 @@
 package com.xianyusmart.service.impl;
 
 import com.xianyusmart.service.AccountService;
+import com.xianyusmart.service.DeliveryAttemptResult;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
@@ -33,7 +35,8 @@ class OrderServiceImplTokenExpiryTest {
         ReflectionTestUtils.setField(service, "accountService", accountService);
         ReflectionTestUtils.setField(service, "xianyuApiCallUtils", api);
 
-        assertNull(service.consignDummyDelivery(7L, "order-1", "CARD-CONTENT", List.of()));
+        assertEquals(DeliveryAttemptResult.Status.REJECTED,
+                service.consignDummyDelivery(7L, "order-1", "CARD-CONTENT", List.of()).status());
     }
 
     @Test

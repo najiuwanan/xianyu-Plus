@@ -83,7 +83,7 @@ class AutomationHardeningSourceTest {
         assertTrue(insertSql.contains("INSERT IGNORE"));
         assertTrue(insertSql.contains("dedup_key"));
         assertTrue(updateSql.contains("CASE WHEN"));
-        assertTrue(updateSql.contains("IN (0, 1, 2)"));
+        assertTrue(updateSql.contains("IN (0, 1, 2, 3)"));
     }
 
     @Test
@@ -95,6 +95,15 @@ class AutomationHardeningSourceTest {
         assertTrue(migration.contains("ADD UNIQUE KEY uk_reply_dedup_key"));
         assertTrue(migration.contains("state IN (0, 1, 2)"));
         assertEquals(5, ProductDefaultReplyStrategy.REPLY_TYPE_PRODUCT_DEFAULT);
+    }
+
+    @Test
+    void migrationRebuildsReplyKeysWithTheRuntimeSha256Scope() throws Exception {
+        String migration = Files.readString(Path.of(
+                "src/main/resources/db/migration/V30__complete_automation_reliability.sql"));
+        assertTrue(migration.contains("SHA2(CONCAT("));
+        assertTrue(migration.contains("COALESCE(NULLIF(target.buyer_user_id, ''), NULLIF(target.s_id, ''))"));
+        assertTrue(migration.contains("state IN (0, 1, 2, 3)"));
     }
 
     private int occurrences(String text, String needle) {

@@ -144,6 +144,7 @@ public class DeliveryTaskScheduler {
             return;
         }
         AtomicBoolean leaseActive = new AtomicBoolean(true);
+        AtomicBoolean externalAttemptStarted = new AtomicBoolean(false);
         long renewalSeconds = Math.max(10, leaseSeconds / 2L);
         ScheduledFuture<?> renewal = taskScheduler.scheduleAtFixedRate(
                 () -> {
@@ -158,26 +159,43 @@ public class DeliveryTaskScheduler {
                 String receiverId = task.getBuyerUserId() != null ? task.getBuyerUserId() : task.getOrderId();
                 sId = receiverId + "@goofish";
             }
+            java.util.function.BooleanSupplier executionAllowed = () -> leaseActive.get()
+                    && deliveryTaskService.isLeaseActive(task.getId(), workerId);
+            java.util.function.BooleanSupplier externalAttemptAllowed = () -> {
+                if (!executionAllowed.getAsBoolean()) return false;
+                if (externalAttemptStarted.compareAndSet(false, true)) {
+                    return deliveryTaskService.beginExternalAttempt(task.getId(), workerId);
+                }
+                return executionAllowed.getAsBoolean();
+            };
+
             autoDeliveryService.executeDelivery(
                     task.getId(), task.getXianyuAccountId(), task.getXyGoodsId(), sId,
-                    task.getOrderId(), task.getBuyerUserName(), false, leaseActive::get);
+                    task.getOrderId(), task.getBuyerUserName(), false, executionAllowed,
+                    externalAttemptAllowed);
 
             if (!leaseActive.get()) {
                 return;
             }
             XianyuGoodsOrder result = orderMapper.selectById(task.getId());
-            if (result != null && Integer.valueOf(1).equals(result.getState())) {
+            if (requiresManualReview(task, result)) {
+                deliveryTaskService.markReviewRequired(task.getId(), workerId, result != null ? result.getFailReason() : null);
+            } else if (result != null && Integer.valueOf(1).equals(result.getState())) {
                 deliveryTaskService.complete(task.getId(), workerId);
             } else if (requiresBuyerVerification(result)) {
                 deliveryTaskService.deferBuyerVerification(task.getId(), workerId, result.getFailReason());
-            } else if (requiresManualReview(task, result)) {
-                deliveryTaskService.markReviewRequired(task.getId(), workerId, result != null ? result.getFailReason() : null);
             } else {
                 deliveryTaskService.retryOrFail(task.getId(), workerId, result != null ? result.getFailReason() : null);
             }
         } catch (Exception e) {
             log.error("订单任务执行异常: taskId={}, orderId={}", task.getId(), task.getOrderId(), e);
-            deliveryTaskService.retryOrFail(task.getId(), workerId, e.getMessage());
+            XianyuGoodsOrder current = orderMapper.selectById(task.getId());
+            if (current != null && "EXTERNAL_SEND_STARTED".equals(current.getLastErrorCode())) {
+                deliveryTaskService.markReviewRequired(task.getId(), workerId,
+                        "外部发送开始后本地状态提交失败，结果需要人工核对");
+            } else {
+                deliveryTaskService.retryOrFail(task.getId(), workerId, e.getMessage());
+            }
         } finally {
             renewal.cancel(false);
         }

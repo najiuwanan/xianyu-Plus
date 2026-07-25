@@ -23,7 +23,9 @@ public interface XianyuGoodsAutoReplyRecordMapper {
      * 更新记录状态和回复内容
      */
     @Update("UPDATE xianyu_goods_auto_reply_record SET state = #{state}, reply_content = #{replyContent}, " +
-            "dedup_key = CASE WHEN #{state} IN (0, 1, 2) THEN dedup_key ELSE NULL END, " +
+            "dedup_key = CASE WHEN #{state} IN (0, 1, 2, 3) THEN dedup_key ELSE NULL END, " +
+            "last_error_code = CASE WHEN #{state} = 3 THEN 'REPLY_DELIVERY_UNCERTAIN' ELSE NULL END, " +
+            "last_error_message = CASE WHEN #{state} = 3 THEN '部分回复可能已送达，请人工核对' ELSE NULL END, " +
             "lease_owner = NULL, lease_expire_time = NULL WHERE id = #{id}")
     int updateStateAndContent(@Param("id") Long id, @Param("state") Integer state, @Param("replyContent") String replyContent);
     
@@ -81,20 +83,61 @@ public interface XianyuGoodsAutoReplyRecordMapper {
     int renewLease(@Param("id") Long id, @Param("workerId") String workerId,
                    @Param("leaseSeconds") int leaseSeconds);
 
-    @Update("UPDATE xianyu_goods_auto_reply_record SET state = -1, dedup_key = NULL, " +
+    @Select("SELECT COUNT(*) FROM xianyu_goods_auto_reply_record WHERE id = #{id} AND state = 2 " +
+            "AND lease_owner = #{workerId} AND lease_expire_time > NOW(3)")
+    int countActiveLease(@Param("id") Long id, @Param("workerId") String workerId);
+
+    @Update("UPDATE xianyu_goods_auto_reply_record SET last_error_code = 'EXTERNAL_SEND_STARTED', " +
+            "last_error_message = '外部回复发送已开始，进程中断时禁止自动重放' " +
+            "WHERE id = #{id} AND state = 2 AND lease_owner = #{workerId} AND lease_expire_time > NOW(3)")
+    int markExternalAttemptStarted(@Param("id") Long id, @Param("workerId") String workerId);
+
+    @Update("UPDATE xianyu_goods_auto_reply_record SET state = 3, " +
+            "last_error_code = 'REPLY_DELIVERY_UNCERTAIN', last_error_message = #{message}, " +
+            "lease_owner = NULL, lease_expire_time = NULL WHERE id = #{id} AND state = 2 AND lease_owner = #{workerId}")
+    int markReviewRequiredIfOwned(@Param("id") Long id, @Param("workerId") String workerId,
+                                  @Param("message") String message);
+
+    @Update("UPDATE xianyu_goods_auto_reply_record SET state = 3, " +
+            "last_error_code = 'REPLY_DELIVERY_UNCERTAIN', last_error_message = #{message}, " +
+            "lease_owner = NULL, lease_expire_time = NULL WHERE id = #{id} AND state = 2")
+    int markReviewRequiredById(@Param("id") Long id, @Param("message") String message);
+
+    @Update("UPDATE xianyu_goods_auto_reply_record SET " +
+            "dedup_key = CASE WHEN last_error_code = 'EXTERNAL_SEND_STARTED' THEN dedup_key ELSE NULL END, " +
+            "last_error_message = CASE WHEN last_error_code = 'EXTERNAL_SEND_STARTED' THEN '外部回复发送后任务异常，结果需要人工核对' ELSE last_error_message END, " +
+            "state = CASE WHEN last_error_code = 'EXTERNAL_SEND_STARTED' THEN 3 ELSE -1 END, " +
+            "last_error_code = CASE WHEN last_error_code = 'EXTERNAL_SEND_STARTED' THEN 'REPLY_DELIVERY_UNCERTAIN' ELSE last_error_code END, " +
             "lease_owner = NULL, lease_expire_time = NULL WHERE id = #{id} AND state = 2 AND lease_owner = #{workerId}")
     int failClaimedIfOwned(@Param("id") Long id, @Param("workerId") String workerId);
+
+    @Update("UPDATE xianyu_goods_auto_reply_record SET state = 3, " +
+            "last_error_code = 'REPLY_DELIVERY_UNCERTAIN', " +
+            "last_error_message = '外部回复发送开始后任务中断，结果需要人工核对', " +
+            "lease_owner = NULL, lease_expire_time = NULL " +
+            "WHERE state = 2 AND lease_expire_time < NOW(3) AND last_error_code = 'EXTERNAL_SEND_STARTED'")
+    int markExpiredExternalAttemptsForReview();
 
     @Update("UPDATE xianyu_goods_auto_reply_record SET state = -2, dedup_key = NULL, lease_owner = NULL, lease_expire_time = NULL " +
             "WHERE xianyu_account_id = #{accountId} AND s_id = #{sId} AND state = 0")
     int cancelPendingBySession(@Param("accountId") Long accountId, @Param("sId") String sId);
 
     /** 账号临时下线时，取消该账号全部尚未完成的自动回复。 */
-    @Update("UPDATE xianyu_goods_auto_reply_record SET state = -2, dedup_key = NULL, lease_owner = NULL, lease_expire_time = NULL " +
+    @Update("UPDATE xianyu_goods_auto_reply_record SET " +
+            "dedup_key = CASE WHEN state = 2 AND last_error_code = 'EXTERNAL_SEND_STARTED' THEN dedup_key ELSE NULL END, " +
+            "last_error_message = CASE WHEN state = 2 AND last_error_code = 'EXTERNAL_SEND_STARTED' THEN '账号停用时回复发送结果待核对' ELSE last_error_message END, " +
+            "state = CASE WHEN state = 2 AND last_error_code = 'EXTERNAL_SEND_STARTED' THEN 3 ELSE -2 END, " +
+            "last_error_code = CASE WHEN last_error_code = 'EXTERNAL_SEND_STARTED' THEN 'REPLY_DELIVERY_UNCERTAIN' ELSE last_error_code END, " +
+            "lease_owner = NULL, lease_expire_time = NULL " +
             "WHERE xianyu_account_id = #{accountId} AND state IN (0, 2)")
     int cancelPendingByAccount(@Param("accountId") Long accountId);
 
-    @Update("UPDATE xianyu_goods_auto_reply_record SET state = -2, dedup_key = NULL, lease_owner = NULL, lease_expire_time = NULL WHERE id = #{id} AND state IN (0, 2)")
+    @Update("UPDATE xianyu_goods_auto_reply_record SET " +
+            "dedup_key = CASE WHEN state = 2 AND last_error_code = 'EXTERNAL_SEND_STARTED' THEN dedup_key ELSE NULL END, " +
+            "last_error_message = CASE WHEN state = 2 AND last_error_code = 'EXTERNAL_SEND_STARTED' THEN '回复发送结果待核对' ELSE last_error_message END, " +
+            "state = CASE WHEN state = 2 AND last_error_code = 'EXTERNAL_SEND_STARTED' THEN 3 ELSE -2 END, " +
+            "last_error_code = CASE WHEN last_error_code = 'EXTERNAL_SEND_STARTED' THEN 'REPLY_DELIVERY_UNCERTAIN' ELSE last_error_code END, " +
+            "lease_owner = NULL, lease_expire_time = NULL WHERE id = #{id} AND state IN (0, 2)")
     int cancelById(@Param("id") Long id);
 
     @Select("SELECT COUNT(*) FROM xianyu_goods_auto_reply_record WHERE state IN (0, 2)")

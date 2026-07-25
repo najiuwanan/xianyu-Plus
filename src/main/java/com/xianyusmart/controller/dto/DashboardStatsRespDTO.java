@@ -47,6 +47,9 @@ public class DashboardStatsRespDTO {
 
     private Integer todayReplyCount;
 
+    /** 真正需要商家处理的订单总数，不包含买家待付款。 */
+    private Integer merchantActionOrderCount;
+
     private Integer pendingTaskCount;
 
     private Integer reviewRequiredCount;

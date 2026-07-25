@@ -92,6 +92,11 @@ public class NotificationChannelServiceImpl extends ServiceImpl<SysNotificationC
     @Override
     @Async("taskExecutor")
     public void dispatchMessage(String eventType, Long accountId, Map<String, Object> params) {
+        dispatchMessageSync(eventType, accountId, params);
+    }
+
+    @Override
+    public boolean dispatchMessageSync(String eventType, Long accountId, Map<String, Object> params) {
         Map<String, Object> messageParams = params == null ? new HashMap<>() : new HashMap<>(params);
 
         if (accountId != null) {
@@ -106,6 +111,7 @@ public class NotificationChannelServiceImpl extends ServiceImpl<SysNotificationC
                 .eq(SysNotificationChannel::getStatus, 1)
                 .list();
 
+        boolean allSucceeded = true;
         for (SysNotificationChannel channel : channels) {
             long startedAt = System.currentTimeMillis();
             try {
@@ -140,10 +146,12 @@ public class NotificationChannelServiceImpl extends ServiceImpl<SysNotificationC
             } catch (Exception e) {
                 String errorMessage = summarize(e.getMessage());
                 log.error("通知发送失败: channel={}, eventType={}, error={}", channel.getName(), eventType, errorMessage, e);
+                allSucceeded = false;
                 recordDelivery(accountId, channel, eventType, null, errorMessage,
                         System.currentTimeMillis() - startedAt);
             }
         }
+        return allSucceeded;
     }
 
     /** Keep account identity visible for every new-order notification, including legacy custom templates. */

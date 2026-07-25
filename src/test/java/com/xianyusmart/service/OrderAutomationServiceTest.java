@@ -47,6 +47,7 @@ class OrderAutomationServiceTest {
         when(rateService.checkOrderReadyForRate(8L, "trade-8"))
                 .thenReturn(new RateService.PendingRateOrderCheck(true, "订单已进入闲鱼待评价列表"));
         when(rateService.rateBuyer(8L, "trade-8", "感谢惠顾！")).thenReturn(true);
+        when(automationRecordMapper.insertRateClaim(8L, "trade-8")).thenReturn(1);
 
         OrderAutomationRetryRespDTO result = service().retry(8L, "trade-8", "RATE");
 
@@ -76,11 +77,28 @@ class OrderAutomationServiceTest {
         when(rateService.checkOrderReadyForRate(8L, "trade-8"))
                 .thenReturn(new RateService.PendingRateOrderCheck(false, "待评价列表未找到订单"));
         when(rateService.rateBuyer(8L, "trade-8", "感谢惠顾！")).thenReturn(true);
+        when(automationRecordMapper.insertRateClaim(8L, "trade-8")).thenReturn(1);
         OrderAutomationRetryRespDTO result = service().retry(8L, "trade-8", "RATE_CHECK");
 
         assertTrue(result.isSuccess());
         verify(rateService).rateBuyer(8L, "trade-8", "感谢惠顾！");
         verify(automationRecordMapper, never()).markRateWaiting(any(), any(), any());
+    }
+
+    @Test
+    void doesNotSendRatingWhenAnotherWorkerOwnsTheAtomicClaim() {
+        when(automationRecordMapper.countManagedAutomationOrder(8L, "trade-8")).thenReturn(1);
+        XianyuAccount account = new XianyuAccount();
+        when(accountMapper.selectById(8L)).thenReturn(account);
+        when(rateService.checkOrderReadyForRate(8L, "trade-8"))
+                .thenReturn(new RateService.PendingRateOrderCheck(true, "可评价"));
+        when(automationRecordMapper.insertRateClaim(8L, "trade-8")).thenReturn(0);
+        when(automationRecordMapper.claimExistingRateAttempt(8L, "trade-8")).thenReturn(0);
+
+        OrderAutomationRetryRespDTO result = service().retry(8L, "trade-8", "RATE");
+
+        assertFalse(result.isSuccess());
+        verify(rateService, never()).rateBuyer(any(), any(), any());
     }
 
     @Test

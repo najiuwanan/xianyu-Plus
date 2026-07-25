@@ -82,6 +82,21 @@ public class XianyuGoodsOrder {
 
     private String lastErrorMessage;
 
+    /** 下单通知：0待发送，1发送中，2已处理，3发送失败；发送失败也不自动重放。 */
+    private Integer notificationStatus;
+
+    private String confirmTaskStatus;
+
+    private Integer confirmAttemptCount;
+
+    private LocalDateTime confirmNextRetryTime;
+
+    private String confirmLeaseOwner;
+
+    private LocalDateTime confirmLeaseExpireTime;
+
+    private String confirmError;
+
     /** 账号当前是否启用自动评价：0=未启用，1=已启用。 */
     private Integer rateEnabled;
 

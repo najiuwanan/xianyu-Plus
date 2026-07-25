@@ -66,6 +66,7 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
     @Transactional
     public List<XianyuGoodsOrder> claimDueTasks(String workerId, int limit) {
         int batchSize = Math.max(1, Math.min(limit, 100));
+        orderMapper.markExpiredExternalAttemptsForReview();
         List<XianyuGoodsOrder> tasks = orderMapper.lockDueTasks(batchSize);
         if (tasks.isEmpty()) {
             return tasks;
@@ -137,6 +138,17 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
     @Override
     public boolean renewLease(Long taskId, String workerId) {
         return orderMapper.renewTaskLease(taskId, workerId, leaseSeconds) > 0;
+    }
+
+    @Override
+    public boolean isLeaseActive(Long taskId, String workerId) {
+        return taskId != null && workerId != null && orderMapper.countActiveLease(taskId, workerId) > 0;
+    }
+
+    @Override
+    public boolean beginExternalAttempt(Long taskId, String workerId) {
+        return taskId != null && workerId != null
+                && orderMapper.markExternalAttemptStarted(taskId, workerId) > 0;
     }
 
     @Override

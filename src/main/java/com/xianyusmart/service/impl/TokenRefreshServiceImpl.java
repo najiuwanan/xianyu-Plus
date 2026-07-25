@@ -73,6 +73,9 @@ public class TokenRefreshServiceImpl implements TokenRefreshService {
     @Autowired
     private PlaywrightManager playwrightManager;
 
+    @Autowired
+    private CredentialUpdateCoordinator credentialUpdateCoordinator;
+
     @Autowired(required = false)
     private com.xianyusmart.service.EmailNotifyService emailNotifyService;
 
@@ -112,6 +115,14 @@ public class TokenRefreshServiceImpl implements TokenRefreshService {
      */
     @Override
     public boolean refreshMh5tkToken(Long accountId) {
+        if (accountId == null) {
+            return false;
+        }
+        return credentialUpdateCoordinator.withAccountLock(accountId,
+                () -> refreshMh5tkTokenLocked(accountId));
+    }
+
+    private boolean refreshMh5tkTokenLocked(Long accountId) {
         return refreshMh5tkTokenWithRetry(accountId, 0, false);
     }
     

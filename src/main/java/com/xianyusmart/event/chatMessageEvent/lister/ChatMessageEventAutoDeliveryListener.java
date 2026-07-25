@@ -73,15 +73,15 @@ public class ChatMessageEventAutoDeliveryListener {
 
         try {
             if (isSelfPickupMessage(message)) {
-                if (persistSelfPickupOrder(accountId, message)) {
-                    notifyNewOrder(accountId, message);
-                }
+                persistSelfPickupOrder(accountId, message);
+                notifyNewOrder(accountId, message);
                 return;
             }
 
             XianyuGoodsOrder existing = message.getOrderId() == null || message.getOrderId().isBlank()
                     ? null : orderMapper.selectByAccountIdAndOrderId(accountId, message.getOrderId());
             if (existing != null) {
+                notifyNewOrder(accountId, message);
                 return;
             }
 
@@ -161,6 +161,7 @@ public class ChatMessageEventAutoDeliveryListener {
         record.setBuyerUserName(message.getSenderUserName());
         record.setSid(message.getSId());
         record.setState(0);
+        record.setNotificationStatus(0);
         record.setConfirmState(0);
         record.setDeliveryStatus(DeliveryStatus.SKIPPED.name());
         record.setDeliveryChannel("PICKUP");
@@ -172,7 +173,13 @@ public class ChatMessageEventAutoDeliveryListener {
     }
 
     private void notifyNewOrder(Long accountId, ChatMessageData message) {
+        Long recordId = null;
         try {
+            XianyuGoodsOrder order = orderMapper.selectByAccountIdAndOrderId(accountId, message.getOrderId());
+            if (order == null || order.getId() == null || orderMapper.claimOrderNotification(order.getId()) != 1) {
+                return;
+            }
+            recordId = order.getId();
             String goodsName = "信息同步中";
             if (message.getXyGoodsId() != null && !message.getXyGoodsId().isBlank()) {
                 XianyuGoodsInfo goods = goodsInfoMapper.selectOne(new QueryWrapper<XianyuGoodsInfo>()
@@ -186,10 +193,11 @@ public class ChatMessageEventAutoDeliveryListener {
             params.put("orderId", message.getOrderId());
             params.put("goodsName", goodsName);
             params.put("buyerName", message.getSenderUserName() == null ? "信息同步中" : message.getSenderUserName());
-            if (notificationChannelService != null) {
-                notificationChannelService.dispatchMessage("AUTO_DELIVERY", accountId, params);
-            }
+            boolean success = notificationChannelService != null
+                    && notificationChannelService.dispatchMessageSync("AUTO_DELIVERY", accountId, params);
+            orderMapper.completeOrderNotification(recordId, success ? 2 : 3);
         } catch (Exception e) {
+            if (recordId != null) orderMapper.completeOrderNotification(recordId, 3);
             log.warn("【账号{}】新订单通知发送失败: orderId={}", accountId, message.getOrderId(), e);
         }
     }
@@ -221,6 +229,7 @@ public class ChatMessageEventAutoDeliveryListener {
         record.setOrderId(message.getOrderId());
         record.setContent(null);
         record.setState(0);
+        record.setNotificationStatus(0);
         record.setConfirmState(0);
 
         try {
@@ -246,6 +255,7 @@ public class ChatMessageEventAutoDeliveryListener {
         record.setBuyerUserName(message.getSenderUserName());
         record.setSid(message.getSId());
         record.setState(0);
+        record.setNotificationStatus(0);
         record.setConfirmState(0);
         record.setDeliveryStatus(DeliveryStatus.SKIPPED.name());
         record.setDeliveryChannel("ORDER_NOTIFICATION");

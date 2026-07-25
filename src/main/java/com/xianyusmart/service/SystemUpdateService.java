@@ -289,6 +289,72 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("2.0.9".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "发货 API 使用明确四态结果，令牌过期、空响应和缺少可核验数据不会提交卡密或伪报成功",
+                    "发货、图片和自动回复在外部发送前持久化防重标记，租约丢失或发送后异常统一转人工核对",
+                    "外部 API 卡券增加请求令牌围栏，网络或响应结果不确定时转人工核对，禁止自动重复取卡",
+                    "仅首次回复统一 SHA-256 去重键，发送结果不确定时保留账号 + 商品 + 买家占位",
+                    "下单通知按订单原子领取一次，历史订单不补发；评价手动与定时任务按订单原子占位",
+                    "自动确认发货升级为重启可恢复的持久化队列，支持租约、延期、重试与自提跳过",
+                    "首页使用真实商家待办总数，排除待付款和已结束交易；今日金额与数量按真实订单时间统计",
+                    "新增 V30 数据迁移以及发货、卡券、通知、回复、评价、首页和确认发货专项回归"
+            ));
+            return;
+        }
+        if ("2.0.8".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "Cookie 或接口令牌过期不再被错误文字误判为发货成功",
+                    "文字和图片发送等待服务端回执，超时或非成功回执不再提交送达状态",
+                    "未确认送达的卡密转待核对，不直接退回库存造成二次发出",
+                    "旧自提订单持续保持 PICKUP 渠道，不重新进入自动发货队列",
+                    "发货任务和自动回复任务增加租约守卫与续期，旧线程失权后停止发送",
+                    "仅首次回复增加数据库唯一占位，账号凭证刷新统一使用账号级锁",
+                    "事务失败显式回滚，提示框移除动态 HTML，接口与日志隐藏凭证明文和卡密内容",
+                    "新增 V29 自动化一致性迁移和完整专项回归"
+            ));
+            return;
+        }
+        if ("2.0.6".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "卡密与发货内容发送前强制核对订单买家 ID 和触发会话买家 ID",
+                    "买家信息缺失、查询失败或身份不一致时停止发送并保留卡密",
+                    "自动发货、规则补发和手动发货统一使用买家身份一致性校验"
+            ));
+            return;
+        }
+        if ("2.0.5".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "修复手机端手动发货后同步仍显示待发货的问题",
+                    "兼容订单详情不同层级中的已发货、待收货、确认收货和发货时间字段",
+                    "已在手机端发货的订单不再继续显示等待确认发货"
+            ));
+            return;
+        }
+        if ("2.0.4".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "历史同步兼容多种已发货、待收货、确认收货和交易成功状态",
+                    "同步时复核尚未确认订单详情并回写确认发货状态",
+                    "平台通用不能评价提示不再被误判为永久无需评价，可重新核验"
+            ));
+            return;
+        }
+        if ("2.0.3".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "新增本地账号收件人硬拦截，买家匹配任一账号 UNB 或设备用户 ID 时停止发送",
+                    "自动发货、补发、任务队列和手动发货统一经过本地账号拦截",
+                    "订单买家身份异常时保留卡密并要求人工核验"
+            ));
+            return;
+        }
+        if ("2.0.2".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "批量与定时评价按请求间隔串行执行，待评价列表未命中也不会绕过节流",
+                    "评价增加无需评价终态，明确超期或不支持的订单不再重复请求",
+                    "自动化中心和异常中心自动归类旧评价状态"
+            ));
+            return;
+        }
         if ("2.0.1".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "修复多会话场景中卡密自动发货、补发和手动发货可能发送给错误买家的问题",
@@ -297,7 +363,8 @@ public class SystemUpdateService {
                     "已确认交易支持重新核验评价资格，避免旧记录被“无需评价”永久跳过"
             ));
             return;
-        }        if ("2.0.0".equals(version)) {
+        }
+        if ("2.0.0".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "仪表盘升级为商家待办、账号状态、今日提醒和真实交付趋势，买家待付款不计入商家待办",
                     "左侧导航保留原有功能，统一为深海军蓝底、闲鱼黄选中态与加粗线性图标",

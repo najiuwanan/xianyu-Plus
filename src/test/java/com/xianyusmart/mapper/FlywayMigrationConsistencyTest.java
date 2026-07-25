@@ -78,4 +78,17 @@ class FlywayMigrationConsistencyTest {
         assertTrue(v26.contains("ADD COLUMN keywords TEXT NULL"));
         assertTrue(v26.contains("SET keywords = keyword"));
     }
+
+    @Test
+    void reliabilityMigrationAddsFencingAndRecoverableTasks() throws IOException {
+        String v30 = new ClassPathResource("db/migration/V30__complete_automation_reliability.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+        assertTrue(v30.contains("ADD COLUMN request_token"));
+        assertTrue(v30.contains("notification_status TINYINT NOT NULL DEFAULT 2"));
+        assertTrue(v30.contains("confirm_task_status"));
+        assertTrue(v30.contains("idx_confirm_task_due"));
+        assertTrue(v30.contains("SHA2(CONCAT("));
+        assertTrue(v30.contains("FIELD(preferred.state, 1, 3, 2, 0)"));
+        assertTrue(v30.contains("preferred.id < candidate.id"));
+    }
 }

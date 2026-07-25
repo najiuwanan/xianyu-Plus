@@ -311,6 +311,17 @@ public interface OrderAutomationRecordMapper {
     int markRedFlowerFailure(@Param("accountId") Long accountId, @Param("orderId") String orderId,
                               @Param("errorMessage") String errorMessage);
 
+    /** 评价外部请求的订单级原子占位；6 表示正在执行。 */
+    @Insert("INSERT IGNORE INTO xianyu_order_automation_record " +
+            "(xianyu_account_id, order_id, rate_status, rate_error) " +
+            "VALUES (#{accountId}, #{orderId}, 6, '评价任务执行中')")
+    int insertRateClaim(@Param("accountId") Long accountId, @Param("orderId") String orderId);
+
+    @Update("UPDATE xianyu_order_automation_record SET rate_status = 6, rate_error = '评价任务执行中' " +
+            "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId} " +
+            "AND COALESCE(rate_status, 0) NOT IN (1, 5, 6)")
+    int claimExistingRateAttempt(@Param("accountId") Long accountId, @Param("orderId") String orderId);
+
     @Insert("INSERT INTO xianyu_order_automation_record " +
             "(xianyu_account_id, order_id, rate_status, rate_time, rate_error) " +
             "VALUES (#{accountId}, #{orderId}, 1, NOW(3), NULL) " +

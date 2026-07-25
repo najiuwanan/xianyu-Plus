@@ -18,8 +18,78 @@ const updateChecking = ref(false)
 const versionDialogVisible = ref(false)
 const releaseHistory = [
   {
+    version: '2.0.9',
+    label: 'V2.0.9（当前）',
+    highlights: [
+      '发货 API 改为明确四态结果；令牌过期、空响应和缺少可核验数据不会提交卡密或伪报成功。',
+      '发货、图片和自动回复在外部发送前持久化防重标记；租约失效或发送后异常统一转人工核对。',
+      '外部 API 卡券增加请求令牌围栏；网络或响应结果不确定时转人工核对，禁止自动重复取卡。',
+      '仅首次回复统一 SHA-256 去重键；下单通知、评价任务按订单原子占位，避免并发重复。',
+      '自动确认发货升级为重启可恢复的持久化队列，支持租约、延期、重试和自提跳过。',
+      '首页使用真实商家待办总数并排除待付款；今日订单、成交额和交付数按真实订单时间统计。',
+      '新增 V30 数据迁移及发货、卡券、通知、回复、评价、首页和确认发货专项回归。'
+    ]
+  },
+  {
+    version: '2.0.8',
+    label: 'V2.0.8',
+    highlights: [
+      'Cookie 或接口令牌过期不再被错误文字误判为发货成功。',
+      '文字与图片等待服务端回执，卡密未确认送达时转待核对。',
+      '自提订单不会重新进入自动发货队列；发货与回复任务增加租约守卫。',
+      '仅首次回复增加数据库唯一占位，凭证刷新统一账号级锁。',
+      '事务失败显式回滚，接口与实时日志隐藏 Cookie、Token、卡密和消息正文。',
+      '新增 V29 自动化一致性数据库迁移。'
+    ]
+  },
+  {
+    version: '2.0.6',
+    label: 'V2.0.6',
+    highlights: [
+      '发送前强制核对订单买家 ID 与会话买家 ID。',
+      '买家信息缺失、查询失败或身份不一致时停止发送并保留卡密。',
+      '自动发货、规则补发和手动发货统一使用买家身份校验。'
+    ]
+  },
+  {
+    version: '2.0.5',
+    label: 'V2.0.5',
+    highlights: [
+      '修复手机端手动发货后同步仍显示待发货的问题。',
+      '兼容订单详情不同层级的已发货、待收货、确认收货和发货时间字段。',
+      '已在手机端发货的订单不再显示等待确认发货。'
+    ]
+  },
+  {
+    version: '2.0.4',
+    label: 'V2.0.4',
+    highlights: [
+      '历史同步兼容多种已发货、待收货、确认收货和交易成功状态。',
+      '同步时复核尚未确认的订单详情并回写确认发货状态。',
+      '平台通用不能评价提示不再被误判为永久无需评价，可重新核验。'
+    ]
+  },
+  {
+    version: '2.0.3',
+    label: 'V2.0.3',
+    highlights: [
+      '新增本地账号收件人硬拦截，买家匹配账号 UNB 或设备用户 ID 时停止发送。',
+      '自动发货、补发、任务队列和手动发货统一经过收件人拦截。',
+      '身份异常时保留卡密并要求人工核验。'
+    ]
+  },
+  {
+    version: '2.0.2',
+    label: 'V2.0.2',
+    highlights: [
+      '批量与定时评价按请求间隔串行执行，待评价列表未命中也不会绕过节流。',
+      '评价增加无需评价终态，明确超期或不支持的订单不再重复请求。',
+      '自动化中心和异常中心自动归类旧评价状态。'
+    ]
+  },
+  {
     version: '2.0.1',
-    label: 'V2.0.1（当前）',
+    label: 'V2.0.1',
     highlights: [
       '修复多买家会话下卡密发货可能发送到错误买家的问题。',
       '自动发卡、补发与手动发货均严格使用订单实际买家 ID；缺失买家 ID 时停止发送并保留卡密。',
@@ -67,7 +137,7 @@ const releaseHistory = [
     ]
   }
 ] as const
-const selectedReleaseVersion = ref('2.0.1')
+const selectedReleaseVersion = ref('2.0.9')
 const selectedRelease = computed(() => releaseHistory.find(item => item.version === selectedReleaseVersion.value) || releaseHistory[0])
 
 const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV]/, '')}` : '未知版本'
@@ -239,7 +309,7 @@ onUnmounted(() => {
         <p class="version-dialog__status" :class="{ available: updateStatus.updateAvailable }">{{ updateStatus.message }}</p>
         <div class="version-dialog__changes">
           <div class="version-dialog__changes-heading">
-            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.0.1 的版本记录。</p></div>
+            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.0.9 的正式版本记录。</p></div>
             <label class="version-history-select"><span>查看版本</span><select v-model="selectedReleaseVersion"><option v-for="release in releaseHistory" :key="release.version" :value="release.version">{{ release.label }}</option></select></label>
           </div>
           <ul>

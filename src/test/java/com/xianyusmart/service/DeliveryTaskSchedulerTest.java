@@ -121,7 +121,8 @@ class DeliveryTaskSchedulerTest {
             return null;
         }).when(autoDeliveryService).executeDelivery(
                 eq(22L), eq(7L), eq("goods-1"), eq("buyer-42@goofish"),
-                eq("order-2"), eq(null), eq(false), any(java.util.function.BooleanSupplier.class));
+                eq("order-2"), eq(null), eq(false), any(java.util.function.BooleanSupplier.class),
+                any(java.util.function.BooleanSupplier.class));
 
         ReflectionTestUtils.invokeMethod(scheduler, "executeTask", task);
 

@@ -79,6 +79,8 @@ class AutoDeliveryServiceImplTest {
         when(blacklistService.blockedMessage(7L, "buyer-42")).thenReturn(null);
         when(goodsConfigMapper.selectByAccountAndGoodsId(7L, "goods-1")).thenReturn(goodsConfig);
         when(orderDetailFetcher.fetch(7L, "goods-1", "order-1")).thenReturn(null);
+        when(orderMapper.updateStateContentAndFailReason(eq(11L), eq(0), isNull(),
+                argThat(reason -> reason != null && reason.contains("Cookie")))).thenReturn(1);
 
         AutoDeliveryServiceImpl service = new AutoDeliveryServiceImpl();
         ReflectionTestUtils.setField(service, "orderMapper", orderMapper);

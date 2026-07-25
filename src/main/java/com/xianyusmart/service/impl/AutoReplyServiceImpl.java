@@ -32,8 +32,9 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.nio.charset.StandardCharsets;
-import java.util.UUID;
 import java.util.function.BooleanSupplier;
 
 @Slf4j
@@ -106,6 +107,13 @@ public class AutoReplyServiceImpl implements AutoReplyService {
     @Override
     public void executeAutoReply(List<ChatMessageData> messageList, Long existingRecordId,
                                  BooleanSupplier executionAllowed) {
+        executeAutoReply(messageList, existingRecordId, executionAllowed, executionAllowed);
+    }
+
+    @Override
+    public void executeAutoReply(List<ChatMessageData> messageList, Long existingRecordId,
+                                 BooleanSupplier executionAllowed,
+                                 BooleanSupplier externalAttemptAllowed) {
         if (messageList == null || messageList.isEmpty() || !executionAllowed.getAsBoolean()) {
             log.warn("消息列表为空，无法执行自动回复");
             return;
@@ -116,6 +124,8 @@ public class AutoReplyServiceImpl implements AutoReplyService {
         String xyGoodsId = lastMessage.getXyGoodsId();
         String sId = lastMessage.getSId();
         String pnmId = lastMessage.getPnmId();
+        Long activeRecordId = existingRecordId;
+        boolean externalSendAttempted = false;
 
         if (blacklistService.isBlacklisted(accountId, lastMessage.getSenderUserId())) {
             log.warn("【账号{}】黑名单买家禁止自动回复: buyerUserId={}, sId={}",
@@ -224,6 +234,7 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                         accountId, xyGoodsId, lastMessage.getSenderUserId());
                 return;
             }
+            activeRecordId = record.getId();
 
             if (!executionAllowed.getAsBoolean()) {
                 log.warn("【账号{}】自动回复任务租约已失效，生成回复前终止: recordId={}", accountId, record.getId());
@@ -351,6 +362,8 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                 }
                 if (item.getImageUrl() != null && !item.getImageUrl().isEmpty()) {
                     hasReplyContent = true;
+                    ensureExternalAttemptAllowed(externalAttemptAllowed);
+                    externalSendAttempted = true;
                     boolean imageSent = webSocketService.sendImageMessageWithResult(accountId, cid, toId, item.getImageUrl(), 0, 0);
                     if (!imageSent) {
                         sendSuccess = false;
@@ -361,6 +374,8 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                 }
                 if (item.getTextContent() != null && !item.getTextContent().trim().isEmpty()) {
                     hasReplyContent = true;
+                    ensureExternalAttemptAllowed(externalAttemptAllowed);
+                    externalSendAttempted = true;
                     boolean textSent = webSocketService.sendMessage(accountId, cid, toId, item.getTextContent());
                     if (!textSent) {
                         sendSuccess = false;
@@ -383,11 +398,15 @@ public class AutoReplyServiceImpl implements AutoReplyService {
                     sentMessageSaveService.saveAiAssistantReply(accountId, cid, toId, allReplyText, xyGoodsId);
                 }
             } else {
-                log.error("【账号{}】自动回复发送失败: xyGoodsId={}, sId={}", accountId, xyGoodsId, sId);
-                updateRecordState(record.getId(), -1, allReplyText);
+                log.error("【账号{}】自动回复发送结果待核对: xyGoodsId={}, sId={}", accountId, xyGoodsId, sId);
+                updateRecordState(record.getId(), externalSendAttempted ? 3 : -1, allReplyText);
             }
             
         } catch (Exception e) {
+            if (externalSendAttempted && activeRecordId != null) {
+                autoReplyRecordMapper.markReviewRequiredById(activeRecordId,
+                        "外部回复发送后发生异常，请人工核对是否已送达");
+            }
             if (!executionAllowed.getAsBoolean()) {
                 log.warn("【账号{}】自动回复任务租约已失效，忽略旧任务异常: recordId={}", accountId, existingRecordId);
                 return;
@@ -452,7 +471,12 @@ public class AutoReplyServiceImpl implements AutoReplyService {
         }
         String raw = accountId + "|" + xyGoodsId + "|" + buyerScope.replace("@goofish", "")
                 + "|" + ProductDefaultReplyStrategy.REPLY_TYPE_PRODUCT_DEFAULT;
-        return "PD:" + UUID.nameUUIDFromBytes(raw.getBytes(StandardCharsets.UTF_8));
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(raw.getBytes(StandardCharsets.UTF_8));
+            return "PD:" + java.util.HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
     }
 
     static String requireReplyRecipientId(String senderUserId) {
@@ -463,9 +487,18 @@ public class AutoReplyServiceImpl implements AutoReplyService {
     }
     private void updateRecordState(Long recordId, Integer state, String replyContent) {
         try {
-            autoReplyRecordMapper.updateStateAndContent(recordId, state, replyContent);
+            if (autoReplyRecordMapper.updateStateAndContent(recordId, state, replyContent) != 1) {
+                throw new IllegalStateException("回复记录状态更新未命中");
+            }
         } catch (Exception e) {
             log.error("更新回复记录状态失败: recordId={}, state={}", recordId, state, e);
+            throw new IllegalStateException("回复记录状态更新失败", e);
+        }
+    }
+
+    private void ensureExternalAttemptAllowed(BooleanSupplier externalAttemptAllowed) {
+        if (externalAttemptAllowed == null || !externalAttemptAllowed.getAsBoolean()) {
+            throw new IllegalStateException("自动回复任务租约已失效");
         }
     }
 }

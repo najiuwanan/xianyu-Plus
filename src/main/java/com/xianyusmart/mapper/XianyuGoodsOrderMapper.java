@@ -25,6 +25,22 @@ public interface XianyuGoodsOrderMapper {
             "STR_TO_DATE(REPLACE(SUBSTRING(r.pay_success_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
             "r.create_time)";
 
+    String PAYMENT_TIME_SQL = "COALESCE(" +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.pay_success_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.pay_success_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.order_create_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.order_create_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
+            "r.create_time)";
+
+    String DELIVERY_TIME_SQL = "COALESCE(" +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.consign_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.consign_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.pay_success_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.pay_success_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.order_create_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +
+            "STR_TO_DATE(REPLACE(SUBSTRING(r.order_create_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'), " +
+            "r.create_time)";
+
     /**
      * 单次查询聚合经营指标与异常待办，减少首页数据库往返。
      */
@@ -45,11 +61,38 @@ public interface XianyuGoodsOrderMapper {
                    create_time
                  ) >= CURRENT_DATE) AS today_order_count,
               (SELECT COALESCE(SUM(CAST(total_price AS DECIMAL(12, 2))), 0)
-                 FROM xianyu_goods_order WHERE state = 1 AND create_time >= CURRENT_DATE) AS today_revenue,
+                 FROM xianyu_goods_order WHERE state = 1 AND COALESCE(
+                   STR_TO_DATE(REPLACE(SUBSTRING(pay_success_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'),
+                   STR_TO_DATE(REPLACE(SUBSTRING(pay_success_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'),
+                   STR_TO_DATE(REPLACE(SUBSTRING(order_create_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'),
+                   STR_TO_DATE(REPLACE(SUBSTRING(order_create_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'),
+                   create_time
+                 ) >= CURRENT_DATE) AS today_revenue,
               (SELECT COUNT(*) FROM xianyu_goods_order
-                 WHERE state = 1 AND create_time >= CURRENT_DATE) AS today_delivery_count,
+                 WHERE state = 1 AND COALESCE(
+                   STR_TO_DATE(REPLACE(SUBSTRING(consign_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'),
+                   STR_TO_DATE(REPLACE(SUBSTRING(consign_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'),
+                   STR_TO_DATE(REPLACE(SUBSTRING(pay_success_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'),
+                   STR_TO_DATE(REPLACE(SUBSTRING(pay_success_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'),
+                   STR_TO_DATE(REPLACE(SUBSTRING(order_create_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'),
+                   STR_TO_DATE(REPLACE(SUBSTRING(order_create_time, 1, 19), 'T', ' '), '%Y/%m/%d %H:%i:%s'),
+                   create_time
+                 ) >= CURRENT_DATE) AS today_delivery_count,
               (SELECT COUNT(*) FROM xianyu_goods_auto_reply_record
                  WHERE state = 1 AND create_time >= CURRENT_DATE) AS today_reply_count,
+              (SELECT COUNT(*) FROM xianyu_goods_order
+                 WHERE NOT (COALESCE(trade_status, '') = 'PENDING_PAYMENT'
+                   OR COALESCE(trade_status_text, '') LIKE '%待付款%'
+                   OR COALESCE(trade_status_text, '') LIKE '%等待付款%')
+                   AND (
+                     delivery_status IN ('FAILED', 'REVIEW_REQUIRED')
+                     OR (delivery_status IN ('PENDING', 'PROCESSING', 'RETRY_WAIT')
+                       AND COALESCE(trade_status, '') NOT IN ('COMPLETED', 'FINISHED', 'REFUNDED', 'CLOSED'))
+                     OR (delivery_channel = 'PICKUP'
+                       AND COALESCE(trade_status, '') NOT IN ('COMPLETED', 'FINISHED', 'REFUNDED', 'CLOSED'))
+                     OR (trade_status = 'PENDING_SHIPMENT' AND COALESCE(confirm_state, 0) <> 1)
+                     OR trade_status = 'REFUNDING'
+                   )) AS merchant_action_order_count,
               (SELECT COUNT(*) FROM xianyu_goods_order
                  WHERE delivery_status IN ('PENDING', 'PROCESSING', 'RETRY_WAIT')) AS pending_task_count,
               (SELECT COUNT(*) FROM xianyu_goods_order
@@ -68,17 +111,17 @@ public interface XianyuGoodsOrderMapper {
     DashboardStatsRespDTO selectDashboardStats();
 
     /** 近三十天已成功交付订单与金额，用于运营首页 7/30 日趋势图。 */
-    @Select("SELECT DATE_FORMAT(DATE(" + ORDER_TIME_SQL + "), '%Y-%m-%d') AS date_key, " +
+    @Select("SELECT DATE_FORMAT(DATE(" + DELIVERY_TIME_SQL + "), '%Y-%m-%d') AS date_key, " +
             "COUNT(*) AS order_count, " +
             "COALESCE(SUM(CAST(total_price AS DECIMAL(12, 2))), 0) AS revenue " +
             "FROM xianyu_goods_order r " +
-            "WHERE state = 1 AND " + ORDER_TIME_SQL + " >= DATE_SUB(CURRENT_DATE, INTERVAL 29 DAY) " +
+            "WHERE state = 1 AND " + DELIVERY_TIME_SQL + " >= DATE_SUB(CURRENT_DATE, INTERVAL 29 DAY) " +
             "GROUP BY date_key " +
             "ORDER BY date_key ASC")
     List<DashboardTrendPointDTO> selectRecentDeliveryTrend();
     
-    @Insert("INSERT INTO xianyu_goods_order (xianyu_account_id, xianyu_goods_id, xy_goods_id, pnm_id, order_id, buyer_user_id, buyer_user_name, sid, content, state, fail_reason, confirm_state, goods_title, sku_name, order_create_time, pay_success_time, consign_time, total_price, buy_num, delivery_status, expected_quantity, delivery_channel, trade_status, trade_status_text) " +
-            "VALUES (#{xianyuAccountId}, #{xianyuGoodsId}, #{xyGoodsId}, #{pnmId}, #{orderId}, #{buyerUserId}, #{buyerUserName}, #{sid}, #{content}, #{state}, #{failReason}, #{confirmState}, #{goodsTitle}, #{skuName}, #{orderCreateTime}, #{paySuccessTime}, #{consignTime}, #{totalPrice}, COALESCE(#{buyNum}, 1), COALESCE(#{deliveryStatus}, CASE WHEN #{state} = 1 THEN 'COMPLETED' WHEN #{state} = -1 THEN 'FAILED' ELSE 'PENDING' END), COALESCE(#{expectedQuantity}, COALESCE(#{buyNum}, 1)), #{deliveryChannel}, #{tradeStatus}, #{tradeStatusText}) " +
+    @Insert("INSERT INTO xianyu_goods_order (xianyu_account_id, xianyu_goods_id, xy_goods_id, pnm_id, order_id, buyer_user_id, buyer_user_name, sid, content, state, fail_reason, confirm_state, goods_title, sku_name, order_create_time, pay_success_time, consign_time, total_price, buy_num, delivery_status, expected_quantity, delivery_channel, trade_status, trade_status_text, notification_status) " +
+            "VALUES (#{xianyuAccountId}, #{xianyuGoodsId}, #{xyGoodsId}, #{pnmId}, #{orderId}, #{buyerUserId}, #{buyerUserName}, #{sid}, #{content}, #{state}, #{failReason}, #{confirmState}, #{goodsTitle}, #{skuName}, #{orderCreateTime}, #{paySuccessTime}, #{consignTime}, #{totalPrice}, COALESCE(#{buyNum}, 1), COALESCE(#{deliveryStatus}, CASE WHEN #{state} = 1 THEN 'COMPLETED' WHEN #{state} = -1 THEN 'FAILED' ELSE 'PENDING' END), COALESCE(#{expectedQuantity}, COALESCE(#{buyNum}, 1)), #{deliveryChannel}, #{tradeStatus}, #{tradeStatusText}, COALESCE(#{notificationStatus}, 2)) " +
             "ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(XianyuGoodsOrder record);
@@ -194,6 +237,14 @@ public interface XianyuGoodsOrderMapper {
     @Select("SELECT * FROM xianyu_goods_order WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId} LIMIT 1")
     XianyuGoodsOrder selectByAccountIdAndOrderId(@Param("accountId") Long accountId, @Param("orderId") String orderId);
 
+    @Update("UPDATE xianyu_goods_order SET notification_status = 1 " +
+            "WHERE id = #{id} AND notification_status = 0")
+    int claimOrderNotification(@Param("id") Long id);
+
+    @Update("UPDATE xianyu_goods_order SET notification_status = #{status} " +
+            "WHERE id = #{id} AND notification_status = 1")
+    int completeOrderNotification(@Param("id") Long id, @Param("status") Integer status);
+
     @Select("SELECT * FROM xianyu_goods_order WHERE id = #{id}")
     XianyuGoodsOrder selectById(@Param("id") Long id);
 
@@ -214,6 +265,15 @@ public interface XianyuGoodsOrderMapper {
             "</script>")
     List<ExceptionCenterRecordDTO> findDeliveryExceptions(@Param("accountId") Long accountId,
                                                             @Param("limit") int limit);
+
+    @Update("UPDATE xianyu_goods_order SET state = -1, delivery_status = 'REVIEW_REQUIRED', " +
+            "next_retry_time = NULL, lease_owner = NULL, lease_expire_time = NULL, " +
+            "last_error_code = 'DELIVERY_UNCERTAIN', " +
+            "last_error_message = '外部发送开始后任务中断，结果需要人工核对', " +
+            "fail_reason = '部分发货结果待核对：外部发送开始后任务中断，结果需要人工核对' " +
+            "WHERE delivery_status = 'PROCESSING' AND lease_expire_time < NOW(3) " +
+            "AND last_error_code = 'EXTERNAL_SEND_STARTED'")
+    int markExpiredExternalAttemptsForReview();
 
     @Select("SELECT * FROM xianyu_goods_order WHERE " +
             "((delivery_status IN ('PENDING', 'RETRY_WAIT') AND (next_retry_time IS NULL OR next_retry_time <= NOW(3))) " +
@@ -253,6 +313,16 @@ public interface XianyuGoodsOrderMapper {
     @Update("UPDATE xianyu_goods_order SET lease_expire_time = DATE_ADD(NOW(3), INTERVAL #{leaseSeconds} SECOND) " +
             "WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId} AND lease_expire_time > NOW(3)")
     int renewTaskLease(@Param("id") Long id, @Param("workerId") String workerId, @Param("leaseSeconds") int leaseSeconds);
+
+    @Select("SELECT COUNT(*) FROM xianyu_goods_order WHERE id = #{id} " +
+            "AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId} AND lease_expire_time > NOW(3)")
+    int countActiveLease(@Param("id") Long id, @Param("workerId") String workerId);
+
+    @Update("UPDATE xianyu_goods_order SET last_error_code = 'EXTERNAL_SEND_STARTED', " +
+            "last_error_message = '外部发送已开始，进程中断时禁止自动重试' " +
+            "WHERE id = #{id} AND delivery_status = 'PROCESSING' AND lease_owner = #{workerId} " +
+            "AND lease_expire_time > NOW(3)")
+    int markExternalAttemptStarted(@Param("id") Long id, @Param("workerId") String workerId);
 
     @Update("UPDATE xianyu_goods_order SET delivery_status = 'PENDING', next_retry_time = NOW(3), " +
             "lease_owner = NULL, lease_expire_time = NULL WHERE id = #{id} AND state <> 1 AND delivery_status IN ('FAILED', 'RETRY_WAIT', 'SKIPPED')")
@@ -295,8 +365,62 @@ public interface XianyuGoodsOrderMapper {
             "AND last_error_code = 'AUTOMATION_RISK_PAUSED'")
     int resumeRiskPausedTasks(@Param("accountId") Long accountId);
     
-    @Update("UPDATE xianyu_goods_order SET confirm_state = 1 WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId}")
+    @Update("UPDATE xianyu_goods_order SET confirm_state = 1, confirm_task_status = 'COMPLETED', " +
+            "confirm_next_retry_time = NULL, confirm_lease_owner = NULL, confirm_lease_expire_time = NULL, confirm_error = NULL " +
+            "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId}")
     int updateConfirmState(@Param("accountId") Long accountId, @Param("orderId") String orderId);
+
+    @Update("UPDATE xianyu_goods_order SET confirm_task_status = 'PENDING', " +
+            "confirm_next_retry_time = DATE_ADD(NOW(3), INTERVAL 5 SECOND), confirm_error = NULL " +
+            "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId} AND COALESCE(confirm_state, 0) <> 1 " +
+            "AND COALESCE(delivery_channel, '') <> 'PICKUP' " +
+            "AND (confirm_task_status IS NULL OR confirm_task_status = 'FAILED')")
+    int enqueueConfirmShipment(@Param("accountId") Long accountId, @Param("orderId") String orderId);
+
+    @Select("SELECT * FROM xianyu_goods_order WHERE COALESCE(confirm_state, 0) <> 1 AND (" +
+            "(confirm_task_status IN ('PENDING', 'RETRY_WAIT') AND " +
+            "(confirm_next_retry_time IS NULL OR confirm_next_retry_time <= NOW(3))) OR " +
+            "(confirm_task_status = 'PROCESSING' AND confirm_lease_expire_time < NOW(3))) " +
+            ") ORDER BY id ASC LIMIT #{limit}")
+    List<XianyuGoodsOrder> findDueConfirmShipmentTasks(@Param("limit") int limit);
+
+    @Update("UPDATE xianyu_goods_order SET confirm_task_status = 'PROCESSING', " +
+            "confirm_attempt_count = COALESCE(confirm_attempt_count, 0) + 1, confirm_lease_owner = #{workerId}, " +
+            "confirm_lease_expire_time = DATE_ADD(NOW(3), INTERVAL #{leaseSeconds} SECOND) " +
+            "WHERE id = #{id} AND COALESCE(confirm_state, 0) <> 1 AND (" +
+            "(confirm_task_status IN ('PENDING', 'RETRY_WAIT') AND " +
+            "(confirm_next_retry_time IS NULL OR confirm_next_retry_time <= NOW(3))) OR " +
+            "(confirm_task_status = 'PROCESSING' AND confirm_lease_expire_time < NOW(3)))")
+    int claimConfirmShipmentTask(@Param("id") Long id, @Param("workerId") String workerId,
+                                 @Param("leaseSeconds") int leaseSeconds);
+
+    @Update("UPDATE xianyu_goods_order SET confirm_state = 1, confirm_task_status = 'COMPLETED', " +
+            "confirm_next_retry_time = NULL, confirm_lease_owner = NULL, confirm_lease_expire_time = NULL, confirm_error = NULL " +
+            "WHERE id = #{id} AND confirm_task_status = 'PROCESSING' AND confirm_lease_owner = #{workerId}")
+    int completeConfirmShipmentTask(@Param("id") Long id, @Param("workerId") String workerId);
+
+    @Update("UPDATE xianyu_goods_order SET confirm_task_status = CASE " +
+            "WHEN COALESCE(confirm_attempt_count, 0) >= 5 THEN 'FAILED' ELSE 'RETRY_WAIT' END, " +
+            "confirm_next_retry_time = CASE WHEN COALESCE(confirm_attempt_count, 0) >= 5 THEN NULL " +
+            "ELSE DATE_ADD(NOW(3), INTERVAL 5 MINUTE) END, confirm_error = #{error}, " +
+            "confirm_lease_owner = NULL, confirm_lease_expire_time = NULL " +
+            "WHERE id = #{id} AND confirm_task_status = 'PROCESSING' AND confirm_lease_owner = #{workerId}")
+    int retryOrFailConfirmShipmentTask(@Param("id") Long id, @Param("workerId") String workerId,
+                                       @Param("error") String error);
+
+    @Update("UPDATE xianyu_goods_order SET confirm_task_status = 'RETRY_WAIT', " +
+            "confirm_attempt_count = GREATEST(COALESCE(confirm_attempt_count, 1) - 1, 0), " +
+            "confirm_next_retry_time = DATE_ADD(NOW(3), INTERVAL 10 MINUTE), confirm_error = #{error}, " +
+            "confirm_lease_owner = NULL, confirm_lease_expire_time = NULL " +
+            "WHERE id = #{id} AND confirm_task_status = 'PROCESSING' AND confirm_lease_owner = #{workerId}")
+    int deferConfirmShipmentTask(@Param("id") Long id, @Param("workerId") String workerId,
+                                 @Param("error") String error);
+
+    @Update("UPDATE xianyu_goods_order SET confirm_task_status = 'SKIPPED', confirm_next_retry_time = NULL, " +
+            "confirm_lease_owner = NULL, confirm_lease_expire_time = NULL, confirm_error = #{reason} " +
+            "WHERE id = #{id} AND confirm_task_status = 'PROCESSING' AND confirm_lease_owner = #{workerId}")
+    int skipConfirmShipmentTask(@Param("id") Long id, @Param("workerId") String workerId,
+                                @Param("reason") String reason);
     
     @Select("SELECT * FROM xianyu_goods_order WHERE xianyu_account_id = #{accountId} AND pnm_id = #{pnmId}")
     XianyuGoodsOrder selectByPnmId(@Param("accountId") Long accountId, @Param("pnmId") String pnmId);

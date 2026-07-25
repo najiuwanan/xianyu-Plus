@@ -29,7 +29,10 @@ public class XianyuApiKamiDelivery {
 
     private String deliveryContent;
 
-    /** 0请求中，1已获取，2请求失败。 */
+    /** 每次领取尝试的围栏令牌，旧请求不得覆盖新尝试的结果。 */
+    private String requestToken;
+
+    /** 0请求中，1已获取，2请求失败，3结果待核对。 */
     private Integer state;
 
     private String errorMessage;

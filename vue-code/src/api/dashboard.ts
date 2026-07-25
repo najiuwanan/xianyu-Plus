@@ -11,6 +11,7 @@ export interface DashboardStats {
   todayRevenue: number
   todayDeliveryCount: number
   todayReplyCount: number
+  merchantActionOrderCount: number
   pendingTaskCount: number
   reviewRequiredCount: number
   failedTaskCount: number

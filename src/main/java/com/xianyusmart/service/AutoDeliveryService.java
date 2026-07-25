@@ -81,6 +81,14 @@ public interface AutoDeliveryService {
         executeDelivery(recordId, accountId, xyGoodsId, sId, orderId, buyerUserName, needHumanLikeDelay);
     }
 
+    default void executeDelivery(Long recordId, Long accountId, String xyGoodsId, String sId,
+                                 String orderId, String buyerUserName, boolean needHumanLikeDelay,
+                                 BooleanSupplier executionAllowed,
+                                 BooleanSupplier externalAttemptAllowed) {
+        executeDelivery(recordId, accountId, xyGoodsId, sId, orderId, buyerUserName,
+                needHumanLikeDelay, executionAllowed);
+    }
+
     /**
      * 更新自动确认发货开关
      */
