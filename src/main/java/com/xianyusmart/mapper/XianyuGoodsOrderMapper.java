@@ -381,7 +381,7 @@ public interface XianyuGoodsOrderMapper {
             "(confirm_task_status IN ('PENDING', 'RETRY_WAIT') AND " +
             "(confirm_next_retry_time IS NULL OR confirm_next_retry_time <= NOW(3))) OR " +
             "(confirm_task_status = 'PROCESSING' AND confirm_lease_expire_time < NOW(3))) " +
-            ") ORDER BY id ASC LIMIT #{limit}")
+            "ORDER BY id ASC LIMIT #{limit}")
     List<XianyuGoodsOrder> findDueConfirmShipmentTasks(@Param("limit") int limit);
 
     @Update("UPDATE xianyu_goods_order SET confirm_task_status = 'PROCESSING', " +
@@ -525,6 +525,8 @@ public interface XianyuGoodsOrderMapper {
     int updateSkuName(@Param("id") Long id, @Param("skuName") String skuName);
 
     @Update("UPDATE xianyu_goods_order SET " +
+            "xy_goods_id = COALESCE(NULLIF(xy_goods_id, ''), NULLIF(#{xyGoodsId}, '')), " +
+            "buyer_user_id = COALESCE(NULLIF(buyer_user_id, ''), NULLIF(#{buyerUserId}, '')), " +
             "buyer_user_name = COALESCE(NULLIF(#{buyerUserName}, ''), buyer_user_name), " +
             "order_create_time = COALESCE(NULLIF(#{orderCreateTime}, ''), order_create_time), " +
             "pay_success_time = COALESCE(NULLIF(#{paySuccessTime}, ''), pay_success_time), " +
@@ -533,11 +535,49 @@ public interface XianyuGoodsOrderMapper {
             "goods_title = COALESCE(NULLIF(#{goodsTitle}, ''), goods_title), " +
             "total_price = COALESCE(NULLIF(#{totalPrice}, ''), total_price), " +
             "buy_num = COALESCE(#{buyNum}, buy_num) WHERE id = #{id}")
-    int updateOrderDetail(@Param("id") Long id, @Param("buyerUserName") String buyerUserName, @Param("orderCreateTime") String orderCreateTime, @Param("paySuccessTime") String paySuccessTime, @Param("consignTime") String consignTime, @Param("skuName") String skuName, @Param("goodsTitle") String goodsTitle, @Param("totalPrice") String totalPrice, @Param("buyNum") Integer buyNum);
+    int updateOrderDetail(@Param("id") Long id,
+                          @Param("xyGoodsId") String xyGoodsId,
+                          @Param("buyerUserId") String buyerUserId,
+                          @Param("buyerUserName") String buyerUserName,
+                          @Param("orderCreateTime") String orderCreateTime,
+                          @Param("paySuccessTime") String paySuccessTime,
+                          @Param("consignTime") String consignTime,
+                          @Param("skuName") String skuName,
+                          @Param("goodsTitle") String goodsTitle,
+                          @Param("totalPrice") String totalPrice,
+                          @Param("buyNum") Integer buyNum);
+
+    /** 将实时付款卡片中的买家、商品和会话字段合并进已由历史同步创建的订单。 */
+    @Update("UPDATE xianyu_goods_order SET " +
+            "xianyu_goods_id = COALESCE(xianyu_goods_id, #{xianyuGoodsId}), " +
+            "xy_goods_id = COALESCE(NULLIF(xy_goods_id, ''), NULLIF(#{xyGoodsId}, '')), " +
+            "pnm_id = COALESCE(NULLIF(#{pnmId}, ''), pnm_id), " +
+            "buyer_user_id = COALESCE(NULLIF(buyer_user_id, ''), NULLIF(#{buyerUserId}, '')), " +
+            "buyer_user_name = COALESCE(NULLIF(#{buyerUserName}, ''), buyer_user_name), " +
+            "sid = COALESCE(NULLIF(#{sId}, ''), sid) " +
+            "WHERE id = #{id}")
+    int mergePaymentMessage(@Param("id") Long id,
+                            @Param("xianyuGoodsId") Long xianyuGoodsId,
+                            @Param("xyGoodsId") String xyGoodsId,
+                            @Param("pnmId") String pnmId,
+                            @Param("buyerUserId") String buyerUserId,
+                            @Param("buyerUserName") String buyerUserName,
+                            @Param("sId") String sId);
+
+    /** 仅恢复历史同步产生的安全空闲任务；失败、人工核对和自提订单不会被付款消息重新排队。 */
+    @Update("UPDATE xianyu_goods_order SET state = 0, delivery_status = 'PENDING', " +
+            "expected_quantity = COALESCE(NULLIF(expected_quantity, 0), NULLIF(buy_num, 0), 1), " +
+            "next_retry_time = NOW(3), lease_owner = NULL, lease_expire_time = NULL, " +
+            "delivery_channel = 'WEBSOCKET', last_error_code = NULL, last_error_message = NULL " +
+            "WHERE id = #{id} AND COALESCE(state, 0) = 0 " +
+            "AND COALESCE(delivery_channel, '') <> 'PICKUP' " +
+            "AND (delivery_status IS NULL OR delivery_status = 'SKIPPED') " +
+            "AND (last_error_code IS NULL OR last_error_code = '')")
+    int activateExistingPaymentTask(@Param("id") Long id);
 
     @Update("UPDATE xianyu_goods_order SET " +
-            "xy_goods_id = COALESCE(#{xyGoodsId}, xy_goods_id), " +
-            "buyer_user_id = COALESCE(#{buyerUserId}, buyer_user_id), " +
+            "xy_goods_id = COALESCE(NULLIF(xy_goods_id, ''), NULLIF(#{xyGoodsId}, '')), " +
+            "buyer_user_id = COALESCE(NULLIF(buyer_user_id, ''), NULLIF(#{buyerUserId}, '')), " +
             "buyer_user_name = COALESCE(#{buyerUserName}, buyer_user_name), " +
             "goods_title = COALESCE(#{goodsTitle}, goods_title), " +
             "order_create_time = COALESCE(#{orderCreateTime}, order_create_time), " +

@@ -5,8 +5,21 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
+LOCAL_BACKUP_CREATED=0
+if ! git diff --quiet || ! git diff --cached --quiet || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+    UPDATE_BACKUP_LABEL="xianyu-plus-update-backup-$(date +%Y%m%d-%H%M%S)"
+    echo "检测到本地文件改动，正在备份后再更新..."
+    git stash push --include-untracked -m "$UPDATE_BACKUP_LABEL"
+    LOCAL_BACKUP_CREATED=1
+fi
+
 echo "正在从 GitHub 拉取最新代码..."
-git pull origin main
+git pull --ff-only origin main
+
+if [ "$LOCAL_BACKUP_CREATED" -eq 1 ]; then
+    echo "本地改动已安全保存在 Git stash 中，不会覆盖新版文件。"
+    echo "如需查看备份：git stash list"
+fi
 
 if [ ! -f .env ]; then
     echo "缺少 .env，无法安全更新。请先执行 ./install.sh。" >&2

@@ -18,8 +18,22 @@ const updateChecking = ref(false)
 const versionDialogVisible = ref(false)
 const releaseHistory = [
   {
+    version: '2.1.0',
+    label: 'V2.1.0（当前）',
+    highlights: [
+      '修复订单详情已经解析买家 ID、商品 ID，但没有写回订单数据库的问题。',
+      '历史同步先创建订单后，付款消息会补全买家、商品、昵称和会话，并安全恢复自动发货任务。',
+      '自动发货、固定内容、库存卡密、手动补发和自定义发货会先刷新并重读订单，再核验真实买家。',
+      '既有买家 ID 只用于一致性核验，详情补全只填空值，不会覆盖后绕过防错发保护。',
+      '修复确认发货任务 SQL 多余右括号导致调度器每秒报错和队列停摆的问题。',
+      '新增 MySQL 兼容 SQL 执行测试，以及订单补全、付款消息恢复和买家身份专项回归。',
+      '一键更新会先备份 Dockerfile 等本地改动，再拉取官方 main，不再因本地修改直接中止。',
+      '默认回复配置明确说明“仅首次回复”按账号 + 商品 + 买家持续去重，跨日期不重置。'
+    ]
+  },
+  {
     version: '2.0.10',
-    label: 'V2.0.10（当前）',
+    label: 'V2.0.10',
     highlights: [
       '修复 Docker 后端构建缺少前端安全检查源码，导致一键安装或更新中止的问题。',
       '安装与更新脚本保持原命令不变，拉取最新 main 后可直接重新构建。',
@@ -147,13 +161,13 @@ const releaseHistory = [
     ]
   }
 ] as const
-const selectedReleaseVersion = ref('2.0.10')
+const selectedReleaseVersion = ref('2.1.0')
 const selectedRelease = computed(() => releaseHistory.find(item => item.version === selectedReleaseVersion.value) || releaseHistory[0])
 
 const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV]/, '')}` : '未知版本'
 const releaseHighlights = computed(() => {
   if (updateStatus.value?.updateHighlights?.length) return updateStatus.value.updateHighlights
-  if ((updateStatus.value?.latestVersion || updateStatus.value?.currentVersion || '').replace(/^[vV]/, '').startsWith('2.0.')) {
+  if ((updateStatus.value?.latestVersion || updateStatus.value?.currentVersion || '').replace(/^[vV]/, '').startsWith('2.')) {
     return ['原创闲鱼黄鱼标记、深海军蓝导航与高对比图标', '仪表盘升级为商家待办、账号状态、今日提醒和真实趋势', '一键擦亮统一范围和账号记录；账号快捷入口直达擦亮页', '固定保存栏、卡密清理、实时日志升级与默认回复严格去重', '商品发布简化为核对后确认，保留失败表单方便重试']
   }
   return []
@@ -319,7 +333,7 @@ onUnmounted(() => {
         <p class="version-dialog__status" :class="{ available: updateStatus.updateAvailable }">{{ updateStatus.message }}</p>
         <div class="version-dialog__changes">
           <div class="version-dialog__changes-heading">
-            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.0.10 的正式版本记录。</p></div>
+            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.1.0 的正式版本记录。</p></div>
             <label class="version-history-select"><span>查看版本</span><select v-model="selectedReleaseVersion"><option v-for="release in releaseHistory" :key="release.version" :value="release.version">{{ release.label }}</option></select></label>
           </div>
           <ul>

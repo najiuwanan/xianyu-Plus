@@ -35,6 +35,7 @@ public class OrderDetailFetcher {
      */
     public static class OrderDetailInfo {
         public String skuId;
+        public String xyGoodsId;
         public String skuName;
         public String buyerUserName;
         public String buyerUserId;
@@ -116,6 +117,9 @@ public class OrderDetailFetcher {
                 info.buyerUserName = (String) userNick;
             }
             Object userId = buyer.get("userId");
+            if (userId == null || String.valueOf(userId).isBlank()) {
+                userId = buyer.get("buyerId");
+            }
             if (userId != null && !String.valueOf(userId).isBlank()) {
                 info.buyerUserId = String.valueOf(userId);
             }
@@ -127,6 +131,10 @@ public class OrderDetailFetcher {
         if (merchantCommonData instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> commonData = (Map<String, Object>) merchantCommonData;
+            if (info.xyGoodsId == null) {
+                info.xyGoodsId = firstString(commonData,
+                        "itemId", "itemIdStr", "xyGoodsId", "goodsId");
+            }
             Object createTime = commonData.get("createTime");
             if (createTime instanceof String) info.orderCreateTime = (String) createTime;
             Object paySuccessTime = commonData.get("paySuccessTime");
@@ -141,6 +149,10 @@ public class OrderDetailFetcher {
         if (merchantItemVO instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> merchantItem = (Map<String, Object>) merchantItemVO;
+            if (info.xyGoodsId == null) {
+                info.xyGoodsId = firstString(merchantItem,
+                        "itemId", "itemIdStr", "xyGoodsId", "goodsId");
+            }
             Object title = merchantItem.get("title");
             if (title instanceof String) info.goodsTitle = (String) title;
         }
@@ -216,5 +228,19 @@ public class OrderDetailFetcher {
                 }
             }
         }
+    }
+
+    private static String firstString(Map<String, Object> values, String... keys) {
+        for (String key : keys) {
+            Object value = values.get(key);
+            if (value == null) {
+                continue;
+            }
+            String text = String.valueOf(value).trim();
+            if (!text.isEmpty()) {
+                return text;
+            }
+        }
+        return null;
     }
 }

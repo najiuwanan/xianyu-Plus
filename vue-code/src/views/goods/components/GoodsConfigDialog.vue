@@ -268,7 +268,7 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
               <div class="config-section__title">
                 <div>
                   <h3>商品默认回复</h3>
-                  <p>买家首次咨询此商品时自动发送一次；后续消息再按议价、关键词和 AI 规则处理。</p>
+                  <p>“仅首次”按账号 + 商品 + 买家持续去重，跨日期也不会重置；需要每次触发请选择“每条消息都回复”。</p>
                 </div>
                 <label class="switch">
                   <input v-model="form.productDefaultReplyEnabled" type="checkbox" />
@@ -279,7 +279,7 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
                 <label class="field">
                   <span>回复频率</span>
                   <select v-model.number="form.productDefaultReplyMode">
-                    <option :value="1">仅首次回复（同一买家咨询同一商品只回复一次）</option>
+                    <option :value="1">仅首次回复（跨日期不重置）</option>
                     <option :value="2">每条消息都回复</option>
                   </select>
                 </label>

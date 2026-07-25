@@ -57,6 +57,18 @@ class AutomationHardeningSourceTest {
     }
 
     @Test
+    void updateScriptBacksUpLocalChangesBeforePullingMain() throws Exception {
+        String source = Files.readString(Path.of("update.sh"));
+        int stash = source.indexOf("git stash push --include-untracked");
+        int pull = source.indexOf("git pull --ff-only origin main");
+
+        assertTrue(stash >= 0);
+        assertTrue(pull > stash);
+        assertTrue(source.contains("git diff --cached --quiet"));
+        assertTrue(source.contains("git ls-files --others --exclude-standard"));
+    }
+
+    @Test
     void firstReplyDeduplicationScopeIsAccountGoodsAndBuyer() {
         String first = AutoReplyServiceImpl.buildProductDefaultDedupKey(
                 7L, "goods-1", "buyer-1@goofish", "session-a");

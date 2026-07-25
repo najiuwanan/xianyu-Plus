@@ -78,31 +78,42 @@ public class ChatMessageEventAutoDeliveryListener {
                 return;
             }
 
-            XianyuGoodsOrder existing = message.getOrderId() == null || message.getOrderId().isBlank()
-                    ? null : orderMapper.selectByAccountIdAndOrderId(accountId, message.getOrderId());
-            if (existing != null) {
-                notifyNewOrder(accountId, message);
-                return;
-            }
-
             if (!isPaymentMessage(message)) {
                 return;
             }
 
             if (message.getOrderId() == null || message.getOrderId().isBlank()) {
-                log.warn("【账号{}】消息缺少商品ID或会话ID，无法触发自动发货: pnmId={}", accountId, message.getPnmId());
+                log.warn("【账号{}】付款消息缺少订单ID，无法触发自动发货: pnmId={}", accountId, message.getPnmId());
                 return;
             }
 
+            XianyuGoodsOrder existing = orderMapper.selectByAccountIdAndOrderId(
+                    accountId, message.getOrderId());
+            String xyGoodsId = firstNonBlank(message.getXyGoodsId(),
+                    existing == null ? null : existing.getXyGoodsId());
             String buyerUserName = message.getSenderUserName();
             log.info("【账号{}】检测到已付款待发货消息: xyGoodsId={}, buyerUserId={}, orderId={}",
-                    accountId, message.getXyGoodsId(), message.getSenderUserId(), message.getOrderId());
+                    accountId, xyGoodsId, message.getSenderUserId(), message.getOrderId());
 
-            Long xianyuGoodsId = resolveXianyuGoodsId(accountId, message.getXyGoodsId());
-            XianyuGoodsConfig goodsConfig = goodsConfigMapper.selectByAccountAndGoodsId(accountId, message.getXyGoodsId());
+            Long xianyuGoodsId = resolveXianyuGoodsId(accountId, xyGoodsId);
+            XianyuGoodsConfig goodsConfig = xyGoodsId == null ? null
+                    : goodsConfigMapper.selectByAccountAndGoodsId(accountId, xyGoodsId);
             boolean autoDeliveryEnabled = xianyuGoodsId != null && goodsConfig != null
                     && Integer.valueOf(1).equals(goodsConfig.getXianyuAutoDeliveryOn());
             boolean blacklisted = blacklistService.isBlacklisted(accountId, message.getSenderUserId());
+
+            if (existing != null) {
+                orderMapper.mergePaymentMessage(existing.getId(), xianyuGoodsId, xyGoodsId,
+                        message.getPnmId(), message.getSenderUserId(), buyerUserName, message.getSId());
+                if (autoDeliveryEnabled && !blacklisted
+                        && orderMapper.activateExistingPaymentTask(existing.getId()) > 0) {
+                    log.info("【账号{}】已补全历史订单并恢复自动发货任务: recordId={}, orderId={}",
+                            accountId, existing.getId(), message.getOrderId());
+                }
+                notifyNewOrder(accountId, message);
+                return;
+            }
+
             if (!autoDeliveryEnabled || blacklisted) {
                 recordOrderWithoutDelivery(accountId, xianyuGoodsId, message, blacklisted);
                 notifyNewOrder(accountId, message);
@@ -215,6 +226,16 @@ public class ChatMessageEventAutoDeliveryListener {
             return null;
         }
         return goodsInfo.getId();
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        if (second != null && !second.isBlank()) {
+            return second;
+        }
+        return null;
     }
 
     private Long createOrderRecord(Long accountId, Long xianyuGoodsId, ChatMessageData message) {

@@ -76,12 +76,18 @@ public class PendingOrderPollService {
                 XianyuGoodsOrder existing = orderMapper.selectByAccountIdAndOrderId(accountId, orderId);
                 if (existing != null) {
                     enrichFromDetailApi(accountId, orderId, existing);
-                    String itemId = (String) commonData.get("itemId");
+                    XianyuGoodsOrder refreshed = orderMapper.selectById(existing.getId());
+                    if (refreshed != null) {
+                        existing = refreshed;
+                    }
+                    String itemId = firstNonBlank(stringValue(commonData.get("itemId")),
+                            existing.getXyGoodsId());
                     boolean selfPickup = "PICKUP".equalsIgnoreCase(existing.getDeliveryChannel())
                             || isSelfPickupOrder(order);
                     if (selfPickup) {
                         orderMapper.markAsSelfPickup(existing.getId());
-                    } else if (!Integer.valueOf(1).equals(existing.getState())
+                    } else if (Integer.valueOf(0).equals(existing.getState())
+                            && DeliveryStatus.SKIPPED.name().equals(existing.getDeliveryStatus())
                             && isAutoDeliveryEnabled(accountId, itemId)) {
                         deliveryTaskService.requeue(existing.getId());
                     }
@@ -791,8 +797,14 @@ public class PendingOrderPollService {
                 Object userNick = buyer.get("userNick");
                 if (userNick instanceof String) buyerUserName = (String) userNick;
                 Object uid = buyer.get("userId");
-                if (uid instanceof String) buyerUserId = (String) uid;
+                if (uid == null || String.valueOf(uid).isBlank()) {
+                    uid = buyer.get("buyerId");
+                }
+                if (uid != null && !String.valueOf(uid).isBlank()) {
+                    buyerUserId = String.valueOf(uid);
+                }
             }
+            String xyGoodsId = findNestedText(module, ITEM_ID_KEYS);
 
             String orderCreateTime = null;
             String paySuccessTime = null;
@@ -863,7 +875,8 @@ public class PendingOrderPollService {
                         statusSnapshot.getTradeStatus(), statusSnapshot.getTradeStatusText());
             }
 
-            orderMapper.updateOrderDetail(existing.getId(), buyerUserName, orderCreateTime, paySuccessTime, consignTime, skuName, goodsTitle, totalPrice, buyNum);
+            orderMapper.updateOrderDetail(existing.getId(), xyGoodsId, buyerUserId, buyerUserName,
+                    orderCreateTime, paySuccessTime, consignTime, skuName, goodsTitle, totalPrice, buyNum);
             log.info("【账号{}】从详情API补充订单字段: orderId={}", accountId, orderId);
         } catch (Exception e) {
             log.warn("【账号{}】补充订单详情异常: orderId={}", accountId, orderId, e);

@@ -9,7 +9,10 @@ import com.xianyusmart.service.delivery.OrderDetailFetcher;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Method;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -61,6 +64,42 @@ class AutoDeliveryServiceImplTest {
     void acceptsDeliveryOnlyWhenTheChatBuyerMatchesTheOrderBuyer() {
         assertEquals("buyer-42", AutoDeliveryServiceImpl.requireVerifiedBuyerRecipientId(
                 "buyer-42@goofish", "buyer-42"));
+    }
+
+    @Test
+    void persistsPlatformBuyerAndReloadsTheOrderBeforeRecipientVerification() throws Exception {
+        XianyuGoodsOrderMapper orderMapper = mock(XianyuGoodsOrderMapper.class);
+        XianyuGoodsOrder partial = new XianyuGoodsOrder();
+        partial.setId(11L);
+
+        OrderDetailFetcher.OrderDetailInfo detail = new OrderDetailFetcher.OrderDetailInfo();
+        detail.xyGoodsId = "goods-1";
+        detail.buyerUserId = "buyer-42";
+        detail.buyerUserName = "测试买家";
+        detail.goodsTitle = "测试商品";
+        detail.buyNum = 1;
+
+        XianyuGoodsOrder refreshed = new XianyuGoodsOrder();
+        refreshed.setId(11L);
+        refreshed.setXyGoodsId("goods-1");
+        refreshed.setBuyerUserId("buyer-42");
+        when(orderMapper.selectById(11L)).thenReturn(refreshed);
+
+        AutoDeliveryServiceImpl service = new AutoDeliveryServiceImpl();
+        ReflectionTestUtils.setField(service, "orderMapper", orderMapper);
+        Method method = AutoDeliveryServiceImpl.class.getDeclaredMethod(
+                "persistOrderDetailAndReload", XianyuGoodsOrder.class, String.class,
+                OrderDetailFetcher.OrderDetailInfo.class);
+        method.setAccessible(true);
+
+        XianyuGoodsOrder result = (XianyuGoodsOrder) method.invoke(
+                service, partial, null, detail);
+
+        assertSame(refreshed, result);
+        assertEquals("buyer-42", result.getBuyerUserId());
+        verify(orderMapper).updateOrderDetail(
+                eq(11L), eq("goods-1"), eq("buyer-42"), eq("测试买家"),
+                isNull(), isNull(), isNull(), isNull(), eq("测试商品"), isNull(), eq(1));
     }
 
     @Test

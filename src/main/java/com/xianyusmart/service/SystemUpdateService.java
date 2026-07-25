@@ -289,6 +289,19 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("2.1.0".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "修复订单详情买家 ID、商品 ID 已解析但未写回，导致手动与自动发货被安全校验拦截的问题",
+                    "历史订单收到付款消息后会补全买家、商品、昵称和会话，并安全恢复自动发货任务",
+                    "固定内容、库存卡密、手动补发和自定义发货统一先刷新并重读订单，再核验真实买家",
+                    "既有买家身份只用于一致性校验，详情补全只填空值，不会覆盖既有身份或削弱防错发保护",
+                    "修复确认发货任务 SQL 多余括号导致调度器持续报错、确认发货队列停摆的问题",
+                    "新增 MySQL 兼容 SQL 执行、订单详情补全、付款消息恢复和买家身份专项回归",
+                    "一键更新会先备份 Dockerfile 等本地改动，再拉取官方 main，不再因本地修改直接中止",
+                    "默认回复配置明确说明仅首次回复跨日期不重置"
+            ));
+            return;
+        }
         if ("2.0.10".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "修复 Docker 后端构建缺少前端安全检查源码，导致一键安装或更新中止的问题",

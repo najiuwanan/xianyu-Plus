@@ -254,19 +254,32 @@ public class OrderServiceImpl implements OrderService {
             Map<String, Object> module = (Map<String, Object>) moduleObj;
 
             String buyerUserName = null;
+            String buyerUserId = null;
             Object merchantBuyerVO = module.get("merchantBuyerVO");
             if (merchantBuyerVO instanceof Map) {
                 Map<String, Object> buyer = (Map<String, Object>) merchantBuyerVO;
                 Object userNick = buyer.get("userNick");
                 if (userNick instanceof String) buyerUserName = (String) userNick;
+                Object userId = buyer.get("userId");
+                if (userId != null && !String.valueOf(userId).isBlank()) {
+                    buyerUserId = String.valueOf(userId);
+                } else if (buyer.get("buyerId") != null
+                        && !String.valueOf(buyer.get("buyerId")).isBlank()) {
+                    buyerUserId = String.valueOf(buyer.get("buyerId"));
+                }
             }
 
+            String xyGoodsId = null;
             String orderCreateTime = null;
             String paySuccessTime = null;
             String consignTime = null;
             Object merchantCommonData = module.get("merchantCommonData");
             if (merchantCommonData instanceof Map) {
                 Map<String, Object> commonData = (Map<String, Object>) merchantCommonData;
+                Object itemId = commonData.get("itemId");
+                if (itemId != null && !String.valueOf(itemId).isBlank()) {
+                    xyGoodsId = String.valueOf(itemId);
+                }
                 Object ct = commonData.get("createTime");
                 if (ct instanceof String) orderCreateTime = (String) ct;
                 Object pt = commonData.get("paySuccessTime");
@@ -279,6 +292,11 @@ public class OrderServiceImpl implements OrderService {
             Object merchantItemVO = module.get("merchantItemVO");
             if (merchantItemVO instanceof Map) {
                 Map<String, Object> merchantItem = (Map<String, Object>) merchantItemVO;
+                Object itemId = merchantItem.get("itemId");
+                if ((xyGoodsId == null || xyGoodsId.isBlank()) && itemId != null
+                        && !String.valueOf(itemId).isBlank()) {
+                    xyGoodsId = String.valueOf(itemId);
+                }
                 Object title = merchantItem.get("title");
                 if (title instanceof String) goodsTitle = (String) title;
             }
@@ -298,7 +316,8 @@ public class OrderServiceImpl implements OrderService {
                 }
             }
 
-            orderMapper.updateOrderDetail(order.getId(), buyerUserName, orderCreateTime, paySuccessTime, consignTime, null, goodsTitle, totalPrice, buyNum);
+            orderMapper.updateOrderDetail(order.getId(), xyGoodsId, buyerUserId, buyerUserName,
+                    orderCreateTime, paySuccessTime, consignTime, null, goodsTitle, totalPrice, buyNum);
             log.info("【账号{}】从API更新订单详情成功: orderId={}", accountId, orderId);
         } catch (Exception e) {
             log.warn("【账号{}】更新订单详情失败: orderId={}", accountId, orderId, e);
