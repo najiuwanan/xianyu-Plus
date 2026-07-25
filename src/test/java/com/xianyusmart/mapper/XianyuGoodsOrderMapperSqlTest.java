@@ -109,6 +109,18 @@ class XianyuGoodsOrderMapperSqlTest {
     }
 
     @Test
+    void riskResumeOnlyRequeuesPendingNonPickupTasksBelowTheAttemptLimit() throws Exception {
+        Method method = XianyuGoodsOrderMapper.class.getMethod(
+                "resumeRiskPausedTasks", Long.class, int.class);
+        String sql = String.join(" ", method.getAnnotation(Update.class).value());
+
+        assertTrue(sql.contains("COALESCE(state, 0) = 0"));
+        assertTrue(sql.contains("<> 'PICKUP'"));
+        assertTrue(sql.contains("last_error_code = 'AUTOMATION_RISK_PAUSED'"));
+        assertTrue(sql.contains("COALESCE(attempt_count, 0) < #{maxAttempts}"));
+    }
+
+    @Test
     void apiKamiReadyWriteIsFencedByRequestToken() throws Exception {
         Method method = XianyuApiKamiDeliveryMapper.class.getMethod(
                 "markReady", Long.class, String.class, String.class, java.time.LocalDateTime.class);

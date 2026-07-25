@@ -288,6 +288,22 @@ public class AccountController {
             return ResultObject.failed("请选择需要恢复自动化的账号");
         }
         try {
+            XianyuAccount account = accountMapper.selectById(reqDTO.getAccountId());
+            if (account == null) {
+                return ResultObject.failed("账号不存在");
+            }
+            if (!Integer.valueOf(1).equals(account.getStatus())) {
+                return ResultObject.failed("账号当前不可用，请先恢复账号状态");
+            }
+            String cookie = accountService.getCookieByAccountId(account.getId());
+            if (cookie == null || cookie.isBlank()) {
+                return ResultObject.failed("账号 Cookie 不可用，请先重新登录或更新 Cookie");
+            }
+            boolean connected = webSocketService.isConnected(account.getId())
+                    || webSocketService.startWebSocket(account.getId());
+            if (!connected) {
+                return ResultObject.failed("实时连接尚未恢复，请先在账号详情中重新连接后再恢复自动化");
+            }
             return ResultObject.success(automationRiskGuardService.resume(reqDTO.getAccountId()));
         } catch (IllegalArgumentException e) {
             return ResultObject.failed(e.getMessage());

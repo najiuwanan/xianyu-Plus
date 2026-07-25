@@ -371,6 +371,9 @@ public class ItemPolishServiceImpl implements ItemPolishService {
             int syncedOnSaleCount = synchronizeOnSaleItems(accountId);
             if (syncedOnSaleCount == 0) {
                 summary = "商品同步完成：当前没有在售商品，无需擦亮";
+                if (automationRiskGuardService != null) {
+                    automationRiskGuardService.recordSuccess(accountId, "商品擦亮");
+                }
                 log.info("【一键擦亮】账号 {} 商品同步完成，当前没有在售商品", accountId);
                 return;
             }
@@ -383,6 +386,9 @@ public class ItemPolishServiceImpl implements ItemPolishService {
             total = items.size();
             if (total == 0) {
                 summary = "商品同步完成：发现 " + syncedOnSaleCount + " 件在售商品，但本地没有可擦亮商品";
+                if (automationRiskGuardService != null) {
+                    automationRiskGuardService.recordSuccess(accountId, "商品擦亮");
+                }
                 log.warn("【一键擦亮】账号 {} 同步到 {} 件在售商品，但本地没有可擦亮商品", accountId, syncedOnSaleCount);
                 return;
             }
@@ -404,6 +410,9 @@ public class ItemPolishServiceImpl implements ItemPolishService {
                 }
                 saveRecord(accountId, item, triggerType, itemSuccess,
                         itemSkipped ? result.message() : (itemSuccess ? "擦亮成功" : result.message()));
+                if (itemSuccess && automationRiskGuardService != null) {
+                    automationRiskGuardService.recordSuccess(accountId, "商品擦亮");
+                }
                 if (!itemSuccess && automationRiskGuardService != null
                         && automationRiskGuardService.recordFailure(accountId, "商品擦亮", result.message())) {
                     summary = "已连续失败，账号自动化保护已暂停，本轮擦亮停止执行";

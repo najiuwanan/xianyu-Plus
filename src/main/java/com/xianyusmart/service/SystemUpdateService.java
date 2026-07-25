@@ -289,6 +289,18 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("2.1.1".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "自动发货、自动评价、小红花和商品擦亮改为按模块独立统计连续失败，互不连坐",
+                    "对应模块成功或收到正常业务回执后立即清除连续失败计数",
+                    "恢复自动化前检查账号状态、Cookie 和实时连接，预检失败直接展示原因",
+                    "恢复时只重新加入状态正常、非自提且未耗尽尝试次数的待发货任务",
+                    "账号卡片直接显示触发模块、连续失败次数和最后失败原因",
+                    "继续保留买家身份不一致、发送结果不确定和自提订单的安全拦截",
+                    "新增模块隔离、成功清零、安全恢复 SQL 与发货成功清零专项回归"
+            ));
+            return;
+        }
         if ("2.1.0".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "修复订单详情买家 ID、商品 ID 已解析但未写回，导致手动与自动发货被安全校验拦截的问题",

@@ -178,6 +178,9 @@ public class RedFlowerService {
                 accountId, RED_FLOWER_API, payload, cookie, "1.0", headers, query);
         if (result.isSuccess()) {
             automationRecordMapper.markRedFlowerSuccess(accountId, orderId);
+            if (automationRiskGuardService != null) {
+                automationRiskGuardService.recordSuccess(accountId, "小红花");
+            }
             log.info("【账号{}】订单求小红花成功：orderId={}", accountId, orderId);
             return true;
         }

@@ -2,6 +2,7 @@ package com.xianyusmart.service.impl;
 
 import com.xianyusmart.entity.XianyuGoodsOrder;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
+import com.xianyusmart.service.AutomationRiskGuardService;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -40,6 +41,22 @@ class DeliveryTaskServiceImplTest {
         service.renewLease(2L, "worker-a");
 
         verify(orderMapper).renewTaskLease(2L, "worker-a", 120);
+    }
+
+    @Test
+    void successfulDeliveryClearsOnlyTheDeliveryFailureSequence() {
+        XianyuGoodsOrderMapper orderMapper = mock(XianyuGoodsOrderMapper.class);
+        AutomationRiskGuardService riskGuardService = mock(AutomationRiskGuardService.class);
+        DeliveryTaskServiceImpl service = new DeliveryTaskServiceImpl(orderMapper);
+        ReflectionTestUtils.setField(service, "automationRiskGuardService", riskGuardService);
+        XianyuGoodsOrder task = new XianyuGoodsOrder();
+        task.setXianyuAccountId(7L);
+        when(orderMapper.selectById(4L)).thenReturn(task);
+        when(orderMapper.completeTask(4L, "worker-a")).thenReturn(1);
+
+        service.complete(4L, "worker-a");
+
+        verify(riskGuardService).recordSuccess(7L, "自动发货");
     }
 
     @Test

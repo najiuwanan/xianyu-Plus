@@ -295,7 +295,10 @@ const refreshAvatar = (account: Account) => {
               <span :class="{ 'account-overview-card__automation-item--on': isEnabled(account.autoAskFlower) }">小红花 <b>{{ isEnabled(account.autoAskFlower) ? '开启' : '关闭' }}</b></span>
               <span :class="{ 'account-overview-card__automation-item--on': isEnabled(account.itemPolishEnabled) }">擦亮 <b>{{ getItemPolishStatus(account) }}</b></span>
             </div>
-            <small v-if="isRiskPaused(account)" class="account-overview-card__risk" :title="account.automationRiskPauseReason">自动化已保护暂停</small>
+            <small v-if="isRiskPaused(account)" class="account-overview-card__risk" :title="account.automationRiskPauseReason">
+              <span>自动化已保护暂停</span>
+              <b>{{ account.automationRiskPauseReason || '连续自动化失败，等待人工确认' }}</b>
+            </small>
           </section>
           <section class="account-overview-card__section account-overview-card__section--time">
             <span class="account-overview-card__label">最近更新</span>
@@ -1118,7 +1121,19 @@ const refreshAvatar = (account: Account) => {
 }
 
 .account-overview-card__automation-item--on b { color: #168442; }
-.account-overview-card__risk { color: #b65d00 !important; }
+.account-overview-card__risk {
+  display: grid;
+  gap: 2px;
+  color: #b65d00 !important;
+  line-height: 1.35;
+}
+.account-overview-card__risk span { font-weight: 750; }
+.account-overview-card__risk b {
+  color: #8f4b08;
+  font-size: 10px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 
 .account-overview-card__section--time time {
   color: #3f516b;

@@ -23,13 +23,17 @@ public class AutomationRiskGuardService {
     private final XianyuAccountMapper accountMapper;
     private final XianyuGoodsOrderMapper orderMapper;
     private final NotificationChannelService notificationChannelService;
-    private final Map<Long, FailureWindow> recentFailures = new ConcurrentHashMap<>();
+    /** 失败窗口按账号和自动化模块隔离，避免不同模块的偶发失败互相累计。 */
+    private final Map<FailureKey, FailureWindow> recentFailures = new ConcurrentHashMap<>();
 
     @Value("${app.automation.risk.failure-threshold:3}")
     private int failureThreshold;
 
     @Value("${app.automation.risk.failure-window-minutes:30}")
     private int failureWindowMinutes;
+
+    @Value("${app.delivery.max-attempts:3}")
+    private int deliveryMaxAttempts;
 
     public AutomationRiskGuardService(XianyuAccountMapper accountMapper,
                                       XianyuGoodsOrderMapper orderMapper,
@@ -59,8 +63,10 @@ public class AutomationRiskGuardService {
             return false;
         }
 
+        String safeAction = hasText(action) ? trim(action) : "自动化任务";
+        FailureKey failureKey = new FailureKey(accountId, safeAction);
         long now = System.currentTimeMillis();
-        FailureWindow failureWindow = recentFailures.compute(accountId, (key, current) -> {
+        FailureWindow failureWindow = recentFailures.compute(failureKey, (key, current) -> {
             long windowMs = Math.max(1, failureWindowMinutes) * 60_000L;
             if (current == null || now - current.startedAt > windowMs) {
                 return new FailureWindow(now, 1);
@@ -71,16 +77,15 @@ public class AutomationRiskGuardService {
             return false;
         }
 
-        String safeAction = hasText(action) ? action : "自动化任务";
         String safeReason = trim(hasText(reason) ? reason : "连续自动化调用失败");
-        String pauseReason = "近 " + Math.max(1, failureWindowMinutes) + " 分钟内连续 " + failureWindow.count
-                + " 次失败（" + safeAction + "）：" + safeReason;
+        String pauseReason = safeAction + "在 " + Math.max(1, failureWindowMinutes) + " 分钟内连续失败 "
+                + failureWindow.count + " 次：" + safeReason;
         account.setAutomationRiskPaused(1);
         account.setAutomationRiskPauseReason(trim(pauseReason));
         account.setAutomationRiskPausedAt(LocalDateTime.now());
         accountMapper.updateById(account);
         orderMapper.pauseTasksByRisk(accountId, trim("自动化保护暂停：" + safeAction + " - " + safeReason));
-        recentFailures.remove(accountId);
+        clearFailures(accountId);
 
         Map<String, Object> params = new HashMap<>();
         params.put("action", "风控保护已暂停自动化");
@@ -92,6 +97,15 @@ public class AutomationRiskGuardService {
         notificationChannelService.dispatchMessage("AUTOMATION_EXCEPTION", accountId, params);
         log.warn("【自动化保护】账号 {} 已暂停，原因：{}", accountId, pauseReason);
         return true;
+    }
+
+    /** 一次真实成功会终止该模块的连续失败序列，但不会掩盖其他模块的问题。 */
+    public void recordSuccess(Long accountId, String action) {
+        if (accountId == null) {
+            return;
+        }
+        String safeAction = hasText(action) ? trim(action) : "自动化任务";
+        recentFailures.remove(new FailureKey(accountId, safeAction));
     }
 
     public String resume(Long accountId) {
@@ -109,10 +123,10 @@ public class AutomationRiskGuardService {
         account.setAutomationRiskPauseReason(null);
         account.setAutomationRiskPausedAt(null);
         accountMapper.updateById(account);
-        recentFailures.remove(accountId);
-        int restoredTasks = orderMapper.resumeRiskPausedTasks(accountId);
+        clearFailures(accountId);
+        int restoredTasks = orderMapper.resumeRiskPausedTasks(accountId, Math.max(1, deliveryMaxAttempts));
         return restoredTasks > 0
-                ? "自动化已恢复，并重新加入 " + restoredTasks + " 个待发货任务"
+                ? "自动化已恢复，并安全恢复 " + restoredTasks + " 个未耗尽尝试次数的待发货任务"
                 : "自动化已恢复";
     }
 
@@ -133,5 +147,10 @@ public class AutomationRiskGuardService {
         return value == null ? "" : value.substring(0, Math.min(value.length(), 500));
     }
 
+    private void clearFailures(Long accountId) {
+        recentFailures.keySet().removeIf(key -> key.accountId().equals(accountId));
+    }
+
+    private record FailureKey(Long accountId, String action) { }
     private record FailureWindow(long startedAt, int count) { }
 }

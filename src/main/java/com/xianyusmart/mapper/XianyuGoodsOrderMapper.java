@@ -361,9 +361,12 @@ public interface XianyuGoodsOrderMapper {
 
     @Update("UPDATE xianyu_goods_order SET delivery_status = 'PENDING', next_retry_time = NOW(3), " +
             "lease_owner = NULL, lease_expire_time = NULL, last_error_code = NULL, last_error_message = NULL " +
-            "WHERE xianyu_account_id = #{accountId} AND state <> 1 AND delivery_status = 'SKIPPED' " +
-            "AND last_error_code = 'AUTOMATION_RISK_PAUSED'")
-    int resumeRiskPausedTasks(@Param("accountId") Long accountId);
+            "WHERE xianyu_account_id = #{accountId} AND COALESCE(state, 0) = 0 " +
+            "AND COALESCE(delivery_channel, '') <> 'PICKUP' " +
+            "AND delivery_status = 'SKIPPED' AND last_error_code = 'AUTOMATION_RISK_PAUSED' " +
+            "AND COALESCE(attempt_count, 0) < #{maxAttempts}")
+    int resumeRiskPausedTasks(@Param("accountId") Long accountId,
+                              @Param("maxAttempts") int maxAttempts);
     
     @Update("UPDATE xianyu_goods_order SET confirm_state = 1, confirm_task_status = 'COMPLETED', " +
             "confirm_next_retry_time = NULL, confirm_lease_owner = NULL, confirm_lease_expire_time = NULL, confirm_error = NULL " +

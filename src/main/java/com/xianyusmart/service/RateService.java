@@ -77,6 +77,7 @@ public class RateService {
                 accountId, RATE_CREATE_API, payload, cookie, "4.0", headers, query);
         if (result.isSuccess() || isAlreadyRated(result)) {
             automationRecordMapper.markRateSuccess(accountId, tradeId);
+            recordSuccess(accountId);
             log.info("【自动评价】账号{}订单{}评价成功", accountId, tradeId);
             return true;
         }
@@ -84,6 +85,7 @@ public class RateService {
         if (isWaitingForCompletion(result)) {
             String reason = "订单暂未完成，等待买家确认收货后再评价";
             automationRecordMapper.markRateWaiting(accountId, tradeId, reason);
+            recordSuccess(accountId);
             log.info("【自动评价】账号{}订单{}暂未完成，保留等待评价状态", accountId, tradeId);
             return true;
         }
@@ -92,6 +94,7 @@ public class RateService {
             String reason = normalizeError(result.getErrorMessage(), "当前订单无需评价");
             automationRecordMapper.markRateSkipped(accountId, tradeId,
                     reason.substring(0, Math.min(reason.length(), 500)));
+            recordSuccess(accountId);
             log.info("【自动评价】账号{}订单{}无需评价：{}", accountId, tradeId, reason);
             return true;
         }
@@ -372,6 +375,12 @@ public class RateService {
         }
         if (automationRiskGuardService != null) {
             automationRiskGuardService.recordFailure(accountId, "自动评价", reason);
+        }
+    }
+
+    private void recordSuccess(Long accountId) {
+        if (automationRiskGuardService != null) {
+            automationRiskGuardService.recordSuccess(accountId, "自动评价");
         }
     }
 

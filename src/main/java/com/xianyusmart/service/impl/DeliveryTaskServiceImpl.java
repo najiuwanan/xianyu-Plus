@@ -84,8 +84,11 @@ public class DeliveryTaskServiceImpl implements DeliveryTaskService {
 
     @Override
     public void complete(Long taskId, String workerId) {
+        XianyuGoodsOrder task = orderMapper.selectById(taskId);
         if (orderMapper.completeTask(taskId, workerId) == 0) {
             log.warn("任务租约已失效，忽略完成操作: taskId={}", taskId);
+        } else if (task != null && automationRiskGuardService != null) {
+            automationRiskGuardService.recordSuccess(task.getXianyuAccountId(), "自动发货");
         }
     }
 

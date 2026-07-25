@@ -18,8 +18,21 @@ const updateChecking = ref(false)
 const versionDialogVisible = ref(false)
 const releaseHistory = [
   {
+    version: '2.1.1',
+    label: 'V2.1.1（当前）',
+    highlights: [
+      '修复自动发货、评价、小红花和擦亮共用失败计数，互不相关的失败不再错误暂停整个账号。',
+      '对应自动化成功或平台返回正常业务结果后，会清除该模块的连续失败计数。',
+      '恢复自动化前检查账号状态、Cookie 和实时连接；预检失败会直接显示原因，不再短暂恢复后立刻暂停。',
+      '恢复时只重新加入状态正常、非自提且未耗尽尝试次数的发货任务，历史异常任务不会自动重放。',
+      '账号管理卡片直接显示触发模块、连续失败次数和最后失败原因，不再只显示通用暂停提示。',
+      '保留买家身份不一致、发送结果不确定和自提订单的安全拦截，卡密防错发规则不变。',
+      '新增自动化模块隔离、成功清零、安全恢复 SQL 和发货成功清零专项回归测试。'
+    ]
+  },
+  {
     version: '2.1.0',
-    label: 'V2.1.0（当前）',
+    label: 'V2.1.0',
     highlights: [
       '修复订单详情已经解析买家 ID、商品 ID，但没有写回订单数据库的问题。',
       '历史同步先创建订单后，付款消息会补全买家、商品、昵称和会话，并安全恢复自动发货任务。',
@@ -161,7 +174,7 @@ const releaseHistory = [
     ]
   }
 ] as const
-const selectedReleaseVersion = ref('2.1.0')
+const selectedReleaseVersion = ref('2.1.1')
 const selectedRelease = computed(() => releaseHistory.find(item => item.version === selectedReleaseVersion.value) || releaseHistory[0])
 
 const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV]/, '')}` : '未知版本'
@@ -333,7 +346,7 @@ onUnmounted(() => {
         <p class="version-dialog__status" :class="{ available: updateStatus.updateAvailable }">{{ updateStatus.message }}</p>
         <div class="version-dialog__changes">
           <div class="version-dialog__changes-heading">
-            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.1.0 的正式版本记录。</p></div>
+            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.1.1 的正式版本记录。</p></div>
             <label class="version-history-select"><span>查看版本</span><select v-model="selectedReleaseVersion"><option v-for="release in releaseHistory" :key="release.version" :value="release.version">{{ release.label }}</option></select></label>
           </div>
           <ul>
