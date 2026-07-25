@@ -68,7 +68,7 @@ public interface OrderAutomationRecordMapper {
             "AND (a.auto_rate_enabled = 1 OR a.auto_ask_flower = 1) " +
             "<if test='accountId != null'>AND o.xianyu_account_id = #{accountId} </if>" +
             "<if test=\"status == 'SUCCESS'\">" +
-            "AND (a.auto_rate_enabled = 0 OR COALESCE(r.rate_status, 0) = 1 OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) &lt;&gt; 1)) " +
+            "AND (a.auto_rate_enabled = 0 OR COALESCE(r.rate_status, 0) IN (1, 5) OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) &lt;&gt; 1)) " +
             "AND (a.auto_ask_flower = 0 OR COALESCE(r.red_flower_status, 0) = 1) " +
             "</if>" +
             "<if test=\"status == 'FAILED'\">" +
@@ -78,7 +78,7 @@ public interface OrderAutomationRecordMapper {
             "<if test=\"status == 'PENDING'\">" +
             "AND NOT ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 2) " +
             "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 2)) " +
-            "AND ((a.auto_rate_enabled = 1 AND (COALESCE(r.rate_status, 0) NOT IN (1, 3) OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) = 1))) " +
+            "AND ((a.auto_rate_enabled = 1 AND (COALESCE(r.rate_status, 0) NOT IN (1, 3, 5) OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) = 1))) " +
             "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) &lt;&gt; 1)) " +
             "</if>" +
             "ORDER BY COALESCE(r.update_time, " + ORDER_TIME_SQL + ") DESC, o.id DESC " +
@@ -120,7 +120,7 @@ public interface OrderAutomationRecordMapper {
             "AND (a.auto_rate_enabled = 1 OR a.auto_ask_flower = 1) " +
             "<if test='accountId != null'>AND o.xianyu_account_id = #{accountId} </if>" +
             "<if test=\"status == 'SUCCESS'\">" +
-            "AND (a.auto_rate_enabled = 0 OR COALESCE(r.rate_status, 0) = 1 OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) &lt;&gt; 1)) " +
+            "AND (a.auto_rate_enabled = 0 OR COALESCE(r.rate_status, 0) IN (1, 5) OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) &lt;&gt; 1)) " +
             "AND (a.auto_ask_flower = 0 OR COALESCE(r.red_flower_status, 0) = 1) " +
             "</if>" +
             "<if test=\"status == 'FAILED'\">" +
@@ -130,7 +130,7 @@ public interface OrderAutomationRecordMapper {
             "<if test=\"status == 'PENDING'\">" +
             "AND NOT ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 2) " +
             "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 2)) " +
-            "AND ((a.auto_rate_enabled = 1 AND (COALESCE(r.rate_status, 0) NOT IN (1, 3) OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) = 1))) " +
+            "AND ((a.auto_rate_enabled = 1 AND (COALESCE(r.rate_status, 0) NOT IN (1, 3, 5) OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) = 1))) " +
             "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) &lt;&gt; 1)) " +
             "</if>" +
             "</script>")
@@ -164,13 +164,13 @@ public interface OrderAutomationRecordMapper {
 
     @Select("<script>" +
             "SELECT COUNT(1) AS total, " +
-            "COALESCE(SUM(CASE WHEN (a.auto_rate_enabled = 0 OR COALESCE(r.rate_status, 0) = 1 OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) &lt;&gt; 1)) " +
+            "COALESCE(SUM(CASE WHEN (a.auto_rate_enabled = 0 OR COALESCE(r.rate_status, 0) IN (1, 5) OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) &lt;&gt; 1)) " +
             "AND (a.auto_ask_flower = 0 OR COALESCE(r.red_flower_status, 0) = 1) THEN 1 ELSE 0 END), 0) AS completed, " +
             "COALESCE(SUM(CASE WHEN (a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 2) " +
             "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 2) THEN 1 ELSE 0 END), 0) AS failed, " +
             "COALESCE(SUM(CASE WHEN NOT ((a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 2) " +
             "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 2)) " +
-            "AND ((a.auto_rate_enabled = 1 AND (COALESCE(r.rate_status, 0) NOT IN (1, 3) OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) = 1))) " +
+            "AND ((a.auto_rate_enabled = 1 AND (COALESCE(r.rate_status, 0) NOT IN (1, 3, 5) OR (COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) = 1))) " +
             "OR (a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) &lt;&gt; 1)) THEN 1 ELSE 0 END), 0) AS pending, " +
             "COALESCE(SUM(CASE WHEN a.auto_rate_enabled = 1 AND COALESCE(r.rate_status, 0) = 1 THEN 1 ELSE 0 END), 0) AS rate_success, " +
             "COALESCE(SUM(CASE WHEN a.auto_ask_flower = 1 AND COALESCE(r.red_flower_status, 0) = 1 THEN 1 ELSE 0 END), 0) AS red_flower_success " +
@@ -285,7 +285,9 @@ public interface OrderAutomationRecordMapper {
             "AND a.auto_rate_enabled = 1 " +
             "AND o.order_id IS NOT NULL AND o.order_id <> '' " +
             RECENT_MANAGED_ORDER_CONDITION +
-            "AND COALESCE(r.rate_status, 0) <> 1 AND (COALESCE(r.rate_status, 0) <> 3 OR COALESCE(o.confirm_state, 0) = 1) " +
+            "AND COALESCE(r.rate_status, 0) NOT IN (1, 5) " +
+            "AND (COALESCE(r.rate_status, 0) <> 3 OR COALESCE(o.confirm_state, 0) = 1) " +
+            "AND NOT (COALESCE(r.rate_status, 0) = 3 AND " + RATE_NOT_ACTIONABLE_CONDITION + ") " +
             "ORDER BY " + ORDER_TIME_SQL + " DESC, o.id DESC LIMIT #{limit}")
     List<String> findRateCandidateOrderIds(@Param("accountId") Long accountId,
                                            @Param("limit") int limit);
@@ -317,8 +319,8 @@ public interface OrderAutomationRecordMapper {
 
     @Insert("INSERT INTO xianyu_order_automation_record " +
             "(xianyu_account_id, order_id, rate_status, rate_time, rate_error) " +
-            "VALUES (#{accountId}, #{orderId}, 3, NOW(3), #{reason}) " +
-            "ON DUPLICATE KEY UPDATE rate_status = 3, rate_time = NOW(3), rate_error = #{reason}")
+            "VALUES (#{accountId}, #{orderId}, 5, NOW(3), #{reason}) " +
+            "ON DUPLICATE KEY UPDATE rate_status = 5, rate_time = NOW(3), rate_error = #{reason}")
     int markRateSkipped(@Param("accountId") Long accountId, @Param("orderId") String orderId,
                         @Param("reason") String reason);
 
@@ -353,12 +355,19 @@ public interface OrderAutomationRecordMapper {
     /** 清理历史终态：已评价归为成功，平台明确不可评价归为无需处理。 */
     @Update("<script>" +
             "UPDATE xianyu_order_automation_record " +
-            "SET rate_status = CASE WHEN " + RATE_ALREADY_RATED_CONDITION + " THEN 1 ELSE 3 END, " +
+            "SET rate_status = CASE WHEN " + RATE_ALREADY_RATED_CONDITION + " THEN 1 ELSE 5 END, " +
             "rate_time = COALESCE(rate_time, NOW(3)) " +
             "WHERE rate_status = 2 AND (" + RATE_TERMINAL_CONDITION + ") " +
             "<if test='accountId != null'>AND xianyu_account_id = #{accountId}</if>" +
             "</script>")
     int resolveTerminalRateFailures(@Param("accountId") Long accountId);
+    /** Convert legacy skipped records with a permanent platform reason into terminal skips. */
+    @Update("<script>" +
+            "UPDATE xianyu_order_automation_record SET rate_status = 5 " +
+            "WHERE rate_status = 3 AND " + RATE_NOT_ACTIONABLE_CONDITION + " " +
+            "<if test='accountId != null'>AND xianyu_account_id = #{accountId}</if>" +
+            "</script>")
+    int resolveTerminalRateSkips(@Param("accountId") Long accountId);
 
     /** 将旧版本对未完成订单的误判，归为等待买家确认收货。 */
     @Update("<script>" +

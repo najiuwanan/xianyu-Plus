@@ -56,6 +56,7 @@ public class ExceptionCenterService {
         Long accountId = request.getAccountId();
         automationRecordMapper.resolveWaitingRateFailures(accountId);
         automationRecordMapper.resolveTerminalRateFailures(accountId);
+        automationRecordMapper.resolveTerminalRateSkips(accountId);
         polishRecordMapper.resolveOffShelfFailures(accountId);
         List<ExceptionCenterRecordDTO> allRecords = new ArrayList<>();
         allRecords.addAll(orderMapper.findDeliveryExceptions(accountId, SOURCE_QUERY_LIMIT));

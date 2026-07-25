@@ -210,7 +210,7 @@ const batchRedFlower = async () => {
   }
 }
 
-const canCheckRate = (record: OrderAutomationRecord) => record.rateEnabled === 1 && record.rateStatus !== 1
+const canCheckRate = (record: OrderAutomationRecord) => record.rateEnabled === 1 && ![1, 5].includes(record.rateStatus)
 
 const isRetrying = (record: OrderAutomationRecord, action: AutomationAction) =>
   retryingKey.value === `${record.accountId}:${record.orderId}:${action}`
@@ -221,6 +221,7 @@ const statusText = (enabled: number, status: number) => {
   if (status === 2) return '失败'
   if (status === 3) return '已跳过'
   if (status === 4) return '待评价待核验'
+  if (status === 5) return '无需评价'
   return '待执行'
 }
 
@@ -244,6 +245,7 @@ const statusClass = (enabled: number, status: number) => {
   if (status === 2) return 'status--failed'
   if (status === 3) return 'status--skipped'
   if (status === 4) return 'status--waiting'
+  if (status === 5) return 'status--skipped'
   return 'status--pending'
 }
 

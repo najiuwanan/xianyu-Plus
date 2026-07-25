@@ -31,6 +31,7 @@ public class OrderAutomationService {
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 100;
     private static final int BATCH_RATE_LIMIT_PER_ACCOUNT = 50;
+    private static final int BATCH_RATE_REQUEST_INTERVAL_SECONDS = 2;
     private static final int BATCH_RED_FLOWER_LIMIT_PER_ACCOUNT = 50;
     private static final String DEFAULT_RATE_TEXT = "不错的买家！";
     private static final String RATE_LIST_UNMATCHED_REASON =
@@ -59,6 +60,7 @@ public class OrderAutomationService {
         automationRecordMapper.normalizePendingRateLabels(request.getAccountId());
         automationRecordMapper.resolveWaitingRateFailures(request.getAccountId());
         automationRecordMapper.resolveTerminalRateFailures(request.getAccountId());
+        automationRecordMapper.resolveTerminalRateSkips(request.getAccountId());
 
         List<OrderAutomationRecordDTO> records = automationRecordMapper.findExecutionRecords(
                 request.getAccountId(), status, pageSize, (page - 1) * pageSize);
@@ -115,10 +117,13 @@ public class OrderAutomationService {
         automationRecordMapper.normalizePendingRateLabels(accountId);
         automationRecordMapper.resolveWaitingRateFailures(accountId);
         automationRecordMapper.resolveTerminalRateFailures(accountId);
+        automationRecordMapper.resolveTerminalRateSkips(accountId);
         OrderAutomationRecordDTO state = automationRecordMapper.findTimelineState(accountId, orderId);
 
         if (state != null && Integer.valueOf(1).equals(state.getRateStatus())) {
             result.setRateReason("该订单已完成评价");
+        } else if (state != null && Integer.valueOf(5).equals(state.getRateStatus())) {
+            result.setRateReason("平台已确认该订单无需评价");
         } else {
             // “无需评价”可能记录在买家确认前或平台待评价列表尚未同步时；
             // 已同步的近 30 天正常交易允许用户再次向平台核验，最终仍由评价接口裁决。
@@ -213,6 +218,10 @@ public class OrderAutomationService {
                 } else {
                     automationRecordMapper.markRateWaiting(account.getId(), orderId, RATE_LIST_UNMATCHED_REASON);
                     result.setWaitingCount(result.getWaitingCount() + 1);
+                }
+                if ("RATE".equals(action) && !sleepBetweenRateRequests(BATCH_RATE_REQUEST_INTERVAL_SECONDS)) {
+                    result.setMessage("批量评价已中断");
+                    return result;
                 }
             }
         }
@@ -348,14 +357,8 @@ public class OrderAutomationService {
         String feedback = StringUtils.hasText(account.getAutoRateText())
                 ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
         for (String orderId : candidates) {
-            if (!pendingOrderIds.contains(orderId)) {
-                // The seller-side pending-rate list can lag behind the confirmation card, or omit
-                // an order in some page variants. Let the final rate API make the authoritative
-                // decision just as the manual "check and rate" action does. It records an
-                // ineligible order as waiting instead of treating it as a completed evaluation.
-                rateService.rateBuyer(accountId, orderId, feedback);
-                continue;
-            }
+            // The pending-rate list may lag behind or omit an order in some page variants, so the
+            // final rate API remains authoritative. Every platform request is still rate-limited.
             rateService.rateBuyer(accountId, orderId, feedback);
             if (!sleepBetweenRateRequests(requestIntervalSeconds)) {
                 return;
@@ -413,7 +416,7 @@ public class OrderAutomationService {
 
     private boolean isRateSkipped(Long accountId, String orderId) {
         OrderAutomationRecordDTO state = automationRecordMapper.findTimelineState(accountId, orderId);
-        return state != null && Integer.valueOf(3).equals(state.getRateStatus());
+        return state != null && Integer.valueOf(5).equals(state.getRateStatus());
     }
 
     private boolean isRateWaiting(Long accountId, String orderId) {

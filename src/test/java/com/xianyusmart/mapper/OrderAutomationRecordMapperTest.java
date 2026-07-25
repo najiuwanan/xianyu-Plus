@@ -24,13 +24,14 @@ class OrderAutomationRecordMapperTest {
         String candidateSql = configuration.getMappedStatement(
                         "com.xianyusmart.mapper.OrderAutomationRecordMapper.findRateCandidateOrderIds")
                 .getBoundSql(candidateParams).getSql();
-        assertTrue(candidateSql.contains("COALESCE(r.rate_status, 0) <> 1"));
+        assertTrue(candidateSql.contains("COALESCE(r.rate_status, 0) NOT IN (1, 5)"));
         assertTrue(candidateSql.contains("COALESCE(r.rate_status, 0) <> 3 OR COALESCE(o.confirm_state, 0) = 1"));
 
         Map<String, Object> pendingParams = Map.of("accountId", 8L, "status", "PENDING", "limit", 50, "offset", 0);
         String pendingSql = configuration.getMappedStatement(
                         "com.xianyusmart.mapper.OrderAutomationRecordMapper.findExecutionRecords")
                 .getBoundSql(pendingParams).getSql();
+        assertTrue(pendingSql.contains("COALESCE(r.rate_status, 0) NOT IN (1, 3, 5)"));
         assertTrue(pendingSql.contains("COALESCE(r.rate_status, 0) = 3 AND COALESCE(o.confirm_state, 0) = 1"));
     }
 }
