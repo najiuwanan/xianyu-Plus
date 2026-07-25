@@ -114,6 +114,7 @@ public class PendingOrderPollService {
         }
 
         int synced = 0;
+        int detailStatusRefreshes = 0;
         for (Map<String, Object> order : recentOrders) {
             try {
                 XianyuGoodsOrder snapshot = buildHistoryRecord(accountId, order);
@@ -143,6 +144,10 @@ public class PendingOrderPollService {
                     if ("PICKUP".equals(snapshot.getDeliveryChannel())) {
                         orderMapper.markAsSelfPickup(existing.getId());
                     }
+                }
+                if (detailStatusRefreshes < 30 && needsDetailStatusRefresh(snapshot)) {
+                    enrichFromDetailApi(accountId, snapshot.getOrderId(), existing);
+                    detailStatusRefreshes++;
                 }
                 synced++;
             } catch (Exception e) {
@@ -614,7 +619,14 @@ public class PendingOrderPollService {
             return;
         }
 
-        String rawStatus = stringValue(commonData.get("orderStatus"));
+        String rawStatus = firstText(commonData, "orderStatus", "tradeStatus", "statusDesc", "orderStatusDesc", "tradeStatusText", "status");
+        if (rawStatus != null && (rawStatus.contains("交易成功") || rawStatus.contains("已确认收货") || rawStatus.contains("已完成"))) rawStatus = "交易成功";
+        else if (rawStatus != null && (rawStatus.contains("已发货") || rawStatus.contains("待收货") || rawStatus.contains("运输中"))) rawStatus = "已发货";
+        else if (rawStatus != null && (rawStatus.contains("退款成功") || rawStatus.contains("已退款"))) rawStatus = "已退款";
+        else if (rawStatus != null && (rawStatus.contains("退款") || rawStatus.contains("售后"))) rawStatus = "退款中";
+        else if (rawStatus != null && (rawStatus.contains("交易关闭") || rawStatus.contains("退款关闭") || rawStatus.contains("已关闭"))) rawStatus = "交易关闭";
+        else if (rawStatus != null && rawStatus.contains("待付款")) rawStatus = "待付款";
+        else if (rawStatus != null && rawStatus.contains("待发货")) rawStatus = "待发货";
         if ("true".equalsIgnoreCase(stringValue(commonData.get("inRefund")))) {
             record.setTradeStatus("REFUNDING");
             record.setTradeStatusText("退款中");
@@ -639,6 +651,13 @@ public class PendingOrderPollService {
             record.setTradeStatus("UNKNOWN");
         }
         record.setTradeStatusText(rawStatus == null || rawStatus.isBlank() ? "状态未知" : rawStatus);
+    }
+
+    private boolean needsDetailStatusRefresh(XianyuGoodsOrder snapshot) {
+        return !Integer.valueOf(1).equals(snapshot.getConfirmState())
+                && !"REFUNDING".equals(snapshot.getTradeStatus())
+                && !"REFUNDED".equals(snapshot.getTradeStatus())
+                && !"CLOSED".equals(snapshot.getTradeStatus());
     }
 
     private String stringValue(Object value) {
@@ -808,12 +827,29 @@ public class PendingOrderPollService {
                 } else if (bn instanceof Number) {
                     buyNum = ((Number) bn).intValue();
                 }
+
             }
 
             if (existing == null) {
                 existing = orderMapper.selectByAccountIdAndOrderId(accountId, orderId);
             }
             if (existing == null) return;
+
+            if (merchantCommonData instanceof Map) {
+                Map<String, Object> detailCommonData = (Map<String, Object>) merchantCommonData;
+                XianyuGoodsOrder statusSnapshot = new XianyuGoodsOrder();
+                statusSnapshot.setConsignTime(consignTime);
+                applyTradeStatus(statusSnapshot, detailCommonData, null, null);
+                if ("UNKNOWN".equals(statusSnapshot.getTradeStatus()) && !isBlank(consignTime)) {
+                    statusSnapshot.setTradeStatus("SHIPPED");
+                    statusSnapshot.setTradeStatusText("已发货");
+                }
+                if (!"UNKNOWN".equals(statusSnapshot.getTradeStatus()) || !isBlank(consignTime)) {
+                    orderMapper.updateTradeStatusFromDetail(existing.getId(), consignTime,
+                            isShipmentConfirmed(statusSnapshot) ? 1 : 0,
+                            statusSnapshot.getTradeStatus(), statusSnapshot.getTradeStatusText());
+                }
+            }
 
             orderMapper.updateOrderDetail(existing.getId(), buyerUserName, orderCreateTime, paySuccessTime, consignTime, skuName, goodsTitle, totalPrice, buyNum);
             log.info("【账号{}】从详情API补充订单字段: orderId={}", accountId, orderId);

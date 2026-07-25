@@ -61,6 +61,7 @@ public class OrderAutomationService {
         automationRecordMapper.resolveWaitingRateFailures(request.getAccountId());
         automationRecordMapper.resolveTerminalRateFailures(request.getAccountId());
         automationRecordMapper.resolveTerminalRateSkips(request.getAccountId());
+        automationRecordMapper.reopenAmbiguousRateSkips(request.getAccountId());
 
         List<OrderAutomationRecordDTO> records = automationRecordMapper.findExecutionRecords(
                 request.getAccountId(), status, pageSize, (page - 1) * pageSize);
@@ -118,6 +119,7 @@ public class OrderAutomationService {
         automationRecordMapper.resolveWaitingRateFailures(accountId);
         automationRecordMapper.resolveTerminalRateFailures(accountId);
         automationRecordMapper.resolveTerminalRateSkips(accountId);
+        automationRecordMapper.reopenAmbiguousRateSkips(accountId);
         OrderAutomationRecordDTO state = automationRecordMapper.findTimelineState(accountId, orderId);
 
         if (state != null && Integer.valueOf(1).equals(state.getRateStatus())) {

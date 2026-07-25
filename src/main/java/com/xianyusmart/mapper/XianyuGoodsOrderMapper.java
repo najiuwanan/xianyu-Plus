@@ -432,4 +432,14 @@ public interface XianyuGoodsOrderMapper {
                             @Param("tradeStatus") String tradeStatus,
                             @Param("tradeStatusText") String tradeStatusText);
 
+    @Update("UPDATE xianyu_goods_order SET " +
+            "consign_time = COALESCE(NULLIF(#{consignTime}, ''), consign_time), " +
+            "confirm_state = CASE WHEN #{confirmState} = 1 THEN 1 ELSE confirm_state END, " +
+            "trade_status = #{tradeStatus}, trade_status_text = #{tradeStatusText} " +
+            "WHERE id = #{id}")
+    int updateTradeStatusFromDetail(@Param("id") Long id,
+                                    @Param("consignTime") String consignTime,
+                                    @Param("confirmState") Integer confirmState,
+                                    @Param("tradeStatus") String tradeStatus,
+                                    @Param("tradeStatusText") String tradeStatusText);
 }

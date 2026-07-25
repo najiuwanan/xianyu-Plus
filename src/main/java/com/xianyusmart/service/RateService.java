@@ -340,9 +340,7 @@ public class RateService {
     private boolean isRateNotActionable(XianyuApiCallUtils.ApiCallResult result) {
         String detail = (String.valueOf(result.getErrorMessage()) + " " + String.valueOf(result.getResponse()))
                 .toLowerCase(Locale.ROOT);
-        return detail.contains("当前订单不能评价") || detail.contains("当前订单不可评价")
-                || detail.contains("订单不能评价") || detail.contains("订单不可评价")
-                || isRateBeyondThirtyDays(detail)
+        return isRateBeyondThirtyDays(detail)
                 || detail.contains("不支持评价") || detail.contains("无评价资格");
     }
 

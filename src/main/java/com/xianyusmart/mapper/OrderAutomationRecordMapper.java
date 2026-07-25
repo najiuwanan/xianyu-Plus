@@ -35,14 +35,14 @@ public interface OrderAutomationRecordMapper {
             "OR COALESCE(rate_error, '') LIKE '%重复评价%' " +
             "OR LOWER(COALESCE(rate_error, '')) LIKE '%already_rate%' " +
             "OR LOWER(COALESCE(rate_error, '')) LIKE '%already rate%')";
-    String RATE_NOT_ACTIONABLE_CONDITION = "(COALESCE(rate_error, '') LIKE '%当前订单不能评价%' " +
-            "OR COALESCE(rate_error, '') LIKE '%当前订单不可评价%' " +
-            "OR COALESCE(rate_error, '') LIKE '%订单不能评价%' " +
-            "OR COALESCE(rate_error, '') LIKE '%订单不可评价%' " +
-            "OR COALESCE(rate_error, '') LIKE '%超过30天的订单不允许评价%' " +
+    String RATE_NOT_ACTIONABLE_CONDITION = "(COALESCE(rate_error, '') LIKE '%超过30天的订单不允许评价%' " +
             "OR COALESCE(rate_error, '') LIKE '%超出30天的订单不允许评价%' " +
             "OR COALESCE(rate_error, '') LIKE '%不支持评价%' " +
             "OR COALESCE(rate_error, '') LIKE '%无评价资格%')";
+    String RATE_AMBIGUOUS_NOT_ACTIONABLE_CONDITION = "(COALESCE(rate_error, '') LIKE '%当前订单不能评价%' " +
+            "OR COALESCE(rate_error, '') LIKE '%当前订单不可评价%' " +
+            "OR COALESCE(rate_error, '') LIKE '%订单不能评价%' " +
+            "OR COALESCE(rate_error, '') LIKE '%订单不可评价%')";
     String RATE_WAITING_CONDITION = "(COALESCE(rate_error, '') LIKE '%未完成的交易不允许评价%' " +
             "OR COALESCE(rate_error, '') LIKE '%未完成的交易不允许追评%' " +
             "OR COALESCE(rate_error, '') LIKE '%未完成交易不允许追评%' " +
@@ -368,6 +368,17 @@ public interface OrderAutomationRecordMapper {
             "<if test='accountId != null'>AND xianyu_account_id = #{accountId}</if>" +
             "</script>")
     int resolveTerminalRateSkips(@Param("accountId") Long accountId);
+
+    /**
+     * “当前订单不能评价”是平台的通用拒绝信息，并不能证明订单已评价或永久不可评价。
+     * 旧版本把它写为终态，导致已确认收货的订单无法再次核验；现统一恢复为可重试失败。
+     */
+    @Update("<script>" +
+            "UPDATE xianyu_order_automation_record SET rate_status = 2 " +
+            "WHERE rate_status IN (3, 5) AND " + RATE_AMBIGUOUS_NOT_ACTIONABLE_CONDITION + " " +
+            "<if test='accountId != null'>AND xianyu_account_id = #{accountId}</if>" +
+            "</script>")
+    int reopenAmbiguousRateSkips(@Param("accountId") Long accountId);
 
     /** 将旧版本对未完成订单的误判，归为等待买家确认收货。 */
     @Update("<script>" +
