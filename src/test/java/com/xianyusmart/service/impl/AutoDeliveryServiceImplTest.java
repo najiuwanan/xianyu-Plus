@@ -17,4 +17,24 @@ class AutoDeliveryServiceImplTest {
         assertThrows(IllegalStateException.class,
                 () -> AutoDeliveryServiceImpl.requireBuyerRecipientId(" "));
     }
+
+    @Test
+    void rejectsDeliveryToAnyConfiguredLocalAccount() {
+        var localAccount = new com.xianyusmart.entity.XianyuAccount();
+        localAccount.setUnb("seller-account-2");
+
+        assertThrows(IllegalStateException.class, () ->
+                AutoDeliveryServiceImpl.requireExternalBuyerRecipientId(
+                        "seller-account-2@goofish", java.util.List.of(localAccount)));
+    }
+
+    @Test
+    void rejectsDeliveryToTheUserIdEmbeddedInALocalDeviceId() {
+        var localAccount = new com.xianyusmart.entity.XianyuAccount();
+        localAccount.setDeviceId("11111111-1111-4111-8111-localSeller");
+
+        assertThrows(IllegalStateException.class, () ->
+                AutoDeliveryServiceImpl.requireExternalBuyerRecipientId(
+                        "localSeller", java.util.List.of(localAccount)));
+    }
 }

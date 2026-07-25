@@ -219,7 +219,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             HumanLikeDelayUtils.typingDelay(content.length());
             
             String cid = sId.replace("@goofish", "");
-            String toId = requireBuyerRecipientId(buyerUserId);
+            String toId = requireExternalBuyerRecipientId(accountId, buyerUserId);
 
             if (blacklistService.isBlacklisted(accountId, buyerUserId)) {
                 log.warn("【账号{}】旧发货入口发送前再次命中黑名单: buyerUserId={}", accountId, buyerUserId);
@@ -449,7 +449,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             int deliveryMode = deliveryConfig.getDeliveryMode() == null ? 1 : deliveryConfig.getDeliveryMode();
             cardDelivery = deliveryMode == 2;
             String cid = sId.replace("@goofish", "");
-            String toId = requireBuyerRecipientId(record.getBuyerUserId());
+            String toId = requireExternalBuyerRecipientId(accountId, record.getBuyerUserId());
             DeliveryContext context = DeliveryContext.builder()
                     .recordId(record.getId())
                     .accountId(accountId)
@@ -580,7 +580,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             int deliveryMode = deliveryConfig.getDeliveryMode() != null ? deliveryConfig.getDeliveryMode() : 1;
             cardDelivery = deliveryMode == 2;
             String cid = sId.replace("@goofish", "");
-            String toId = requireBuyerRecipientId(currentOrder.getBuyerUserId());
+            String toId = requireExternalBuyerRecipientId(accountId, currentOrder.getBuyerUserId());
             boolean wsConnected = webSocketService.isConnected(accountId);
 
             DeliveryContext ctx = DeliveryContext.builder()
@@ -823,6 +823,41 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
         }
     }
 
+    /** Refuse delivery when a corrupted order points at any locally managed seller account. */
+    private String requireExternalBuyerRecipientId(Long accountId, String buyerUserId) {
+        List<XianyuAccount> localAccounts = accountMapper.selectList(null);
+        return requireExternalBuyerRecipientId(buyerUserId, localAccounts);
+    }
+
+    static String requireExternalBuyerRecipientId(String buyerUserId, List<XianyuAccount> localAccounts) {
+        String recipientId = requireBuyerRecipientId(buyerUserId);
+        if (localAccounts == null) {
+            throw new IllegalStateException("Cannot validate the delivery recipient against local accounts");
+        }
+        for (XianyuAccount localAccount : localAccounts) {
+            if (localAccount == null) {
+                continue;
+            }
+            if (recipientId.equals(normalizeRecipientId(localAccount.getUnb()))
+                    || recipientId.equals(deviceUserId(localAccount.getDeviceId()))) {
+                throw new IllegalStateException("Order buyer recipient matches a local account and delivery is blocked");
+            }
+        }
+        return recipientId;
+    }
+
+    private static String normalizeRecipientId(String userId) {
+        return userId == null ? "" : userId.replace("@goofish", "").trim();
+    }
+
+    private static String deviceUserId(String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) {
+            return "";
+        }
+        int separator = deviceId.lastIndexOf('-');
+        return separator < 0 ? "" : normalizeRecipientId(deviceId.substring(separator + 1));
+    }
+
     /** The protocol conversation id is not the buyer id; never route delivery using it. */
     static String requireBuyerRecipientId(String buyerUserId) {
         if (buyerUserId == null || buyerUserId.isBlank()) {
@@ -897,7 +932,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     return com.xianyusmart.common.ResultObject.failed("订单缺少买家会话信息，无法发送内容");
                 }
                 String cid = sId.replace("@goofish", "");
-                String toId = requireBuyerRecipientId(record.getBuyerUserId());
+                String toId = requireExternalBuyerRecipientId(xianyuAccountId, record.getBuyerUserId());
 
                 String finalBlacklistReason = blacklistService.blockedMessage(xianyuAccountId, record.getBuyerUserId());
                 if (finalBlacklistReason != null) {
