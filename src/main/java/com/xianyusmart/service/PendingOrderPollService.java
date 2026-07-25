@@ -38,7 +38,7 @@ public class PendingOrderPollService {
     private static final DateTimeFormatter SLASHED_ORDER_TIME = DateTimeFormatter.ofPattern("yyyy/MM/dd HH:mm:ss");
     private static final Set<String> ORDER_ID_KEYS = Set.of("orderid", "tradeid", "tid");
     private static final Set<String> ITEM_ID_KEYS = Set.of("itemid", "itemidstr", "xygoodsid", "goodsid");
-    private static final Set<String> ORDER_STATUS_KEYS = Set.of("orderstatus", "tradestatus", "statusdesc");
+    private static final Set<String> ORDER_STATUS_KEYS = Set.of("orderstatus", "tradestatus", "statusdesc", "orderstatustext", "tradestatusdesc", "status", "statusname", "tradestatusname");
     private static final Pattern ORDER_ID_IN_TEXT = Pattern.compile(
             "(?i)(?:order(?:_)?id|trade(?:_)?id|tid)\\s*(?:=|:|%3A)\\s*[\\\"']?([0-9]{6,})");
     private static final Pattern ITEM_ID_IN_TEXT = Pattern.compile(
@@ -835,20 +835,27 @@ public class PendingOrderPollService {
             }
             if (existing == null) return;
 
+            Map<String, Object> detailStatusData = new LinkedHashMap<>();
             if (merchantCommonData instanceof Map) {
-                Map<String, Object> detailCommonData = (Map<String, Object>) merchantCommonData;
-                XianyuGoodsOrder statusSnapshot = new XianyuGoodsOrder();
-                statusSnapshot.setConsignTime(consignTime);
-                applyTradeStatus(statusSnapshot, detailCommonData, null, null);
-                if ("UNKNOWN".equals(statusSnapshot.getTradeStatus()) && !isBlank(consignTime)) {
-                    statusSnapshot.setTradeStatus("SHIPPED");
-                    statusSnapshot.setTradeStatusText("已发货");
-                }
-                if (!"UNKNOWN".equals(statusSnapshot.getTradeStatus()) || !isBlank(consignTime)) {
-                    orderMapper.updateTradeStatusFromDetail(existing.getId(), consignTime,
-                            isShipmentConfirmed(statusSnapshot) ? 1 : 0,
-                            statusSnapshot.getTradeStatus(), statusSnapshot.getTradeStatusText());
-                }
+                detailStatusData.putAll((Map<String, Object>) merchantCommonData);
+            }
+            String detailStatus = findNestedText(module, ORDER_STATUS_KEYS);
+            if (!isBlank(detailStatus)) {
+                detailStatusData.put("orderStatus", detailStatus);
+            }
+            consignTime = firstNonBlank(consignTime, findNestedText(module,
+                    Set.of("consigntime", "deliverytime", "shiptime", "shipmenttime")));
+            XianyuGoodsOrder statusSnapshot = new XianyuGoodsOrder();
+            statusSnapshot.setConsignTime(consignTime);
+            applyTradeStatus(statusSnapshot, detailStatusData, null, null);
+            if ("UNKNOWN".equals(statusSnapshot.getTradeStatus()) && !isBlank(consignTime)) {
+                statusSnapshot.setTradeStatus("SHIPPED");
+                statusSnapshot.setTradeStatusText("已发货");
+            }
+            if (!"UNKNOWN".equals(statusSnapshot.getTradeStatus()) || !isBlank(consignTime)) {
+                orderMapper.updateTradeStatusFromDetail(existing.getId(), consignTime,
+                        isShipmentConfirmed(statusSnapshot) ? 1 : 0,
+                        statusSnapshot.getTradeStatus(), statusSnapshot.getTradeStatusText());
             }
 
             orderMapper.updateOrderDetail(existing.getId(), buyerUserName, orderCreateTime, paySuccessTime, consignTime, skuName, goodsTitle, totalPrice, buyNum);
