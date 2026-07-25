@@ -35,6 +35,9 @@ COPY --from=frontend-build /app/vue-code/../src/main/resources/static src/main/r
 # 后端安全回归会检查前端消息渲染源码；构建阶段保留源码，但不会进入最终运行镜像
 COPY --from=frontend-build /app/vue-code/src vue-code/src
 
+# 更新脚本回归测试需要读取脚本源码；仅复制到临时构建层，不进入最终运行镜像
+COPY update.sh ./update.sh
+
 # 构建 JAR并执行测试
 RUN --mount=type=cache,target=/root/.m2/repository ./mvnw clean package
 
