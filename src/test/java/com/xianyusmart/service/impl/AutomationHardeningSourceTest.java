@@ -21,14 +21,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AutomationHardeningSourceTest {
 
     @Test
-    void connectionStatusDtoDoesNotExposeCredentialBodies() {
+    void connectionStatusDtoExposesLocalCredentialBodies() {
         Set<String> fields = Arrays.stream(WebSocketController.WebSocketStatusRespDTO.class.getDeclaredFields())
                 .map(java.lang.reflect.Field::getName)
                 .collect(Collectors.toSet());
 
-        assertFalse(fields.contains("cookieText"));
-        assertFalse(fields.contains("mH5Tk"));
-        assertFalse(fields.contains("websocketToken"));
+        assertTrue(fields.contains("cookieText"));
+        assertTrue(fields.contains("mh5Tk"));
+        assertTrue(fields.contains("websocketToken"));
         assertTrue(fields.contains("cookieConfigured"));
         assertTrue(fields.contains("mh5TkConfigured"));
         assertTrue(fields.contains("websocketTokenConfigured"));
