@@ -59,6 +59,7 @@ public class OrderAutomationService {
         String status = normalizeStatus(request.getStatus());
         automationRecordMapper.normalizePendingRateLabels(request.getAccountId());
         automationRecordMapper.resolveWaitingRateFailures(request.getAccountId());
+        automationRecordMapper.resolveShippedRateFailures(request.getAccountId());
         automationRecordMapper.resolveTerminalRateFailures(request.getAccountId());
         automationRecordMapper.resolveTerminalRateSkips(request.getAccountId());
         automationRecordMapper.reopenAmbiguousRateSkips(request.getAccountId());
@@ -117,6 +118,7 @@ public class OrderAutomationService {
 
         automationRecordMapper.normalizePendingRateLabels(accountId);
         automationRecordMapper.resolveWaitingRateFailures(accountId);
+        automationRecordMapper.resolveShippedRateFailures(accountId);
         automationRecordMapper.resolveTerminalRateFailures(accountId);
         automationRecordMapper.resolveTerminalRateSkips(accountId);
         automationRecordMapper.reopenAmbiguousRateSkips(accountId);

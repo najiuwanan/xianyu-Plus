@@ -55,6 +55,7 @@ public class ExceptionCenterService {
         String type = normalizeType(request.getType());
         Long accountId = request.getAccountId();
         automationRecordMapper.resolveWaitingRateFailures(accountId);
+        automationRecordMapper.resolveShippedRateFailures(accountId);
         automationRecordMapper.resolveTerminalRateFailures(accountId);
         automationRecordMapper.resolveTerminalRateSkips(accountId);
         polishRecordMapper.resolveOffShelfFailures(accountId);

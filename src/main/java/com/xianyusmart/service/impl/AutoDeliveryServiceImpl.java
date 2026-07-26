@@ -7,6 +7,7 @@ import com.xianyusmart.entity.XianyuGoodsConfig;
 import com.xianyusmart.mapper.XianyuGoodsAutoDeliveryConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
+import com.xianyusmart.mapper.OrderAutomationRecordMapper;
 import com.xianyusmart.mapper.XianyuGoodsAutoReplyRecordMapper;
 import com.xianyusmart.service.AutoDeliveryService;
 import com.xianyusmart.service.EmailNotifyService;
@@ -74,6 +75,9 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
     
     @Autowired
     private XianyuGoodsOrderMapper orderMapper;
+
+    @Autowired
+    private OrderAutomationRecordMapper automationRecordMapper;
     
     @Autowired
     private XianyuGoodsAutoReplyRecordMapper autoReplyRecordMapper;
@@ -285,7 +289,12 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
         int pageSize = reqDTO.getPageSize() != null ? reqDTO.getPageSize() : 20;
         
         int offset = (pageNum - 1) * pageSize;
-        
+
+        // 历史记录可能在买家确认收货前被旧逻辑标记为“评价失败”。
+        // 订单管理加载时同步归类为等待状态，真实完成交易后的失败不受影响。
+        automationRecordMapper.resolveWaitingRateFailures(accountId);
+        automationRecordMapper.resolveShippedRateFailures(accountId);
+
         List<XianyuGoodsOrder> records = orderMapper.selectByAccountIdWithPage(
                 accountId, xyGoodsId, orderStatus, keyword, pageSize, offset);
 

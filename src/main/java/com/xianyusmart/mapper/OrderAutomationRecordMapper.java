@@ -410,4 +410,18 @@ public interface OrderAutomationRecordMapper {
             "<if test='accountId != null'>AND xianyu_account_id = #{accountId}</if>" +
             "</script>")
     int resolveWaitingRateFailures(@Param("accountId") Long accountId);
+
+    /**
+     * 已同步为“已发货”的订单仍等待买家确认收货，此时不应保留为评价失败。
+     * 仅纠正未完成交易，真实已完成订单的接口失败记录继续保留供人工重试。
+     */
+    @Update("<script>" +
+            "UPDATE xianyu_order_automation_record r " +
+            "INNER JOIN xianyu_goods_order o ON o.xianyu_account_id = r.xianyu_account_id AND o.order_id = r.order_id " +
+            "SET r.rate_status = 4, r.rate_time = NULL, " +
+            "r.rate_error = '订单尚未完成，等待买家确认收货后再自动评价' " +
+            "WHERE r.rate_status = 2 AND COALESCE(o.trade_status, '') = 'SHIPPED' " +
+            "<if test='accountId != null'>AND r.xianyu_account_id = #{accountId}</if>" +
+            "</script>")
+    int resolveShippedRateFailures(@Param("accountId") Long accountId);
 }

@@ -361,7 +361,11 @@ const getRatePresentation = (order: DeliveryRecordItem): StatusPresentation => {
   if (order.rateEnabled !== 1) return { text: '未启用', tone: 'muted' }
   switch (order.rateStatus) {
     case 1: return { text: '已评价', tone: 'success' }
-    case 2: return { text: '评价失败', tone: 'danger', reason: order.rateError }
+    case 2:
+      // 页面刷新前也按已同步交易状态兜底，避免把等待买家收货误展示成失败。
+      return order.tradeStatus === 'SHIPPED'
+        ? { text: '待买家确认收货', tone: 'muted', reason: '买家确认收货后将自动评价' }
+        : { text: '评价失败', tone: 'danger', reason: order.rateError }
     case 3: return order.confirmState === 1
       ? { text: '可重新核验', tone: 'warning', reason: order.rateError || '此前被标记为无需评价，可在更多操作中重新核验' }
       : { text: '无需评价', tone: 'muted', reason: order.rateError }
