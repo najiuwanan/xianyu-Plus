@@ -57,6 +57,12 @@ const availableKamiConfigs = computed(() => kamiConfigs.value.filter((config) =>
   config.xianyuAccountId == null || config.xianyuAccountId === props.accountId
 ))
 
+const kamiAvailabilityLabel = (config: KamiConfig) => {
+  if (config.sourceType === 3) return '固定内容（不限量）'
+  if (config.sourceType === 2) return 'API 实时获取'
+  return `${config.availableCount} 可用`
+}
+
 const close = () => {
   if (!saving.value) emit('update:modelValue', false)
 }
@@ -318,7 +324,7 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
                 <select v-model="form.kamiConfigId">
                   <option value="">保留现有发货配置</option>
                   <option v-for="config in availableKamiConfigs" :key="config.id" :value="config.id">
-                    {{ config.aliasName }}（{{ config.availableCount }} 可用）
+                    {{ config.aliasName }}（{{ kamiAvailabilityLabel(config) }}）
                   </option>
                 </select>
               </label>
