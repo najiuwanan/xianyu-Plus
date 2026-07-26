@@ -444,6 +444,10 @@ public class OrderServiceImpl implements OrderService {
                         orderListQueryParams()
                 );
                 if (!result.isSuccess()) {
+                    // 普通闲鱼账号没有鱼小铺权限时，仅对待发货发现切换到通用卖家接口。
+                    if ("NOT_SHIP".equals(queryCode) && isPermissionDenied(result)) {
+                        return queryStandardPendingOrders(accountId, cookieStr);
+                    }
                     log.warn("[{}] order request failed for queryCode={}: {}", accountId, queryCode, result.getErrorMessage());
                     break;
                 }
@@ -466,6 +470,106 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    private boolean isPermissionDenied(XianyuApiCallUtils.ApiCallResult result) {
+        String errorMessage = result == null ? null : result.getErrorMessage();
+        return errorMessage != null && errorMessage.startsWith("PERMISSION_EXCEPTION");
+    }
+
+    /**
+     * 普通卖家订单接口仅作为鱼小铺待发货接口的权限回退。
+     * 返回值统一为现有待发货同步逻辑使用的结构，避免影响下游发货流程。
+     */
+    private List<Map<String, Object>> queryStandardPendingOrders(Long accountId, String cookieStr) {
+        Map<String, Object> dataMap = new HashMap<>();
+        dataMap.put("pageNumber", 1);
+        dataMap.put("orderStatus", "NOT_SHIP");
+        dataMap.put("offsetRow", 0);
+
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Origin", "https://h5.m.goofish.com");
+        headers.put("Referer", "https://h5.m.goofish.com/");
+        Map<String, String> queryParams = new HashMap<>();
+        queryParams.put("type", "originaljson");
+        queryParams.put("valueType", "original");
+
+        XianyuApiCallUtils.ApiCallResult result = xianyuApiCallUtils.callApiWithRetry(
+                accountId,
+                "mtop.taobao.idle.trade.sold.get",
+                dataMap,
+                cookieStr,
+                "5.0",
+                headers,
+                queryParams
+        );
+        if (!result.isSuccess()) {
+            log.warn("[{}] standard-seller pending-order request failed: {}", accountId, result.getErrorMessage());
+            return List.of();
+        }
+
+        Map<String, Object> responseData = result.extractData();
+        List<Map<String, Object>> items = asMapList(responseData == null ? null : responseData.get("items"));
+        List<Map<String, Object>> orders = new ArrayList<>();
+        for (Map<String, Object> item : items) {
+            String orderId = stringValue(item.get("bizOrderId"));
+            String itemId = stringValue(item.get("auctionId"));
+            // 接口筛选条件并非总会生效，必须以真实状态和关键 ID 二次校验。
+            if (isStandardPendingOrder(item) && hasText(orderId) && hasText(itemId)) {
+                orders.add(normalizeStandardPendingOrder(item));
+            }
+        }
+        log.info("[{}] standard-seller pending orders loaded: {}", accountId, orders.size());
+        return orders;
+    }
+
+    private Map<String, Object> normalizeStandardPendingOrder(Map<String, Object> order) {
+        Map<String, Object> commonData = new HashMap<>();
+        commonData.put("orderId", stringValue(order.get("bizOrderId")));
+        commonData.put("itemId", stringValue(order.get("auctionId")));
+        commonData.put("orderStatus", "待发货");
+        commonData.put("createTime", order.get("createTime"));
+
+        Map<String, Object> normalized = new HashMap<>();
+        normalized.put("commonData", commonData);
+        normalized.put("buyerInfoVO", Map.of(
+                "userId", emptyIfNull(stringValue(order.get("buyerId"))),
+                "userNick", emptyIfNull(stringValue(order.get("buyerNick")))
+        ));
+        normalized.put("itemVO", Map.of("title", emptyIfNull(stringValue(order.get("auctionTitle")))));
+        normalized.put("priceVO", Map.of(
+                "totalPrice", emptyIfNull(stringValue(order.get("totalFee"))),
+                "buyNum", emptyIfNull(stringValue(order.get("buyAmount")))
+        ));
+        return normalized;
+    }
+
+    private boolean isStandardPendingOrder(Map<String, Object> order) {
+        String status = firstNonBlank(stringValue(order.get("orderStatus")), stringValue(order.get("status")));
+        if ("2".equals(status)) {
+            return true;
+        }
+        String statusMessage = firstNonBlank(stringValue(order.get("orderStatusMsg")), stringValue(order.get("statusMsg")));
+        return "待发货".equals(statusMessage) || "等待卖家发货".equals(statusMessage);
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private String emptyIfNull(String value) {
+        return value == null ? "" : value;
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (hasText(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
     private Map<String, String> orderListHeaders() {
         Map<String, String> headers = new HashMap<>();
         headers.put("idle_site_biz_code", "COMMONPRO");
