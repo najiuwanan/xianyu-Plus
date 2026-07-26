@@ -198,13 +198,9 @@ public class SystemUpdateService {
      * maintained as Chinese release notes.
      */
     private void fetchReleaseHighlights(String normalizedRepository, SystemUpdateStatusRespDTO status) {
-        if (!status.isUpdateAvailable()) {
-            return;
-        }
         String currentVersion = normalizeVersion(status.getCurrentVersion());
         String latestVersion = normalizeVersion(status.getLatestVersion());
-        if (!isSemanticVersion(currentVersion) || !isSemanticVersion(latestVersion)
-                || compareVersions(latestVersion, currentVersion) <= 0) {
+        if (!isSemanticVersion(latestVersion)) {
             return;
         }
 

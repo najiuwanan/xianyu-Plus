@@ -174,8 +174,10 @@ const releaseHistory = [
     ]
   }
 ] as const
-const selectedReleaseVersion = ref('2.1.1')
-const selectedRelease = computed(() => releaseHistory.find(item => item.version === selectedReleaseVersion.value) || releaseHistory[0])
+const selectedRelease = computed(() => ({
+  label: displayVersion(updateStatus.value?.latestVersion || updateStatus.value?.currentVersion),
+  highlights: releaseHighlights.value
+}))
 
 const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV]/, '')}` : '未知版本'
 const releaseHighlights = computed(() => {
@@ -346,8 +348,8 @@ onUnmounted(() => {
         <p class="version-dialog__status" :class="{ available: updateStatus.updateAvailable }">{{ updateStatus.message }}</p>
         <div class="version-dialog__changes">
           <div class="version-dialog__changes-heading">
-            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>可查看 1.9.7 至 2.1.1 的正式版本记录。</p></div>
-            <label class="version-history-select"><span>查看版本</span><select v-model="selectedReleaseVersion"><option v-for="release in releaseHistory" :key="release.version" :value="release.version">{{ release.label }}</option></select></label>
+            <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>以下内容来自 GitHub 最新正式 Release。</p></div>
+            
           </div>
           <ul>
             <li v-for="item in selectedRelease.highlights" :key="item">{{ item }}</li>
