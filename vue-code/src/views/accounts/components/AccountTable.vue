@@ -122,7 +122,7 @@ const getStatusDescription = (status: number) => {
 }
 
 const isEnabled = (value?: number) => value === 1
-const isRiskPaused = (account: Account) => account.automationRiskPaused === 1
+const isRiskPaused = (_account: Account) => false
 const canToggleEnabled = (account: Account) => account.status === 1 || account.status === 0
 const getItemPolishStatus = (account: Account) => {
   if (!isEnabled(account.itemPolishEnabled)) return '关闭'
