@@ -187,9 +187,18 @@ const getOrderIdentityText = (order: DeliveryRecordItem, value?: string) =>
 const isPlatformShipmentConfirmed = (order: DeliveryRecordItem) =>
   Number(order.confirmState) === 1 && ['SHIPPED', 'COMPLETED'].includes((order.tradeStatus || '').toUpperCase())
 
+const terminalTradeLabel = (order: DeliveryRecordItem) => {
+  const status = (order.tradeStatus || '').toUpperCase()
+  if (status === 'REFUNDED') return '已退款'
+  if (status === 'CLOSED') return '交易关闭'
+  return null
+}
+
+const isTerminalTrade = (order: DeliveryRecordItem) => terminalTradeLabel(order) != null
+
 const getOrderDeliveryText = (order: DeliveryRecordItem) =>
-  order.blacklisted ? '黑名单拦截' : isSelfPickup(order) ? '自提待交接'
-    : isPlatformShipmentConfirmed(order) && order.state !== 1 ? '已手动发货' : getDeliveryText(order.state, order.deliveryStatus)
+  terminalTradeLabel(order) || (order.blacklisted ? '黑名单拦截' : isSelfPickup(order) ? '自提待交接'
+    : isPlatformShipmentConfirmed(order) && order.state !== 1 ? '已手动发货' : getDeliveryText(order.state, order.deliveryStatus))
 
 const getDeliveryColor = (state: number, deliveryStatus?: string) => {
   if (deliveryStatus === 'SKIPPED') return '#637085'
@@ -208,7 +217,7 @@ const getDeliveryBg = (state: number, deliveryStatus?: string) => {
 const getTradeStatusColor = (status?: string) => {
   if (status === 'COMPLETED') return '#168b49'
   if (status === 'REFUNDING') return '#FF9F0A'
-  if (status === 'REFUNDED') return '#FF453A'
+  if (status === 'REFUNDED') return '#637085'
   if (status === 'PENDING_PAYMENT' || status === 'PENDING_SHIPMENT') return '#FF9F0A'
   if (status === 'SHIPPED') return '#007AFF'
   return '#637085'
@@ -217,7 +226,7 @@ const getTradeStatusColor = (status?: string) => {
 const getTradeStatusBg = (status?: string) => {
   if (status === 'COMPLETED') return '#e3f8eb'
   if (status === 'REFUNDING' || status === 'PENDING_PAYMENT' || status === 'PENDING_SHIPMENT') return 'rgba(255,159,10,.18)'
-  if (status === 'REFUNDED') return 'rgba(255,69,58,.15)'
+  if (status === 'REFUNDED') return 'rgba(120,120,128,.12)'
   if (status === 'SHIPPED') return 'rgba(0,122,255,.12)'
   return 'rgba(120,120,128,.12)'
 }
@@ -323,6 +332,8 @@ const getDeliveryMethod = (order: DeliveryRecordItem) => {
 const getDeliveryPresentation = (order: DeliveryRecordItem): StatusPresentation => {
   const status = (order.deliveryStatus || '').toUpperCase()
   const reason = order.lastErrorMessage || order.failReason
+  const terminalLabel = terminalTradeLabel(order)
+  if (terminalLabel) return { text: terminalLabel, tone: 'muted' }
   if (isSelfPickup(order)) return { text: '自提待交接', tone: 'muted' }
   if (status === 'MANUAL_CONFIRMED' || isPlatformShipmentConfirmed(order) && order.state !== 1) {
     return { text: '已手动发货', tone: 'success', reason: '闲鱼已确认该订单发货' }
@@ -400,7 +411,7 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
           >
             {{ getTradeStatusText(order) }}
           </span>
-          <span v-if="order.state === -1 && order.failReason" class="order-card__fail-reason">{{ order.failReason }}</span>
+          <span v-if="order.state === -1 && order.failReason && !isTerminalTrade(order)" class="order-card__fail-reason">{{ order.failReason }}</span>
           <span
             class="order-card__status"
             :style="{
