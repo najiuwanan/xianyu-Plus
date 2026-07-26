@@ -52,9 +52,17 @@ public interface XianyuKamiItemMapper extends BaseMapper<XianyuKamiItem> {
     @Select("SELECT COUNT(*) FROM xianyu_kami_item WHERE kami_config_id = #{kamiConfigId} AND kami_content = #{kamiContent}")
     int countByConfigIdAndContent(@Param("kamiConfigId") Long kamiConfigId, @Param("kamiContent") String kamiContent);
 
-    @Delete("DELETE FROM xianyu_kami_item WHERE id = #{id} AND status IN (0, 1)")
+    @Delete("DELETE FROM xianyu_kami_item WHERE id = #{id} AND status IN (0, 1, 3)")
     int deleteIfNotPending(@Param("id") Long id);
 
+    @Delete("<script>DELETE FROM xianyu_kami_item WHERE status IN (0, 1, 3) AND id IN " +
+            "<foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach></script>")
+    int deleteBatchIfNotPending(@Param("ids") List<Long> ids);
+
+    @Update("<script>UPDATE xianyu_kami_item SET status = 0, order_id = NULL, reserved_time = NULL, used_time = NULL " +
+            "WHERE status IN (1, 3) AND id IN " +
+            "<foreach collection='ids' item='id' open='(' separator=',' close=')'>#{id}</foreach></script>")
+    int markUnusedBatch(@Param("ids") List<Long> ids);
     /** Deletes only completed-used codes in the selected card library. */
     @Delete("DELETE FROM xianyu_kami_item WHERE kami_config_id = #{kamiConfigId} AND status = 1")
     int deleteUsedByConfigId(@Param("kamiConfigId") Long kamiConfigId);

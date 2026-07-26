@@ -139,6 +139,25 @@ public class KamiConfigController {
         }
     }
 
+    @PostMapping("/item/batch-delete")
+    public ResultObject<Integer> batchDeleteKamiItems(@RequestBody List<Long> ids) {
+        try {
+            return kamiConfigService.batchDeleteKamiItems(ids);
+        } catch (Exception e) {
+            log.error("批量删除卡密失败", e);
+            return ResultObject.failed("批量删除卡密失败: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/item/batch-reset")
+    public ResultObject<Integer> batchResetKamiItems(@RequestBody List<Long> ids) {
+        try {
+            return kamiConfigService.batchResetKamiItems(ids);
+        } catch (Exception e) {
+            log.error("批量重置卡密失败", e);
+            return ResultObject.failed("批量重置卡密失败: " + e.getMessage());
+        }
+    }
     @PostMapping("/item/clear-used")
     public ResultObject<Integer> clearUsedKamiItems(@RequestParam("kamiConfigId") Long kamiConfigId) {
         try {

@@ -28,6 +28,9 @@ public interface KamiConfigService {
     ResultObject<Void> deleteKamiItem(Long id);
 
     ResultObject<Void> resetKamiItem(Long id);
+    ResultObject<Integer> batchDeleteKamiItems(List<Long> ids);
+
+    ResultObject<Integer> batchResetKamiItems(List<Long> ids);
     ResultObject<Integer> clearUsedKamiItems(Long kamiConfigId);
 
 

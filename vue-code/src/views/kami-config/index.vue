@@ -10,6 +10,8 @@ import {
   batchImportKamiItems,
   deleteKamiItem,
   clearUsedKamiItems,
+  batchDeleteKamiItems,
+  batchResetKamiItems,
   resetKamiItem,
   exportKamiItems,
   testKamiApi,
@@ -115,6 +117,8 @@ const rulesExpanded = ref(false)
 const filterStatus = ref<number | undefined>(undefined)
 const filterKeyword = ref('')
 const clearingUsedItems = ref(false)
+const batchKamiActionLoading = ref(false)
+const selectedKamiItemIds = ref<number[]>([])
 
 const checkScreenSize = () => {
   isMobile.value = window.innerWidth < 768
@@ -145,8 +149,29 @@ const kamiStatusLabel = (status: number) => {
   return '未知状态'
 }
 
-const canDeleteKamiItem = (item: KamiItem) => item.status === 0 || item.status === 1
+const canDeleteKamiItem = (item: KamiItem) => item.status === 0 || item.status === 1 || item.status === 3
 const canResetKamiItem = (item: KamiItem) => item.status === 1 || item.status === 3
+const selectedKamiItems = computed(() => {
+  const selected = new Set(selectedKamiItemIds.value)
+  return kamiItems.value.filter(item => selected.has(item.id))
+})
+
+const selectedKamiDeleteCount = computed(() => selectedKamiItems.value.filter(canDeleteKamiItem).length)
+const selectedKamiResetCount = computed(() => selectedKamiItems.value.filter(canResetKamiItem).length)
+const selectableKamiItems = computed(() => kamiItems.value.filter(canDeleteKamiItem))
+const allVisibleKamiItemsSelected = computed(() => selectableKamiItems.value.length > 0
+  && selectableKamiItems.value.every(item => selectedKamiItemIds.value.includes(item.id)))
+
+const toggleVisibleKamiItems = () => {
+  const visibleIds = selectableKamiItems.value.map(item => item.id)
+  const selected = new Set(selectedKamiItemIds.value)
+  if (allVisibleKamiItemsSelected.value) {
+    visibleIds.forEach(id => selected.delete(id))
+  } else {
+    visibleIds.forEach(id => selected.add(id))
+  }
+  selectedKamiItemIds.value = Array.from(selected)
+}
 
 const relatedGoodsKey = (goods: Pick<KamiRelatedGoods, 'xianyuAccountId' | 'xyGoodsId'>) =>
   `${goods.xianyuAccountId}:${goods.xyGoodsId}`
@@ -227,6 +252,7 @@ const loadKamiConfigs = async () => {
 }
 
 const loadKamiItems = async () => {
+  selectedKamiItemIds.value = []
   if (!selectedConfigId.value || !isLocalSource.value) {
     kamiItems.value = []
     return
@@ -250,6 +276,7 @@ const loadKamiItems = async () => {
 
 const selectConfig = (config: KamiConfig) => {
   selectedConfigId.value = config.id
+  selectedKamiItemIds.value = []
   filterStatus.value = undefined
   filterKeyword.value = ''
   if (config.sourceType !== 1) {
@@ -506,11 +533,12 @@ const handleDeleteConfig = async (config: KamiConfig) => {
 
 const handleDeleteItem = async (item: KamiItem) => {
   if (!canDeleteKamiItem(item)) {
-    toast.warning('卡券正在发货处理中或等待核对，暂时不能删除')
+    toast.warning('发货处理中的卡券暂时不能删除')
     return
   }
   try {
-    await showConfirm('确定删除该卡券？', '删除确认')
+    const reviewWarning = item.status === 3 ? '该卡券处于待核对状态，删除后将失去本地追踪记录。' : ''
+    await showConfirm(`确定删除该卡券？${reviewWarning}`, '删除确认')
     const res = await deleteKamiItem(item.id)
     if (res.code === 200) {
       toast.success('删除成功')
@@ -522,6 +550,61 @@ const handleDeleteItem = async (item: KamiItem) => {
   } catch {}
 }
 
+const handleBatchDeleteKamiItems = async () => {
+  const ids = selectedKamiItems.value.filter(canDeleteKamiItem).map(item => item.id)
+  if (!ids.length) {
+    toast.info('请先勾选可删除的卡券')
+    return
+  }
+  const reviewCount = selectedKamiItems.value.filter(item => item.status === 3).length
+  try {
+    await showConfirm(
+      `将永久删除所选 ${ids.length} 张卡券。${reviewCount ? `其中 ${reviewCount} 张为待核对卡券，删除后将失去本地追踪记录。` : ''}发货处理中的卡券不会被删除。`,
+      '二次确认：删除所选卡券'
+    )
+    batchKamiActionLoading.value = true
+    const res = await batchDeleteKamiItems(ids)
+    if (res.code === 200) {
+      toast.success(`已删除 ${res.data || 0} 张卡券`)
+      await loadKamiConfigs()
+      await loadKamiItems()
+    } else {
+      toast.error(res.msg || '批量删除失败')
+    }
+  } catch {
+    // User cancellation intentionally has no feedback.
+  } finally {
+    batchKamiActionLoading.value = false
+  }
+}
+
+const handleBatchResetKamiItems = async () => {
+  const ids = selectedKamiItems.value.filter(canResetKamiItem).map(item => item.id)
+  if (!ids.length) {
+    toast.info('请先勾选已使用或待核对的卡券')
+    return
+  }
+  const reviewCount = selectedKamiItems.value.filter(item => item.status === 3).length
+  try {
+    await showConfirm(
+      `将把所选 ${ids.length} 张卡券重置为未使用。${reviewCount ? `其中 ${reviewCount} 张为待核对卡券，重置后可能造成重复发放。` : ''}`,
+      '二次确认：重置所选卡券'
+    )
+    batchKamiActionLoading.value = true
+    const res = await batchResetKamiItems(ids)
+    if (res.code === 200) {
+      toast.success(`已重置 ${res.data || 0} 张卡券`)
+      await loadKamiConfigs()
+      await loadKamiItems()
+    } else {
+      toast.error(res.msg || '批量重置失败')
+    }
+  } catch {
+    // User cancellation intentionally has no feedback.
+  } finally {
+    batchKamiActionLoading.value = false
+  }
+}
 const handleClearUsedItems = async () => {
   const config = selectedConfig.value
   if (!config || !isLocalSource.value) return
@@ -857,7 +940,7 @@ onUnmounted(() => {
                 <button class="btn-primary" @click="openApiDialog">编辑卡券库</button>
                 <template v-if="isLocalSource">
                   <button class="btn-danger" :disabled="clearingUsedItems" @click="handleClearUsedItems">{{ clearingUsedItems ? '\u6e05\u7406\u4e2d\u2026' : `\u6e05\u7406\u5df2\u4f7f\u7528\uff08${selectedConfig.usedCount || 0}\uff09` }}</button>
-              <button class="btn-danger btn-sm" :disabled="clearingUsedItems" @click="handleClearUsedItems">{{ clearingUsedItems ? '\u6e05\u7406\u4e2d\u2026' : `\u6e05\u7406\u5df2\u4f7f\u7528\uff08${selectedConfig?.usedCount || 0}\uff09` }}</button>
+
                   <button class="btn-success" @click="openExportDialog">导出</button>
                   <button class="btn-warning" @click="openAlertDialog">预警配置</button>
                 </template>
@@ -897,6 +980,15 @@ onUnmounted(() => {
                 @keyup.enter="handleFilterChange"
               />
               <button class="btn-default" @click="handleFilterChange">搜索</button>
+              <div class="kami-batch-actions">
+                <label class="kami-batch-actions__select">
+                  <input type="checkbox" :checked="allVisibleKamiItemsSelected" @change="toggleVisibleKamiItems" />
+                  全选当前列表
+                </label>
+                <span v-if="selectedKamiItemIds.length" class="kami-batch-actions__count">已选 {{ selectedKamiItemIds.length }} 张</span>
+                <button class="btn-danger btn-sm" :disabled="!selectedKamiDeleteCount || batchKamiActionLoading" @click="handleBatchDeleteKamiItems">删除所选（{{ selectedKamiDeleteCount }}）</button>
+                <button class="btn-warning btn-sm" :disabled="!selectedKamiResetCount || batchKamiActionLoading" @click="handleBatchResetKamiItems">重置所选（{{ selectedKamiResetCount }}）</button>
+              </div>
             </div>
 
             <div v-if="isLocalSource" class="kami-detail__table">
@@ -906,6 +998,7 @@ onUnmounted(() => {
                 <table v-else class="kami-table">
                   <thead>
                     <tr>
+                      <th class="kami-table__cell--select"><input type="checkbox" :checked="allVisibleKamiItemsSelected" @change="toggleVisibleKamiItems" title="全选当前列表可操作卡券" /></th>
                       <th>序号</th>
                       <th>卡券内容</th>
                       <th>状态</th>
@@ -917,6 +1010,7 @@ onUnmounted(() => {
                   </thead>
                   <tbody>
                     <tr v-for="item in kamiItems" :key="item.id" :class="{ 'kami-table__row--used': item.status !== 0 }">
+                      <td class="kami-table__cell--select"><input v-model="selectedKamiItemIds" type="checkbox" :value="item.id" :disabled="!canDeleteKamiItem(item)" :title="canDeleteKamiItem(item) ? '选择卡券' : '发货处理中，暂不可操作'" /></td>
                       <td class="kami-table__cell--num">{{ item.sortOrder }}</td>
                       <td class="kami-table__cell--content">{{ item.kamiContent }}</td>
                       <td>
@@ -2243,6 +2337,39 @@ onUnmounted(() => {
 }
 .native-input:focus { border-color: #0A84FF; }
 
+.kami-batch-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+}
+
+.kami-batch-actions__select {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #4b5565;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.kami-batch-actions__count {
+  color: #667085;
+  font-size: 12px;
+}
+
+.kami-table__cell--select {
+  width: 34px;
+  text-align: center;
+}
+
+.kami-table__cell--select input {
+  cursor: pointer;
+}
+
+.kami-table__cell--select input:disabled {
+  cursor: not-allowed;
+}
 @media (max-width: 700px) {
   .modal-overlay { padding: 10px; }
   .modal-container--wide { max-height: 92vh; }

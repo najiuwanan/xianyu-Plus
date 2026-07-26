@@ -355,6 +355,53 @@ public class KamiConfigServiceImpl implements KamiConfigService {
 
     @Override
     @Transactional
+    public ResultObject<Integer> batchDeleteKamiItems(List<Long> ids) {
+        List<Long> itemIds = normalizeKamiItemIds(ids);
+        if (itemIds.isEmpty()) {
+            return ResultObject.failed("请先选择至少一张可删除卡券");
+        }
+        List<XianyuKamiItem> items = kamiItemMapper.selectBatchIds(itemIds);
+        int deleted = kamiItemMapper.deleteBatchIfNotPending(itemIds);
+        refreshKamiItemConfigCounts(items);
+        return ResultObject.success(deleted, "已删除 " + deleted + " 张卡券；发货处理中的卡券已跳过");
+    }
+
+    @Override
+    @Transactional
+    public ResultObject<Integer> batchResetKamiItems(List<Long> ids) {
+        List<Long> itemIds = normalizeKamiItemIds(ids);
+        if (itemIds.isEmpty()) {
+            return ResultObject.failed("请先选择至少一张可重置卡券");
+        }
+        List<XianyuKamiItem> items = kamiItemMapper.selectBatchIds(itemIds);
+        int reset = kamiItemMapper.markUnusedBatch(itemIds);
+        refreshKamiItemConfigCounts(items);
+        return ResultObject.success(reset, "已重置 " + reset + " 张卡券；未使用或发货处理中的卡券已跳过");
+    }
+
+    private List<Long> normalizeKamiItemIds(List<Long> ids) {
+        if (ids == null) {
+            return List.of();
+        }
+        return ids.stream()
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .limit(500)
+                .toList();
+    }
+
+    private void refreshKamiItemConfigCounts(List<XianyuKamiItem> items) {
+        if (items == null) {
+            return;
+        }
+        items.stream()
+                .map(XianyuKamiItem::getKamiConfigId)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .forEach(this::refreshConfigCounts);
+    }
+    @Override
+    @Transactional
     public ResultObject<Integer> clearUsedKamiItems(Long kamiConfigId) {
         try {
             if (kamiConfigId == null) {

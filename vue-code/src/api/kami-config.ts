@@ -184,6 +184,21 @@ export function deleteKamiItem(id: number) {
     params: { id }
   });
 }
+export function batchDeleteKamiItems(ids: number[]) {
+  return request<number>({
+    url: '/kami-config/item/batch-delete',
+    method: 'POST',
+    data: ids
+  });
+}
+
+export function batchResetKamiItems(ids: number[]) {
+  return request<number>({
+    url: '/kami-config/item/batch-reset',
+    method: 'POST',
+    data: ids
+  });
+}
 export function clearUsedKamiItems(kamiConfigId: number) {
   return request<number>({
     url: '/kami-config/item/clear-used',
