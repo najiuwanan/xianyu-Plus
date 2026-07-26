@@ -6,13 +6,19 @@ import com.xianyusmart.mapper.OrderAutomationRecordMapper;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 自动评价服务。
@@ -25,10 +31,15 @@ public class RateService {
     private static final String RATE_LIST_API = "mtop.taobao.idle.merchant.rate.list";
     private static final int PAGE_SIZE = 50;
     private static final int MAX_PAGES_PER_RUN = 10;
+    private static final int MAX_TIMEOUT_RECHECKS = 2;
+    private static final Duration TIMEOUT_RECHECK_DELAY = Duration.ofMinutes(5);
 
     private final AccountService accountService;
     private final XianyuApiCallUtils xianyuApiCallUtils;
     private final OrderAutomationRecordMapper automationRecordMapper;
+    private final TaskScheduler taskScheduler;
+    private final Set<String> scheduledTimeoutRechecks = ConcurrentHashMap.newKeySet();
+    private final Map<String, Integer> timeoutRecheckAttempts = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired(required = false)
@@ -40,9 +51,18 @@ public class RateService {
     public RateService(AccountService accountService,
                        XianyuApiCallUtils xianyuApiCallUtils,
                        OrderAutomationRecordMapper automationRecordMapper) {
+        this(accountService, xianyuApiCallUtils, automationRecordMapper, null);
+    }
+
+    @Autowired
+    public RateService(AccountService accountService,
+                       XianyuApiCallUtils xianyuApiCallUtils,
+                       OrderAutomationRecordMapper automationRecordMapper,
+                       @Qualifier("taskScheduler") TaskScheduler taskScheduler) {
         this.accountService = accountService;
         this.xianyuApiCallUtils = xianyuApiCallUtils;
         this.automationRecordMapper = automationRecordMapper;
+        this.taskScheduler = taskScheduler;
     }
 
     /**
@@ -76,6 +96,7 @@ public class RateService {
         XianyuApiCallUtils.ApiCallResult result = xianyuApiCallUtils.callApiWithRetry(
                 accountId, RATE_CREATE_API, payload, cookie, "4.0", headers, query);
         if (result.isSuccess() || isAlreadyRated(result)) {
+            clearTimeoutRechecks(accountId, tradeId);
             automationRecordMapper.markRateSuccess(accountId, tradeId);
             recordSuccess(accountId);
             log.info("【自动评价】账号{}订单{}评价成功", accountId, tradeId);
@@ -99,6 +120,14 @@ public class RateService {
             return true;
         }
 
+        if (isSubmissionTimeout(result) && scheduleTimeoutRecheck(accountId, tradeId, feedback)) {
+            String reason = "评价请求超时，平台可能已受理；5 分钟后将只核验并重试这笔订单";
+            automationRecordMapper.markRateWaiting(accountId, tradeId, reason);
+            log.warn("【自动评价】账号{}订单{}评价请求超时，已安排单订单重试", accountId, tradeId);
+            return true;
+        }
+
+        clearTimeoutRechecks(accountId, tradeId);
         recordFailure(accountId, tradeId, result.getErrorMessage());
         log.warn("【自动评价】账号{}订单{}评价失败: {}", accountId, tradeId, result.getErrorMessage());
         return false;
@@ -363,6 +392,35 @@ public class RateService {
     private boolean isWaitingForCompletionReview(String detail) {
         return detail.contains("未完成的交易不允许追评")
                 || detail.contains("未完成交易不允许追评");
+    }
+
+    private boolean isSubmissionTimeout(XianyuApiCallUtils.ApiCallResult result) {
+        String detail = (String.valueOf(result.getErrorMessage()) + " " + String.valueOf(result.getResponse()))
+                .toLowerCase(Locale.ROOT);
+        return detail.contains("timeout") || detail.contains("timed out") || detail.contains("超时");
+    }
+
+    private boolean scheduleTimeoutRecheck(Long accountId, String tradeId, String feedback) {
+        if (taskScheduler == null) return false;
+        String key = accountId + ":" + tradeId;
+        if (!scheduledTimeoutRechecks.add(key)) return true;
+        int attempt = timeoutRecheckAttempts.merge(key, 1, Integer::sum);
+        if (attempt > MAX_TIMEOUT_RECHECKS) {
+            scheduledTimeoutRechecks.remove(key);
+            timeoutRecheckAttempts.remove(key);
+            return false;
+        }
+        taskScheduler.schedule(() -> {
+            scheduledTimeoutRechecks.remove(key);
+            rateBuyer(accountId, tradeId, feedback);
+        }, Instant.now().plus(TIMEOUT_RECHECK_DELAY));
+        return true;
+    }
+
+    private void clearTimeoutRechecks(Long accountId, String tradeId) {
+        String key = accountId + ":" + tradeId;
+        scheduledTimeoutRechecks.remove(key);
+        timeoutRecheckAttempts.remove(key);
     }
 
     private void recordFailure(Long accountId, String tradeId, String error) {

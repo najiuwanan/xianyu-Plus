@@ -7,7 +7,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.scheduling.TaskScheduler;
 
+import java.time.Instant;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -27,6 +29,8 @@ class RateServiceTest {
     private XianyuApiCallUtils xianyuApiCallUtils;
     @Mock
     private OrderAutomationRecordMapper automationRecordMapper;
+    @Mock
+    private TaskScheduler taskScheduler;
 
     @Test
     void usesTheDedicatedRatingEndpointAndRecordsSuccess() {
@@ -63,5 +67,19 @@ class RateServiceTest {
         RateService.PendingRateOrderCheck result = service.checkOrderReadyForRate(3L, "trade-200");
 
         assertTrue(result.ready());
+    }
+    @Test
+    void keepsTimedOutRatingAsPendingAndSchedulesSingleOrderRecheck() {
+        when(accountService.getCookieByAccountId(3L)).thenReturn("_m_h5_tk=token_123");
+        when(xianyuApiCallUtils.callApiWithRetry(eq(3L),
+                eq("mtop.taobao.idle.rate.create"), anyMap(), any(), eq("4.0"), anyMap(), anyMap()))
+                .thenReturn(new XianyuApiCallUtils.ApiCallResult(false, null, "调用异常: Read timed out", false));
+
+        RateService service = new RateService(accountService, xianyuApiCallUtils, automationRecordMapper, taskScheduler);
+
+        assertTrue(service.rateBuyer(3L, "trade-timeout", "好买家"));
+
+        verify(automationRecordMapper).markRateWaiting(eq(3L), eq("trade-timeout"), any());
+        verify(taskScheduler).schedule(any(Runnable.class), any(Instant.class));
     }
 }

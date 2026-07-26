@@ -141,10 +141,11 @@ public class PendingOrderPollService {
                 }
 
                 XianyuGoodsOrder existing = orderMapper.selectByAccountIdAndOrderId(accountId, snapshot.getOrderId());
+                String previousStatus = existing == null ? null : existing.getTradeStatus();
                 if (existing == null) {
                     orderMapper.insert(snapshot);
+                    existing = orderMapper.selectByAccountIdAndOrderId(accountId, snapshot.getOrderId());
                 } else {
-                    String previousStatus = existing.getTradeStatus();
                     orderMapper.updateTradeSnapshot(
                             existing.getId(),
                             snapshot.getXyGoodsId(),
@@ -163,10 +164,15 @@ public class PendingOrderPollService {
                     if ("PICKUP".equals(snapshot.getDeliveryChannel())) {
                         orderMapper.markAsSelfPickup(existing.getId());
                     }
-                    notifyOrderStatusChanged(accountId, snapshot.getOrderId(), previousStatus, snapshot.getTradeStatus());
                 }
+                notifyOrderStatusChanged(accountId, snapshot.getOrderId(), previousStatus, snapshot.getTradeStatus());
                 if (detailStatusRefreshes < 30 && needsDetailStatusRefresh(snapshot)) {
+                    String statusBeforeDetail = snapshot.getTradeStatus();
                     enrichFromDetailApi(accountId, snapshot.getOrderId(), existing);
+                    XianyuGoodsOrder refreshed = existing == null ? null : orderMapper.selectById(existing.getId());
+                    if (refreshed != null) {
+                        notifyOrderStatusChanged(accountId, snapshot.getOrderId(), statusBeforeDetail, refreshed.getTradeStatus());
+                    }
                     detailStatusRefreshes++;
                 }
                 synced++;
