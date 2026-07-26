@@ -110,7 +110,9 @@ public class ChatMessageEventAutoDeliveryListener {
                     log.info("【账号{}】已补全历史订单并恢复自动发货任务: recordId={}, orderId={}",
                             accountId, existing.getId(), message.getOrderId());
                 }
-                notifyNewOrder(accountId, message);
+                if (!autoDeliveryEnabled || blacklisted) {
+                    notifyNewOrder(accountId, message);
+                }
                 return;
             }
 
@@ -124,7 +126,6 @@ public class ChatMessageEventAutoDeliveryListener {
             if (recordId == null) {
                 return;
             }
-            notifyNewOrder(accountId, message);
 
         } catch (Exception e) {
             log.error("【账号{}】处理自动发货异常: pnmId={}", accountId, message.getPnmId(), e);
@@ -203,7 +204,11 @@ public class ChatMessageEventAutoDeliveryListener {
             java.util.Map<String, Object> params = new java.util.HashMap<>();
             params.put("orderId", message.getOrderId());
             params.put("goodsName", goodsName);
-            params.put("buyerName", message.getSenderUserName() == null ? "信息同步中" : message.getSenderUserName());
+            params.put("buyerName", order.getBuyerUserName() == null || order.getBuyerUserName().isBlank()
+                    ? (message.getSenderUserName() == null ? "买家信息同步中" : message.getSenderUserName())
+                    : order.getBuyerUserName());
+            params.put("content", order.getContent() == null || order.getContent().isBlank()
+                    ? "未启用自动发货，请在订单管理中处理" : order.getContent());
             boolean success = notificationChannelService != null
                     && notificationChannelService.dispatchMessageSync("AUTO_DELIVERY", accountId, params);
             orderMapper.completeOrderNotification(recordId, success ? 2 : 3);

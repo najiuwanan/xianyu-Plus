@@ -12,6 +12,7 @@ import com.xianyusmart.service.AccountService;
 import com.xianyusmart.service.CookieRefreshService;
 import com.xianyusmart.service.EmailNotifyService;
 import com.xianyusmart.service.OperationLogService;
+import com.xianyusmart.service.NotificationChannelService;
 import com.xianyusmart.service.WebSocketTokenService;
 import com.xianyusmart.utils.XianyuSignUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -69,6 +70,9 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
 
     @Autowired
     private EmailNotifyService emailNotifyService;
+
+    @Autowired(required = false)
+    private NotificationChannelService notificationChannelService;
 
     @Autowired
     @Qualifier("webSocketScheduler")
@@ -901,11 +905,25 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                 String accountNote = account != null ? account.getAccountNote() : null;
                 log.info("【账号{}】Cookie已确认无法自动续期，触发Cookie过期通知流程", accountId);
                 emailNotifyService.sendCookieExpireNotifyEmail(accountId, accountNote);
+                notifyCredentialUpdateRequired(accountId);
             } else if (Objects.equals(status, 2) && !Objects.equals(oldStatus, 2)) {
                 log.info("【账号{}】Cookie被标记为过期，但系统将尝试自动续期，暂不发送邮件通知", accountId);
             }
         } catch (Exception e) {
             log.error("【账号{}】更新Cookie状态失败", accountId, e);
+        }
+    }
+
+    private void notifyCredentialUpdateRequired(Long accountId) {
+        if (notificationChannelService == null) return;
+        try {
+            java.util.Map<String, Object> params = new java.util.HashMap<>();
+            params.put("credentialType", "Cookie / WebSocket Token");
+            params.put("reason", "Cookie 已过期且自动刷新失败");
+            params.put("action", "请打开账号管理，执行凭证更新或重新扫码登录");
+            notificationChannelService.dispatchMessage("CREDENTIAL_UPDATE_REQUIRED", accountId, params);
+        } catch (Exception exception) {
+            log.warn("【账号{}】凭证更新通知发送失败: {}", accountId, exception.getMessage());
         }
     }
 

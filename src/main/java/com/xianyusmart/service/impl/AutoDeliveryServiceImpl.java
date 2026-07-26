@@ -34,7 +34,9 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -804,7 +806,8 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
             ensureExecutionAllowed(executionAllowed);
             if (anySuccess) {
                 updateRecordState(recordId, 1, allContent.toString(), null);
-                
+                notifyNewOrderAfterDelivery(accountId, recordId, allContent.toString());
+
                 XianyuGoodsAutoDeliveryConfig baseConfig = autoDeliveryConfigMapper.findByAccountIdAndGoodsIdNoSku(accountId, xyGoodsId);
                 boolean autoConfirm = (baseConfig != null && baseConfig.getAutoConfirmShipment() != null && baseConfig.getAutoConfirmShipment() == 1);
                 if (autoConfirm) {
@@ -896,6 +899,34 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
 
     private record ImageDeliveryResult(int configured, int sent, int failed) {
         boolean success() { return failed == 0 && sent == configured; }
+    }
+
+    private void notifyNewOrderAfterDelivery(Long accountId, Long recordId, String content) {
+        try {
+            XianyuGoodsOrder order = orderMapper.selectById(recordId);
+            if (order == null || order.getId() == null || orderMapper.claimOrderNotification(order.getId()) != 1) {
+                return;
+            }
+            String goodsName = order.getGoodsTitle();
+            if ((goodsName == null || goodsName.isBlank()) && order.getXyGoodsId() != null) {
+                XianyuGoodsInfo goods = goodsInfoMapper.selectOne(new LambdaQueryWrapper<XianyuGoodsInfo>()
+                        .eq(XianyuGoodsInfo::getXianyuAccountId, accountId)
+                        .eq(XianyuGoodsInfo::getXyGoodId, order.getXyGoodsId()));
+                if (goods != null) goodsName = goods.getTitle();
+            }
+            goodsName = firstNonBlank(goodsName, "商品信息同步中");
+            Map<String, Object> params = new HashMap<>();
+            params.put("orderId", firstNonBlank(order.getOrderId(), "-"));
+            params.put("goodsName", goodsName);
+            params.put("buyerName", firstNonBlank(order.getBuyerUserName(), "买家信息同步中"));
+            params.put("content", firstNonBlank(content, order.getContent(), "发货内容同步中"));
+            boolean success = notificationChannelService != null
+                    && notificationChannelService.dispatchMessageSync("AUTO_DELIVERY", accountId, params);
+            orderMapper.completeOrderNotification(order.getId(), success ? 2 : 3);
+        } catch (Exception exception) {
+            log.warn("【账号{}】完整新订单通知发送失败: recordId={}", accountId, recordId, exception);
+            if (recordId != null) orderMapper.completeOrderNotification(recordId, 3);
+        }
     }
 
     private void executeAutoConfirmShipment(Long accountId, String orderId) {

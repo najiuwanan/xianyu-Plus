@@ -104,7 +104,7 @@
                 <label>自定义正文模板</label>
                 <button type="button" @click="restoreTemplate('AUTO_DELIVERY')">恢复示例</button>
               </div>
-              <p class="template-variables">可用变量：{accountNote}、{accountId}、{orderId}、{goodsName}、{buyerName}</p>
+              <p class="template-variables">可用变量：{accountNote}、{accountId}、{orderId}、{goodsName}、{buyerName}、{content}</p>
               <textarea v-model="formConfig.templates.AUTO_DELIVERY.content" rows="5"></textarea>
             </div>
           </div>
@@ -123,6 +123,20 @@
             </div>
           </div>
           
+          <div class="notify-item">
+            <label class="checkbox-label">
+              <input type="checkbox" v-model="formConfig.notifyCredentialUpdate" /> 凭证需要更新通知
+            </label>
+            <div class="template-config" v-if="formConfig.notifyCredentialUpdate">
+              <div class="template-config__header">
+                <label>自定义正文模板</label>
+                <button type="button" @click="restoreTemplate('CREDENTIAL_UPDATE_REQUIRED')">恢复示例</button>
+              </div>
+              <p class="template-variables">可用变量：{credentialType}、{reason}、{action}、{accountId}、{accountNote}</p>
+              <textarea v-model="formConfig.templates.CREDENTIAL_UPDATE_REQUIRED.content" rows="4"></textarea>
+            </div>
+          </div>
+
           <div class="notify-item">
             <label class="checkbox-label">
               <input type="checkbox" v-model="formConfig.notifyNewMessage" /> 收到新消息需人工介入
@@ -292,7 +306,8 @@ const EMAIL_WS_DISCONNECT_NOTIFY_KEY = 'email_notify_ws_disconnect_enabled'
 const EMAIL_COOKIE_EXPIRE_NOTIFY_KEY = 'email_notify_cookie_expire_enabled'
 
 const templateExamples = {
-  AUTO_DELIVERY: '账号：{accountNote}（ID：{accountId}）\n订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}',
+  AUTO_DELIVERY: '账号：{accountNote}（ID：{accountId}）\n订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}\n发货内容：\n{content}',
+  CREDENTIAL_UPDATE_REQUIRED: '凭证：{credentialType}\n原因：{reason}\n处理：{action}',
   ACCOUNT_OFFLINE: '账号：{accountNote}（ID：{accountId}）\n原因：{reason}',
   NEW_MESSAGE: '商品：{goodsName}\n买家：{buyerName}\n买家消息：\n{msgContent}\n原因：{reason}',
   AUTOMATION_EXCEPTION: '类型：{action}\n账号：{accountNote}（ID：{accountId}）\n订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}\n原因：{reason}'
@@ -303,11 +318,13 @@ type NotificationEventType = keyof typeof templateExamples
 const createDefaultFormConfig = () => ({
   notifyAutoDelivery: true,
   notifyAccountOffline: true,
+  notifyCredentialUpdate: true,
   notifyNewMessage: true,
   // 新增异常提醒默认关闭，避免已有渠道在升级后未经确认就产生推送。
   notifyAutomationException: false,
   templates: {
     AUTO_DELIVERY: { content: templateExamples.AUTO_DELIVERY },
+    CREDENTIAL_UPDATE_REQUIRED: { content: templateExamples.CREDENTIAL_UPDATE_REQUIRED },
     ACCOUNT_OFFLINE: { content: templateExamples.ACCOUNT_OFFLINE },
     NEW_MESSAGE: { content: templateExamples.NEW_MESSAGE },
     AUTOMATION_EXCEPTION: { content: templateExamples.AUTOMATION_EXCEPTION }
@@ -327,6 +344,7 @@ const normalizeFormConfig = (config: unknown) => {
     ...source,
     templates: {
       AUTO_DELIVERY: { ...defaults.templates.AUTO_DELIVERY, ...templates.AUTO_DELIVERY },
+      CREDENTIAL_UPDATE_REQUIRED: { ...defaults.templates.CREDENTIAL_UPDATE_REQUIRED, ...templates.CREDENTIAL_UPDATE_REQUIRED },
       ACCOUNT_OFFLINE: { ...defaults.templates.ACCOUNT_OFFLINE, ...templates.ACCOUNT_OFFLINE },
       NEW_MESSAGE: { ...defaults.templates.NEW_MESSAGE, ...templates.NEW_MESSAGE },
       AUTOMATION_EXCEPTION: { ...defaults.templates.AUTOMATION_EXCEPTION, ...templates.AUTOMATION_EXCEPTION }

@@ -54,6 +54,7 @@ public class NotificationChannelServiceImpl extends ServiceImpl<SysNotificationC
     private String getDefaultTitleTemplate(String eventType) {
         return switch (eventType) {
             case "AUTO_DELIVERY" -> "XianYuPlus｜新订单｜{accountNote}";
+            case "CREDENTIAL_UPDATE_REQUIRED" -> "XianYuPlus｜凭证需要更新｜{accountNote}";
             case "ACCOUNT_OFFLINE" -> "XianYuPlus｜账号掉线或异常";
             case "NEW_MESSAGE" -> "XianYuPlus｜需要人工介入回复";
             case "AUTOMATION_EXCEPTION" -> "XianYuPlus｜自动化异常待处理";
@@ -63,7 +64,8 @@ public class NotificationChannelServiceImpl extends ServiceImpl<SysNotificationC
 
     private String getDefaultContentTemplate(String eventType) {
         return switch (eventType) {
-            case "AUTO_DELIVERY" -> "账号：{accountNote}（ID：{accountId}）\n订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}";
+            case "AUTO_DELIVERY" -> "账号：{accountNote}（ID：{accountId}）\n订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}\n发货内容：\n{content}";
+            case "CREDENTIAL_UPDATE_REQUIRED" -> "凭证：{credentialType}\n原因：{reason}\n处理：{action}";
             case "ACCOUNT_OFFLINE" -> "原因：{reason}";
             case "NEW_MESSAGE" -> "商品：{goodsName}\n买家：{buyerName}\n买家消息：\n{msgContent}\n原因：{reason}";
             case "AUTOMATION_EXCEPTION" -> "类型：{action}\n账号：{accountNote}（ID：{accountId}）\n订单号：{orderId}\n商品：{goodsName}\n买家：{buyerName}\n原因：{reason}";
@@ -174,6 +176,7 @@ public class NotificationChannelServiceImpl extends ServiceImpl<SysNotificationC
         return switch (eventType) {
             case "AUTO_DELIVERY" -> config.path("notifyAutoDelivery").asBoolean(true);
             case "ACCOUNT_OFFLINE" -> config.path("notifyAccountOffline").asBoolean(true);
+            case "CREDENTIAL_UPDATE_REQUIRED" -> config.path("notifyCredentialUpdate").asBoolean(true);
             case "NEW_MESSAGE" -> config.path("notifyNewMessage").asBoolean(true);
             // 这是新增事件；旧渠道默认关闭，避免升级后在用户不知情时产生额外推送。
             case "AUTOMATION_EXCEPTION" -> config.path("notifyAutomationException").asBoolean(false);

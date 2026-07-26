@@ -534,7 +534,7 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
                 {{ getDeliveryPresentation(order).text }}
               </span>
               <span class="delivery-cell__method">{{ getDeliveryMethod(order) }}</span>
-              <span v-if="getDeliveryPresentation(order).reason" class="delivery-cell__reason" :title="getDeliveryPresentation(order).reason">
+              <span v-if="getDeliveryPresentation(order).reason" class="delivery-cell__reason" :class="`delivery-cell__reason--${getDeliveryPresentation(order).tone}`" :title="getDeliveryPresentation(order).reason">
                 {{ getDeliveryPresentation(order).reason }}
               </span>
             </div>
@@ -1150,6 +1150,9 @@ const getRedFlowerPresentation = (order: DeliveryRecordItem): StatusPresentation
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
+
+.delivery-cell__reason--success { color: #168b49; }
+.delivery-cell__reason--muted { color: #667085; }
 
 .automation-cell {
   gap: 6px;
