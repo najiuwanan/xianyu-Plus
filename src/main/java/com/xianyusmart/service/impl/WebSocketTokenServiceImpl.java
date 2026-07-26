@@ -113,7 +113,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
     private static final int MAX_COOKIE_RETRY_COUNT = 2;
 
     /** Session expires can produce a reconnect storm; defer the browser refresh for two hours. */
-    private static final long SESSION_EXPIRY_RENEWAL_DELAY_HOURS = 2;
+    private static final long SESSION_EXPIRY_RENEWAL_DELAY_MINUTES = 5;
 
     private final Map<Long, java.util.concurrent.ScheduledFuture<?>> sessionRenewalTasks = new ConcurrentHashMap<>();
 
@@ -492,7 +492,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
         if (isSessionExpired) {
             scheduleSessionExpiryRenewal(accountId);
             throw new com.xianyusmart.exception.CookieExpiredException(
-                    "Session已过期，已安排2小时后自动续期");
+                    "Session已过期，已安排5分钟后自动续期");
         }
 
         if (retryCount < MAX_TOKEN_RETRY_COUNT) {
@@ -759,12 +759,12 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
             operationLogService.log(id,
                     com.xianyusmart.constants.OperationConstants.Type.REFRESH,
                     com.xianyusmart.constants.OperationConstants.Module.TOKEN,
-                    "Session过期，已安排2小时后自动续期",
+                    "Session过期，已安排5分钟后自动续期",
                     com.xianyusmart.constants.OperationConstants.Status.PARTIAL,
                     com.xianyusmart.constants.OperationConstants.TargetType.TOKEN,
                     String.valueOf(id),
-                    null, null, "自动续期将在2小时后执行", null);
-            log.warn("【账号{}】检测到Session/令牌过期，2小时后尝试自动续期", id);
+                    null, null, "自动续期将在5分钟后执行", null);
+            log.warn("【账号{}】检测到Session/令牌过期，5分钟后尝试自动续期", id);
 
             return webSocketScheduler.schedule(() -> {
                 sessionRenewalTasks.remove(id);
@@ -792,7 +792,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                 } catch (Exception e) {
                     log.error("【账号{}】Session过期后的自动续期异常", id, e);
                 }
-            }, SESSION_EXPIRY_RENEWAL_DELAY_HOURS, TimeUnit.HOURS);
+            }, SESSION_EXPIRY_RENEWAL_DELAY_MINUTES, TimeUnit.MINUTES);
         });
     }
 

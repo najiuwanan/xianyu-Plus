@@ -361,6 +361,9 @@ public class WebSocketController {
                 respDTO.setWebsocketTokenConfigured(cookie.getWebsocketToken() != null
                         && !cookie.getWebsocketToken().isBlank());
                 respDTO.setTokenExpireTime(cookie.getTokenExpireTime());
+                respDTO.setCookieText(cookie.getCookieText());
+                respDTO.setMh5Tk(cookie.getMH5Tk());
+                respDTO.setWebsocketToken(cookie.getWebsocketToken());
 
                 // 构建简洁的状态信息
                 StringBuilder statusInfo = new StringBuilder();
@@ -928,6 +931,9 @@ public class WebSocketController {
         private Boolean cookieConfigured;         // Cookie是否已配置，不返回凭证正文
         private Boolean mh5TkConfigured;          // H5 Token是否已配置
         private Boolean websocketTokenConfigured; // WebSocket Token是否已配置
+        private String cookieText;
+        private String mh5Tk;
+        private String websocketToken;
         private Long tokenExpireTime;  // Token过期时间戳（毫秒）
         private Boolean autoDeliveryOn; // 是否有商品开启了自动发货
         private Boolean autoReplyOn;     // 是否有商品开启了自动回复

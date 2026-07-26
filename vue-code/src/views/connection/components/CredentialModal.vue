@@ -12,6 +12,9 @@ interface ConnectionStatus {
   cookieConfigured?: boolean
   mh5TkConfigured?: boolean
   websocketTokenConfigured?: boolean
+  cookieText?: string
+  mh5Tk?: string
+  websocketToken?: string
   tokenExpireTime?: number
 }
 
@@ -72,6 +75,10 @@ const formatTimestamp = (timestamp?: number) => {
   }).replace(/\//g, '-')
 }
 
+const copyCredential = async (value?: string) => {
+  if (!value) return
+  await navigator.clipboard.writeText(value)
+}
 const handleClose = () => {
   emit('update:modelValue', false)
 }
@@ -126,7 +133,7 @@ const handleManualUpdate = () => {
                   {{ connectionStatus?.cookieConfigured ? getCookieStatusText(connectionStatus?.cookieStatus) : '未设置' }}
                 </span>
               </div>
-              <div class="credential-item__value" :class="{ 'credential-item__value--empty': !connectionStatus?.cookieConfigured }">{{ connectionStatus?.cookieConfigured ? '已安全配置（凭证内容不在页面显示）' : '未设置' }}</div>
+              <div class="credential-item__value" :class="{ 'credential-item__value--empty': !connectionStatus?.cookieConfigured }">{{ connectionStatus?.cookieText || '未设置' }}</div><button v-if="connectionStatus?.cookieText" class="copy-button" @click="copyCredential(connectionStatus.cookieText)">复制</button>
             </div>
 
             <!-- WebSocket Token -->
@@ -142,7 +149,7 @@ const handleManualUpdate = () => {
                   {{ getTokenStatusText(connectionStatus?.websocketTokenConfigured, connectionStatus?.tokenExpireTime) }}
                 </span>
               </div>
-              <div class="credential-item__value" :class="{ 'credential-item__value--empty': !connectionStatus?.websocketTokenConfigured }">{{ connectionStatus?.websocketTokenConfigured ? '已安全配置（凭证内容不在页面显示）' : '未设置' }}</div>
+              <div class="credential-item__value" :class="{ 'credential-item__value--empty': !connectionStatus?.websocketTokenConfigured }">{{ connectionStatus?.websocketToken || '未设置' }}</div><button v-if="connectionStatus?.websocketToken" class="copy-button" @click="copyCredential(connectionStatus.websocketToken)">复制</button>
               <div v-if="connectionStatus?.tokenExpireTime" class="credential-item__expire">
                 过期时间: {{ formatTimestamp(connectionStatus.tokenExpireTime) }}
               </div>
@@ -161,7 +168,7 @@ const handleManualUpdate = () => {
                   {{ getConfiguredStatusText(connectionStatus?.mh5TkConfigured) }}
                 </span>
               </div>
-              <div class="credential-item__value" :class="{ 'credential-item__value--empty': !connectionStatus?.mh5TkConfigured }">{{ connectionStatus?.mh5TkConfigured ? '已安全配置（凭证内容不在页面显示）' : '未设置' }}</div>
+              <div class="credential-item__value" :class="{ 'credential-item__value--empty': !connectionStatus?.mh5TkConfigured }">{{ connectionStatus?.mh5Tk || '未设置' }}</div><button v-if="connectionStatus?.mh5Tk" class="copy-button" @click="copyCredential(connectionStatus.mh5Tk)">复制</button>
             </div>
           </div>
         </div>
@@ -434,6 +441,8 @@ const handleManualUpdate = () => {
   background: rgba(255,255,255,0.15);
 }
 
+.copy-button { margin-top: 8px; padding: 6px 10px; border: 0; border-radius: 8px; color: #0A84FF; background: rgba(10,132,255,.1); cursor: pointer; }
+
 .credential-item__meta {
   display: inline-block;
   margin-left: 8px;
@@ -523,7 +532,9 @@ const handleManualUpdate = () => {
     line-height: 1.5;
   }
 
-  .credential-item__meta {
+  .copy-button { margin-top: 8px; padding: 6px 10px; border: 0; border-radius: 8px; color: #0A84FF; background: rgba(10,132,255,.1); cursor: pointer; }
+
+.credential-item__meta {
     font-size: 10px;
   }
 

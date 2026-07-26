@@ -109,6 +109,14 @@ public class RedFlowerService {
         return retryRedFlower(accountId, orderId);
     }
 
+    /** Attempts one red-flower request when an order becomes paid. */
+    public boolean requestAfterPayment(Long accountId, String orderId) {
+        if (accountId == null || orderId == null || orderId.isBlank()) return false;
+        XianyuAccount account = accountMapper.selectById(accountId);
+        if (account == null || !Integer.valueOf(1).equals(account.getStatus())
+                || !Integer.valueOf(1).equals(account.getAutoAskFlower())) return false;
+        return retryRedFlower(accountId, orderId);
+    }
     void processAccount(Long accountId) {
         if (accountId == null) {
             return;

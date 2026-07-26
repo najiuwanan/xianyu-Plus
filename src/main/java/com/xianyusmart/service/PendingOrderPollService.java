@@ -60,6 +60,9 @@ public class PendingOrderPollService {
     private DeliveryTaskService deliveryTaskService;
 
     @Autowired
+    private OrderAutomationService orderAutomationService;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     @SuppressWarnings("unchecked")
@@ -75,6 +78,7 @@ public class PendingOrderPollService {
 
                 XianyuGoodsOrder existing = orderMapper.selectByAccountIdAndOrderId(accountId, orderId);
                 if (existing != null) {
+                    String previousStatus = existing.getTradeStatus();
                     enrichFromDetailApi(accountId, orderId, existing);
                     XianyuGoodsOrder refreshed = orderMapper.selectById(existing.getId());
                     if (refreshed != null) {
@@ -91,6 +95,7 @@ public class PendingOrderPollService {
                             && isAutoDeliveryEnabled(accountId, itemId)) {
                         deliveryTaskService.requeue(existing.getId());
                     }
+                    notifyOrderStatusChanged(accountId, existing.getOrderId(), previousStatus, existing.getTradeStatus());
                     continue;
                 }
 
@@ -109,6 +114,8 @@ public class PendingOrderPollService {
                 log.info("【账号{}】同步新订单到DB: orderId={}", accountId, orderId);
 
                 enrichFromDetailApi(accountId, orderId, null);
+                XianyuGoodsOrder persisted = orderMapper.selectByAccountIdAndOrderId(accountId, orderId);
+                if (persisted != null) notifyOrderStatusChanged(accountId, orderId, null, persisted.getTradeStatus());
             } catch (Exception e) {
                 log.warn("【账号{}】同步订单异常: {}", accountId, e.getMessage());
             }
@@ -137,6 +144,7 @@ public class PendingOrderPollService {
                 if (existing == null) {
                     orderMapper.insert(snapshot);
                 } else {
+                    String previousStatus = existing.getTradeStatus();
                     orderMapper.updateTradeSnapshot(
                             existing.getId(),
                             snapshot.getXyGoodsId(),
@@ -155,6 +163,7 @@ public class PendingOrderPollService {
                     if ("PICKUP".equals(snapshot.getDeliveryChannel())) {
                         orderMapper.markAsSelfPickup(existing.getId());
                     }
+                    notifyOrderStatusChanged(accountId, snapshot.getOrderId(), previousStatus, snapshot.getTradeStatus());
                 }
                 if (detailStatusRefreshes < 30 && needsDetailStatusRefresh(snapshot)) {
                     enrichFromDetailApi(accountId, snapshot.getOrderId(), existing);
@@ -166,6 +175,14 @@ public class PendingOrderPollService {
             }
         }
         return synced;
+    }
+
+    private void notifyOrderStatusChanged(Long accountId, String orderId, String previousStatus, String currentStatus) {
+        try {
+            orderAutomationService.handleOrderStatusChanged(accountId, orderId, previousStatus, currentStatus);
+        } catch (Exception exception) {
+            log.warn("Order action trigger failed: accountId={}, orderId={}, reason={}", accountId, orderId, exception.getMessage());
+        }
     }
 
     /** Refreshes the newest sold-order snapshot so receipt status changes reach automation promptly. */

@@ -25,6 +25,9 @@ interface ConnectionStatus {
   cookieConfigured?: boolean
   mh5TkConfigured?: boolean
   websocketTokenConfigured?: boolean
+  cookieText?: string
+  mh5Tk?: string
+  websocketToken?: string
   tokenExpireTime?: number
   autoDeliveryOn?: boolean
   autoReplyOn?: boolean
@@ -142,10 +145,12 @@ const handleRefresh = async () => {
 
 const handleManualUpdateCookieSuccess = async () => {
   await loadConnectionStatus()
+  await handleStartConnection()
 }
 
 const handleQRUpdateSuccess = async () => {
   await loadConnectionStatus()
+  await handleStartConnection()
 }
 
 const canSyncGoods = computed(() => connectionStatus.value?.cookieStatus === 1)

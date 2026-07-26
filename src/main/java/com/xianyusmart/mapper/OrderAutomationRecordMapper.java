@@ -363,6 +363,16 @@ public interface OrderAutomationRecordMapper {
     int markRateFailure(@Param("accountId") Long accountId, @Param("orderId") String orderId,
                         @Param("errorMessage") String errorMessage);
 
+
+    @Update("UPDATE xianyu_order_automation_record SET " +
+            "rate_status = CASE WHEN rate_status = 1 THEN 1 ELSE 3 END, " +
+            "rate_error = CASE WHEN rate_status = 1 THEN rate_error ELSE #{reason} END, " +
+            "red_flower_status = CASE WHEN red_flower_status = 1 THEN 1 ELSE 3 END, " +
+            "red_flower_error = CASE WHEN red_flower_status = 1 THEN red_flower_error ELSE #{reason} END, " +
+            "red_flower_next_retry_time = NULL " +
+            "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId}")
+    int cancelPendingActions(@Param("accountId") Long accountId, @Param("orderId") String orderId,
+                             @Param("reason") String reason);
     /** 清理历史终态：已评价归为成功，平台明确不可评价归为无需处理。 */
     @Update("<script>" +
             "UPDATE xianyu_order_automation_record " +

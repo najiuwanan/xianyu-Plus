@@ -118,6 +118,9 @@ public class DeliveryTaskScheduler {
                 if (pendingOrders != null && !pendingOrders.isEmpty()) {
                     pendingOrderPollService.syncOrdersToDb(account.getId(), pendingOrders);
                 }
+                // Status monitoring only: it discovers receipt/refund changes and
+                // lets the per-order transition handler decide whether to act.
+                pendingOrderPollService.refreshRecentSoldOrderHistory(account.getId());
             } catch (Exception e) {
                 log.warn("【账号{}】待发货订单发现失败: {}", account.getId(), e.getMessage());
             }

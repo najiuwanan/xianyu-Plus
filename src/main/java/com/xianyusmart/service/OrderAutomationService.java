@@ -374,6 +374,28 @@ public class OrderAutomationService {
         }
     }
 
+    /** Runs only when one order changes status; it replaces account-wide scans. */
+    public void handleOrderStatusChanged(Long accountId, String orderId,
+                                         String previousStatus, String currentStatus) {
+        if (accountId == null || !StringUtils.hasText(orderId) || !StringUtils.hasText(currentStatus)
+                || currentStatus.equals(previousStatus)) return;
+        if (Set.of("REFUNDING", "REFUNDED", "CLOSED").contains(currentStatus)) {
+            automationRecordMapper.cancelPendingActions(accountId, orderId, "订单已退款或关闭，自动动作已取消");
+            return;
+        }
+        if ("PENDING_SHIPMENT".equals(currentStatus)) {
+            redFlowerService.requestAfterPayment(accountId, orderId);
+            return;
+        }
+        if (!"COMPLETED".equals(currentStatus)) return;
+        XianyuAccount account = accountMapper.selectById(accountId);
+        if (account == null || !Integer.valueOf(1).equals(account.getStatus())
+                || !Integer.valueOf(1).equals(account.getAutoRateEnabled())
+                || !tryClaimRate(accountId, orderId)) return;
+        String feedback = StringUtils.hasText(account.getAutoRateText())
+                ? account.getAutoRateText() : DEFAULT_RATE_TEXT;
+        rateService.rateBuyer(accountId, orderId, feedback);
+    }
     private boolean sleepBetweenRateRequests(int requestIntervalSeconds) {
         try {
             Thread.sleep(Math.max(1, requestIntervalSeconds) * 1000L);

@@ -90,20 +90,8 @@ const router = createRouter({
       meta: { title: '一键擦亮', icon: '✨' }
     },
     {
-      path: '/order-automation',
-      name: 'order-automation',
-      component: () => import('@/views/order-automation/index.vue'),
-      meta: { title: '自动化执行中心', icon: '✨' }
-    },
-    {
-      path: '/automation-schedule',
-      name: 'automation-schedule',
-      component: () => import('@/views/automation-schedule/index.vue'),
-      meta: { title: '定时任务', icon: '⏱️' }
-    },
-    {
       path: '/exception-center',
-      redirect: '/order-automation'
+      redirect: '/orders'
     },
     {
       path: '/kami-config',

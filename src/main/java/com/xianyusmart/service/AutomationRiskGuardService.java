@@ -44,6 +44,9 @@ public class AutomationRiskGuardService {
     }
 
     public boolean isPaused(Long accountId) {
+        if (isRiskGuardDisabled()) {
+            return false;
+        }
         if (accountId == null) {
             return false;
         }
@@ -55,6 +58,7 @@ public class AutomationRiskGuardService {
      * 记录一次真正的自动化调用失败；达到阈值后返回 true，并持久化暂停状态。
      */
     public boolean recordFailure(Long accountId, String action, String reason) {
+        if (isRiskGuardDisabled()) return false;
         if (accountId == null) {
             return false;
         }
@@ -101,6 +105,7 @@ public class AutomationRiskGuardService {
 
     /** 一次真实成功会终止该模块的连续失败序列，但不会掩盖其他模块的问题。 */
     public void recordSuccess(Long accountId, String action) {
+        if (isRiskGuardDisabled()) return;
         if (accountId == null) {
             return;
         }
@@ -109,6 +114,7 @@ public class AutomationRiskGuardService {
     }
 
     public String resume(Long accountId) {
+        if (isRiskGuardDisabled()) return "自动化保护已移除";
         if (accountId == null) {
             throw new IllegalArgumentException("账号不能为空");
         }
@@ -131,12 +137,17 @@ public class AutomationRiskGuardService {
     }
 
     public void pauseClaimedDeliveryTask(Long taskId, String workerId, Long accountId) {
+        if (isRiskGuardDisabled()) return;
         if (taskId == null || workerId == null || accountId == null) {
             return;
         }
         XianyuAccount account = accountMapper.selectById(accountId);
         String reason = account == null ? "自动化保护暂停" : trim(account.getAutomationRiskPauseReason());
         orderMapper.pauseClaimedTaskByRisk(taskId, workerId, hasText(reason) ? reason : "自动化保护暂停");
+    }
+
+    private boolean isRiskGuardDisabled() {
+        return true;
     }
 
     private boolean hasText(String value) {

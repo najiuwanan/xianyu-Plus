@@ -6,7 +6,6 @@ import com.xianyusmart.mapper.XianyuAccountMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -14,7 +13,6 @@ import java.util.List;
 
 /** Schedules red flower requests without occupying a scheduler thread during network calls. */
 @Slf4j
-@Component
 public class RedFlowerTaskScheduler {
 
     private final RedFlowerService redFlowerService;

@@ -6,7 +6,6 @@ import com.xianyusmart.mapper.XianyuAccountMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,7 +14,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Periodically evaluates only managed, recent orders that are truly pending on Xianyu. */
 @Slf4j
-@Component
 public class RateTaskScheduler {
 
     private static final int RATE_REQUEST_INTERVAL_SECONDS = 2;

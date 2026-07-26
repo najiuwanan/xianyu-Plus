@@ -150,7 +150,7 @@ const releaseHistory = [
     version: '1.9.9',
     label: 'V1.9.9',
     highlights: [
-      'Session 过期后改为等待 2 小时后统一自动续期，减少短时间重复刷新。',
+      'Session 过期后改为等待 5 分钟后统一自动续期，减少短时间重复刷新。',
       '续期等待期间暂停 Token 短间隔重试与 WebSocket 自动重连，避免重复刷屏。',
       '续期成功自动恢复连接；失败时引导手动更新 Cookie。'
     ]

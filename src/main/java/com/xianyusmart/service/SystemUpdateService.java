@@ -409,7 +409,7 @@ public class SystemUpdateService {
         }
         if ("1.9.9".equals(version)) {
             status.setUpdateHighlights(List.of(
-                    "检测到 Session 过期后不再立即反复刷新，统一改为等待 2 小时后自动续期一次",
+                    "检测到 Session 过期后不再立即反复刷新，统一改为等待 5 分钟后自动续期一次",
                     "Session 续期等待期间暂停 Token 短间隔重试和 WebSocket 自动重连，避免操作日志重复刷屏",
                     "自动续期成功后会自动重连 WebSocket；续期失败时提示手动更新 Cookie"
             ));
