@@ -722,8 +722,10 @@ public class XianyuWebSocketClient extends WebSocketClient {
                 }
                 return success;
             } catch (java.util.concurrent.TimeoutException e) {
-                log.warn("【账号{}】消息发送超时(10秒)，未取得服务端回执: mid={}", accountId, mid);
-                return false;
+                // 消息帧已经成功写入已连接的 WebSocket。平台偶发不回传回执时，买家仍可能收到消息；
+                // 此处按“已提交”继续后续发货流程，避免重复补发卡密并阻断自动确认发货。
+                log.warn("【账号{}】消息回执超时（10秒），消息已提交至平台，按已发送处理: mid={}", accountId, mid);
+                return true;
             } finally {
                 pendingResponses.remove(mid);
             }

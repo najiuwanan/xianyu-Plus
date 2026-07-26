@@ -48,12 +48,12 @@ class AutomationHardeningSourceTest {
     }
 
     @Test
-    void websocketAcknowledgementTimeoutsRemainFailures() throws Exception {
+    void textMessageAcknowledgementTimeoutContinuesDeliveryWorkflow() throws Exception {
         String source = Files.readString(Path.of(
                 "src/main/java/com/xianyusmart/websocket/XianyuWebSocketClient.java"));
 
-        assertFalse(source.contains("视为发送成功"));
-        assertEquals(2, occurrences(source, "未取得服务端回执"));
+        assertTrue(source.contains("消息已提交至平台，按已发送处理"));
+        assertEquals(1, occurrences(source, "未取得服务端回执"));
     }
 
     @Test

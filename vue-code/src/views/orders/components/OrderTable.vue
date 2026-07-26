@@ -221,10 +221,7 @@ const getTradeStatusBg = (status?: string) => {
 const getTradeStatusText = (order: DeliveryRecordItem) => order.tradeStatusText || '未同步'
 
 const canConfirmShipment = (order: DeliveryRecordItem) => {
-  return order.state === 1
-    && !isSelfPickup(order)
-    && order.deliveryStatus !== 'SKIPPED'
-    && !['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')
+  return Boolean(order.orderId) && !isSelfPickup(order) && !order.confirming
 }
 
 const canRuleDelivery = (order: DeliveryRecordItem) => {
@@ -289,8 +286,8 @@ const ruleDeliveryReason = (order: DeliveryRecordItem) => {
 const confirmShipmentReason = (order: DeliveryRecordItem) => {
   if (canConfirmShipment(order)) return '向闲鱼确认该订单已发货'
   if (isSelfPickup(order)) return '自提订单不需要确认发货'
-  if (['REFUNDING', 'REFUNDED', 'CLOSED'].includes(order.tradeStatus || '')) return '退款或关闭交易不能确认发货'
-  return order.state === 1 ? '当前订单不满足确认发货条件' : '请先完成发货后再确认'
+  if (order.confirming) return '正在向闲鱼确认发货，请稍候'
+  return '订单号缺失，暂时不能确认发货'
 }
 
 const getConfirmText = (state: number) => {
