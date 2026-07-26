@@ -184,8 +184,12 @@ const isSelfPickup = (order: DeliveryRecordItem) =>
 const getOrderIdentityText = (order: DeliveryRecordItem, value?: string) =>
   value || (isSelfPickup(order) ? '信息同步中' : '-')
 
+const isPlatformShipmentConfirmed = (order: DeliveryRecordItem) =>
+  Number(order.confirmState) === 1 && ['SHIPPED', 'COMPLETED'].includes((order.tradeStatus || '').toUpperCase())
+
 const getOrderDeliveryText = (order: DeliveryRecordItem) =>
-  order.blacklisted ? '黑名单拦截' : isSelfPickup(order) ? '自提待交接' : getDeliveryText(order.state, order.deliveryStatus)
+  order.blacklisted ? '黑名单拦截' : isSelfPickup(order) ? '自提待交接'
+    : isPlatformShipmentConfirmed(order) && order.state !== 1 ? '已手动发货' : getDeliveryText(order.state, order.deliveryStatus)
 
 const getDeliveryColor = (state: number, deliveryStatus?: string) => {
   if (deliveryStatus === 'SKIPPED') return '#637085'
@@ -311,7 +315,7 @@ type StatusPresentation = {
 const getDeliveryMethod = (order: DeliveryRecordItem) => {
   const channel = (order.deliveryChannel || '').toUpperCase()
   if (channel === 'PICKUP') return '自提'
-  if (channel.includes('MANUAL')) return '人工补发'
+  if (channel.includes('MANUAL') || isPlatformShipmentConfirmed(order) && order.state !== 1) return '手动发货'
   if (channel.includes('AUTO') || channel.includes('WS')) return '自动发货'
   return order.deliveryStatus === 'SKIPPED' ? '未启用自动发货' : '自动发货'
 }
@@ -320,6 +324,9 @@ const getDeliveryPresentation = (order: DeliveryRecordItem): StatusPresentation 
   const status = (order.deliveryStatus || '').toUpperCase()
   const reason = order.lastErrorMessage || order.failReason
   if (isSelfPickup(order)) return { text: '自提待交接', tone: 'muted' }
+  if (status === 'MANUAL_CONFIRMED' || isPlatformShipmentConfirmed(order) && order.state !== 1) {
+    return { text: '已手动发货', tone: 'success', reason: '闲鱼已确认该订单发货' }
+  }
   if (status === 'COMPLETED' || order.state === 1) return { text: '已发货', tone: 'success' }
   if (status === 'REVIEW_REQUIRED') return { text: '待人工核对', tone: 'warning', reason }
   if (status === 'FAILED' || order.state === -1) return { text: '发货失败', tone: 'danger', reason }

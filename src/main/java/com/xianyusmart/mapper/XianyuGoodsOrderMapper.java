@@ -368,6 +368,14 @@ public interface XianyuGoodsOrderMapper {
     int resumeRiskPausedTasks(@Param("accountId") Long accountId,
                               @Param("maxAttempts") int maxAttempts);
     
+    @Update("UPDATE xianyu_goods_order SET state = 1, delivery_status = 'MANUAL_CONFIRMED', delivery_channel = 'MANUAL', " +
+            "delivered_quantity = COALESCE(expected_quantity, delivered_quantity, 1), fail_reason = NULL, " +
+            "last_error_code = NULL, last_error_message = NULL, next_retry_time = NULL, " +
+            "confirm_state = 1, confirm_task_status = 'COMPLETED', confirm_next_retry_time = NULL, " +
+            "confirm_lease_owner = NULL, confirm_lease_expire_time = NULL, confirm_error = NULL " +
+            "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId}")
+    int markManualDeliveryConfirmed(@Param("accountId") Long accountId, @Param("orderId") String orderId);
+
     @Update("UPDATE xianyu_goods_order SET confirm_state = 1, confirm_task_status = 'COMPLETED', " +
             "confirm_next_retry_time = NULL, confirm_lease_owner = NULL, confirm_lease_expire_time = NULL, confirm_error = NULL " +
             "WHERE xianyu_account_id = #{accountId} AND order_id = #{orderId}")
@@ -589,6 +597,12 @@ public interface XianyuGoodsOrderMapper {
             "total_price = COALESCE(#{totalPrice}, total_price), " +
             "buy_num = COALESCE(#{buyNum}, buy_num), " +
             "confirm_state = CASE WHEN #{confirmState} = 1 THEN 1 ELSE confirm_state END, " +
+            "state = CASE WHEN #{confirmState} = 1 THEN 1 ELSE state END, " +
+            "delivery_status = CASE WHEN #{confirmState} = 1 AND COALESCE(delivery_status, '') <> 'COMPLETED' THEN 'MANUAL_CONFIRMED' ELSE delivery_status END, " +
+            "delivery_channel = CASE WHEN #{confirmState} = 1 AND COALESCE(delivery_status, '') <> 'COMPLETED' THEN 'MANUAL' ELSE delivery_channel END, " +
+            "fail_reason = CASE WHEN #{confirmState} = 1 THEN NULL ELSE fail_reason END, " +
+            "last_error_code = CASE WHEN #{confirmState} = 1 THEN NULL ELSE last_error_code END, " +
+            "last_error_message = CASE WHEN #{confirmState} = 1 THEN NULL ELSE last_error_message END, " +
             "trade_status = #{tradeStatus}, trade_status_text = #{tradeStatusText} " +
             "WHERE id = #{id}")
     int updateTradeSnapshot(@Param("id") Long id,
@@ -608,6 +622,12 @@ public interface XianyuGoodsOrderMapper {
     @Update("UPDATE xianyu_goods_order SET " +
             "consign_time = COALESCE(NULLIF(#{consignTime}, ''), consign_time), " +
             "confirm_state = CASE WHEN #{confirmState} = 1 THEN 1 ELSE confirm_state END, " +
+            "state = CASE WHEN #{confirmState} = 1 THEN 1 ELSE state END, " +
+            "delivery_status = CASE WHEN #{confirmState} = 1 AND COALESCE(delivery_status, '') <> 'COMPLETED' THEN 'MANUAL_CONFIRMED' ELSE delivery_status END, " +
+            "delivery_channel = CASE WHEN #{confirmState} = 1 AND COALESCE(delivery_status, '') <> 'COMPLETED' THEN 'MANUAL' ELSE delivery_channel END, " +
+            "fail_reason = CASE WHEN #{confirmState} = 1 THEN NULL ELSE fail_reason END, " +
+            "last_error_code = CASE WHEN #{confirmState} = 1 THEN NULL ELSE last_error_code END, " +
+            "last_error_message = CASE WHEN #{confirmState} = 1 THEN NULL ELSE last_error_message END, " +
             "trade_status = #{tradeStatus}, trade_status_text = #{tradeStatusText} " +
             "WHERE id = #{id}")
     int updateTradeStatusFromDetail(@Param("id") Long id,

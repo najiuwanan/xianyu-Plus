@@ -136,7 +136,7 @@ public class OrderController {
             );
 
             if (result != null) {
-                orderMapper.updateConfirmState(reqDTO.getXianyuAccountId(), reqDTO.getOrderId());
+                orderMapper.markManualDeliveryConfirmed(reqDTO.getXianyuAccountId(), reqDTO.getOrderId());
                 redFlowerService.requestAfterShipmentConfirmed(reqDTO.getXianyuAccountId(), reqDTO.getOrderId());
                 return ResultObject.success(result);
             } else {
