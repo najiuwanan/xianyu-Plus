@@ -36,6 +36,15 @@ public interface WebSocketTokenService {
      */
     void clearCaptchaWait(Long accountId);
 
+    /**
+     * Cancel every in-memory credential renewal task and remove transient state
+     * for one account. This does not delete the persisted Token.
+     */
+    void clearAccountRuntimeState(Long accountId);
+
+    /** Returns the persisted WebSocket Token expiry time in milliseconds. */
+    Long getTokenExpireTime(Long accountId);
+
     /** Returns true while this account is waiting for a user security check. */
     boolean isCaptchaPending(Long accountId);
 

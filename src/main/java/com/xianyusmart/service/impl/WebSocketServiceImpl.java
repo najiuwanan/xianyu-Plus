@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * WebSocket服务实现类
@@ -87,15 +88,15 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     // Token刷新失败后的延迟重试任务
     private final Map<Long, ScheduledFuture<?>> tokenRetryTasks = new ConcurrentHashMap<>();
+
+    // 同一账号同一时刻只执行一次Token刷新。
+    private final Map<Long, AtomicBoolean> tokenRefreshInProgress = new ConcurrentHashMap<>();
     
     // 心跳响应时间记录
     private final Map<Long, Long> lastHeartbeatResponseTimes = new ConcurrentHashMap<>();
     
     // 心跳发送时间记录（参考Python的last_heartbeat_time）
     private final Map<Long, Long> lastHeartbeatSendTimes = new ConcurrentHashMap<>();
-    
-    // Token刷新时间记录
-    private final Map<Long, Long> lastTokenRefreshTimes = new ConcurrentHashMap<>();
     
     // 连接重启标志
     private final Map<Long, Boolean> connectionRestartFlags = new ConcurrentHashMap<>();
@@ -118,6 +119,10 @@ public class WebSocketServiceImpl implements WebSocketService {
 
     // 邮件通知最小间隔（10分钟）
     private static final long NOTIFY_INTERVAL_MS = 10 * 60 * 1000;
+    private static final long TOKEN_REFRESH_BASE_LEAD_MS = TimeUnit.MINUTES.toMillis(60);
+    private static final long TOKEN_REFRESH_JITTER_MIN_MS = TimeUnit.MINUTES.toMillis(5);
+    private static final long TOKEN_REFRESH_JITTER_MAX_MS = TimeUnit.MINUTES.toMillis(20);
+
 
     /**
      * 闲鱼WebSocket URL
@@ -129,6 +134,11 @@ public class WebSocketServiceImpl implements WebSocketService {
     public boolean startWebSocket(Long accountId) {
         try {
             log.info("启动WebSocket连接: accountId={}", accountId);
+            if (!isAccountActive(accountId)) {
+                log.info("跳过WebSocket连接：账号已禁用、不存在或仍待验证, accountId={}", accountId);
+                return false;
+            }
+
 
             // 检查是否已经连接
             if (webSocketClients.containsKey(accountId)) {
@@ -193,6 +203,11 @@ public class WebSocketServiceImpl implements WebSocketService {
         try {
             log.info("========== 使用手动Token启动WebSocket连接 ==========");
             log.info("【账号{}】accountId={}", accountId, accountId);
+            if (!isAccountActive(accountId)) {
+                log.info("跳过手动Token连接：账号已禁用、不存在或仍待验证, accountId={}", accountId);
+                return false;
+            }
+
             log.info("【账号{}】accessToken长度={}", accountId, accessToken != null ? accessToken.length() : 0);
 
             // 检查是否已经连接
@@ -443,6 +458,11 @@ public class WebSocketServiceImpl implements WebSocketService {
         try {
             log.info("凭证已更新，立即重建WebSocket连接: accountId={}", accountId);
 
+            if (!isAccountActive(accountId)) {
+                log.info("凭证已更新但账号未启用，不执行重连: accountId={}", accountId);
+                return false;
+            }
+
             // 清除旧凭证状态，确保新Cookie立即参与Token获取和连接建立
             tokenService.clearCaptchaWait(accountId);
             stopWebSocket(accountId);
@@ -551,74 +571,80 @@ public class WebSocketServiceImpl implements WebSocketService {
                 accountId, config.getHeartbeatInterval(), config.getHeartbeatInterval(), config.getHeartbeatTimeout());
         
         // 启动Token自动刷新任务（参考Python的token_refresh_loop）
-        startTokenRefresh(accountId);
+        scheduleTokenRefreshByExpiry(accountId);
     }
     
+    private boolean isAccountActive(Long accountId) {
+        if (accountId == null) return false;
+        try {
+            com.xianyusmart.entity.XianyuAccount account = xianyuAccountMapper.selectById(accountId);
+            return account != null && Integer.valueOf(1).equals(account.getStatus());
+        } catch (Exception exception) {
+            log.warn("读取账号状态失败，暂停连接或刷新: accountId={}, reason={}", accountId, exception.getMessage());
+            return false;
+        }
+    }
+
     /**
-     * 启动Token自动刷新任务
-     * 参考Python的token_refresh_loop方法
-     * 
-     * Python逻辑：
-     * 1. 每分钟检查一次
-     * 2. 当 current_time - last_token_refresh_time >= token_refresh_interval 时刷新Token
-     * 3. Token刷新成功后，设置connection_restart_flag=True，关闭WebSocket触发重连
-     * 4. Token刷新失败后，在token_retry_interval秒后重试
-     * 
-     * 关键修复：
-     * - 记录Token获取时间（而非刷新时间），确保1小时后刷新
-     * - Token有效期20小时，但每1小时主动刷新一次，保持连接活跃
+     * 根据数据库中的真实到期时间安排一次刷新。每个账号随机提前65至80分钟，
+     * 避免容器启动后所有账号在同一时刻集中请求Token。
      */
-    private void startTokenRefresh(Long accountId) {
-        // 初始化Token刷新时间为当前时间（秒级时间戳）
-        long currentTime = System.currentTimeMillis() / 1000;
-        lastTokenRefreshTimes.put(accountId, currentTime);
-        
-        log.info("【账号{}】Token刷新任务已启动: 刷新间隔{}秒({}小时), 首次刷新将在{}小时后", 
-                accountId, config.getTokenRefreshInterval(), 
-                config.getTokenRefreshInterval() / 3600,
-                config.getTokenRefreshInterval() / 3600);
-        
-        // Token刷新任务（每分钟检查一次，参考Python）
-        ScheduledFuture<?> tokenRefreshTask = webSocketScheduler.scheduleAtFixedRate(
-            () -> {
-                try {
-                    if (tokenService.isCaptchaPending(accountId)) {
-                        return;
-                    }
-                    Long lastRefreshTime = lastTokenRefreshTimes.get(accountId);
-                    if (lastRefreshTime == null) {
-                        return;
-                    }
-                    
-                    long now = System.currentTimeMillis() / 1000;
-                    long elapsedSeconds = now - lastRefreshTime;
-                    
-                    // 参考Python: 检查是否需要刷新Token（每1小时刷新一次）
-                    if (elapsedSeconds >= config.getTokenRefreshInterval()) {
-                        long elapsedHours = elapsedSeconds / 3600;
-                        log.info("【账号{}】Token已使用{}小时（刷新间隔{}小时），准备刷新并重连...", 
-                                accountId, elapsedHours, config.getTokenRefreshInterval() / 3600);
-                        
-                        // 参考Python: 设置连接重启标志
-                        connectionRestartFlags.put(accountId, true);
-                        
-                        // 参考Python: 刷新Token并重连（成功后关闭旧连接）
-                        refreshTokenAndReconnect(accountId);
-                    } else {
-                        // 每10分钟打印一次剩余时间（避免日志过多）
-                        if (elapsedSeconds % 600 == 0) {
-                            long remainingSeconds = config.getTokenRefreshInterval() - elapsedSeconds;
-                            log.debug("【账号{}】Token刷新倒计时: 还有{}分钟", accountId, remainingSeconds / 60);
-                        }
-                    }
-                } catch (Exception e) {
-                    log.error("【账号{}】Token刷新检查失败", accountId, e);
-                }
-            },
-            60, 60, TimeUnit.SECONDS  // 参考Python: 每分钟检查一次
-        );
-        
-        tokenRefreshTasks.put(accountId, tokenRefreshTask);
+    private void scheduleTokenRefreshByExpiry(Long accountId) {
+        ScheduledFuture<?> existingTask = tokenRefreshTasks.remove(accountId);
+        if (existingTask != null) {
+            existingTask.cancel(false);
+        }
+        if (!isAccountActive(accountId) || tokenService.isCaptchaPending(accountId)) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        Long expireTime = tokenService.getTokenExpireTime(accountId);
+        long delayMillis;
+        long randomLeadMillis = ThreadLocalRandom.current().nextLong(
+                TOKEN_REFRESH_JITTER_MIN_MS, TOKEN_REFRESH_JITTER_MAX_MS + 1);
+
+        if (expireTime != null && expireTime > now) {
+            long refreshAt = expireTime - TOKEN_REFRESH_BASE_LEAD_MS - randomLeadMillis;
+            if (refreshAt > now) {
+                delayMillis = refreshAt - now;
+            } else {
+                long remainingMillis = expireTime - now;
+                long emergencyMax = Math.min(TimeUnit.MINUTES.toMillis(5), Math.max(5_000L, remainingMillis / 2));
+                delayMillis = emergencyMax <= 5_000L
+                        ? 5_000L
+                        : ThreadLocalRandom.current().nextLong(5_000L, emergencyMax + 1);
+            }
+        } else {
+            delayMillis = ThreadLocalRandom.current().nextLong(5_000L, 30_001L);
+        }
+
+        long scheduledAt = now + delayMillis;
+        ScheduledFuture<?> refreshTask = webSocketScheduler.schedule(() -> {
+            tokenRefreshTasks.remove(accountId);
+            if (!isAccountActive(accountId) || tokenService.isCaptchaPending(accountId)
+                    || tokenService.isSessionRenewalPending(accountId)) {
+                log.info("【账号{}】Token刷新执行前账号状态已变化，本次任务取消", accountId);
+                return;
+            }
+
+            AtomicBoolean guard = tokenRefreshInProgress.computeIfAbsent(accountId, ignored -> new AtomicBoolean(false));
+            if (!guard.compareAndSet(false, true)) {
+                log.debug("【账号{}】已有Token刷新正在执行，跳过重复任务", accountId);
+                return;
+            }
+            try {
+                connectionRestartFlags.put(accountId, true);
+                refreshTokenAndReconnect(accountId);
+            } finally {
+                guard.set(false);
+            }
+        }, delayMillis, TimeUnit.MILLISECONDS);
+
+        tokenRefreshTasks.put(accountId, refreshTask);
+        log.info("【账号{}】Token将按真实到期时间错峰刷新: expireAt={}, refreshAt={}, leadMinutes={}",
+                accountId, expireTime, scheduledAt,
+                expireTime == null ? null : Math.max(0L, (expireTime - scheduledAt) / 60_000L));
     }
     
     /**
@@ -632,6 +658,11 @@ public class WebSocketServiceImpl implements WebSocketService {
      * 4. Token刷新失败时，在token_retry_interval后重试
      */
     private void refreshTokenAndReconnect(Long accountId) {
+        if (!isAccountActive(accountId)) {
+            log.info("【账号{}】账号已禁用、不存在或仍待验证，跳过Token刷新", accountId);
+            return;
+        }
+
         if (tokenService.isCaptchaPending(accountId)) {
             log.info("【账号{}】正在等待安全验证，跳过Token刷新与重连", accountId);
             return;
@@ -674,8 +705,6 @@ public class WebSocketServiceImpl implements WebSocketService {
             boolean success = startWebSocket(accountId);
             
             if (success) {
-                // 更新Token刷新时间
-                lastTokenRefreshTimes.put(accountId, System.currentTimeMillis() / 1000);
                 // 重置重连计数
                 AtomicInteger attemptCount = reconnectAttemptCounts.get(accountId);
                 if (attemptCount != null) {
@@ -704,6 +733,11 @@ public class WebSocketServiceImpl implements WebSocketService {
      * 调度Token刷新重试
      */
     private void scheduleTokenRefreshRetry(Long accountId) {
+        if (!isAccountActive(accountId)) {
+            log.info("【账号{}】账号已禁用、不存在或仍待验证，不安排Token重试", accountId);
+            return;
+        }
+
         if (tokenService.isCaptchaPending(accountId)) {
             log.info("【账号{}】正在等待安全验证，不安排Token刷新重试", accountId);
             return;
@@ -719,6 +753,11 @@ public class WebSocketServiceImpl implements WebSocketService {
             }
             return webSocketScheduler.schedule(() -> {
                 tokenRetryTasks.remove(id);
+                if (!isAccountActive(id)) {
+                    log.info("【账号{}】Token重试执行前账号已停用，取消本次重试", id);
+                    return;
+                }
+
                 log.info("【账号{}】Token刷新重试间隔已到，开始重试...", id);
                 refreshTokenAndReconnect(id);
             }, config.getTokenRetryInterval(), TimeUnit.SECONDS);
@@ -750,6 +789,10 @@ public class WebSocketServiceImpl implements WebSocketService {
     private void scheduleReconnect(Long accountId, int delaySeconds, boolean isManualRestart) {
         if (tokenService.isSessionRenewalPending(accountId)) {
             log.info("【账号{}】Session过期自动续期等待中，不安排WebSocket重连", accountId);
+            return;
+        }
+        if (!isAccountActive(accountId)) {
+            log.info("【账号{}】账号已禁用、不存在或仍待验证，不安排WebSocket重连", accountId);
             return;
         }
         if (tokenService.isCaptchaPending(accountId)) {
@@ -787,6 +830,10 @@ public class WebSocketServiceImpl implements WebSocketService {
                     return;
                 }
                 
+                if (!isAccountActive(accountId)) {
+                    log.info("【账号{}】重连执行前账号已停用，取消本次重连", accountId);
+                    return;
+                }
                 // 停止当前连接和心跳
                 stopWebSocket(accountId);
                 
@@ -902,7 +949,7 @@ public class WebSocketServiceImpl implements WebSocketService {
         // 清理状态
         lastHeartbeatResponseTimes.remove(accountId);
         lastHeartbeatSendTimes.remove(accountId);
-        lastTokenRefreshTimes.remove(accountId);
+        tokenRefreshInProgress.remove(accountId);
         connectionRestartFlags.remove(accountId);
     }
 

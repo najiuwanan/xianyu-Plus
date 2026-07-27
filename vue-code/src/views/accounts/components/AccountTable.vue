@@ -114,16 +114,16 @@ const getStatusRing = (status: number) => {
 }
 
 const getStatusDescription = (status: number) => {
-  if (status === 1) return '账号状态正常'
-  if (status === 0) return '实时连接与自动化已暂停'
-  if (status === -2) return '请在账号详情完成验证'
-  if (status === -1) return '请检查账号连接状态'
-  return '请检查账号连接状态'
+  if (status === 1) return '账号已启用 · 当前状态正常'
+  if (status === 0) return '账号已禁用 · 连接与自动化已暂停'
+  if (status === -2) return '账号已启用 · 等待完成平台验证'
+  if (status === -1) return '账号已启用 · 请检查连接状态'
+  return '账号已启用 · 请检查当前状态'
 }
 
 const isEnabled = (value?: number) => value === 1
 const isRiskPaused = (_account: Account) => false
-const canToggleEnabled = (account: Account) => account.status === 1 || account.status === 0
+const canToggleEnabled = (account: Account) => account.status !== undefined && account.status !== null
 const getItemPolishStatus = (account: Account) => {
   if (!isEnabled(account.itemPolishEnabled)) return '关闭'
   return account.itemPolishScheduleTime ? `开启 · ${account.itemPolishScheduleTime}` : '开启'

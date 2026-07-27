@@ -610,6 +610,11 @@ public class WebSocketController {
             if (unb == null || unb.isEmpty()) {
                 return ResultObject.failed("无法从Cookie中提取UNB信息，请确保Cookie包含unb字段");
             }
+            if (account.getUnb() != null && !account.getUnb().isBlank() && !account.getUnb().equals(unb)) {
+                return ResultObject.failed("该Cookie属于其他闲鱼账号，请核对当前账号备注和UNB后重试");
+            }
+
+
             
             // 更新Cookie
             com.xianyusmart.service.AccountService accountService = 
@@ -619,8 +624,15 @@ public class WebSocketController {
                 return ResultObject.failed("Cookie更新失败");
             }
 
+            boolean accountDisabled = Integer.valueOf(0).equals(account.getStatus());
+            if (Integer.valueOf(-2).equals(account.getStatus())) {
+                account.setStatus(1);
+                accountMapper.updateById(account);
+            }
+
             // Cookie保存成功后立即清理旧凭证状态并重建连接
-            boolean connected = webSocketService.restartAfterCredentialUpdate(reqDTO.getXianyuAccountId());
+            boolean connected = !accountDisabled
+                    && webSocketService.restartAfterCredentialUpdate(reqDTO.getXianyuAccountId());
             
             // 记录操作日志
             operationLogService.log(reqDTO.getXianyuAccountId(),
@@ -633,7 +645,11 @@ public class WebSocketController {
                     null, null, null, null);
             
             UpdateCookieRespDTO respDTO = new UpdateCookieRespDTO();
-            respDTO.setMessage(connected ? "Cookie更新成功，WebSocket已重连" : "Cookie更新成功，WebSocket正在重连");
+            respDTO.setMessage(accountDisabled
+                    ? "Cookie更新成功；账号保持禁用，启用后再建立连接"
+                    : connected
+                        ? "Cookie更新成功，WebSocket已重连"
+                        : "Cookie更新成功，WebSocket正在重连");
             return ResultObject.success(respDTO);
         } catch (Exception e) {
             log.error("更新Cookie失败", e);

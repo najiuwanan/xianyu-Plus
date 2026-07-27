@@ -709,8 +709,35 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
         log.info("【账号{}】清除验证等待状态", accountId);
         pendingCaptchaAccounts.remove(accountId);
         captchaTimestamps.remove(accountId);
+        captchaNotificationTimes.remove(accountId);
         updateRenewalStatus(accountId, "IDLE", "验证等待已清除，可重新刷新并连接", null);
         log.info("【账号{}】验证等待状态已清除", accountId);
+    }
+
+    @Override
+    public void clearAccountRuntimeState(Long accountId) {
+        if (accountId == null) return;
+        java.util.concurrent.ScheduledFuture<?> renewalTask = sessionRenewalTasks.remove(accountId);
+        if (renewalTask != null) {
+            renewalTask.cancel(false);
+        }
+        pendingCaptchaAccounts.remove(accountId);
+        captchaTimestamps.remove(accountId);
+        captchaNotificationTimes.remove(accountId);
+        renewalStatuses.remove(accountId);
+        log.info("Account {} token renewal and verification runtime state cleared", accountId);
+    }
+
+    @Override
+    public Long getTokenExpireTime(Long accountId) {
+        if (accountId == null) return null;
+        XianyuCookie cookie = xianyuCookieMapper.selectOne(
+                new LambdaQueryWrapper<XianyuCookie>()
+                        .eq(XianyuCookie::getXianyuAccountId, accountId)
+                        .orderByDesc(XianyuCookie::getCreatedTime)
+                        .last("LIMIT 1")
+        );
+        return cookie == null ? null : cookie.getTokenExpireTime();
     }
 
     @Override
@@ -767,6 +794,12 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
     private void runSessionRenewal(Long accountId, int attempt) {
         boolean shouldRetry = false;
         try {
+            XianyuAccount account = xianyuAccountMapper.selectById(accountId);
+            if (account == null || !Integer.valueOf(1).equals(account.getStatus())) {
+                log.info("Account {} is inactive; session renewal cancelled", accountId);
+                return;
+            }
+
             updateRenewalStatus(accountId, "REFRESHING_COOKIE", "正在刷新Cookie登录态", null);
             boolean cookieRefreshed = cookieRefreshService.refreshCookie(accountId);
             if (!cookieRefreshed) {
@@ -924,7 +957,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
             java.util.Map<String, Object> params = new java.util.HashMap<>();
             params.put("credentialType", "WebSocket Token");
             params.put("reason", reason);
-            params.put("action", "请进入账号管理的凭证页，点击“立即验证”；完成滑块后关闭验证窗口");
+            params.put("action", "请使用对应账号的浏览器登录环境打开 https://www.goofish.com/im，完成平台验证后扫码或手动更新最新Cookie");
             notificationChannelService.dispatchMessage("CREDENTIAL_UPDATE_REQUIRED", accountId, params);
         } catch (Exception exception) {
             log.warn("【账号{}】安全验证通知发送失败: {}", accountId, exception.getMessage());
@@ -938,7 +971,11 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
         try {
             com.xianyusmart.entity.XianyuAccount account = xianyuAccountMapper.selectById(accountId);
             if (account == null) {
-                return true;
+                return false;
+            }
+            if (Integer.valueOf(0).equals(account.getStatus())) {
+                log.info("Account {} is disabled; captcha state ignored", accountId);
+                return false;
             }
             if (Integer.valueOf(-2).equals(account.getStatus())) {
                 return false;

@@ -29,7 +29,10 @@ class WebSocketCaptchaNotificationTest {
         NotificationChannelService notificationChannelService = mock(NotificationChannelService.class);
         OperationLogService operationLogService = mock(OperationLogService.class);
         XianyuAccountMapper accountMapper = mock(XianyuAccountMapper.class);
-        when(accountMapper.selectById(7L)).thenReturn(null);
+        XianyuAccount account = new XianyuAccount();
+        account.setId(7L);
+        account.setStatus(1);
+        when(accountMapper.selectById(7L)).thenReturn(account);
 
         ReflectionTestUtils.setField(service, "webSocketService", webSocketService);
         ReflectionTestUtils.setField(service, "notificationChannelService", notificationChannelService);

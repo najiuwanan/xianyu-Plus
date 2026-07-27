@@ -68,10 +68,6 @@ export function useAccountManager() {
   };
 
   const toggleAccountEnabled = async (account: Account) => {
-    if (account.status !== 1 && account.status !== 0) {
-      showError('该账号当前需要先处理连接或验证问题，不能直接切换状态')
-      return
-    }
     const enabled = account.status === 0
     try {
       await showConfirm(

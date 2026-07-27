@@ -21,6 +21,7 @@ import com.xianyusmart.service.AutoReplyDelayService;
 import com.xianyusmart.service.AutomationRiskGuardService;
 import com.xianyusmart.service.DeliveryTaskService;
 import com.xianyusmart.service.WebSocketService;
+import com.xianyusmart.service.WebSocketTokenService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -51,6 +52,10 @@ public class AccountController {
 
     @Autowired
     private WebSocketService webSocketService;
+
+    @Autowired
+    private WebSocketTokenService webSocketTokenService;
+
 
     @Autowired
     private DeliveryTaskService deliveryTaskService;
@@ -260,15 +265,17 @@ public class AccountController {
                         : "账号已启用，请在连接管理中确认实时连接状态");
             }
 
-            if (!Integer.valueOf(1).equals(account.getStatus())) {
-                return ResultObject.failed("当前账号不是正常状态，无法直接禁用");
+            if (Integer.valueOf(0).equals(account.getStatus())) {
+                return ResultObject.success("账号已处于禁用状态");
             }
             account.setStatus(0);
+            account.setAutoConnectOnStartup(0);
             accountMapper.updateById(account);
             deliveryTaskService.pauseAccountTasks(account.getId());
             autoReplyDelayService.cancelAccountTasks(account.getId());
             webSocketService.stopWebSocket(account.getId());
-            return ResultObject.success("账号已禁用：实时连接与自动化任务已暂停");
+            webSocketTokenService.clearAccountRuntimeState(account.getId());
+            return ResultObject.success("账号已禁用：连接、Token续期、自动回复与自动化任务已全部暂停");
         } catch (Exception e) {
             log.error("切换账号启用状态失败: accountId={}", reqDTO.getAccountId(), e);
             return ResultObject.failed("切换账号状态失败: " + e.getMessage());
@@ -353,7 +360,12 @@ public class AccountController {
                 return ResultObject.failed("账号不存在");
             }
             
-            // 删除账号关联的所有数据
+            // 先清理连接与内存任务，避免删除后仍有后台任务访问旧账号。
+            deliveryTaskService.pauseAccountTasks(id);
+            autoReplyDelayService.cancelAccountTasks(id);
+            webSocketService.stopWebSocket(id);
+            webSocketTokenService.clearAccountRuntimeState(id);
+            webSocketTokenService.clearToken(id);
             accountService.deleteAccountAndRelatedData(id);
             
             DeleteAccountRespDTO respDTO = new DeleteAccountRespDTO();

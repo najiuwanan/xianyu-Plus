@@ -26,12 +26,6 @@ public class WebSocketConfig {
     private int heartbeatTimeout = 5;
     
     /**
-     * Token刷新间隔（秒）
-     * 参考Python: TOKEN_REFRESH_INTERVAL = 3600 (1小时)
-     */
-    private int tokenRefreshInterval = 3600;
-    
-    /**
      * Token重试间隔（秒）
      * 参考Python: TOKEN_RETRY_INTERVAL = 300 (5分钟)
      */

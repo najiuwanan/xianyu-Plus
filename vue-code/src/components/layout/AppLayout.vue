@@ -25,7 +25,7 @@ const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV
 const releaseHighlights = computed(() => {
   if (updateStatus.value?.updateHighlights?.length) return updateStatus.value.updateHighlights
   if ((updateStatus.value?.latestVersion || updateStatus.value?.currentVersion || '').replace(/^[vV]/, '').startsWith('2.')) {
-    return ['滑块出现后立即停止该账号的 Token 刷新和自动重连，不再每 300 秒重复请求', '凭证页显示平台验证地址，并提供“立即验证”入口', '完成滑块并关闭窗口后自动检测结果、刷新 Token 并恢复连接', '同一次安全验证只通过通知渠道提醒一次', '验证链接仅允许打开闲鱼、淘宝和阿里官方 HTTPS 域名']
+    return ['验证或连接异常时仍可直接禁用账号，并停止该账号的连接、Token续期与待执行任务', 'WebSocket Token按真实到期时间续期，多账号提前65至80分钟随机错峰', '凭证页始终显示闲鱼IM验证入口、账号备注和UNB', '完成平台验证后扫码或手动更新最新Cookie，再自动刷新Token并恢复连接', '删除账号前清理连接、重连、续期与验证缓存，发货、评价和小红花规则保持不变']
   }
   return []
 })

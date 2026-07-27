@@ -287,11 +287,11 @@ public class SystemUpdateService {
         String version = normalizeVersion(status.getLatestVersion());
         if ("2.2.2".equals(version)) {
             status.setUpdateHighlights(List.of(
-                    "滑块出现后立即停止该账号的Token刷新与自动重连，不再每300秒重复请求",
-                    "凭证页展示平台验证地址，并提供立即验证与完成后检测入口",
-                    "完成滑块并关闭验证窗口后自动检测、刷新Token并恢复连接",
-                    "同一次安全验证只通过通知渠道提醒一次，其他账号不受影响",
-                    "验证链接仅允许打开闲鱼、淘宝和阿里官方HTTPS域名"
+                    "需要验证或连接异常时仍可直接禁用账号，并停止连接、Token续期与待执行任务",
+                    "WebSocket Token按真实到期时间续期，多账号随机提前65至80分钟错峰执行",
+                    "凭证页固定保留闲鱼IM验证入口，并显示当前账号备注与UNB",
+                    "完成平台验证后扫码或手动更新最新Cookie，系统再刷新Token并恢复连接",
+                    "删除账号前完整清理连接、重连、续期和验证缓存；自动发货、评价与小红花规则保持不变"
             ));
             return;
         }

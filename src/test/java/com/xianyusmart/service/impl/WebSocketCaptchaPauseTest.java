@@ -1,6 +1,8 @@
 package com.xianyusmart.service.impl;
 
 import com.xianyusmart.config.WebSocketConfig;
+import com.xianyusmart.entity.XianyuAccount;
+import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.xianyusmart.exception.CaptchaRequiredException;
 import com.xianyusmart.service.CookieRefreshService;
 import com.xianyusmart.service.WebSocketTokenService;
@@ -27,9 +29,15 @@ class WebSocketCaptchaPauseTest {
         WebSocketServiceImpl service = new WebSocketServiceImpl();
         WebSocketTokenService tokenService = mock(WebSocketTokenService.class);
         ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+        XianyuAccountMapper accountMapper = mock(XianyuAccountMapper.class);
+        XianyuAccount account = new XianyuAccount();
+        account.setId(7L);
+        account.setStatus(1);
+        when(accountMapper.selectById(7L)).thenReturn(account);
         when(tokenService.isCaptchaPending(7L)).thenReturn(true);
 
         ReflectionTestUtils.setField(service, "tokenService", tokenService);
+        ReflectionTestUtils.setField(service, "xianyuAccountMapper", accountMapper);
         ReflectionTestUtils.setField(service, "webSocketScheduler", scheduler);
 
         ReflectionTestUtils.invokeMethod(service, "refreshTokenAndReconnect", 7L);
@@ -45,6 +53,11 @@ class WebSocketCaptchaPauseTest {
         WebSocketTokenService tokenService = mock(WebSocketTokenService.class);
         CookieRefreshService cookieRefreshService = mock(CookieRefreshService.class);
         ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+        XianyuAccountMapper accountMapper = mock(XianyuAccountMapper.class);
+        XianyuAccount account = new XianyuAccount();
+        account.setId(7L);
+        account.setStatus(1);
+        when(accountMapper.selectById(7L)).thenReturn(account);
         WebSocketConfig config = mock(WebSocketConfig.class);
 
         when(tokenService.isCaptchaPending(7L)).thenReturn(false);
@@ -56,6 +69,7 @@ class WebSocketCaptchaPauseTest {
                 .when(service).startWebSocket(7L);
 
         ReflectionTestUtils.setField(service, "tokenService", tokenService);
+        ReflectionTestUtils.setField(service, "xianyuAccountMapper", accountMapper);
         ReflectionTestUtils.setField(service, "cookieRefreshService", cookieRefreshService);
         ReflectionTestUtils.setField(service, "webSocketScheduler", scheduler);
         ReflectionTestUtils.setField(service, "config", config);

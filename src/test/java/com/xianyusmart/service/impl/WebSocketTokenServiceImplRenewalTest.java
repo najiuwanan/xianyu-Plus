@@ -1,5 +1,7 @@
 package com.xianyusmart.service.impl;
 
+import com.xianyusmart.entity.XianyuAccount;
+import com.xianyusmart.mapper.XianyuAccountMapper;
 import com.xianyusmart.mapper.XianyuCookieMapper;
 import com.xianyusmart.service.CookieRefreshService;
 import com.xianyusmart.service.OperationLogService;
@@ -34,6 +36,11 @@ class WebSocketTokenServiceImplRenewalTest {
         CookieRefreshService cookieRefreshService = mock(CookieRefreshService.class);
         WebSocketService webSocketService = mock(WebSocketService.class);
         XianyuCookieMapper cookieMapper = mock(XianyuCookieMapper.class);
+        XianyuAccountMapper accountMapper = mock(XianyuAccountMapper.class);
+        XianyuAccount account = new XianyuAccount();
+        account.setId(7L);
+        account.setStatus(1);
+        when(accountMapper.selectById(7L)).thenReturn(account);
         OperationLogService operationLogService = mock(OperationLogService.class);
         AtomicReference<Runnable> renewalAction = new AtomicReference<>();
         AtomicLong delaySeconds = new AtomicLong(-1);
@@ -42,6 +49,7 @@ class WebSocketTokenServiceImplRenewalTest {
         ReflectionTestUtils.setField(service, "cookieRefreshService", cookieRefreshService);
         ReflectionTestUtils.setField(service, "webSocketService", webSocketService);
         ReflectionTestUtils.setField(service, "xianyuCookieMapper", cookieMapper);
+        ReflectionTestUtils.setField(service, "xianyuAccountMapper", accountMapper);
         ReflectionTestUtils.setField(service, "operationLogService", operationLogService);
 
         doAnswer(invocation -> {

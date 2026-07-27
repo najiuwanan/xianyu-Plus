@@ -30,7 +30,8 @@ interface ConnectionStatus {
 interface Props {
   modelValue: boolean
   connectionStatus: ConnectionStatus | null
-  verificationChecking?: boolean
+  accountName?: string
+  accountUnb?: string
 }
 
 interface Emits {
@@ -39,7 +40,6 @@ interface Emits {
   (e: 'manual-update'): void
   (e: 'refresh-reconnect'): void
   (e: 'verify-security'): void
-  (e: 'verification-complete'): void
 }
 
 type CredentialKey = 'cookie' | 'websocket' | 'h5'
@@ -164,9 +164,6 @@ const handleVerifySecurity = () => {
   emit('verify-security')
 }
 
-const handleVerificationComplete = () => {
-  emit('verification-complete')
-}
 </script>
 
 <template>
@@ -284,18 +281,13 @@ const handleVerificationComplete = () => {
             :class="{ 'verification-actions--idle': !connectionStatus?.captchaRequired && connectionStatus?.tokenRenewalState !== 'VERIFICATION_REQUIRED' }"
           >
             <div class="verification-actions__copy">
-              <strong>{{ connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED' ? '需要你完成一次平台验证' : '安全验证' }}</strong>
-              <p v-if="(connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED') && connectionStatus?.captchaUrl">点击“立即验证”打开闲鱼官方页面；完成滑块并关闭窗口后，系统会自动检测并恢复连接。</p>
-              <p v-else-if="connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED'">当前验证地址已失效或尚未获取，请点击上方“刷新并重连”获取最新地址。</p>
-              <p v-else>当前无需安全验证；平台要求验证时按钮将变为可点击状态，并通过通知渠道提醒你。</p>
+              <strong>{{ connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED' ? '需要完成平台验证' : '平台安全验证入口' }}</strong>
+              <p>当前账号：{{ accountName || '未设置备注' }} · UNB：{{ accountUnb || '--' }}</p>
+              <p v-if="connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED'">请在该账号对应的浏览器登录环境打开闲鱼 IM 并完成验证，然后扫码更新或手动填写最新 Cookie；更新成功后系统会恢复连接。</p>
+              <p v-else>入口始终保留。多账号时请先确认浏览器中登录的账号与上方备注、UNB一致。</p>
             </div>
             <div class="verification-actions__buttons">
-              <button class="btn btn--primary" :disabled="!connectionStatus?.captchaUrl || verificationChecking || (!connectionStatus?.captchaRequired && connectionStatus?.tokenRenewalState !== 'VERIFICATION_REQUIRED')" @click="handleVerifySecurity">
-                {{ verificationChecking ? '检测中…' : '立即验证' }}
-              </button>
-              <button class="btn btn--secondary" :disabled="verificationChecking || (!connectionStatus?.captchaRequired && connectionStatus?.tokenRenewalState !== 'VERIFICATION_REQUIRED')" @click="handleVerificationComplete">
-                {{ verificationChecking ? '检测中…' : '我已完成，检测并重连' }}
-              </button>
+              <button class="btn btn--primary" @click="handleVerifySecurity">打开闲鱼 IM</button>
             </div>
           </div>
         </div>

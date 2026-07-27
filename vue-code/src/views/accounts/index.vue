@@ -132,6 +132,7 @@ void loadAccounts();
           <ConnectionDetail
             :account-id="selectedConnectionAccount.id"
             :account-name="selectedConnectionAccount.accountNote || selectedConnectionAccount.unb"
+            :account-unb="selectedConnectionAccount.unb"
             :auto-connect-on-startup="selectedConnectionAccount.autoConnectOnStartup"
           />
         </div>
