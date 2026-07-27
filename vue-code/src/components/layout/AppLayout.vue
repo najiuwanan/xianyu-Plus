@@ -25,7 +25,7 @@ const displayVersion = (version?: string) => version ? `V${version.replace(/^[vV
 const releaseHighlights = computed(() => {
   if (updateStatus.value?.updateHighlights?.length) return updateStatus.value.updateHighlights
   if ((updateStatus.value?.latestVersion || updateStatus.value?.currentVersion || '').replace(/^[vV]/, '').startsWith('2.')) {
-    return ['修复 WebSocket Token 轮换后的连接恢复，首次续期在数秒内启动', '续期失败按 5、15、30 分钟退避，平台要求验证时停止自动重试', '凭证页显示真实续期进度、下次重试时间，并支持刷新后重连', 'WebSocket 在线时停止待发货轮询，离线每 2 分钟补偿', '订单收货、退款和关闭状态每 5 分钟低频核对，保留自动评价触发']
+    return ['滑块出现后立即停止该账号的 Token 刷新和自动重连，不再每 300 秒重复请求', '凭证页显示平台验证地址，并提供“立即验证”入口', '完成滑块并关闭窗口后自动检测结果、刷新 Token 并恢复连接', '同一次安全验证只通过通知渠道提醒一次', '验证链接仅允许打开闲鱼、淘宝和阿里官方 HTTPS 域名']
   }
   return []
 })

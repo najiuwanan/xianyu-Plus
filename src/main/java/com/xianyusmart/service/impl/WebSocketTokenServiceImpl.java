@@ -22,6 +22,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
+import java.net.URI;
 import java.net.URLEncoder;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -105,6 +106,9 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
      * Key: accountId, Value: timestamp
      */
     private final Map<Long, Long> captchaTimestamps = new ConcurrentHashMap<>();
+
+    /** Tracks the current verification episode so each account is notified only once. */
+    private final Map<Long, Long> captchaNotificationTimes = new ConcurrentHashMap<>();
 
     /**
      * Token获取失败重试最大次数（参考Python: retry_count >= 2）
@@ -214,6 +218,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                             accountId, remainingHours);
                     pendingCaptchaAccounts.remove(accountId);
                     captchaTimestamps.remove(accountId);
+                    captchaNotificationTimes.remove(accountId);
                     return cookieEntity.getWebsocketToken();
                 } else {
                     log.info("【账号{}】数据库中的Token已过期，需要重新获取", accountId);
@@ -367,22 +372,13 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                     if (needCaptcha) {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> dataMap = (Map<String, Object>) responseMap.get("data");
-                        log.info("【账号{}】data字段内容: {}", accountId, dataMap);
+                        log.debug("【账号{}】Token接口已返回安全验证信息", accountId);
 
                         if (dataMap != null && dataMap.containsKey("url")) {
                             String captchaUrl = (String) dataMap.get("url");
 
-                            pendingCaptchaAccounts.put(accountId, captchaUrl);
-                            updateRenewalStatus(accountId, "VERIFICATION_REQUIRED", "平台要求安全验证，自动重试已停止", null);
-                            captchaTimestamps.put(accountId, System.currentTimeMillis());
-
-                            updateAccountStatusToCaptchaRequired(accountId);
-
-                            log.warn("【账号{}】检测到滑块验证，URL: {}", accountId, captchaUrl);
-                            log.warn("【账号{}】需要人工完成滑块验证，请访问: http://localhost:8080/websocket-manual-captcha.html", accountId);
-                            log.warn("【账号{}】账号状态已更新为-2（需要验证）", accountId);
-
-                            throw new CaptchaRequiredException(captchaUrl);
+                            rememberCaptchaRequirement(accountId, captchaUrl, "获取WebSocket Token时平台要求安全验证");
+                            throw new CaptchaRequiredException(getCaptchaUrl(accountId));
                         } else {
                             log.error("【账号{}】需要滑块验证但未找到URL", accountId);
                         }
@@ -391,12 +387,9 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                     // 检查是否触发风控（RGV587_ERROR）
                     boolean needRiskControl = retList.stream().anyMatch(ret -> ret.contains("RGV587_ERROR") || ret.contains("被挤爆啦"));
                     if (needRiskControl) {
-                        updateRenewalStatus(accountId, "VERIFICATION_REQUIRED", "平台返回风险验证，自动重试已停止", null);
                         log.error("【账号{}】❌ 触发风控（响应内容已隐藏）", accountId);
-                        log.error("【账号{}】系统目前无法自动解决，请进入闲鱼网页版-点击消息-过滑块-复制最新的Cookie", accountId);
-                        updateCookieStatus(accountId, 3);
-                        throw new com.xianyusmart.exception.CookieExpiredException(
-                                "触发风控，请进入闲鱼网页版过滑块后更新Cookie");
+                        rememberCaptchaRequirement(accountId, null, "平台返回风险验证");
+                        throw new CaptchaRequiredException(getCaptchaUrl(accountId));
                     }
                 }
 
@@ -464,30 +457,8 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
             log.error("【账号{}】❌ 触发风控（响应内容已隐藏）", accountId);
             log.error("【账号{}】系统目前无法自动解决，请进入闲鱼网页版-点击消息-过滑块-复制最新的Cookie", accountId);
             
-            // 标记为失效（风控）
-            updateCookieStatus(accountId, 3); // 3表示失效（风控）
-
-            // 记录操作日志
-            operationLogService.log(accountId,
-                com.xianyusmart.constants.OperationConstants.Type.REFRESH,
-                com.xianyusmart.constants.OperationConstants.Module.TOKEN,
-                "触发风控验证，需要人工处理滑块",
-                com.xianyusmart.constants.OperationConstants.Status.FAIL,
-                com.xianyusmart.constants.OperationConstants.TargetType.TOKEN,
-                String.valueOf(accountId),
-                null, null, "触发风控", null);
-
-            // 发送邮件通知
-            try {
-                XianyuAccount account = xianyuAccountMapper.selectById(accountId);
-                String accountNote = account != null ? account.getAccountNote() : null;
-                emailNotifyService.sendCaptchaRequiredEmail(accountId, accountNote, "Token获取时触发风控验证");
-            } catch (Exception e) {
-                log.error("【账号{}】发送风控验证邮件通知失败", accountId, e);
-            }
-
-            throw new com.xianyusmart.exception.CaptchaRequiredException(
-                "触发风控，请进入闲鱼网页版过滑块后更新Cookie");
+            rememberCaptchaRequirement(accountId, null, "Token获取时触发平台风险验证");
+            throw new CaptchaRequiredException(getCaptchaUrl(accountId));
         }
 
         boolean isSessionExpired = response != null && (
@@ -748,6 +719,12 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
     }
 
     @Override
+    public String getCaptchaUrl(Long accountId) {
+        String url = accountId == null ? null : pendingCaptchaAccounts.get(accountId);
+        return url == null || url.isBlank() ? null : url;
+    }
+
+    @Override
     public boolean isSessionRenewalPending(Long accountId) {
         java.util.concurrent.ScheduledFuture<?> task = accountId == null ? null : sessionRenewalTasks.get(accountId);
         return task != null && !task.isDone() && !task.isCancelled();
@@ -885,19 +862,94 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
         });
     }
 
+    private void rememberCaptchaRequirement(Long accountId, String captchaUrl, String reason) {
+        String storedUrl = normalizeCaptchaUrl(captchaUrl);
+        String previous = pendingCaptchaAccounts.putIfAbsent(accountId, storedUrl);
+        if (previous != null && !storedUrl.isBlank()) {
+            pendingCaptchaAccounts.put(accountId, storedUrl);
+        }
+        captchaTimestamps.put(accountId, System.currentTimeMillis());
+        updateRenewalStatus(accountId, "VERIFICATION_REQUIRED",
+                "平台要求安全验证；已停止自动刷新与重连", null);
+        boolean accountEnteredCaptchaState = updateAccountStatusToCaptchaRequired(accountId);
+        boolean newVerificationEpisode = previous == null && accountEnteredCaptchaState;
+
+        try {
+            webSocketService.stopWebSocket(accountId);
+        } catch (Exception exception) {
+            log.debug("【账号{}】暂停WebSocket任务时连接已停止: {}", accountId, exception.getMessage());
+        }
+
+        if (newVerificationEpisode) {
+            operationLogService.log(accountId,
+                    com.xianyusmart.constants.OperationConstants.Type.REFRESH,
+                    com.xianyusmart.constants.OperationConstants.Module.TOKEN,
+                    "WebSocket Token需要安全验证，自动请求已暂停",
+                    com.xianyusmart.constants.OperationConstants.Status.PARTIAL,
+                    com.xianyusmart.constants.OperationConstants.TargetType.TOKEN,
+                    String.valueOf(accountId), null, null, reason, null);
+        }
+        Long previousNotification = captchaNotificationTimes.putIfAbsent(accountId, System.currentTimeMillis());
+        if (newVerificationEpisode && previousNotification == null) {
+            notifyCaptchaRequired(accountId, reason);
+        }
+        if (newVerificationEpisode) {
+            log.warn("【账号{}】需要安全验证，已暂停Token刷新和WebSocket重连", accountId);
+        } else {
+            log.debug("【账号{}】安全验证仍未完成，保持暂停状态", accountId);
+        }
+    }
+
+    private String normalizeCaptchaUrl(String captchaUrl) {
+        if (captchaUrl == null || captchaUrl.isBlank()) return "";
+        try {
+            URI uri = URI.create(captchaUrl.trim());
+            String host = uri.getHost() == null ? "" : uri.getHost().toLowerCase(Locale.ROOT);
+            boolean trustedHost = host.equals("goofish.com") || host.endsWith(".goofish.com")
+                    || host.equals("taobao.com") || host.endsWith(".taobao.com")
+                    || host.equals("alibaba.com") || host.endsWith(".alibaba.com");
+            if ("https".equalsIgnoreCase(uri.getScheme()) && trustedHost) {
+                return uri.toString();
+            }
+        } catch (Exception exception) {
+            log.warn("【账号验证】平台返回的验证地址格式异常: {}", exception.getMessage());
+        }
+        log.warn("忽略非官方域名的安全验证地址");
+        return "";
+    }
+
+    private void notifyCaptchaRequired(Long accountId, String reason) {
+        if (notificationChannelService == null) return;
+        try {
+            java.util.Map<String, Object> params = new java.util.HashMap<>();
+            params.put("credentialType", "WebSocket Token");
+            params.put("reason", reason);
+            params.put("action", "请进入账号管理的凭证页，点击“立即验证”；完成滑块后关闭验证窗口");
+            notificationChannelService.dispatchMessage("CREDENTIAL_UPDATE_REQUIRED", accountId, params);
+        } catch (Exception exception) {
+            log.warn("【账号{}】安全验证通知发送失败: {}", accountId, exception.getMessage());
+        }
+    }
+
     /**
      * 更新账号状态为需要验证（-2）
      */
-    private void updateAccountStatusToCaptchaRequired(Long accountId) {
+    private boolean updateAccountStatusToCaptchaRequired(Long accountId) {
         try {
             com.xianyusmart.entity.XianyuAccount account = xianyuAccountMapper.selectById(accountId);
-            if (account != null) {
-                account.setStatus(-2);
-                xianyuAccountMapper.updateById(account);
-                log.info("【账号{}】账号状态已更新为-2（需要验证）", accountId);
+            if (account == null) {
+                return true;
             }
+            if (Integer.valueOf(-2).equals(account.getStatus())) {
+                return false;
+            }
+            account.setStatus(-2);
+            xianyuAccountMapper.updateById(account);
+            log.info("【账号{}】账号状态已更新为-2（需要验证）", accountId);
+            return true;
         } catch (Exception e) {
             log.error("【账号{}】更新账号状态失败", accountId, e);
+            return true;
         }
     }
 
@@ -993,6 +1045,9 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
             );
 
             if (updated > 0) {
+                pendingCaptchaAccounts.remove(accountId);
+                captchaTimestamps.remove(accountId);
+                captchaNotificationTimes.remove(accountId);
                 updateRenewalStatus(accountId, "SUCCESS", "WebSocket Token已刷新", null);
                 log.info("【账号{}】Token已保存到数据库，过期时间: {}", accountId,
                         new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")

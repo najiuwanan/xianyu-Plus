@@ -582,6 +582,9 @@ public class WebSocketServiceImpl implements WebSocketService {
         ScheduledFuture<?> tokenRefreshTask = webSocketScheduler.scheduleAtFixedRate(
             () -> {
                 try {
+                    if (tokenService.isCaptchaPending(accountId)) {
+                        return;
+                    }
                     Long lastRefreshTime = lastTokenRefreshTimes.get(accountId);
                     if (lastRefreshTime == null) {
                         return;
@@ -629,6 +632,10 @@ public class WebSocketServiceImpl implements WebSocketService {
      * 4. Token刷新失败时，在token_retry_interval后重试
      */
     private void refreshTokenAndReconnect(Long accountId) {
+        if (tokenService.isCaptchaPending(accountId)) {
+            log.info("【账号{}】正在等待安全验证，跳过Token刷新与重连", accountId);
+            return;
+        }
         if (tokenService.isSessionRenewalPending(accountId)) {
             log.info("【账号{}】Session过期自动续期等待中，暂停Token刷新与重连", accountId);
             return;
@@ -682,6 +689,8 @@ public class WebSocketServiceImpl implements WebSocketService {
                 // 参考Python: Token刷新失败后，在token_retry_interval后重试
                 scheduleTokenRefreshRetry(accountId);
             }
+        } catch (com.xianyusmart.exception.CaptchaRequiredException e) {
+            log.warn("【账号{}】平台要求安全验证，已停止Token刷新重试", accountId);
         } catch (Exception e) {
             log.error("【账号{}】Token刷新并重连异常，将在{}秒后重试", 
                     accountId, config.getTokenRetryInterval(), e);
@@ -695,6 +704,10 @@ public class WebSocketServiceImpl implements WebSocketService {
      * 调度Token刷新重试
      */
     private void scheduleTokenRefreshRetry(Long accountId) {
+        if (tokenService.isCaptchaPending(accountId)) {
+            log.info("【账号{}】正在等待安全验证，不安排Token刷新重试", accountId);
+            return;
+        }
         if (tokenService.isSessionRenewalPending(accountId)) {
             log.info("【账号{}】Session过期自动续期等待中，不安排短间隔Token重试", accountId);
             return;

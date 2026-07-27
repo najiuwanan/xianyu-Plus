@@ -2,7 +2,7 @@
 import { ref, watch, computed, onBeforeUnmount } from 'vue'
 import { showConfirm } from '@/utils/confirm'
 import { toast } from '@/utils/toast'
-import { getConnectionStatus, startConnection, stopConnection, refreshToken } from '@/api/websocket'
+import { getConnectionStatus, startConnection, stopConnection, refreshToken, completeCaptchaVerification } from '@/api/websocket'
 import { updateAccount } from '@/api/account'
 import { showSuccess, showError, showInfo } from '@/utils'
 import CredentialModal from './CredentialModal.vue'
@@ -35,6 +35,8 @@ interface ConnectionStatus {
   tokenRenewalMessage?: string
   tokenRenewalUpdatedAt?: number
   tokenRenewalNextRetryAt?: number
+  captchaRequired?: boolean
+  captchaUrl?: string
   autoDeliveryOn?: boolean
   autoReplyOn?: boolean
 }
@@ -50,6 +52,9 @@ const props = defineProps<Props>()
 const connectionStatus = ref<ConnectionStatus | null>(null)
 const statusLoading = ref(false)
 let statusInterval: number | null = null
+let verificationWindowInterval: number | null = null
+let verificationPopup: Window | null = null
+const verificationChecking = ref(false)
 
 const showManualUpdateCookieDialog = ref(false)
 const showQRUpdateDialog = ref(false)
@@ -106,7 +111,9 @@ const handleStartConnection = async () => {
       await loadConnectionStatus()
       toast.info('1、请勿使用闲鱼网页版进行消息回复，避免触发风控；2、首次运行可能出现短暂掉线或自动刷新失败，请保持服务持续运行后重试。')
     } else if (response.code === 1001 && response.data?.needCaptcha) {
-      showInfo(response.data?.message || '闲鱼要求网页安全验证，自动重连已暂停。请在自己的浏览器登录该账号完成验证，再执行“凭证更新”并重新连接。')
+      await loadConnectionStatus(true)
+      showCredentialDialog.value = true
+      showInfo(response.data?.message || '闲鱼要求网页安全验证，自动刷新与重连已暂停。请在凭证页点击“立即验证”。')
     } else {
       throw new Error(response.msg || '启动连接失败')
     }
@@ -162,8 +169,9 @@ const handleRefreshAndReconnect = async () => {
 
     const started = await startConnection(props.accountId)
     if (started.code === 1001 && started.data?.needCaptcha) {
-      showInfo(started.data?.message || '平台要求安全验证，请完成验证后重新刷新连接')
       await loadConnectionStatus(true)
+      showCredentialDialog.value = true
+      showInfo(started.data?.message || '平台要求安全验证，请在凭证页点击“立即验证”')
       return
     }
     if (started.code !== 0 && started.code !== 200) {
@@ -177,6 +185,68 @@ const handleRefreshAndReconnect = async () => {
     showError('刷新并重连失败：' + (error.message || '未知错误'))
   } finally {
     statusLoading.value = false
+  }
+}
+
+const clearVerificationWindowMonitor = () => {
+  if (verificationWindowInterval) {
+    clearInterval(verificationWindowInterval)
+    verificationWindowInterval = null
+  }
+  verificationPopup = null
+}
+
+const handleVerificationComplete = async () => {
+  if (!props.accountId || verificationChecking.value) return
+  verificationChecking.value = true
+  try {
+    const response = await completeCaptchaVerification(props.accountId)
+    await loadConnectionStatus(true)
+    if ((response.code === 0 || response.code === 200) && response.data?.connected) {
+      showSuccess(response.data.message || '安全验证已生效，连接已恢复')
+      clearVerificationWindowMonitor()
+      return
+    }
+    if (response.code === 1001 || response.data?.needCaptcha) {
+      showInfo(response.data?.message || response.msg || '平台仍要求安全验证，请确认滑块已经完成')
+      return
+    }
+    showInfo(response.data?.message || response.msg || '验证结果尚未生效，请稍后再次检测')
+  } catch (error: any) {
+    await loadConnectionStatus(true)
+    showError('检测验证结果失败：' + (error.message || '未知错误'))
+  } finally {
+    verificationChecking.value = false
+  }
+}
+
+const handleOpenSecurityVerification = () => {
+  const captchaUrl = connectionStatus.value?.captchaUrl
+  if (!captchaUrl) {
+    showInfo('当前没有可用的验证地址，请先点击“刷新并重连”获取最新验证地址')
+    return
+  }
+  try {
+    const url = new URL(captchaUrl)
+    const trusted = url.protocol === 'https:' && (
+      url.hostname === 'goofish.com' || url.hostname.endsWith('.goofish.com') ||
+      url.hostname === 'taobao.com' || url.hostname.endsWith('.taobao.com') ||
+      url.hostname === 'alibaba.com' || url.hostname.endsWith('.alibaba.com')
+    )
+    if (!trusted) throw new Error('验证地址不是闲鱼、淘宝或阿里官方域名')
+
+    clearVerificationWindowMonitor()
+    verificationPopup = window.open(url.toString(), 'xianyu-security-verification', 'width=1100,height=820,resizable=yes,scrollbars=yes')
+    if (!verificationPopup) throw new Error('浏览器拦截了验证窗口，请允许本站打开弹窗')
+    showInfo('请在新窗口完成滑块，完成后关闭该窗口；系统会自动检测并恢复连接')
+    verificationWindowInterval = window.setInterval(() => {
+      if (!verificationPopup || verificationPopup.closed) {
+        clearVerificationWindowMonitor()
+        void handleVerificationComplete()
+      }
+    }, 1000)
+  } catch (error: any) {
+    showError(error.message || '打开验证地址失败')
   }
 }
 
@@ -209,6 +279,7 @@ watch(() => props.accountId, (newId) => {
     }, 10000)
   } else {
     connectionStatus.value = null
+    clearVerificationWindowMonitor()
     if (statusInterval) {
       clearInterval(statusInterval)
       statusInterval = null
@@ -218,6 +289,7 @@ watch(() => props.accountId, (newId) => {
 
 onBeforeUnmount(() => {
   if (statusInterval) clearInterval(statusInterval)
+  clearVerificationWindowMonitor()
 })
 </script>
 
@@ -316,9 +388,12 @@ onBeforeUnmount(() => {
     <CredentialModal
       v-model="showCredentialDialog"
       :connection-status="connectionStatus"
+      :verification-checking="verificationChecking"
       @qr-update="showQRUpdateDialog = true"
       @manual-update="showManualUpdateCookieDialog = true"
       @refresh-reconnect="handleRefreshAndReconnect"
+      @verify-security="handleOpenSecurityVerification"
+      @verification-complete="handleVerificationComplete"
     />
 
     <ManualUpdateCookieModal

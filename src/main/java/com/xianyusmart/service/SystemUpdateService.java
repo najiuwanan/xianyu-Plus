@@ -285,6 +285,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("2.2.2".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "滑块出现后立即停止该账号的Token刷新与自动重连，不再每300秒重复请求",
+                    "凭证页展示平台验证地址，并提供立即验证与完成后检测入口",
+                    "完成滑块并关闭验证窗口后自动检测、刷新Token并恢复连接",
+                    "同一次安全验证只通过通知渠道提醒一次，其他账号不受影响",
+                    "验证链接仅允许打开闲鱼、淘宝和阿里官方HTTPS域名"
+            ));
+            return;
+        }
         if ("2.1.1".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "自动发货、自动评价、小红花和商品擦亮改为按模块独立统计连续失败，互不连坐",

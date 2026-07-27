@@ -20,6 +20,8 @@ export interface WebSocketStatus {
   tokenRenewalMessage?: string;
   tokenRenewalUpdatedAt?: number;
   tokenRenewalNextRetryAt?: number;   // Token过期时间戳（毫秒）
+  captchaRequired?: boolean;
+  captchaUrl?: string;
   autoDeliveryOn?: boolean;   // 是否有商品开启了自动发货
   autoReplyOn?: boolean;      // 是否有商品开启了自动回复
 }
@@ -88,6 +90,21 @@ export function sendMessage(data: SendMessageRequest) {
 export function clearCaptchaWait(accountId: number) {
   return request({
     url: '/websocket/clearCaptchaWait',
+    method: 'POST',
+    data: { xianyuAccountId: accountId }
+  });
+}
+
+export interface CaptchaVerificationResponse {
+  connected: boolean;
+  needCaptcha: boolean;
+  captchaUrl?: string;
+  message: string;
+}
+
+export function completeCaptchaVerification(accountId: number) {
+  return request<CaptchaVerificationResponse>({
+    url: '/websocket/captcha/verification/complete',
     method: 'POST',
     data: { xianyuAccountId: accountId }
   });

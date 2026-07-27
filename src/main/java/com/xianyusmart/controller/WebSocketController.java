@@ -80,8 +80,8 @@ public class WebSocketController {
         } catch (com.xianyusmart.exception.CaptchaRequiredException e) {
             CaptchaInfoDTO captchaInfo = new CaptchaInfoDTO();
             captchaInfo.setNeedCaptcha(true);
-            captchaInfo.setCaptchaUrl(null);
-            captchaInfo.setMessage("闲鱼要求网页安全验证，系统已暂停该账号的自动重连。请在自己的浏览器登录该闲鱼账号并完成页面出现的安全验证；随后回到账号管理执行“凭证更新”并重新连接。闲鱼 App 不一定会弹出提示。");
+            captchaInfo.setCaptchaUrl(e.getCaptchaUrl());
+            captchaInfo.setMessage("闲鱼要求网页安全验证，系统已暂停该账号的自动刷新与重连。请点击“立即验证”，完成后关闭验证窗口，系统会自动检测并恢复连接。");
             return new ResultObject<>(1001, "需要安全验证", captchaInfo);
             /*
             log.warn("⚠️ 需要滑块验证: accountId={}, url={}", reqDTO.getXianyuAccountId(), e.getCaptchaUrl());
@@ -411,6 +411,8 @@ public class WebSocketController {
             respDTO.setTokenRenewalMessage(renewalStatus.message());
             respDTO.setTokenRenewalUpdatedAt(renewalStatus.updatedAt());
             respDTO.setTokenRenewalNextRetryAt(renewalStatus.nextRetryAt());
+            respDTO.setCaptchaRequired(webSocketTokenService.isCaptchaPending(reqDTO.getXianyuAccountId()));
+            respDTO.setCaptchaUrl(webSocketTokenService.getCaptchaUrl(reqDTO.getXianyuAccountId()));
 
             com.xianyusmart.mapper.XianyuGoodsConfigMapper goodsConfigMapper =
                     applicationContext.getBean(com.xianyusmart.mapper.XianyuGoodsConfigMapper.class);
@@ -482,6 +484,36 @@ public class WebSocketController {
             log.error("清除验证等待状态失败", e);
             return ResultObject.failed("清除验证等待状态失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 用户完成平台安全验证后，检测结果并自动刷新Token、恢复连接。
+     */
+    @PostMapping("/captcha/verification/complete")
+    public ResultObject<CaptchaVerificationRespDTO> completeCaptchaVerification(
+            @RequestBody ClearCaptchaWaitReqDTO reqDTO) {
+        if (reqDTO.getXianyuAccountId() == null) {
+            return ResultObject.failed("账号ID不能为空");
+        }
+        Long accountId = reqDTO.getXianyuAccountId();
+        webSocketTokenService.clearCaptchaWait(accountId);
+        boolean connected = webSocketService.restartAfterCredentialUpdate(accountId);
+
+        CaptchaVerificationRespDTO result = new CaptchaVerificationRespDTO();
+        result.setConnected(connected);
+        result.setNeedCaptcha(webSocketTokenService.isCaptchaPending(accountId));
+        result.setCaptchaUrl(webSocketTokenService.getCaptchaUrl(accountId));
+        result.setMessage(connected
+                ? "安全验证已生效，WebSocket Token已刷新并恢复连接"
+                : Boolean.TRUE.equals(result.getNeedCaptcha())
+                    ? "平台仍要求安全验证，请确认已在正确账号中完成滑块"
+                    : "验证结果尚未生效，请稍后再次检测");
+
+        if (connected) {
+            return ResultObject.success(result);
+        }
+        return new ResultObject<>(Boolean.TRUE.equals(result.getNeedCaptcha()) ? 1001 : 1,
+                result.getMessage(), result);
     }
 
     /**
@@ -958,6 +990,8 @@ public class WebSocketController {
         private String tokenRenewalMessage;
         private Long tokenRenewalUpdatedAt;
         private Long tokenRenewalNextRetryAt;
+        private Boolean captchaRequired;
+        private String captchaUrl;
         private Boolean autoDeliveryOn; // 是否有商品开启了自动发货
         private Boolean autoReplyOn;     // 是否有商品开启了自动回复
     }
@@ -970,6 +1004,14 @@ public class WebSocketController {
         private Boolean needCaptcha;  // 是否需要验证
         private String captchaUrl;    // 验证链接
         private String message;       // 提示信息
+    }
+
+    @Data
+    public static class CaptchaVerificationRespDTO {
+        private Boolean connected;
+        private Boolean needCaptcha;
+        private String captchaUrl;
+        private String message;
     }
     
     /**

@@ -22,11 +22,14 @@ interface ConnectionStatus {
   tokenRenewalMessage?: string
   tokenRenewalUpdatedAt?: number
   tokenRenewalNextRetryAt?: number
+  captchaRequired?: boolean
+  captchaUrl?: string
 }
 
 interface Props {
   modelValue: boolean
   connectionStatus: ConnectionStatus | null
+  verificationChecking?: boolean
 }
 
 interface Emits {
@@ -34,6 +37,8 @@ interface Emits {
   (e: 'qr-update'): void
   (e: 'manual-update'): void
   (e: 'refresh-reconnect'): void
+  (e: 'verify-security'): void
+  (e: 'verification-complete'): void
 }
 
 defineProps<Props>()
@@ -133,6 +138,14 @@ const handleManualUpdate = () => {
 const handleRefreshReconnect = () => {
   emit('refresh-reconnect')
 }
+
+const handleVerifySecurity = () => {
+  emit('verify-security')
+}
+
+const handleVerificationComplete = () => {
+  emit('verification-complete')
+}
 </script>
 
 <template>
@@ -206,6 +219,19 @@ const handleRefreshReconnect = () => {
                 <strong>{{ getRenewalLabel(connectionStatus?.tokenRenewalState) }}</strong>
                 <span>{{ connectionStatus?.tokenRenewalMessage || '系统将在需要时自动续期' }}</span>
                 <small v-if="connectionStatus?.tokenRenewalNextRetryAt">下次尝试：{{ formatTimestamp(connectionStatus.tokenRenewalNextRetryAt) }}</small>
+              </div>
+              <div v-if="connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED'" class="verification-actions">
+                <strong>需要你完成一次平台验证</strong>
+                <p v-if="connectionStatus?.captchaUrl">点击“立即验证”后会打开闲鱼官方页面。完成滑块并关闭验证窗口，系统会自动检测、刷新 Token 并恢复连接。</p>
+                <p v-else>当前验证地址已失效或尚未获取，请先点击上方“刷新并重连”获取最新验证地址。</p>
+                <div class="verification-actions__buttons">
+                  <button class="btn btn--primary" :disabled="!connectionStatus?.captchaUrl || verificationChecking" @click="handleVerifySecurity">
+                    {{ verificationChecking ? '检测中…' : '立即验证' }}
+                  </button>
+                  <button class="btn btn--secondary" :disabled="verificationChecking" @click="handleVerificationComplete">
+                    {{ verificationChecking ? '检测中…' : '我已完成，检测并重连' }}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -537,6 +563,21 @@ const handleRefreshReconnect = () => {
 .renewal-status--refreshing_token,
 .renewal-status--reconnecting { color: #a86200; background: rgba(255,159,10,.12); }
 
+.verification-actions {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid rgba(255,159,10,.28);
+  border-radius: 12px;
+  color: #7a4b00;
+  background: rgba(255,159,10,.08);
+}
+
+.verification-actions strong { display: block; font-size: 13px; }
+.verification-actions p { margin: 6px 0 10px; font-size: 12px; line-height: 1.6; }
+.verification-actions__buttons { display: flex; gap: 8px; }
+.verification-actions__buttons .btn { padding: 9px 12px; font-size: 12px; }
+.verification-actions__buttons .btn:disabled { cursor: not-allowed; opacity: .5; }
+
 /* 手机端适配 */
 @media screen and (max-width: 767px) {
   .modal-container {
@@ -566,6 +607,10 @@ const handleRefreshReconnect = () => {
   .btn {
     padding: 12px 14px;
     font-size: 14px;
+  }
+
+  .verification-actions__buttons {
+    flex-direction: column;
   }
 
   .credential-item {

@@ -39,6 +39,9 @@ public interface WebSocketTokenService {
     /** Returns true while this account is waiting for a user security check. */
     boolean isCaptchaPending(Long accountId);
 
+    /** Returns the latest platform verification URL for this account. */
+    String getCaptchaUrl(Long accountId);
+
     /** Returns true while a session-expiry renewal is intentionally delayed. */
     boolean isSessionRenewalPending(Long accountId);
 
