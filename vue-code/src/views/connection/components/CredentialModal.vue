@@ -220,15 +220,19 @@ const handleVerificationComplete = () => {
                 <span>{{ connectionStatus?.tokenRenewalMessage || '系统将在需要时自动续期' }}</span>
                 <small v-if="connectionStatus?.tokenRenewalNextRetryAt">下次尝试：{{ formatTimestamp(connectionStatus.tokenRenewalNextRetryAt) }}</small>
               </div>
-              <div v-if="connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED'" class="verification-actions">
-                <strong>需要你完成一次平台验证</strong>
-                <p v-if="connectionStatus?.captchaUrl">点击“立即验证”后会打开闲鱼官方页面。完成滑块并关闭验证窗口，系统会自动检测、刷新 Token 并恢复连接。</p>
-                <p v-else>当前验证地址已失效或尚未获取，请先点击上方“刷新并重连”获取最新验证地址。</p>
+              <div
+                class="verification-actions"
+                :class="{ 'verification-actions--idle': !connectionStatus?.captchaRequired && connectionStatus?.tokenRenewalState !== 'VERIFICATION_REQUIRED' }"
+              >
+                <strong>{{ connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED' ? '需要你完成一次平台验证' : '安全验证' }}</strong>
+                <p v-if="(connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED') && connectionStatus?.captchaUrl">点击“立即验证”后会打开闲鱼官方页面。完成滑块并关闭验证窗口，系统会自动检测、刷新 Token 并恢复连接。</p>
+                <p v-else-if="connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED'">当前验证地址已失效或尚未获取，请先点击上方“刷新并重连”获取最新验证地址。</p>
+                <p v-else>当前无需安全验证。平台要求验证时，下方按钮会自动启用，并通过通知渠道提醒你。</p>
                 <div class="verification-actions__buttons">
-                  <button class="btn btn--primary" :disabled="!connectionStatus?.captchaUrl || verificationChecking" @click="handleVerifySecurity">
+                  <button class="btn btn--primary" :disabled="!connectionStatus?.captchaUrl || verificationChecking || (!connectionStatus?.captchaRequired && connectionStatus?.tokenRenewalState !== 'VERIFICATION_REQUIRED')" @click="handleVerifySecurity">
                     {{ verificationChecking ? '检测中…' : '立即验证' }}
                   </button>
-                  <button class="btn btn--secondary" :disabled="verificationChecking" @click="handleVerificationComplete">
+                  <button class="btn btn--secondary" :disabled="verificationChecking || (!connectionStatus?.captchaRequired && connectionStatus?.tokenRenewalState !== 'VERIFICATION_REQUIRED')" @click="handleVerificationComplete">
                     {{ verificationChecking ? '检测中…' : '我已完成，检测并重连' }}
                   </button>
                 </div>
@@ -570,6 +574,12 @@ const handleVerificationComplete = () => {
   border-radius: 12px;
   color: #7a4b00;
   background: rgba(255,159,10,.08);
+}
+
+.verification-actions--idle {
+  border-color: rgba(120,120,128,.16);
+  color: #637085;
+  background: rgba(120,120,128,.06);
 }
 
 .verification-actions strong { display: block; font-size: 13px; }
