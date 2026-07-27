@@ -2,7 +2,7 @@
 import { ref, watch, computed, onBeforeUnmount } from 'vue'
 import { showConfirm } from '@/utils/confirm'
 import { toast } from '@/utils/toast'
-import { getConnectionStatus, startConnection, stopConnection } from '@/api/websocket'
+import { getConnectionStatus, startConnection, stopConnection, refreshToken } from '@/api/websocket'
 import { updateAccount } from '@/api/account'
 import { showSuccess, showError, showInfo } from '@/utils'
 import CredentialModal from './CredentialModal.vue'
@@ -29,6 +29,12 @@ interface ConnectionStatus {
   mh5Tk?: string
   websocketToken?: string
   tokenExpireTime?: number
+  tokenExpiryKnown?: boolean
+  tokenLastRefreshTime?: number
+  tokenRenewalState?: string
+  tokenRenewalMessage?: string
+  tokenRenewalUpdatedAt?: number
+  tokenRenewalNextRetryAt?: number
   autoDeliveryOn?: boolean
   autoReplyOn?: boolean
 }
@@ -133,6 +139,42 @@ const handleStopConnection = async () => {
     }
   } catch (error: any) {
     showError('断开连接失败: ' + error.message)
+  } finally {
+    statusLoading.value = false
+  }
+}
+
+const handleRefreshAndReconnect = async () => {
+  if (!props.accountId) return
+  statusLoading.value = true
+  try {
+    const refreshed = await refreshToken(props.accountId)
+    if ((refreshed.code !== 0 && refreshed.code !== 200) || !refreshed.data?.wsTokenRefreshed) {
+      throw new Error(refreshed.msg || refreshed.data?.message || 'WebSocket Token刷新失败')
+    }
+
+    if (connectionStatus.value?.connected) {
+      const stopped = await stopConnection(props.accountId)
+      if (stopped.code !== 0 && stopped.code !== 200) {
+        throw new Error(stopped.msg || '断开旧连接失败')
+      }
+    }
+
+    const started = await startConnection(props.accountId)
+    if (started.code === 1001 && started.data?.needCaptcha) {
+      showInfo(started.data?.message || '平台要求安全验证，请完成验证后重新刷新连接')
+      await loadConnectionStatus(true)
+      return
+    }
+    if (started.code !== 0 && started.code !== 200) {
+      throw new Error(started.msg || 'WebSocket重新连接失败')
+    }
+
+    await loadConnectionStatus(true)
+    showSuccess('WebSocket Token已刷新并重新连接')
+  } catch (error: any) {
+    await loadConnectionStatus(true)
+    showError('刷新并重连失败：' + (error.message || '未知错误'))
   } finally {
     statusLoading.value = false
   }
@@ -276,6 +318,7 @@ onBeforeUnmount(() => {
       :connection-status="connectionStatus"
       @qr-update="showQRUpdateDialog = true"
       @manual-update="showManualUpdateCookieDialog = true"
+      @refresh-reconnect="handleRefreshAndReconnect"
     />
 
     <ManualUpdateCookieModal

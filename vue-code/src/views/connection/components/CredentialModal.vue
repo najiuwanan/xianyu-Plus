@@ -16,6 +16,12 @@ interface ConnectionStatus {
   mh5Tk?: string
   websocketToken?: string
   tokenExpireTime?: number
+  tokenExpiryKnown?: boolean
+  tokenLastRefreshTime?: number
+  tokenRenewalState?: string
+  tokenRenewalMessage?: string
+  tokenRenewalUpdatedAt?: number
+  tokenRenewalNextRetryAt?: number
 }
 
 interface Props {
@@ -27,6 +33,7 @@ interface Emits {
   (e: 'update:modelValue', value: boolean): void
   (e: 'qr-update'): void
   (e: 'manual-update'): void
+  (e: 'refresh-reconnect'): void
 }
 
 defineProps<Props>()
@@ -46,18 +53,50 @@ const getCookieStatusText = (status?: number) => {
   return '未知'
 }
 
-const getTokenStatusText = (configured?: boolean, timestamp?: number) => {
+const renewalInProgressStates = new Set([
+  'REFRESH_PENDING', 'RETRY_WAIT', 'REFRESHING_COOKIE', 'REFRESHING_TOKEN', 'RECONNECTING'
+])
+
+const getTokenStatusText = (configured?: boolean, timestamp?: number, renewalState?: string) => {
   if (!configured) return '未设置'
-  if (!timestamp) return '已配置'
+  if (renewalState === 'VERIFICATION_REQUIRED') return '需要验证'
+  if (renewalInProgressStates.has(renewalState || '')) return '续期中'
+  if (!timestamp || timestamp < 1577836800000) return '待刷新'
   return Date.now() > timestamp ? '已过期' : '有效'
 }
 
-const getTokenStatusColor = (configured?: boolean, timestamp?: number) => {
+const getTokenStatusColor = (configured?: boolean, timestamp?: number, renewalState?: string) => {
   if (!configured) return 'rgba(28,28,30,.55)'
-  if (!timestamp) return '#30D158'
+  if (renewalState === 'VERIFICATION_REQUIRED' || renewalState === 'REFRESH_FAILED' || renewalState === 'RECONNECT_FAILED') return '#FF453A'
+  if (renewalInProgressStates.has(renewalState || '')) return '#FF9F0A'
+  if (!timestamp || timestamp < 1577836800000) return '#FF9F0A'
   return Date.now() > timestamp ? '#FF453A' : '#30D158'
 }
 
+const getRenewalLabel = (state?: string) => {
+  const labels: Record<string, string> = {
+    IDLE: '等待自动续期',
+    REFRESH_PENDING: '准备续期',
+    RETRY_WAIT: '等待重试',
+    REFRESHING_COOKIE: '正在刷新 Cookie',
+    REFRESHING_TOKEN: '正在刷新 Token',
+    RECONNECTING: '正在重新连接',
+    SUCCESS: '最近续期成功',
+    VERIFICATION_REQUIRED: '需要安全验证',
+    REFRESH_FAILED: '续期失败',
+    RECONNECT_FAILED: '重连失败'
+  }
+  return labels[state || 'IDLE'] || '等待自动续期'
+}
+
+const getRemainingText = (timestamp?: number) => {
+  if (!timestamp || timestamp < 1577836800000) return '等待刷新后重新计算'
+  const remaining = timestamp - Date.now()
+  if (remaining <= 0) return '已到期，等待自动续期'
+  const hours = Math.floor(remaining / 3600000)
+  const minutes = Math.max(0, Math.floor((remaining % 3600000) / 60000))
+  return `${hours} 小时 ${minutes} 分钟后到期`
+}
 const getConfiguredStatusText = (configured?: boolean) => {
   return configured ? '已配置' : '未设置'
 }
@@ -90,6 +129,10 @@ const handleQRUpdate = () => {
 const handleManualUpdate = () => {
   emit('manual-update')
 }
+
+const handleRefreshReconnect = () => {
+  emit('refresh-reconnect')
+}
 </script>
 
 <template>
@@ -115,6 +158,10 @@ const handleManualUpdate = () => {
             <button class="btn btn--secondary" @click="handleManualUpdate">
               <IconCookie />
               <span>手动更新Cookie</span>
+            </button>
+            <button class="btn btn--secondary" @click="handleRefreshReconnect">
+              <IconKey />
+              <span>刷新并重连</span>
             </button>
           </div>
 
@@ -145,13 +192,20 @@ const handleManualUpdate = () => {
                   </div>
                   <span class="credential-item__name">WebSocket Token</span>
                 </div>
-                <span class="credential-item__status" :style="{ color: getTokenStatusColor(connectionStatus?.websocketTokenConfigured, connectionStatus?.tokenExpireTime) }">
-                  {{ getTokenStatusText(connectionStatus?.websocketTokenConfigured, connectionStatus?.tokenExpireTime) }}
+                <span class="credential-item__status" :style="{ color: getTokenStatusColor(connectionStatus?.websocketTokenConfigured, connectionStatus?.tokenExpireTime, connectionStatus?.tokenRenewalState) }">
+                  {{ getTokenStatusText(connectionStatus?.websocketTokenConfigured, connectionStatus?.tokenExpireTime, connectionStatus?.tokenRenewalState) }}
                 </span>
               </div>
               <div class="credential-item__value" :class="{ 'credential-item__value--empty': !connectionStatus?.websocketTokenConfigured }">{{ connectionStatus?.websocketToken || '未设置' }}</div><button v-if="connectionStatus?.websocketToken" class="copy-button" @click="copyCredential(connectionStatus.websocketToken)">复制</button>
-              <div v-if="connectionStatus?.tokenExpireTime" class="credential-item__expire">
-                过期时间: {{ formatTimestamp(connectionStatus.tokenExpireTime) }}
+              <div v-if="connectionStatus?.websocketTokenConfigured" class="credential-item__expire">
+                <div>过期时间：{{ connectionStatus?.tokenExpiryKnown ? formatTimestamp(connectionStatus.tokenExpireTime) : '等待刷新' }}</div>
+                <div>剩余时间：{{ getRemainingText(connectionStatus?.tokenExpireTime) }}</div>
+                <div>上次刷新：{{ connectionStatus?.tokenLastRefreshTime ? formatTimestamp(connectionStatus.tokenLastRefreshTime) : '暂无成功记录' }}</div>
+              </div>
+              <div class="renewal-status" :class="`renewal-status--${(connectionStatus?.tokenRenewalState || 'IDLE').toLowerCase()}`">
+                <strong>{{ getRenewalLabel(connectionStatus?.tokenRenewalState) }}</strong>
+                <span>{{ connectionStatus?.tokenRenewalMessage || '系统将在需要时自动续期' }}</span>
+                <small v-if="connectionStatus?.tokenRenewalNextRetryAt">下次尝试：{{ formatTimestamp(connectionStatus.tokenRenewalNextRetryAt) }}</small>
               </div>
             </div>
 
@@ -456,8 +510,32 @@ const handleManualUpdate = () => {
   padding-top: 10px;
   border-top: 0.5px solid rgba(60,60,67,.12);
   font-size: 12px;
+  line-height: 1.75;
   color: rgba(28,28,30,.55);
 }
+
+.renewal-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #637085;
+  background: rgba(120,120,128,.08);
+}
+
+.renewal-status strong { font-size: 12px; }
+.renewal-status span, .renewal-status small { font-size: 11px; line-height: 1.5; }
+.renewal-status--success { color: #168b49; background: rgba(52,199,89,.10); }
+.renewal-status--verification_required,
+.renewal-status--refresh_failed,
+.renewal-status--reconnect_failed { color: #c7352d; background: rgba(255,59,48,.09); }
+.renewal-status--refresh_pending,
+.renewal-status--retry_wait,
+.renewal-status--refreshing_cookie,
+.renewal-status--refreshing_token,
+.renewal-status--reconnecting { color: #a86200; background: rgba(255,159,10,.12); }
 
 /* 手机端适配 */
 @media screen and (max-width: 767px) {

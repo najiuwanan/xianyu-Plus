@@ -116,10 +116,11 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
      */
     private static final int MAX_COOKIE_RETRY_COUNT = 2;
 
-    /** Session expires can produce a reconnect storm; defer the browser refresh for two hours. */
-    private static final long SESSION_EXPIRY_RENEWAL_DELAY_MINUTES = 5;
+    /** First recovery is prompt and coalesced; later failures use 5/15/30 minute backoff. */
+    private static final long[] SESSION_RENEWAL_RETRY_MINUTES = {5, 15, 30};
 
     private final Map<Long, java.util.concurrent.ScheduledFuture<?>> sessionRenewalTasks = new ConcurrentHashMap<>();
+    private final Map<Long, WebSocketTokenService.RenewalStatus> renewalStatuses = new ConcurrentHashMap<>();
 
     /**
      * 重试间隔基础值（毫秒）
@@ -372,6 +373,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                             String captchaUrl = (String) dataMap.get("url");
 
                             pendingCaptchaAccounts.put(accountId, captchaUrl);
+                            updateRenewalStatus(accountId, "VERIFICATION_REQUIRED", "平台要求安全验证，自动重试已停止", null);
                             captchaTimestamps.put(accountId, System.currentTimeMillis());
 
                             updateAccountStatusToCaptchaRequired(accountId);
@@ -389,6 +391,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
                     // 检查是否触发风控（RGV587_ERROR）
                     boolean needRiskControl = retList.stream().anyMatch(ret -> ret.contains("RGV587_ERROR") || ret.contains("被挤爆啦"));
                     if (needRiskControl) {
+                        updateRenewalStatus(accountId, "VERIFICATION_REQUIRED", "平台返回风险验证，自动重试已停止", null);
                         log.error("【账号{}】❌ 触发风控（响应内容已隐藏）", accountId);
                         log.error("【账号{}】系统目前无法自动解决，请进入闲鱼网页版-点击消息-过滑块-复制最新的Cookie", accountId);
                         updateCookieStatus(accountId, 3);
@@ -496,7 +499,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
         if (isSessionExpired) {
             scheduleSessionExpiryRenewal(accountId);
             throw new com.xianyusmart.exception.CookieExpiredException(
-                    "Session已过期，已安排5分钟后自动续期");
+                    "Session已过期，正在准备自动续期");
         }
 
         if (retryCount < MAX_TOKEN_RETRY_COUNT) {
@@ -722,11 +725,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
         try {
             log.info("【账号{}】清除数据库中的Token缓存", accountId);
 
-            xianyuCookieMapper.update(null,
-                    new LambdaUpdateWrapper<XianyuCookie>()
-                            .eq(XianyuCookie::getXianyuAccountId, accountId)
-                            .set(XianyuCookie::getTokenExpireTime, 0L)
-            );
+            xianyuCookieMapper.clearWebSocketTokenExpiry(accountId);
 
             log.info("【账号{}】Token缓存已清除", accountId);
         } catch (Exception e) {
@@ -739,6 +738,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
         log.info("【账号{}】清除验证等待状态", accountId);
         pendingCaptchaAccounts.remove(accountId);
         captchaTimestamps.remove(accountId);
+        updateRenewalStatus(accountId, "IDLE", "验证等待已清除，可重新刷新并连接", null);
         log.info("【账号{}】验证等待状态已清除", accountId);
     }
 
@@ -754,50 +754,97 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
     }
 
     private void scheduleSessionExpiryRenewal(Long accountId) {
+        scheduleSessionExpiryRenewal(accountId, 0);
+    }
+
+    private void scheduleSessionExpiryRenewal(Long accountId, int attempt) {
         sessionRenewalTasks.compute(accountId, (id, existingTask) -> {
             if (existingTask != null && !existingTask.isDone() && !existingTask.isCancelled()) {
-                log.info("【账号{}】Session已过期，自动续期已安排，跳过重复请求", id);
+                log.info("【账号{}】Session续期任务已存在，跳过重复请求", id);
                 return existingTask;
             }
+
+            long delaySeconds = attempt == 0
+                    ? java.util.concurrent.ThreadLocalRandom.current().nextLong(3, 9)
+                    : TimeUnit.MINUTES.toSeconds(SESSION_RENEWAL_RETRY_MINUTES[Math.min(attempt - 1,
+                    SESSION_RENEWAL_RETRY_MINUTES.length - 1)]);
+            long nextRetryAt = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(delaySeconds);
+            String state = attempt == 0 ? "REFRESH_PENDING" : "RETRY_WAIT";
+            String message = attempt == 0
+                    ? "Session已过期，正在准备自动续期"
+                    : "自动续期失败，将按退避时间再次尝试";
+            updateRenewalStatus(id, state, message, nextRetryAt);
 
             operationLogService.log(id,
                     com.xianyusmart.constants.OperationConstants.Type.REFRESH,
                     com.xianyusmart.constants.OperationConstants.Module.TOKEN,
-                    "Session过期，已安排5分钟后自动续期",
+                    attempt == 0 ? "Session过期，准备立即自动续期" : "Session续期失败，已安排退避重试",
                     com.xianyusmart.constants.OperationConstants.Status.PARTIAL,
                     com.xianyusmart.constants.OperationConstants.TargetType.TOKEN,
-                    String.valueOf(id),
-                    null, null, "自动续期将在5分钟后执行", null);
-            log.warn("【账号{}】检测到Session/令牌过期，5分钟后尝试自动续期", id);
+                    String.valueOf(id), null, null, message, null);
 
-            return webSocketScheduler.schedule(() -> {
-                sessionRenewalTasks.remove(id);
-                try {
-                    log.info("【账号{}】Session过期等待结束，开始自动续期", id);
-                    boolean refreshed = cookieRefreshService.refreshCookie(id);
-                    if (refreshed) {
-                        operationLogService.log(id,
-                                com.xianyusmart.constants.OperationConstants.Type.REFRESH,
-                                com.xianyusmart.constants.OperationConstants.Module.TOKEN,
-                                "Session过期后自动续期成功，准备重连WebSocket",
-                                com.xianyusmart.constants.OperationConstants.Status.SUCCESS,
-                                com.xianyusmart.constants.OperationConstants.TargetType.TOKEN,
-                                String.valueOf(id), null, null, null, null);
-                        webSocketService.startWebSocket(id);
-                    } else {
-                        operationLogService.log(id,
-                                com.xianyusmart.constants.OperationConstants.Type.REFRESH,
-                                com.xianyusmart.constants.OperationConstants.Module.TOKEN,
-                                "Session过期后自动续期失败，请手动更新Cookie",
-                                com.xianyusmart.constants.OperationConstants.Status.FAIL,
-                                com.xianyusmart.constants.OperationConstants.TargetType.TOKEN,
-                                String.valueOf(id), null, null, "自动续期失败", null);
-                    }
-                } catch (Exception e) {
-                    log.error("【账号{}】Session过期后的自动续期异常", id, e);
-                }
-            }, SESSION_EXPIRY_RENEWAL_DELAY_MINUTES, TimeUnit.MINUTES);
+            return webSocketScheduler.schedule(() -> runSessionRenewal(id, attempt), delaySeconds, TimeUnit.SECONDS);
         });
+    }
+
+    private void runSessionRenewal(Long accountId, int attempt) {
+        boolean shouldRetry = false;
+        try {
+            updateRenewalStatus(accountId, "REFRESHING_COOKIE", "正在刷新Cookie登录态", null);
+            boolean cookieRefreshed = cookieRefreshService.refreshCookie(accountId);
+            if (!cookieRefreshed) {
+                shouldRetry = true;
+                updateRenewalStatus(accountId, "REFRESH_FAILED", "Cookie自动续期失败", null);
+                return;
+            }
+
+            updateRenewalStatus(accountId, "REFRESHING_TOKEN", "Cookie已刷新，正在获取WebSocket Token", null);
+            clearToken(accountId);
+            updateRenewalStatus(accountId, "RECONNECTING", "Token刷新完成后正在重新连接", null);
+            boolean connected = webSocketService.startWebSocket(accountId);
+            if (connected) {
+                updateRenewalStatus(accountId, "SUCCESS", "WebSocket Token已续期并重新连接", null);
+                operationLogService.log(accountId,
+                        com.xianyusmart.constants.OperationConstants.Type.CONNECT,
+                        com.xianyusmart.constants.OperationConstants.Module.TOKEN,
+                        "WebSocket Token续期并重连成功",
+                        com.xianyusmart.constants.OperationConstants.Status.SUCCESS,
+                        com.xianyusmart.constants.OperationConstants.TargetType.TOKEN,
+                        String.valueOf(accountId), null, null, null, null);
+            } else if (isCaptchaPending(accountId)) {
+                updateRenewalStatus(accountId, "VERIFICATION_REQUIRED", "平台要求安全验证，自动重试已停止", null);
+            } else {
+                shouldRetry = true;
+                updateRenewalStatus(accountId, "RECONNECT_FAILED", "Token续期后重新连接失败", null);
+            }
+        } catch (CaptchaRequiredException exception) {
+            updateRenewalStatus(accountId, "VERIFICATION_REQUIRED", "平台要求安全验证，自动重试已停止", null);
+        } catch (Exception exception) {
+            shouldRetry = true;
+            updateRenewalStatus(accountId, "REFRESH_FAILED", "自动续期异常：" + exception.getMessage(), null);
+            log.error("【账号{}】Session过期后的自动续期异常", accountId, exception);
+        } finally {
+            sessionRenewalTasks.remove(accountId);
+            if (shouldRetry && !isCaptchaPending(accountId)) {
+                int nextAttempt = attempt + 1;
+                if (nextAttempt <= SESSION_RENEWAL_RETRY_MINUTES.length) {
+                    scheduleSessionExpiryRenewal(accountId, nextAttempt);
+                } else {
+                    updateRenewalStatus(accountId, "REFRESH_FAILED", "自动续期重试已结束，请手动刷新并重连", null);
+                }
+            }
+        }
+    }
+
+    private void updateRenewalStatus(Long accountId, String state, String message, Long nextRetryAt) {
+        if (accountId == null) return;
+        renewalStatuses.put(accountId, new WebSocketTokenService.RenewalStatus(
+                state, message, System.currentTimeMillis(), nextRetryAt));
+    }
+
+    @Override
+    public WebSocketTokenService.RenewalStatus getRenewalStatus(Long accountId) {
+        return renewalStatuses.getOrDefault(accountId, WebSocketTokenService.RenewalStatus.idle());
     }
 
     /**
@@ -808,6 +855,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
         return credentialUpdateCoordinator.withAccountLock(accountId, () -> {
             try {
                 log.info("【账号{}】开始刷新WebSocket token...", accountId);
+                updateRenewalStatus(accountId, "REFRESHING_TOKEN", "正在获取新的WebSocket Token", null);
 
                 // 1. 清除旧token，强制重新获取
                 clearToken(accountId);
@@ -817,13 +865,16 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
 
                 if (newToken != null && !newToken.isEmpty()) {
                     log.info("【账号{}】✅ WebSocket token刷新成功", accountId);
+                    updateRenewalStatus(accountId, "SUCCESS", "WebSocket Token刷新成功", null);
                     return newToken;
                 } else {
                     log.warn("【账号{}】⚠️ WebSocket token刷新失败", accountId);
+                    updateRenewalStatus(accountId, "REFRESH_FAILED", "WebSocket Token刷新失败", null);
                     return null;
                 }
 
             } catch (CaptchaRequiredException e) {
+                updateRenewalStatus(accountId, "VERIFICATION_REQUIRED", "平台要求安全验证，自动重试已停止", null);
                 throw e;
             } catch (com.xianyusmart.exception.CookieExpiredException e) {
                 throw e;
@@ -942,6 +993,7 @@ public class WebSocketTokenServiceImpl implements WebSocketTokenService {
             );
 
             if (updated > 0) {
+                updateRenewalStatus(accountId, "SUCCESS", "WebSocket Token已刷新", null);
                 log.info("【账号{}】Token已保存到数据库，过期时间: {}", accountId,
                         new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
                                 .format(new java.util.Date(expireTime)));

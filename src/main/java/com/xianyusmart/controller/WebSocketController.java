@@ -32,6 +32,9 @@ public class WebSocketController {
     private CookieRefreshService cookieRefreshService;
 
     @Autowired
+    private com.xianyusmart.service.WebSocketTokenService webSocketTokenService;
+
+    @Autowired
     private com.xianyusmart.service.SentMessageSaveService sentMessageSaveService;
 
     @Autowired
@@ -360,7 +363,12 @@ public class WebSocketController {
                         && !cookie.getMH5Tk().isBlank());
                 respDTO.setWebsocketTokenConfigured(cookie.getWebsocketToken() != null
                         && !cookie.getWebsocketToken().isBlank());
-                respDTO.setTokenExpireTime(cookie.getTokenExpireTime());
+                Long rawTokenExpireTime = cookie.getTokenExpireTime();
+                boolean tokenExpiryKnown = rawTokenExpireTime != null && rawTokenExpireTime >= 1577836800000L;
+                respDTO.setTokenExpiryKnown(tokenExpiryKnown);
+                respDTO.setTokenExpireTime(tokenExpiryKnown ? rawTokenExpireTime : null);
+                respDTO.setTokenLastRefreshTime(tokenExpiryKnown
+                        ? Math.max(0L, rawTokenExpireTime - 20L * 60L * 60L * 1000L) : null);
                 respDTO.setCookieText(cookie.getCookieText());
                 respDTO.setMh5Tk(cookie.getMH5Tk());
                 respDTO.setWebsocketToken(cookie.getWebsocketToken());
@@ -390,10 +398,19 @@ public class WebSocketController {
                 respDTO.setMh5TkConfigured(false);
                 respDTO.setWebsocketTokenConfigured(false);
                 respDTO.setTokenExpireTime(null);
+                respDTO.setTokenExpiryKnown(false);
+                respDTO.setTokenLastRefreshTime(null);
 
                 log.warn("⚠️ WebSocket状态: 账号ID={}, 连接={}, Cookie=未找到",
                         reqDTO.getXianyuAccountId(), connected ? "✅" : "❌");
             }
+
+            com.xianyusmart.service.WebSocketTokenService.RenewalStatus renewalStatus =
+                    webSocketTokenService.getRenewalStatus(reqDTO.getXianyuAccountId());
+            respDTO.setTokenRenewalState(renewalStatus.state());
+            respDTO.setTokenRenewalMessage(renewalStatus.message());
+            respDTO.setTokenRenewalUpdatedAt(renewalStatus.updatedAt());
+            respDTO.setTokenRenewalNextRetryAt(renewalStatus.nextRetryAt());
 
             com.xianyusmart.mapper.XianyuGoodsConfigMapper goodsConfigMapper =
                     applicationContext.getBean(com.xianyusmart.mapper.XianyuGoodsConfigMapper.class);
@@ -935,6 +952,12 @@ public class WebSocketController {
         private String mh5Tk;
         private String websocketToken;
         private Long tokenExpireTime;  // Token过期时间戳（毫秒）
+        private Boolean tokenExpiryKnown;
+        private Long tokenLastRefreshTime;
+        private String tokenRenewalState;
+        private String tokenRenewalMessage;
+        private Long tokenRenewalUpdatedAt;
+        private Long tokenRenewalNextRetryAt;
         private Boolean autoDeliveryOn; // 是否有商品开启了自动发货
         private Boolean autoReplyOn;     // 是否有商品开启了自动回复
     }

@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 import org.springframework.scheduling.TaskScheduler;
@@ -43,6 +44,10 @@ public class DeliveryTaskScheduler {
     private final BuyerBlacklistService blacklistService;
     private final String workerId = buildWorkerId();
     private final AtomicBoolean discoveringOrders = new AtomicBoolean(false);
+    private final Map<Long, Long> lastStatusReconcileAt = new ConcurrentHashMap<>();
+
+    /** Buyer receipt/refund changes do not always arrive as chat events, so keep a low-frequency reconciliation. */
+    private static final long STATUS_RECONCILE_INTERVAL_MS = Duration.ofMinutes(5).toMillis();
 
     @Autowired(required = false)
     private AutomationRiskGuardService automationRiskGuardService;
@@ -114,17 +119,37 @@ public class DeliveryTaskScheduler {
                 continue;
             }
             try {
-                List<Map<String, Object>> pendingOrders = orderService.queryPendingOrders(account.getId());
-                if (pendingOrders != null && !pendingOrders.isEmpty()) {
-                    pendingOrderPollService.syncOrdersToDb(account.getId(), pendingOrders);
+                boolean connected = webSocketService.isConnected(account.getId());
+                if (!connected) {
+                    List<Map<String, Object>> pendingOrders = orderService.queryPendingOrders(account.getId());
+                    if (pendingOrders != null && !pendingOrders.isEmpty()) {
+                        pendingOrderPollService.syncOrdersToDb(account.getId(), pendingOrders);
+                    }
+                } else {
+                    log.debug("【账号{}】WebSocket在线，跳过待发货订单轮询", account.getId());
                 }
-                // Status monitoring only: it discovers receipt/refund changes and
-                // lets the per-order transition handler decide whether to act.
-                pendingOrderPollService.refreshRecentSoldOrderHistory(account.getId());
+
+                // Receipt/refund changes are reconciled at most once every five minutes.
+                // This preserves automatic rating without repeatedly scanning order history.
+                if (shouldReconcileOrderStatus(account.getId())) {
+                    pendingOrderPollService.refreshRecentSoldOrderHistory(account.getId());
+                }
             } catch (Exception e) {
                 log.warn("【账号{}】待发货订单发现失败: {}", account.getId(), e.getMessage());
             }
         }
+    }
+
+    private boolean shouldReconcileOrderStatus(Long accountId) {
+        long now = System.currentTimeMillis();
+        Long previous = lastStatusReconcileAt.putIfAbsent(accountId, now);
+        if (previous == null) {
+            return true;
+        }
+        if (now - previous < STATUS_RECONCILE_INTERVAL_MS) {
+            return false;
+        }
+        return lastStatusReconcileAt.replace(accountId, previous, now);
     }
 
     private void executeTask(XianyuGoodsOrder task) {

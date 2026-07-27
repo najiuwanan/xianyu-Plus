@@ -41,7 +41,7 @@ public class AutomationScheduleService {
         this.sysSettingService = sysSettingService;
         register(AUTO_RATE, "自动评价扫描", "仅检查近 30 天本地订单，再核验闲鱼待评价状态。", 120, 60);
         register(RED_FLOWER, "自动求小红花", "处理已确认发货、尚未成功请求小红花的订单。", 300, 120);
-        register(ORDER_DISCOVERY, "待发货订单同步", "从闲鱼同步待发货订单到本地发货队列。", 25, 10);
+        register(ORDER_DISCOVERY, "离线订单补偿同步", "实时连接断开时低频补偿待发货订单；在线账号由实时事件驱动。", 120, 120);
         register(DELIVERY_DISPATCH, "自动发货队列", "检查并执行已经进入本地队列的发货任务。", 1, 1);
         register(ITEM_POLISH, "自动擦亮计划检查", "到设定时间后同步在售商品并执行自动擦亮。", 30, 15);
         register(DELAYED_REPLY, "延迟回复队列", "恢复服务重启前尚未执行的延迟回复任务。", 1, 1);

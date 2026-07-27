@@ -130,4 +130,69 @@ class DeliveryTaskSchedulerTest {
         verify(orderMapper, never()).selectById(22L);
         verify(renewal).cancel(false);
     }
+
+    @Test
+    void onlineAccountSkipsPendingOrderPollingAndThrottlesStatusReconciliation() {
+        DeliveryTaskService deliveryTaskService = mock(DeliveryTaskService.class);
+        AutoDeliveryService autoDeliveryService = mock(AutoDeliveryService.class);
+        XianyuGoodsOrderMapper orderMapper = mock(XianyuGoodsOrderMapper.class);
+        XianyuKamiItemMapper kamiItemMapper = mock(XianyuKamiItemMapper.class);
+        XianyuAccountMapper accountMapper = mock(XianyuAccountMapper.class);
+        OrderService orderService = mock(OrderService.class);
+        PendingOrderPollService pendingOrderPollService = mock(PendingOrderPollService.class);
+        WebSocketService webSocketService = mock(WebSocketService.class);
+        TaskScheduler taskScheduler = mock(TaskScheduler.class);
+        AutomationScheduleService scheduleService = mock(AutomationScheduleService.class);
+        BuyerBlacklistService blacklistService = mock(BuyerBlacklistService.class);
+
+        DeliveryTaskScheduler scheduler = new DeliveryTaskScheduler(
+                deliveryTaskService, autoDeliveryService, orderMapper, kamiItemMapper,
+                accountMapper, orderService, pendingOrderPollService, webSocketService,
+                Runnable::run, taskScheduler, scheduleService, blacklistService);
+        XianyuAccount account = new XianyuAccount();
+        account.setId(7L);
+        account.setStatus(1);
+        when(accountMapper.selectList(any())).thenReturn(java.util.List.of(account));
+        when(webSocketService.isConnected(7L)).thenReturn(true);
+
+        ReflectionTestUtils.invokeMethod(scheduler, "discoverOrders");
+        ReflectionTestUtils.invokeMethod(scheduler, "discoverOrders");
+
+        verify(orderService, never()).queryPendingOrders(7L);
+        verify(pendingOrderPollService, org.mockito.Mockito.times(1)).refreshRecentSoldOrderHistory(7L);
+    }
+
+    @Test
+    void offlineAccountUsesPendingOrderFallback() {
+        DeliveryTaskService deliveryTaskService = mock(DeliveryTaskService.class);
+        AutoDeliveryService autoDeliveryService = mock(AutoDeliveryService.class);
+        XianyuGoodsOrderMapper orderMapper = mock(XianyuGoodsOrderMapper.class);
+        XianyuKamiItemMapper kamiItemMapper = mock(XianyuKamiItemMapper.class);
+        XianyuAccountMapper accountMapper = mock(XianyuAccountMapper.class);
+        OrderService orderService = mock(OrderService.class);
+        PendingOrderPollService pendingOrderPollService = mock(PendingOrderPollService.class);
+        WebSocketService webSocketService = mock(WebSocketService.class);
+        TaskScheduler taskScheduler = mock(TaskScheduler.class);
+        AutomationScheduleService scheduleService = mock(AutomationScheduleService.class);
+        BuyerBlacklistService blacklistService = mock(BuyerBlacklistService.class);
+
+        DeliveryTaskScheduler scheduler = new DeliveryTaskScheduler(
+                deliveryTaskService, autoDeliveryService, orderMapper, kamiItemMapper,
+                accountMapper, orderService, pendingOrderPollService, webSocketService,
+                Runnable::run, taskScheduler, scheduleService, blacklistService);
+        XianyuAccount account = new XianyuAccount();
+        account.setId(8L);
+        account.setStatus(1);
+        java.util.List<java.util.Map<String, Object>> pending =
+                java.util.List.of(java.util.Map.of("orderId", "order-8"));
+        when(accountMapper.selectList(any())).thenReturn(java.util.List.of(account));
+        when(webSocketService.isConnected(8L)).thenReturn(false);
+        when(orderService.queryPendingOrders(8L)).thenReturn(pending);
+
+        ReflectionTestUtils.invokeMethod(scheduler, "discoverOrders");
+
+        verify(orderService).queryPendingOrders(8L);
+        verify(pendingOrderPollService).syncOrdersToDb(8L, pending);
+        verify(pendingOrderPollService).refreshRecentSoldOrderHistory(8L);
+    }
 }

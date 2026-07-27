@@ -13,7 +13,13 @@ export interface WebSocketStatus {
   cookieText?: string;
   mh5Tk?: string;
   websocketToken?: string; // WebSocket Token是否已配置
-  tokenExpireTime?: number;   // Token过期时间戳（毫秒）
+  tokenExpireTime?: number;
+  tokenExpiryKnown?: boolean;
+  tokenLastRefreshTime?: number;
+  tokenRenewalState?: string;
+  tokenRenewalMessage?: string;
+  tokenRenewalUpdatedAt?: number;
+  tokenRenewalNextRetryAt?: number;   // Token过期时间戳（毫秒）
   autoDeliveryOn?: boolean;   // 是否有商品开启了自动发货
   autoReplyOn?: boolean;      // 是否有商品开启了自动回复
 }

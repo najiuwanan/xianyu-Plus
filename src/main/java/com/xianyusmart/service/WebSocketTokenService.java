@@ -41,6 +41,15 @@ public interface WebSocketTokenService {
 
     /** Returns true while a session-expiry renewal is intentionally delayed. */
     boolean isSessionRenewalPending(Long accountId);
+
+    /** Current per-account renewal step shown in account details. */
+    RenewalStatus getRenewalStatus(Long accountId);
+
+    record RenewalStatus(String state, String message, Long updatedAt, Long nextRetryAt) {
+        public static RenewalStatus idle() {
+            return new RenewalStatus("IDLE", "等待下次自动续期", null, null);
+        }
+    }
     
     /**
      * 刷新WebSocket token
