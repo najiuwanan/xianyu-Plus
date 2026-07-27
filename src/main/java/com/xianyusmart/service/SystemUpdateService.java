@@ -285,7 +285,7 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
-        if ("2.2.2".equals(version)) {
+        if ("2.2.3".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "需要验证或连接异常时仍可直接禁用账号，并停止连接、Token续期与待执行任务",
                     "WebSocket Token按真实到期时间续期，多账号随机提前65至80分钟错峰执行",
