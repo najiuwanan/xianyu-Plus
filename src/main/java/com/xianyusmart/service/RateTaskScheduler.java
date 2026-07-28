@@ -5,6 +5,7 @@ import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.mapper.XianyuAccountMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import java.util.List;
@@ -26,6 +27,9 @@ public class RateTaskScheduler {
     private final Executor taskExecutor;
     private final ConcurrentHashMap<Long, AtomicBoolean> accountRunning = new ConcurrentHashMap<>();
 
+    @Autowired(required = false)
+    private OnlineUpdateMaintenanceService onlineUpdateMaintenanceService;
+
     public RateTaskScheduler(XianyuAccountMapper accountMapper,
                              OrderAutomationService orderAutomationService,
                              PendingOrderPollService pendingOrderPollService,
@@ -43,6 +47,7 @@ public class RateTaskScheduler {
     /** The lightweight tick is fixed; the in-memory configured interval takes effect immediately. */
     @Scheduled(fixedDelay = 1000, initialDelay = 30000)
     public void scheduleAutoRate() {
+        if (onlineUpdateMaintenanceService != null && onlineUpdateMaintenanceService.isActive()) return;
         if (!automationScheduleService.tryAcquire(AutomationScheduleService.AUTO_RATE)) {
             return;
         }

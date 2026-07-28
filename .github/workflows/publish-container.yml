@@ -11,7 +11,7 @@ on:
         default: v1.0.0
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 env:
@@ -63,3 +63,55 @@ jobs:
             org.opencontainers.image.version=${{ steps.image.outputs.tag }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  release-artifacts:
+    name: Build release JAR
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出发布版本
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+
+      - name: 配置 Node.js
+        uses: actions/setup-node@1e60f620b9541d120323c8f7a1c8b96d00d8d1c8 # v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: vue-code/package-lock.json
+
+      - name: 构建前端
+        working-directory: vue-code
+        run: |
+          npm ci
+          npm run type-check
+          npm run build
+
+      - name: 配置 Java 21
+        uses: actions/setup-java@7a445ee88d4e23b52c33ae8f999a7a9b37b6ec44 # v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: 构建并校验后端
+        shell: bash
+        run: |
+          chmod +x mvnw
+          ./mvnw clean package
+
+      - name: 生成正式版本附件
+        id: artifact
+        shell: bash
+        run: |
+          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          JAR="xianyu-plus-${VERSION}.jar"
+          cp target/xianyu-plus.jar "$JAR"
+          sha256sum "$JAR" > SHA256SUMS.txt
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "jar=${JAR}" >> "$GITHUB_OUTPUT"
+
+      - name: 上传 JAR 与校验文件
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.artifact.outputs.tag }}" "${{ steps.artifact.outputs.jar }}" SHA256SUMS.txt --clobber

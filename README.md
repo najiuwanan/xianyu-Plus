@@ -50,6 +50,7 @@ flowchart LR
 - 卡券列表支持全选、批量删除、批量重置；发货中的卡券始终禁止操作。
 - Cookie、WebSocket Token 与 H5 Token 状态集中查看，凭证更新后可通过通知渠道提醒。
 - GitHub 版本页只展示当前保留的正式版本记录，后台更新说明与发布版本保持一致。
+- 飞牛 OS 支持网页在线更新，宿主机代理负责备份、校验、重启与回滚，Docker 仍保持两个主要容器。
 
 查看完整更新记录：[Releases](https://github.com/najiuwanan/xianyu-Plus/releases) · [CHANGELOG](CHANGELOG.md)
 
@@ -105,6 +106,18 @@ cd ~/xianyu-Plus
 ```
 
 更新脚本会保留现有数据卷并重新构建服务。更新前如有重要业务数据，建议先完成备份。
+
+### 飞牛 OS 网页在线更新
+
+升级到 V2.2.5 后，在项目目录执行一次：
+
+```bash
+sudo ./deploy/self-update/install-online-update.sh
+```
+
+安装完成后，可在页面顶部“版本详情”中点击“立即在线更新”。更新代理运行在飞牛 OS 宿主机的 `systemd` 中，不会增加 Docker 容器；Docker 仍然是应用和 MySQL 两个主要容器。
+
+在线更新会自动下载 Release JAR、校验 SHA256、备份数据库与旧版本，并在当前自动化任务安全结束后重启应用。健康检查失败时自动恢复旧 JAR。`./update.sh` 继续保留为手动更新后备方式。
 
 ## 首次配置顺序
 

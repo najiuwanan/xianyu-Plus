@@ -50,6 +50,9 @@ public class DeliveryTaskScheduler {
     private static final long STATUS_RECONCILE_INTERVAL_MS = Duration.ofMinutes(5).toMillis();
 
     @Autowired(required = false)
+    private OnlineUpdateMaintenanceService onlineUpdateMaintenanceService;
+
+    @Autowired(required = false)
     private AutomationRiskGuardService automationRiskGuardService;
 
     @Value("${app.delivery.claim-batch-size:20}")
@@ -86,6 +89,7 @@ public class DeliveryTaskScheduler {
 
     @Scheduled(fixedDelay = 1000, initialDelay = 5000)
     public void dispatchDueTasks() {
+        if (onlineUpdateMaintenanceService != null && onlineUpdateMaintenanceService.isActive()) return;
         if (!automationScheduleService.tryAcquire(AutomationScheduleService.DELIVERY_DISPATCH)) {
             return;
         }
@@ -95,6 +99,7 @@ public class DeliveryTaskScheduler {
 
     @Scheduled(fixedDelay = 1000, initialDelay = 60000)
     public void discoverOrdersFromApi() {
+        if (onlineUpdateMaintenanceService != null && onlineUpdateMaintenanceService.isActive()) return;
         if (!automationScheduleService.tryAcquire(AutomationScheduleService.ORDER_DISCOVERY)
                 || !discoveringOrders.compareAndSet(false, true)) {
             return;

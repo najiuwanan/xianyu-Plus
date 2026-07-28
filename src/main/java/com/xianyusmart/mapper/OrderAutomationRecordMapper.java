@@ -20,6 +20,9 @@ import java.util.List;
 @Mapper
 public interface OrderAutomationRecordMapper {
 
+    /** rate_status=6 表示评价请求正在执行，更新时不应中断。 */
+    @Select("SELECT COUNT(*) FROM xianyu_order_automation_record WHERE rate_status = 6")
+    int countOnlineUpdateBlockingActions();
     /** 与订单管理一致：按真实下单时间限制近 30 天，历史退款/关闭订单不进入自动化处理。 */
     String ORDER_TIME_SQL = "COALESCE(" +
             "STR_TO_DATE(REPLACE(SUBSTRING(o.order_create_time, 1, 19), 'T', ' '), '%Y-%m-%d %H:%i:%s'), " +

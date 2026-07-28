@@ -9,6 +9,7 @@ import com.xianyusmart.controller.dto.FetchModelsReqDTO;
 import com.xianyusmart.controller.dto.FetchModelsRespDTO;
 import com.xianyusmart.controller.dto.TestAiReqDTO;
 import com.xianyusmart.controller.dto.SystemUpdateStatusRespDTO;
+import com.xianyusmart.controller.dto.OnlineUpdateStatusRespDTO;
 import com.xianyusmart.entity.SysUser;
 import com.xianyusmart.exception.BusinessException;
 import com.xianyusmart.service.AuthService;
@@ -115,6 +116,22 @@ public class SystemController {
         return ResultObject.success(systemUpdateService.checkStatus(refresh));
     }
 
+    @GetMapping("/online-update-status")
+    public ResultObject<OnlineUpdateStatusRespDTO> getOnlineUpdateStatus() {
+        return ResultObject.success(systemUpdateService.onlineUpdateStatus());
+    }
+
+    @PostMapping("/online-update")
+    public ResultObject<OnlineUpdateStatusRespDTO> requestOnlineUpdate() {
+        try {
+            return ResultObject.success(systemUpdateService.requestOnlineUpdate());
+        } catch (IllegalStateException exception) {
+            return ResultObject.failed(exception.getMessage());
+        } catch (Exception exception) {
+            log.error("提交在线更新失败", exception);
+            return ResultObject.failed("提交在线更新失败，请检查宿主机更新代理");
+        }
+    }
     @PostMapping("/fetchModels")
     public ResultObject<FetchModelsRespDTO> fetchModels(@RequestBody FetchModelsReqDTO reqDTO) {
         try {

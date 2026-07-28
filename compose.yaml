@@ -54,6 +54,8 @@ services:
       JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=65 -XX:InitialRAMPercentage=20 -XX:+ExitOnOutOfMemoryError}
       TZ: ${TZ:-Asia/Shanghai}
       UPDATE_GITHUB_REPOSITORY: ${UPDATE_GITHUB_REPOSITORY:-najiuwanan/xianyu-Plus}
+      UPDATE_RELEASE_API: ${UPDATE_RELEASE_API:-https://api.github.com/repos/najiuwanan/xianyu-Plus/releases/latest}
+      UPDATE_REQUEST_DIR: /app/update
       UPDATE_CHECK_CACHE_MINUTES: ${UPDATE_CHECK_CACHE_MINUTES:-60}
     ports:
       - "12400:12400"
@@ -65,6 +67,7 @@ services:
     volumes:
       - app-data:/app/data
       - app-logs:/app/logs
+      - ${UPDATE_HOST_DIR:-./runtime/update}:/app/update
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:12400/actuator/health || exit 1"]
       interval: 30s

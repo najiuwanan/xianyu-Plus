@@ -13,6 +13,20 @@ export interface SystemUpdateStatus {
   updateUrl?: string
   checkedAt?: string
 }
+export interface OnlineUpdateStatus {
+  available: boolean
+  active: boolean
+  canRetry: boolean
+  taskId?: string
+  version?: string
+  status: 'IDLE' | 'REQUESTED' | 'CHECKING' | 'DOWNLOADING' | 'VERIFYING' | 'DRAINING' | 'INSTALLING' | 'RESTARTING' | 'HEALTH_CHECKING' | 'SUCCESS' | 'FAILED'
+  progress: number
+  message?: string
+  downloadedBytes: number
+  totalBytes: number
+  requestedAt?: string
+  updatedAt?: string
+}
 
 /** 获取当前用户信息 */
 export function getCurrentUser() {
@@ -36,6 +50,19 @@ export function getSystemUpdateStatus(refresh = false) {
   return request<SystemUpdateStatus>({
     url: `/system/update-status${refresh ? '?refresh=true' : ''}`,
     method: 'get'
+  })
+}
+export function getOnlineUpdateStatus() {
+  return request<OnlineUpdateStatus>({
+    url: '/system/online-update-status',
+    method: 'get'
+  })
+}
+
+export function requestOnlineUpdate() {
+  return request<OnlineUpdateStatus>({
+    url: '/system/online-update',
+    method: 'post'
   })
 }
 

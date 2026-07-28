@@ -10,6 +10,9 @@ import java.util.List;
  */
 @Mapper
 public interface XianyuGoodsAutoReplyRecordMapper {
+
+    @Select("SELECT COUNT(*) FROM xianyu_goods_auto_reply_record WHERE state = 2")
+    int countOnlineUpdateBlockingReplies();
     
     /**
      * 插入记录

@@ -22,6 +22,9 @@ public class ConfirmShipmentTaskScheduler {
     private final RedFlowerService redFlowerService;
     private final String workerId = "confirm-" + UUID.randomUUID().toString().substring(0, 8);
 
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    private OnlineUpdateMaintenanceService onlineUpdateMaintenanceService;
+
     @Value("${app.delivery.confirm-lease-seconds:90}")
     private int leaseSeconds;
 
@@ -37,6 +40,7 @@ public class ConfirmShipmentTaskScheduler {
 
     @Scheduled(fixedDelay = 1000, initialDelay = 5000)
     public void poll() {
+        if (onlineUpdateMaintenanceService != null && onlineUpdateMaintenanceService.isActive()) return;
         for (XianyuGoodsOrder task : orderMapper.findDueConfirmShipmentTasks(20)) {
             if (task.getId() == null || orderMapper.claimConfirmShipmentTask(
                     task.getId(), workerId, Math.max(30, leaseSeconds)) != 1) {

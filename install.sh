@@ -41,11 +41,18 @@ if [ ! -f .env ]; then
     chmod 600 .env
 fi
 
+UPDATE_HOST_DIR="$(sed -n 's/^UPDATE_HOST_DIR=//p' .env | tail -n 1)"
+UPDATE_HOST_DIR="${UPDATE_HOST_DIR:-./runtime/update}"
+if [[ "$UPDATE_HOST_DIR" != /* ]]; then UPDATE_HOST_DIR="$ROOT_DIR/$UPDATE_HOST_DIR"; fi
+mkdir -p "$UPDATE_HOST_DIR"
+chmod 1777 "$UPDATE_HOST_DIR"
+
 export APP_GIT_SHA="$(git rev-parse --verify HEAD 2>/dev/null || echo unknown)"
 docker compose up -d --build --remove-orphans
 docker compose ps
 
 echo
 echo "XianYuPlus 已启动: http://localhost:12400"
+echo "飞牛OS启用网页在线更新：sudo ./deploy/self-update/install-online-update.sh"
 echo "公网部署需先配置 deploy/nginx/certs、ALLOWED_ORIGINS 和 TRUST_PROXY，再执行:"
 echo "docker compose --profile proxy up -d"

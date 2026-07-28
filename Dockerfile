@@ -37,6 +37,9 @@ COPY --from=frontend-build /app/vue-code/src vue-code/src
 
 # 更新脚本回归测试需要读取脚本源码；仅复制到临时构建层，不进入最终运行镜像
 COPY update.sh ./update.sh
+COPY compose.yaml Dockerfile .env.example ./
+COPY .github/workflows/publish-container.yml .github/workflows/publish-container.yml
+COPY deploy/self-update/ deploy/self-update/
 
 # 构建 JAR并执行测试
 RUN --mount=type=cache,target=/root/.m2/repository ./mvnw clean package
@@ -90,4 +93,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=45s --retries=3 \
   CMD wget -q -O /dev/null http://127.0.0.1:12400/actuator/health || exit 1
 
 # 启动命令
-ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -Dserver.port=${SERVER_PORT} -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "RUNTIME_JAR=${UPDATE_JAR_PATH:-/app/update/app.jar}; if [ ! -r \"$RUNTIME_JAR\" ]; then RUNTIME_JAR=/app/app.jar; fi; exec java ${JAVA_OPTS} -Dserver.port=${SERVER_PORT} -jar \"$RUNTIME_JAR\""]

@@ -14,6 +14,10 @@ import java.util.List;
 @Mapper
 public interface XianyuGoodsOrderMapper {
 
+    /** 在线更新前等待正在发送内容或正在确认发货的任务结束。 */
+    @Select("SELECT COUNT(*) FROM xianyu_goods_order WHERE delivery_status = 'PROCESSING' " +
+            "OR confirm_task_status = 'PROCESSING'")
+    int countOnlineUpdateBlockingTasks();
     /**
      * 历史同步订单的创建时间以字符串保存，查询时统一转换为真实的下单/付款时间。
      * 无法解析的旧记录才退回到本地写入时间，兼容早期数据。

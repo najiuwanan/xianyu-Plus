@@ -1,0 +1,10 @@
+[Unit]
+Description=Watch XianYuPlus online update requests
+After=docker.service
+
+[Path]
+PathExists=@UPDATE_DIR@/request.json
+Unit=xianyu-plus-update.service
+
+[Install]
+WantedBy=multi-user.target

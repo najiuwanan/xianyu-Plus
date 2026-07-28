@@ -26,7 +26,7 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# V1.8.x：在线更新功能已移除，清理旧版更新容器遗留配置。
+# 清理早期第三容器更新器遗留配置；当前在线更新使用宿主机 systemd，不增加容器。
 sed -i '/^ONLINE_UPDATE_ENABLED=/d;/^ONLINE_UPDATE_BRANCH=/d;/^ONLINE_UPDATE_DOWNTIME_SECONDS=/d;/^UPDATER_IMAGE=/d;/^HOST_PROJECT_DIR=/d' .env
 
 # V1.8.0 品牌迁移：旧安装继续复用原有数据卷；全新安装使用 xianyu-plus 名称。
@@ -58,10 +58,25 @@ ensure_volume_setting APP_DATA_VOLUME xianyu-plus-app-data xianyusmart_app-data
 ensure_volume_setting APP_LOGS_VOLUME xianyu-plus-app-logs xianyusmart_app-logs
 ensure_setting APP_NETWORK_NAME xianyu-plus
 ensure_setting APP_IMAGE xianyu-plus:latest
+ensure_setting UPDATE_HOST_DIR ./runtime/update
 
 # 仅迁移项目过去的默认镜像名；用户自行配置的远程镜像保持不变。
 if grep -q '^APP_IMAGE=xianyusmart:latest$' .env; then
     sed -i 's/^APP_IMAGE=xianyusmart:latest$/APP_IMAGE=xianyu-plus:latest/' .env
+fi
+
+UPDATE_HOST_DIR="$(sed -n 's/^UPDATE_HOST_DIR=//p' .env | tail -n 1)"
+UPDATE_HOST_DIR="${UPDATE_HOST_DIR:-./runtime/update}"
+if [[ "$UPDATE_HOST_DIR" != /* ]]; then UPDATE_HOST_DIR="$ROOT_DIR/$UPDATE_HOST_DIR"; fi
+mkdir -p "$UPDATE_HOST_DIR"
+chmod 1777 "$UPDATE_HOST_DIR"
+if [ -f "$UPDATE_HOST_DIR/request.json" ]; then
+    echo "检测到网页在线更新正在执行，请等待完成后再运行 update.sh。" >&2
+    exit 1
+fi
+if [ -f "$UPDATE_HOST_DIR/app.jar" ]; then
+    mv -f "$UPDATE_HOST_DIR/app.jar" "$UPDATE_HOST_DIR/app.jar.source-update-backup"
+    echo "已停用在线JAR覆盖，本次将运行刚构建的源码版本。"
 fi
 
 if docker ps -aq --filter label=com.docker.compose.project=xianyusmart | grep -q .; then

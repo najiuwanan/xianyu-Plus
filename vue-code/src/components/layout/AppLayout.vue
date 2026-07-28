@@ -4,7 +4,14 @@ import { RouterView, useRoute } from 'vue-router'
 import NavMenu from './NavMenu.vue'
 import UserMenu from './UserMenu.vue'
 import BrandMark from '@/components/BrandMark.vue'
-import { getSystemUpdateStatus, type SystemUpdateStatus } from '@/api/system'
+import {
+  getOnlineUpdateStatus,
+  getSystemUpdateStatus,
+  requestOnlineUpdate,
+  type OnlineUpdateStatus,
+  type SystemUpdateStatus
+} from '@/api/system'
+import { showError } from '@/utils'
 
 const route = useRoute()
 
@@ -14,8 +21,11 @@ const isTablet = ref(false)
 const isDesktop = ref(true)
 const drawerVisible = ref(false)
 const updateStatus = ref<SystemUpdateStatus | null>(null)
+const onlineUpdateStatus = ref<OnlineUpdateStatus | null>(null)
 const updateChecking = ref(false)
+const updateSubmitting = ref(false)
 const versionDialogVisible = ref(false)
+let updatePollTimer: ReturnType<typeof setInterval> | null = null
 const selectedRelease = computed(() => ({
   label: displayVersion(updateStatus.value?.latestVersion || updateStatus.value?.currentVersion),
   highlights: releaseHighlights.value
@@ -30,6 +40,22 @@ const releaseHighlights = computed(() => {
   return []
 })
 
+const onlineUpdateActive = computed(() => onlineUpdateStatus.value?.active === true)
+const onlineUpdateProgress = computed(() => Math.max(0, Math.min(100, onlineUpdateStatus.value?.progress || 0)))
+const onlineUpdateActionLabel = computed(() => {
+  if (updateSubmitting.value) return '正在提交…'
+  if (onlineUpdateActive.value) return '更新进行中'
+  if (onlineUpdateStatus.value?.status === 'FAILED') return '重新在线更新'
+  return '立即在线更新'
+})
+
+const formatBytes = (value?: number) => {
+  const bytes = Number(value || 0)
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${bytes} B`
+}
 const updateSummary = computed(() => {
   if (!updateStatus.value) return '正在检查 GitHub 更新…'
   const current = displayVersion(updateStatus.value.currentVersion)
@@ -84,6 +110,57 @@ const closeDrawer = () => {
   drawerVisible.value = false
 }
 
+const stopUpdatePolling = () => {
+  if (updatePollTimer) {
+    clearInterval(updatePollTimer)
+    updatePollTimer = null
+  }
+}
+
+const loadOnlineUpdateStatus = async () => {
+  try {
+    const response = await getOnlineUpdateStatus()
+    if ((response.code === 0 || response.code === 200) && response.data) {
+      const wasActive = onlineUpdateActive.value
+      onlineUpdateStatus.value = response.data
+      if (response.data.active && !updatePollTimer) {
+        updatePollTimer = setInterval(loadOnlineUpdateStatus, 2000)
+      } else if (!response.data.active) {
+        stopUpdatePolling()
+        if (wasActive && response.data.status === 'SUCCESS') {
+          await loadUpdateStatus(true)
+        }
+      }
+    }
+  } catch {
+    if (onlineUpdateActive.value && onlineUpdateStatus.value) {
+      onlineUpdateStatus.value = {
+        ...onlineUpdateStatus.value,
+        message: '应用正在重启，等待服务恢复连接…'
+      }
+    }
+  }
+}
+
+const startOnlineUpdate = async () => {
+  if (updateSubmitting.value || onlineUpdateActive.value) return
+  if (!window.confirm('在线更新会短暂重启应用容器。当前任务完成后将自动恢复，是否继续？')) return
+  updateSubmitting.value = true
+  try {
+    const response = await requestOnlineUpdate()
+    if ((response.code !== 0 && response.code !== 200) || !response.data) {
+      throw new Error(response.msg || '提交在线更新失败')
+    }
+    onlineUpdateStatus.value = response.data
+    versionDialogVisible.value = true
+    if (!updatePollTimer) updatePollTimer = setInterval(loadOnlineUpdateStatus, 2000)
+  } catch (error: unknown) {
+    showError(error instanceof Error ? error.message : '提交在线更新失败')
+    await loadOnlineUpdateStatus()
+  } finally {
+    updateSubmitting.value = false
+  }
+}
 const loadUpdateStatus = async (forceRefresh = false) => {
   updateChecking.value = true
   try {
@@ -105,10 +182,12 @@ const loadUpdateStatus = async (forceRefresh = false) => {
 onMounted(() => {
   checkScreenSize()
   loadUpdateStatus()
+  loadOnlineUpdateStatus()
   window.addEventListener('resize', checkScreenSize)
 })
 
 onUnmounted(() => {
+  stopUpdatePolling()
   window.removeEventListener('resize', checkScreenSize)
 })
 </script>
@@ -188,6 +267,17 @@ onUnmounted(() => {
           <div class="is-latest"><small>GitHub 最新版本</small><strong>{{ displayVersion(updateStatus.latestVersion) }}</strong><code v-if="updateStatus.latestCommit">{{ updateStatus.latestCommit }}</code></div>
         </div>
         <p class="version-dialog__status" :class="{ available: updateStatus.updateAvailable }">{{ updateStatus.message }}</p>
+        <div v-if="onlineUpdateStatus && onlineUpdateStatus.status !== 'IDLE'" class="version-dialog__progress" :class="`is-${onlineUpdateStatus.status.toLowerCase()}`">
+          <div class="version-dialog__progress-heading">
+            <strong>{{ onlineUpdateStatus.message || '在线更新处理中' }}</strong>
+            <span>{{ onlineUpdateProgress }}%</span>
+          </div>
+          <div class="version-dialog__progress-track"><i :style="{ width: `${onlineUpdateProgress}%` }"></i></div>
+          <small v-if="onlineUpdateStatus.totalBytes > 0">
+            {{ formatBytes(onlineUpdateStatus.downloadedBytes) }} / {{ formatBytes(onlineUpdateStatus.totalBytes) }}
+          </small>
+          <small v-else-if="onlineUpdateActive">更新过程中应用会短暂重启，页面将自动等待恢复。</small>
+        </div>
         <div class="version-dialog__changes">
           <div class="version-dialog__changes-heading">
             <div><h3>{{ selectedRelease.label }} 更新内容</h3><p>以下内容来自 GitHub 最新正式 Release。</p></div>
@@ -198,8 +288,16 @@ onUnmounted(() => {
           </ul>
         </div>
         <footer>
-          <span>更新命令：<code>cd ~/xianyu-Plus && ./update.sh</code></span>
+          <span v-if="onlineUpdateStatus?.available">飞牛OS宿主机将自动备份、校验、重启并检查新版本。</span>
+          <span v-else>首次启用：<code>sudo ./deploy/self-update/install-online-update.sh</code></span>
           <a v-if="updateStatus.updateUrl" :href="updateStatus.updateUrl" target="_blank" rel="noopener noreferrer">查看 GitHub</a>
+          <button
+            v-if="updateStatus.updateAvailable && onlineUpdateStatus?.available"
+            class="version-dialog__update-button"
+            type="button"
+            :disabled="updateSubmitting || onlineUpdateActive"
+            @click="startOnlineUpdate"
+          >{{ onlineUpdateActionLabel }}</button>
           <button type="button" @click="versionDialogVisible = false">关闭</button>
         </footer>
       </section>
@@ -247,6 +345,14 @@ onUnmounted(() => {
 .version-dialog__versions small { color: #7a8799; }.version-dialog__versions strong { color: #1d3557; font-size: 20px; }.version-dialog__versions code { color: #8190a4; font-size: 11px; }
 .version-dialog__status { margin: 8px 24px 0; padding: 10px 12px; border-radius: 10px; color: #315f91; background: #edf6ff; font-size: 13px; }.version-dialog__status.available { color: #805900; background: #fff4cf; }
 .version-dialog__changes { padding: 18px 24px 20px; }
+.version-dialog__progress { display: grid; gap: 8px; margin: 12px 24px 0; padding: 12px; border: 1px solid #dce7f4; border-radius: 11px; background: #f7fbff; }
+.version-dialog__progress-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #315b89; font-size: 12px; }
+.version-dialog__progress-heading span { font-variant-numeric: tabular-nums; font-weight: 800; }
+.version-dialog__progress-track { height: 7px; overflow: hidden; border-radius: 999px; background: #dfe9f5; }
+.version-dialog__progress-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg,#2f7dd1,#65a7e9); transition: width .3s ease; }
+.version-dialog__progress small { color: #718096; font-size: 11px; }
+.version-dialog__progress.is-success { border-color: #bfe3ce; background: #f0faf4; }.version-dialog__progress.is-success .version-dialog__progress-track i { background: #36a269; }
+.version-dialog__progress.is-failed { border-color: #efc5c5; background: #fff5f5; }.version-dialog__progress.is-failed .version-dialog__progress-track i { background: #d76565; }
 .version-dialog__changes-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
 .version-dialog__changes h3 { margin: 0; color: #283b57; font-size: 15px; }
 .version-dialog__changes-heading p { margin: 4px 0 0; color: #718096; font-size: 12px; }
@@ -255,6 +361,7 @@ onUnmounted(() => {
 .version-history-select select:focus { border-color: #75a8df; box-shadow: 0 0 0 3px rgba(61, 132, 210, .12); }
 .version-dialog__changes ul { display: grid; gap: 8px; margin: 0; padding-left: 20px; color: #53627a; font-size: 13px; line-height: 1.55; }
 .version-dialog > footer { display: flex; align-items: center; gap: 9px; padding: 14px 24px; border-top: 1px solid #edf0f4; background: #fafbfd; }.version-dialog > footer span { min-width: 0; margin-right: auto; color: #6f7e92; font-size: 11px; }.version-dialog > footer span code { color: #335b87; }.version-dialog > footer a,.version-dialog > footer button { padding: 8px 13px; border: 1px solid #d5deea; border-radius: 9px; background: #fff; color: #315b89; font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer; }
+.version-dialog > footer .version-dialog__update-button { border-color: #226fbe; background: #2f7dd1; color: #fff; }.version-dialog > footer button:disabled { cursor: not-allowed; opacity: .58; }
 .workspace-main { flex: 1; min-width: 0; overflow: auto; padding: 28px 32px 36px; background: var(--xy-page); }
 
 .compact-header { height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 18px; border-bottom: 1px solid var(--xy-border); background: var(--xy-surface); }

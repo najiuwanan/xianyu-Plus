@@ -11,6 +11,7 @@ import com.xianyusmart.service.AutoReplyDelayService;
 import com.xianyusmart.service.AutoReplyService;
 import com.xianyusmart.service.BuyerBlacklistService;
 import com.xianyusmart.service.AutomationScheduleService;
+import com.xianyusmart.service.OnlineUpdateMaintenanceService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -54,7 +55,10 @@ import java.util.concurrent.*;
 @Slf4j
 @Service
 public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
-    
+
+    @Autowired(required = false)
+    private OnlineUpdateMaintenanceService onlineUpdateMaintenanceService;
+
     @Autowired
     private AutoReplyService autoReplyService;
 
@@ -88,6 +92,7 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
     private int leaseSeconds;
     
     /** 延时任务调度线程池 */
+
     @Autowired
     @Qualifier("autoReplyScheduler")
     private ScheduledExecutorService scheduler;
@@ -315,6 +320,7 @@ public class AutoReplyDelayServiceImpl implements AutoReplyDelayService {
     }
 
     private void dispatchTask(Long recordId, List<ChatMessageData> messages) {
+        if (onlineUpdateMaintenanceService != null && onlineUpdateMaintenanceService.isActive()) return;
         if (recordId == null || messages == null || messages.isEmpty()) {
             return;
         }

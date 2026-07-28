@@ -5,6 +5,7 @@ import com.xianyusmart.entity.XianyuAccount;
 import com.xianyusmart.mapper.XianyuAccountMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import java.util.concurrent.Executor;
@@ -22,6 +23,9 @@ public class RedFlowerTaskScheduler {
     private final Executor taskExecutor;
     private final AtomicBoolean running = new AtomicBoolean(false);
 
+    @Autowired(required = false)
+    private OnlineUpdateMaintenanceService onlineUpdateMaintenanceService;
+
     public RedFlowerTaskScheduler(RedFlowerService redFlowerService,
                                    XianyuAccountMapper accountMapper,
                                    PendingOrderPollService pendingOrderPollService,
@@ -36,6 +40,7 @@ public class RedFlowerTaskScheduler {
 
     @Scheduled(fixedDelay = 1000, initialDelay = 90000)
     public void processPendingRedFlowers() {
+        if (onlineUpdateMaintenanceService != null && onlineUpdateMaintenanceService.isActive()) return;
         if (!automationScheduleService.tryAcquire(AutomationScheduleService.RED_FLOWER)
                 || !running.compareAndSet(false, true)) {
             return;

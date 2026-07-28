@@ -2,8 +2,13 @@ package com.xianyusmart.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xianyusmart.controller.dto.OnlineUpdateStatusRespDTO;
 import com.xianyusmart.controller.dto.SystemUpdateStatusRespDTO;
+import com.xianyusmart.mapper.OrderAutomationRecordMapper;
+import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
+import com.xianyusmart.mapper.XianyuGoodsAutoReplyRecordMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -14,11 +19,19 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.time.Instant;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 /**
@@ -30,6 +43,10 @@ public class SystemUpdateService {
 
     private static final Pattern REPOSITORY_PATTERN = Pattern.compile("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$");
     private static final Pattern COMMIT_PATTERN = Pattern.compile("^[0-9a-fA-F]{7,64}$");
+    private static final Set<String> ACTIVE_UPDATE_STATUSES = Set.of(
+            "REQUESTED", "CHECKING", "DOWNLOADING", "VERIFYING", "DRAINING",
+            "INSTALLING", "RESTARTING", "HEALTH_CHECKING");
+    private static final Duration UPDATE_STALE_TIMEOUT = Duration.ofMinutes(30);
 
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -45,6 +62,17 @@ public class SystemUpdateService {
 
     @Value("${UPDATE_CHECK_CACHE_MINUTES:60}")
     private long cacheMinutes;
+    @Value("${UPDATE_REQUEST_DIR:/app/update}")
+    private String updateRequestDir;
+
+    @Autowired(required = false)
+    private XianyuGoodsOrderMapper orderMapper;
+
+    @Autowired(required = false)
+    private OrderAutomationRecordMapper automationRecordMapper;
+
+    @Autowired(required = false)
+    private XianyuGoodsAutoReplyRecordMapper autoReplyRecordMapper;
 
     private volatile SystemUpdateStatusRespDTO cachedStatus;
     private volatile Instant cachedAt;
@@ -57,6 +85,165 @@ public class SystemUpdateService {
                 .build();
     }
 
+    /** 提交一个由 fnOS/Linux 宿主机代理执行的在线更新任务。 */
+    public synchronized OnlineUpdateStatusRespDTO requestOnlineUpdate() {
+        OnlineUpdateStatusRespDTO current = onlineUpdateStatus();
+        if (!current.isAvailable()) {
+            throw new IllegalStateException("在线更新代理尚未安装或未就绪，请先在飞牛OS执行安装命令");
+        }
+        if (current.isActive()) {
+            return current;
+        }
+
+        SystemUpdateStatusRespDTO releaseStatus = checkStatus(true);
+        String targetVersion = normalizeVersion(releaseStatus.getLatestVersion());
+        if (!releaseStatus.isUpdateAvailable() || !isSemanticVersion(targetVersion)) {
+            throw new IllegalStateException("当前已经是最新正式版本");
+        }
+
+        int blockingTasks = countOnlineUpdateBlockingTasks();
+        if (blockingTasks > 0) {
+            throw new IllegalStateException("当前有 " + blockingTasks + " 个发货、确认发货或评价任务正在执行，请稍后再更新");
+        }
+
+        try {
+            Path directory = Path.of(updateRequestDir);
+            Files.createDirectories(directory);
+            if (!Files.isWritable(directory) || !Files.exists(directory.resolve("agent.ready"))) {
+                throw new IllegalStateException("在线更新代理尚未就绪");
+            }
+            String taskId = UUID.randomUUID().toString();
+            String requestedAt = Instant.now().toString();
+            Map<String, Object> request = new LinkedHashMap<>();
+            request.put("taskId", taskId);
+            request.put("version", targetVersion);
+            request.put("requestedAt", requestedAt);
+
+            Map<String, Object> status = new LinkedHashMap<>(request);
+            status.put("status", "REQUESTED");
+            status.put("progress", 0);
+            status.put("message", "更新任务已提交，正在等待宿主机代理处理");
+            status.put("downloadedBytes", 0L);
+            status.put("totalBytes", 0L);
+            status.put("updatedAt", requestedAt);
+            writeJsonAtomically(directory.resolve("status.json"), status);
+            writeJsonAtomically(directory.resolve("request.json"), request);
+            return onlineUpdateStatus();
+        } catch (IllegalStateException exception) {
+            throw exception;
+        } catch (Exception exception) {
+            throw new IllegalStateException("提交在线更新失败：" + exception.getMessage(), exception);
+        }
+    }
+
+    /** 读取宿主机代理以原子 JSON 文件持续写入的实时进度。 */
+    public OnlineUpdateStatusRespDTO onlineUpdateStatus() {
+        OnlineUpdateStatusRespDTO response = new OnlineUpdateStatusRespDTO();
+        Path directory = Path.of(updateRequestDir);
+        boolean available = Files.isDirectory(directory) && Files.isWritable(directory)
+                && Files.exists(directory.resolve("agent.ready"));
+        response.setAvailable(available);
+        try {
+            Map<String, Object> status = readJson(directory.resolve("status.json"));
+            Map<String, Object> request = readJson(directory.resolve("request.json"));
+            boolean requestPending = Files.exists(directory.resolve("request.json"));
+            if (status.isEmpty() && !request.isEmpty()) {
+                status = new LinkedHashMap<>(request);
+                status.put("status", "REQUESTED");
+                status.put("progress", 0);
+                status.put("message", "更新任务已提交，正在等待宿主机代理处理");
+            }
+
+            String state = stringValue(status.get("status"), "IDLE");
+            if (requestPending && ACTIVE_UPDATE_STATUSES.contains(state)
+                    && isStale(status.get("updatedAt"))) {
+                Files.deleteIfExists(directory.resolve("request.json"));
+                requestPending = false;
+                state = "FAILED";
+                status.put("message", "更新任务长时间没有进展，已允许重新尝试");
+            } else if (!requestPending && ACTIVE_UPDATE_STATUSES.contains(state)) {
+                state = "FAILED";
+                status.put("message", "更新任务已中断，可重新尝试");
+            }
+
+            response.setTaskId(stringValue(status.get("taskId"), null));
+            response.setVersion(stringValue(status.get("version"), null));
+            response.setStatus(state);
+            response.setProgress(intValue(status.get("progress"), 0));
+            response.setMessage(stringValue(status.get("message"),
+                    available ? "暂无在线更新任务" : "在线更新代理尚未安装"));
+            response.setDownloadedBytes(longValue(status.get("downloadedBytes"), 0L));
+            response.setTotalBytes(longValue(status.get("totalBytes"), 0L));
+            response.setRequestedAt(stringValue(status.get("requestedAt"), null));
+            response.setUpdatedAt(stringValue(status.get("updatedAt"), null));
+            response.setActive(requestPending && ACTIVE_UPDATE_STATUSES.contains(state));
+            response.setCanRetry("FAILED".equals(state) && !requestPending);
+        } catch (Exception exception) {
+            response.setStatus("FAILED");
+            response.setMessage("更新状态读取失败，可重新安装代理或检查更新目录权限");
+            response.setCanRetry(true);
+        }
+        return response;
+    }
+
+    private int countOnlineUpdateBlockingTasks() {
+        try {
+            int count = orderMapper == null ? 0 : orderMapper.countOnlineUpdateBlockingTasks();
+            count += automationRecordMapper == null ? 0 : automationRecordMapper.countOnlineUpdateBlockingActions();
+            count += autoReplyRecordMapper == null ? 0 : autoReplyRecordMapper.countOnlineUpdateBlockingReplies();
+            return count;
+        } catch (Exception exception) {
+            log.warn("在线更新前检查业务任务失败", exception);
+            throw new IllegalStateException("暂时无法确认发货、回复和评价任务是否已经结束，请稍后重试");
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> readJson(Path path) throws Exception {
+        if (!Files.isRegularFile(path)) {
+            return Map.of();
+        }
+        return objectMapper.readValue(Files.readString(path, StandardCharsets.UTF_8), LinkedHashMap.class);
+    }
+
+    private void writeJsonAtomically(Path target, Map<String, Object> content) throws Exception {
+        Path temporary = target.resolveSibling(target.getFileName() + ".tmp." + UUID.randomUUID());
+        Files.writeString(temporary, objectMapper.writeValueAsString(content), StandardCharsets.UTF_8);
+        try {
+            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException ignored) {
+            Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private boolean isStale(Object updatedAt) {
+        try {
+            return updatedAt != null && Instant.parse(String.valueOf(updatedAt))
+                    .plus(UPDATE_STALE_TIMEOUT).isBefore(Instant.now());
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private String stringValue(Object value, String fallback) {
+        return value == null || String.valueOf(value).isBlank() ? fallback : String.valueOf(value);
+    }
+
+    private int intValue(Object value, int fallback) {
+        try {
+            return value == null ? fallback : Integer.parseInt(String.valueOf(value));
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private long longValue(Object value, long fallback) {
+        try {
+            return value == null ? fallback : Long.parseLong(String.valueOf(value));
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
     public SystemUpdateStatusRespDTO checkStatus(boolean forceRefresh) {
         SystemUpdateStatusRespDTO cached = cachedStatus;
         if (!forceRefresh && cached != null && cachedAt != null
@@ -92,8 +279,12 @@ public class SystemUpdateService {
 
         String normalizedCommit = currentCommit == null ? "" : currentCommit.trim();
         if (!COMMIT_PATTERN.matcher(normalizedCommit).matches()) {
-            status.setMessage("版本检查将在下次通过更新脚本升级后自动启用");
-            status.setUpdateUrl("https://github.com/" + normalizedRepository + "/commits/main");
+            status.setMessage("正在按 GitHub 正式版本检查更新");
+            status.setUpdateUrl("https://github.com/" + normalizedRepository + "/releases/latest");
+            fetchLatestVersion(normalizedRepository, status);
+            applyReleaseVersionStatus(status);
+            fetchReleaseHighlights(normalizedRepository, status);
+            applyBundledReleaseNotes(status);
             return status;
         }
 
@@ -131,6 +322,7 @@ public class SystemUpdateService {
 
             applyCompareStatus(status, compareStatus, root);
             fetchLatestVersion(normalizedRepository, status);
+            applyReleaseVersionStatus(status);
             if ((status.getLatestVersion() == null || status.getLatestVersion().isBlank())
                     && "identical".equals(compareStatus)) {
                 status.setLatestVersion(status.getCurrentVersion());
@@ -163,11 +355,23 @@ public class SystemUpdateService {
         }
     }
 
+    void applyReleaseVersionStatus(SystemUpdateStatusRespDTO status) {
+        String current = normalizeVersion(status.getCurrentVersion());
+        String latest = normalizeVersion(status.getLatestVersion());
+        if (!isSemanticVersion(current) || !isSemanticVersion(latest)) {
+            return;
+        }
+        int comparison = compareVersions(latest, current);
+        status.setUpdateAvailable(comparison > 0);
+        status.setMessage(comparison > 0
+                ? "发现正式版本 V" + latest + "，可以在线更新"
+                : "当前已是最新正式版本 V" + current);
+    }
     private void fetchLatestVersion(String normalizedRepository, SystemUpdateStatusRespDTO status) {
         try {
-            String tagsUrl = "https://api.github.com/repos/" + normalizedRepository + "/tags?per_page=100";
+            String releasesUrl = "https://api.github.com/repos/" + normalizedRepository + "/releases?per_page=100";
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(tagsUrl))
+                    .uri(URI.create(releasesUrl))
                     .timeout(Duration.ofSeconds(8))
                     .header("Accept", "application/vnd.github+json")
                     .header("User-Agent", "XianYuPlus-Update-Checker")
@@ -175,20 +379,28 @@ public class SystemUpdateService {
                     .build();
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() == 200) {
-                JsonNode tags = objectMapper.readTree(response.body());
-                if (tags.isArray() && !tags.isEmpty()) {
+                JsonNode releases = objectMapper.readTree(response.body());
+                if (releases.isArray() && !releases.isEmpty()) {
                     String latest = "";
-                    for (JsonNode tag : tags) {
-                        String candidate = normalizeVersion(tag.path("name").asText(""));
+                    String latestUrl = "";
+                    for (JsonNode release : releases) {
+                        if (release.path("draft").asBoolean(false) || release.path("prerelease").asBoolean(false)) {
+                            continue;
+                        }
+                        String candidate = normalizeVersion(release.path("tag_name").asText(""));
                         if (isSemanticVersion(candidate) && (latest.isBlank() || compareVersions(candidate, latest) > 0)) {
                             latest = candidate;
+                            latestUrl = release.path("html_url").asText("");
                         }
                     }
                     status.setLatestVersion(latest);
+                    if (!latestUrl.isBlank()) {
+                        status.setUpdateUrl(latestUrl);
+                    }
                 }
             }
         } catch (Exception e) {
-            log.debug("读取 GitHub 最新版本标签失败", e);
+            log.debug("读取 GitHub 最新正式版本失败", e);
         }
     }
 
@@ -285,7 +497,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
-        if ("2.2.4".equals(version)) {
+        if ("2.2.5".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "飞牛OS新增网页在线更新，宿主机systemd代理运行且不增加Docker容器",
+                    "实时显示下载、校验、任务排空、安装、重启和健康检查进度",
+                    "GitHub Release自动提供JAR与SHA256校验文件，安装前自动备份数据库和旧版本",
+                    "安装阶段暂停领取新自动化任务并等待正在执行的发货、回复和评价安全结束",
+                    "健康检查失败自动恢复旧JAR；发货、自动回复、评价和小红花业务规则保持不变"
+            ));
+            return;
+        }        if ("2.2.4".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "商品自动化配置新增多规格卡密映射，每个真实SKU可独立指定卡密库",
                     "支持自定义规格后台显示名，商品重新同步后继续保留",
@@ -294,7 +515,8 @@ public class SystemUpdateService {
                     "增加SKU与卡密库账号归属校验；V32迁移不会清空现有账号、订单、卡密或配置"
             ));
             return;
-        }        if ("2.2.3".equals(version)) {
+        }
+        if ("2.2.3".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "需要验证或连接异常时仍可直接禁用账号，并停止连接、Token续期与待执行任务",
                     "WebSocket Token按真实到期时间续期，多账号随机提前65至80分钟错峰执行",
