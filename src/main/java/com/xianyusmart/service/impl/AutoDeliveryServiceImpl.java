@@ -453,7 +453,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                     orderDetail == null ? null : orderDetail.xyGoodsId, xyGoodsId);
             buyerUserName = firstNonBlank(orderDetail == null ? null : orderDetail.buyerUserName,
                     buyerUserName, record.getBuyerUserName());
-            String orderSkuId = orderDetail != null ? orderDetail.skuId : null;
+            String orderSkuId = firstNonBlank(orderDetail == null ? null : orderDetail.skuId, record.getSkuId());
             int buyNum = orderDetail != null && orderDetail.buyNum != null && orderDetail.buyNum > 0
                     ? orderDetail.buyNum : (record.getBuyNum() != null && record.getBuyNum() > 0 ? record.getBuyNum() : 1);
 
@@ -599,8 +599,10 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
                 updateRecordState(recordId, 0, null, failReason);
                 return;
             }
-            String orderSkuId = orderDetail != null ? orderDetail.skuId : null;
-            int buyNum = (orderDetail != null && orderDetail.buyNum != null && orderDetail.buyNum > 0) ? orderDetail.buyNum : 1;
+            String orderSkuId = firstNonBlank(orderDetail == null ? null : orderDetail.skuId, currentOrder.getSkuId());
+            int buyNum = (orderDetail != null && orderDetail.buyNum != null && orderDetail.buyNum > 0)
+                    ? orderDetail.buyNum
+                    : (currentOrder.getBuyNum() != null && currentOrder.getBuyNum() > 0 ? currentOrder.getBuyNum() : 1);
             log.info("【账号{}】订单SKU: orderId={}, skuId={}, buyNum={}", accountId, orderId, orderSkuId, buyNum);
 
             if (orderDetail != null) {
@@ -972,7 +974,7 @@ public class AutoDeliveryServiceImpl implements AutoDeliveryService {
         String xyGoodsId = firstNonBlank(detail.xyGoodsId, fallbackXyGoodsId, order.getXyGoodsId());
         orderMapper.updateOrderDetail(order.getId(), xyGoodsId, detail.buyerUserId,
                 detail.buyerUserName, detail.orderCreateTime, detail.paySuccessTime,
-                detail.consignTime, detail.skuName, detail.goodsTitle, detail.totalPrice,
+                detail.consignTime, detail.skuName, detail.skuId, detail.goodsTitle, detail.totalPrice,
                 detail.buyNum);
         XianyuGoodsOrder refreshed = orderMapper.selectById(order.getId());
         return refreshed == null ? order : refreshed;

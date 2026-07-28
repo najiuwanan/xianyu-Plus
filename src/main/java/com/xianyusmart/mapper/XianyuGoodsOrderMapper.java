@@ -120,8 +120,8 @@ public interface XianyuGoodsOrderMapper {
             "ORDER BY date_key ASC")
     List<DashboardTrendPointDTO> selectRecentDeliveryTrend();
     
-    @Insert("INSERT INTO xianyu_goods_order (xianyu_account_id, xianyu_goods_id, xy_goods_id, pnm_id, order_id, buyer_user_id, buyer_user_name, sid, content, state, fail_reason, confirm_state, goods_title, sku_name, order_create_time, pay_success_time, consign_time, total_price, buy_num, delivery_status, expected_quantity, delivery_channel, trade_status, trade_status_text, notification_status) " +
-            "VALUES (#{xianyuAccountId}, #{xianyuGoodsId}, #{xyGoodsId}, #{pnmId}, #{orderId}, #{buyerUserId}, #{buyerUserName}, #{sid}, #{content}, #{state}, #{failReason}, #{confirmState}, #{goodsTitle}, #{skuName}, #{orderCreateTime}, #{paySuccessTime}, #{consignTime}, #{totalPrice}, COALESCE(#{buyNum}, 1), COALESCE(#{deliveryStatus}, CASE WHEN #{state} = 1 THEN 'COMPLETED' WHEN #{state} = -1 THEN 'FAILED' ELSE 'PENDING' END), COALESCE(#{expectedQuantity}, COALESCE(#{buyNum}, 1)), #{deliveryChannel}, #{tradeStatus}, #{tradeStatusText}, COALESCE(#{notificationStatus}, 2)) " +
+    @Insert("INSERT INTO xianyu_goods_order (xianyu_account_id, xianyu_goods_id, xy_goods_id, pnm_id, order_id, buyer_user_id, buyer_user_name, sid, content, state, fail_reason, confirm_state, goods_title, sku_name, sku_id, order_create_time, pay_success_time, consign_time, total_price, buy_num, delivery_status, expected_quantity, delivery_channel, trade_status, trade_status_text, notification_status) " +
+            "VALUES (#{xianyuAccountId}, #{xianyuGoodsId}, #{xyGoodsId}, #{pnmId}, #{orderId}, #{buyerUserId}, #{buyerUserName}, #{sid}, #{content}, #{state}, #{failReason}, #{confirmState}, #{goodsTitle}, #{skuName}, #{skuId}, #{orderCreateTime}, #{paySuccessTime}, #{consignTime}, #{totalPrice}, COALESCE(#{buyNum}, 1), COALESCE(#{deliveryStatus}, CASE WHEN #{state} = 1 THEN 'COMPLETED' WHEN #{state} = -1 THEN 'FAILED' ELSE 'PENDING' END), COALESCE(#{expectedQuantity}, COALESCE(#{buyNum}, 1)), #{deliveryChannel}, #{tradeStatus}, #{tradeStatusText}, COALESCE(#{notificationStatus}, 2)) " +
             "ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)")
     @Options(useGeneratedKeys = true, keyProperty = "id")
     int insert(XianyuGoodsOrder record);
@@ -172,6 +172,7 @@ public interface XianyuGoodsOrderMapper {
         @Result(property = "createTime", column = "create_time"),
         @Result(property = "goodsTitle", column = "goods_title"),
         @Result(property = "skuName", column = "sku_name"),
+        @Result(property = "skuId", column = "sku_id"),
         @Result(property = "orderCreateTime", column = "order_create_time"),
         @Result(property = "paySuccessTime", column = "pay_success_time"),
         @Result(property = "consignTime", column = "consign_time"),
@@ -487,6 +488,7 @@ public interface XianyuGoodsOrderMapper {
         @Result(property = "createTime", column = "create_time"),
         @Result(property = "goodsTitle", column = "goods_title"),
         @Result(property = "skuName", column = "sku_name"),
+        @Result(property = "skuId", column = "sku_id"),
         @Result(property = "orderCreateTime", column = "order_create_time"),
         @Result(property = "paySuccessTime", column = "pay_success_time"),
         @Result(property = "consignTime", column = "consign_time"),
@@ -543,6 +545,7 @@ public interface XianyuGoodsOrderMapper {
             "pay_success_time = COALESCE(NULLIF(#{paySuccessTime}, ''), pay_success_time), " +
             "consign_time = COALESCE(NULLIF(#{consignTime}, ''), consign_time), " +
             "sku_name = COALESCE(NULLIF(#{skuName}, ''), sku_name), " +
+            "sku_id = COALESCE(NULLIF(#{skuId}, ''), sku_id), " +
             "goods_title = COALESCE(NULLIF(#{goodsTitle}, ''), goods_title), " +
             "total_price = COALESCE(NULLIF(#{totalPrice}, ''), total_price), " +
             "buy_num = COALESCE(#{buyNum}, buy_num) WHERE id = #{id}")
@@ -554,6 +557,7 @@ public interface XianyuGoodsOrderMapper {
                           @Param("paySuccessTime") String paySuccessTime,
                           @Param("consignTime") String consignTime,
                           @Param("skuName") String skuName,
+                          @Param("skuId") String skuId,
                           @Param("goodsTitle") String goodsTitle,
                           @Param("totalPrice") String totalPrice,
                           @Param("buyNum") Integer buyNum);

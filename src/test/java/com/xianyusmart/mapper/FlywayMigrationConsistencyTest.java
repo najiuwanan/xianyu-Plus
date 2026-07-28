@@ -80,6 +80,15 @@ class FlywayMigrationConsistencyTest {
     }
 
     @Test
+    void multiSkuMigrationPersistsExactSkuAndCustomDisplayNames() throws IOException {
+        String v32 = new ClassPathResource("db/migration/V32__add_multi_sku_delivery_preferences.sql")
+                .getContentAsString(StandardCharsets.UTF_8);
+        assertTrue(v32.contains("ADD COLUMN sku_id VARCHAR(32)"));
+        assertTrue(v32.contains("ADD COLUMN display_name VARCHAR(200)"));
+        assertTrue(v32.contains("idx_goods_order_account_sku"));
+    }
+
+    @Test
     void reliabilityMigrationAddsFencingAndRecoverableTasks() throws IOException {
         String v30 = new ClassPathResource("db/migration/V30__complete_automation_reliability.sql")
                 .getContentAsString(StandardCharsets.UTF_8);

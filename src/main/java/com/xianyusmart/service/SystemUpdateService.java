@@ -285,7 +285,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
-        if ("2.2.3".equals(version)) {
+        if ("2.2.4".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "商品自动化配置新增多规格卡密映射，每个真实SKU可独立指定卡密库",
+                    "支持自定义规格后台显示名，商品重新同步后继续保留",
+                    "订单保存真实skuId，实时付款、订单同步、自动重试和人工补发统一精确匹配",
+                    "未单独配置的规格继承商品默认卡券，普通单规格商品行为保持不变",
+                    "增加SKU与卡密库账号归属校验；V32迁移不会清空现有账号、订单、卡密或配置"
+            ));
+            return;
+        }        if ("2.2.3".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "需要验证或连接异常时仍可直接禁用账号，并停止连接、Token续期与待执行任务",
                     "WebSocket Token按真实到期时间续期，多账号随机提前65至80分钟错峰执行",

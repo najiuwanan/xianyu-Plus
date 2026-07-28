@@ -54,6 +54,9 @@ class XianyuGoodsOrderMapperSqlTest {
         assertTrue(sql.contains("buyer_user_id"));
         assertTrue(sql.contains("#{buyerUserId}"));
         assertTrue(sql.contains("COALESCE(NULLIF(buyer_user_id, ''), NULLIF(#{buyerUserId}, ''))"));
+        assertTrue(sql.contains("sku_id"));
+        assertTrue(sql.contains("#{skuId}"));
+        assertTrue(sql.contains("COALESCE(NULLIF(#{skuId}, ''), sku_id)"));
     }
 
     @Test

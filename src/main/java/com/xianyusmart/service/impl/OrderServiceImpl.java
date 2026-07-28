@@ -13,6 +13,7 @@ import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
 import com.xianyusmart.service.AccountService;
 import com.xianyusmart.service.DeliveryAttemptResult;
 import com.xianyusmart.service.OrderService;
+import com.xianyusmart.service.delivery.SkuResolver;
 import com.xianyusmart.utils.XianyuApiCallUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Autowired
     private XianyuGoodsOrderMapper orderMapper;
+
+    @Autowired
+    private SkuResolver skuResolver;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -289,6 +293,8 @@ public class OrderServiceImpl implements OrderService {
             }
 
             String goodsTitle = null;
+            String skuName = null;
+            String skuId = null;
             Object merchantItemVO = module.get("merchantItemVO");
             if (merchantItemVO instanceof Map) {
                 Map<String, Object> merchantItem = (Map<String, Object>) merchantItemVO;
@@ -299,6 +305,13 @@ public class OrderServiceImpl implements OrderService {
                 }
                 Object title = merchantItem.get("title");
                 if (title instanceof String) goodsTitle = (String) title;
+                Object skuText = merchantItem.get("skuText");
+                if (skuText instanceof String) skuName = (String) skuText;
+                Object rawSkuId = merchantItem.get("skuId");
+                if (rawSkuId != null && !String.valueOf(rawSkuId).isBlank()) skuId = String.valueOf(rawSkuId);
+            }
+            if ((skuId == null || skuId.isBlank()) && skuName != null) {
+                skuId = skuResolver.resolveSkuIdByText(accountId, xyGoodsId, skuName);
             }
 
             String totalPrice = null;
@@ -317,7 +330,7 @@ public class OrderServiceImpl implements OrderService {
             }
 
             orderMapper.updateOrderDetail(order.getId(), xyGoodsId, buyerUserId, buyerUserName,
-                    orderCreateTime, paySuccessTime, consignTime, null, goodsTitle, totalPrice, buyNum);
+                    orderCreateTime, paySuccessTime, consignTime, skuName, skuId, goodsTitle, totalPrice, buyNum);
             log.info("【账号{}】从API更新订单详情成功: orderId={}", accountId, orderId);
         } catch (Exception e) {
             log.warn("【账号{}】更新订单详情失败: orderId={}", accountId, orderId, e);

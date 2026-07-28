@@ -3,11 +3,15 @@ package com.xianyusmart.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.xianyusmart.common.ResultObject;
 import com.xianyusmart.entity.XianyuGoodsAutoDeliveryConfig;
+import com.xianyusmart.entity.XianyuGoodsSku;
+import com.xianyusmart.entity.XianyuKamiConfig;
 import com.xianyusmart.mapper.XianyuGoodsAutoDeliveryConfigMapper;
+import com.xianyusmart.mapper.XianyuKamiConfigMapper;
 import com.xianyusmart.controller.dto.AutoDeliveryConfigReqDTO;
 import com.xianyusmart.controller.dto.AutoDeliveryConfigRespDTO;
 import com.xianyusmart.controller.dto.AutoDeliveryConfigQueryReqDTO;
 import com.xianyusmart.service.AutoDeliveryConfigService;
+import com.xianyusmart.service.GoodsSkuService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,11 +26,22 @@ public class AutoDeliveryConfigServiceImpl implements AutoDeliveryConfigService 
     
     @Autowired
     private XianyuGoodsAutoDeliveryConfigMapper autoDeliveryConfigMapper;
+
+    @Autowired
+    private GoodsSkuService goodsSkuService;
+
+    @Autowired
+    private XianyuKamiConfigMapper kamiConfigMapper;
     
     @Override
     public ResultObject<AutoDeliveryConfigRespDTO> saveOrUpdateConfig(AutoDeliveryConfigReqDTO reqDTO) {
         try {
-            String skuId = reqDTO.getSkuId();
+            String skuId = normalizeSkuId(reqDTO.getSkuId());
+            reqDTO.setSkuId(skuId);
+            String validationError = validateSkuDeliveryConfig(reqDTO, skuId);
+            if (validationError != null) {
+                return ResultObject.failed(validationError);
+            }
             XianyuGoodsAutoDeliveryConfig existingConfig = null;
             if (skuId != null && !skuId.isEmpty()) {
                 existingConfig = autoDeliveryConfigMapper
@@ -158,6 +173,62 @@ public class AutoDeliveryConfigServiceImpl implements AutoDeliveryConfigService 
         }
     }
     
+    @Override
+    public ResultObject<Void> deleteSkuConfig(Long xianyuAccountId, String xyGoodsId, String skuId) {
+        String normalizedSkuId = normalizeSkuId(skuId);
+        if (xianyuAccountId == null || xyGoodsId == null || xyGoodsId.isBlank() || normalizedSkuId == null) {
+            return ResultObject.failed("账号、商品和规格不能为空");
+        }
+        int deleted = autoDeliveryConfigMapper.deleteByAccountIdAndGoodsIdAndSkuId(
+                xianyuAccountId, xyGoodsId.trim(), normalizedSkuId);
+        return ResultObject.success(null, deleted > 0 ? "规格已恢复使用商品默认规则" : "规格当前已使用商品默认规则");
+    }
+
+    private String validateSkuDeliveryConfig(AutoDeliveryConfigReqDTO request, String skuId) {
+        if (skuId != null) {
+            XianyuGoodsSku sku = goodsSkuService.listByAccountIdAndXyGoodsId(
+                            request.getXianyuAccountId(), request.getXyGoodsId()).stream()
+                    .filter(item -> skuId.equals(item.getSkuId()))
+                    .findFirst()
+                    .orElse(null);
+            if (sku == null) {
+                return "该规格不存在或不属于当前商品，请先重新同步商品";
+            }
+            if (request.getSkuName() == null || request.getSkuName().isBlank()) {
+                request.setSkuName(sku.getDisplayName() == null || sku.getDisplayName().isBlank()
+                        ? sku.getValueText() : sku.getDisplayName());
+            }
+        }
+        if (Integer.valueOf(2).equals(request.getDeliveryMode())) {
+            if (request.getKamiConfigIds() == null || request.getKamiConfigIds().isBlank()) {
+                return "卡密发货必须选择一个卡密库";
+            }
+            for (String value : request.getKamiConfigIds().split(",")) {
+                Long configId;
+                try {
+                    configId = Long.valueOf(value.trim());
+                } catch (Exception exception) {
+                    return "卡密库配置格式不正确";
+                }
+                XianyuKamiConfig config = kamiConfigMapper.selectById(configId);
+                if (config == null) {
+                    return "选择的卡密库不存在或已删除";
+                }
+                if (config.getXianyuAccountId() != null
+                        && !request.getXianyuAccountId().equals(config.getXianyuAccountId())) {
+                    return "选择的卡密库不属于当前账号";
+                }
+            }
+        }
+        return null;
+    }
+
+    private String normalizeSkuId(String skuId) {
+        if (skuId == null) return null;
+        String normalized = skuId.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+
     @Override
     public ResultObject<Void> deleteConfig(Long xianyuAccountId, String xyGoodsId) {
         try {

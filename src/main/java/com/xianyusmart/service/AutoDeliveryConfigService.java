@@ -18,4 +18,6 @@ public interface AutoDeliveryConfigService {
     ResultObject<List<AutoDeliveryConfigRespDTO>> getConfigsByAccountId(Long xianyuAccountId);
     
     ResultObject<Void> deleteConfig(Long xianyuAccountId, String xyGoodsId);
+
+    ResultObject<Void> deleteSkuConfig(Long xianyuAccountId, String xyGoodsId, String skuId);
 }

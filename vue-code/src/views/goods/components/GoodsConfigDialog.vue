@@ -8,7 +8,15 @@ import {
   updateProductDefaultReplyConfig,
   type GoodsItemWithConfig
 } from '@/api/goods'
-import { getAutoDeliveryConfigsByGoodsId } from '@/api/auto-delivery-config'
+import {
+  deleteAutoDeliverySkuConfig,
+  getAutoDeliveryConfigsByGoodsId,
+  getGoodsSkuList,
+  saveOrUpdateAutoDeliveryConfig,
+  updateGoodsSkuPreferences,
+  type AutoDeliveryConfig,
+  type GoodsSku
+} from '@/api/auto-delivery-config'
 import { getFixedMaterial, saveFixedMaterial } from '@/api/ai'
 import { uploadImage } from '@/api/image'
 import { showError, showSuccess } from '@/utils'
@@ -31,6 +39,20 @@ const saving = ref(false)
 const defaultReplyImageUploading = ref(false)
 const defaultReplyImageInput = ref<HTMLInputElement | null>(null)
 const kamiConfigs = ref<KamiConfig[]>([])
+const KEEP_EXISTING_SKU_RULE = '__KEEP_EXISTING__' as const
+
+type SkuKamiSelection = '' | number | typeof KEEP_EXISTING_SKU_RULE
+interface SkuDeliveryRow {
+  skuId: string
+  platformName: string
+  displayName: string
+  price: number
+  quantity: number
+  kamiSelection: SkuKamiSelection
+  existingConfig: AutoDeliveryConfig | null
+}
+
+const skuRows = ref<SkuDeliveryRow[]>([])
 const form = reactive({
   deliveryEnabled: false,
   kamiConfigId: '' as '' | number,
@@ -53,9 +75,19 @@ const form = reactive({
 })
 
 const itemTitle = computed(() => props.item?.item.title || '商品配置')
+const hasMultipleSkus = computed(() => skuRows.value.length > 1)
 const availableKamiConfigs = computed(() => kamiConfigs.value.filter((config) =>
   config.xianyuAccountId == null || config.xianyuAccountId === props.accountId
 ))
+const availableKamiConfigIds = computed(() => new Set(
+  availableKamiConfigs.value.map((config) => Number(config.id))
+))
+
+const skuPlatformName = (sku: GoodsSku) => sku.valueText || sku.propertyText || `规格 ${sku.skuId || sku.id}`
+
+const skuPriceLabel = (price: number) => Number.isFinite(Number(price))
+  ? `¥${(Number(price) / 100).toFixed(2)}`
+  : '价格未知'
 
 const kamiAvailabilityLabel = (config: KamiConfig) => {
   if (config.sourceType === 3) return '固定内容（不限量）'
@@ -88,12 +120,14 @@ const loadConfig = async () => {
   form.bargainFloorReply = ''
   form.bargainInstructions = ''
   form.kamiConfigId = props.item.kamiConfigId ?? ''
+  skuRows.value = []
   try {
-    const [kamiResponse, materialResponse, deliveryConfigResponse, defaultReplyResponse] = await Promise.all([
+    const [kamiResponse, materialResponse, deliveryConfigResponse, defaultReplyResponse, skuResponse] = await Promise.all([
       getKamiConfigs(),
       getFixedMaterial({ accountId: props.accountId, goodsId: props.item.item.xyGoodId }),
       getAutoDeliveryConfigsByGoodsId({ xianyuAccountId: props.accountId, xyGoodsId: props.item.item.xyGoodId }),
-      getProductDefaultReplyConfig({ xianyuAccountId: props.accountId, xyGoodsId: props.item.item.xyGoodId })
+      getProductDefaultReplyConfig({ xianyuAccountId: props.accountId, xyGoodsId: props.item.item.xyGoodId }),
+      getGoodsSkuList(props.accountId, props.item.item.xyGoodId)
     ])
     if (kamiResponse.code === 0 || kamiResponse.code === 200) {
       kamiConfigs.value = kamiResponse.data || []
@@ -112,9 +146,44 @@ const loadConfig = async () => {
         form.bargainInstructions = material.data?.aiBargainInstructions || ''
       }
     }
-    if (deliveryConfigResponse.code === 0 || deliveryConfigResponse.code === 200) {
-      const defaultConfig = (deliveryConfigResponse.data || []).find((config) => config.skuId == null)
-      form.autoConfirmShipment = defaultConfig?.autoConfirmShipment === 1
+    const deliveryConfigs = deliveryConfigResponse.code === 0 || deliveryConfigResponse.code === 200
+      ? (deliveryConfigResponse.data || [])
+      : []
+    const defaultConfig = deliveryConfigs.find((config) => config.skuId == null)
+    form.autoConfirmShipment = defaultConfig?.autoConfirmShipment === 1
+
+    if (skuResponse.code === 0 || skuResponse.code === 200) {
+      const exactConfigs = new Map(deliveryConfigs
+        .filter((config) => config.skuId)
+        .map((config) => [String(config.skuId), config]))
+      skuRows.value = (skuResponse.data || [])
+        .filter((sku) => sku.skuId != null && String(sku.skuId).trim() !== '')
+        .map((sku) => {
+          const skuId = String(sku.skuId)
+          const existingConfig = exactConfigs.get(skuId) || null
+          const configuredKamiIds = existingConfig?.kamiConfigIds
+            ?.split(',').map((value) => value.trim()).filter(Boolean) || []
+          let kamiSelection: SkuKamiSelection = ''
+          if (existingConfig) {
+            const configuredKamiId = Number(configuredKamiIds[0])
+            kamiSelection = existingConfig.deliveryMode === 2
+              && configuredKamiIds.length === 1
+              && Number.isFinite(configuredKamiId)
+              && availableKamiConfigIds.value.has(configuredKamiId)
+              ? configuredKamiId
+              : KEEP_EXISTING_SKU_RULE
+          }
+          const platformName = skuPlatformName(sku)
+          return {
+            skuId,
+            platformName,
+            displayName: sku.displayName?.trim() || platformName,
+            price: Number(sku.price),
+            quantity: Number(sku.quantity || 0),
+            kamiSelection,
+            existingConfig
+          }
+        })
     }
     if ((defaultReplyResponse.code === 0 || defaultReplyResponse.code === 200) && defaultReplyResponse.data) {
       form.productDefaultReplyEnabled = defaultReplyResponse.data.productDefaultReplyOn === 1
@@ -137,6 +206,12 @@ const save = async () => {
   if (form.productDefaultReplyEnabled && !defaultReplyText && !defaultReplyImageUrl) {
     showError('开启商品默认回复后，请填写文字或上传一张图片')
     return
+  }
+  for (const sku of skuRows.value) {
+    if (sku.displayName.trim().length > 200) {
+      showError(`规格“${sku.platformName}”的显示名不能超过 200 个字符`)
+      return
+    }
   }
   const listPrice = Number(props.item.item.soldPrice)
   if (form.bargainEnabled) {
@@ -176,6 +251,52 @@ const save = async () => {
     })
     if (confirmResult.code !== 0 && confirmResult.code !== 200) {
       throw new Error(confirmResult.msg || '保存自动确认发货设置失败')
+    }
+
+    if (skuRows.value.length > 0) {
+      const preferenceResult = await updateGoodsSkuPreferences({
+        xianyuAccountId: props.accountId,
+        xyGoodsId: props.item.item.xyGoodId,
+        items: skuRows.value.map((sku) => ({
+          skuId: sku.skuId,
+          displayName: sku.displayName.trim() === sku.platformName ? '' : sku.displayName.trim()
+        }))
+      })
+      if (preferenceResult.code !== 0 && preferenceResult.code !== 200) {
+        throw new Error(preferenceResult.msg || '保存规格显示名失败')
+      }
+
+      for (const sku of skuRows.value) {
+        if (sku.kamiSelection === KEEP_EXISTING_SKU_RULE) continue
+        if (sku.kamiSelection === '') {
+          if (sku.existingConfig) {
+            const deleteResult = await deleteAutoDeliverySkuConfig(props.accountId, props.item.item.xyGoodId, sku.skuId)
+            if (deleteResult.code !== 0 && deleteResult.code !== 200) {
+              throw new Error(deleteResult.msg || `恢复“${sku.displayName}”默认规则失败`)
+            }
+          }
+          continue
+        }
+        const existing = sku.existingConfig
+        const skuResult = await saveOrUpdateAutoDeliveryConfig({
+          xianyuAccountId: props.accountId,
+          xianyuGoodsId: props.item.item.id,
+          xyGoodsId: props.item.item.xyGoodId,
+          deliveryMode: 2,
+          skuId: sku.skuId,
+          skuName: sku.displayName.trim() || sku.platformName,
+          autoDeliveryContent: existing?.autoDeliveryContent || '',
+          kamiConfigIds: String(sku.kamiSelection),
+          kamiDeliveryTemplate: existing?.kamiDeliveryTemplate || '{kmKey}',
+          autoDeliveryImageUrl: existing?.autoDeliveryImageUrl || '',
+          autoConfirmShipment: form.deliveryEnabled && form.autoConfirmShipment ? 1 : 0,
+          autoAskFlower: existing?.autoAskFlower,
+          autoAskFlowerText: existing?.autoAskFlowerText
+        })
+        if (skuResult.code !== 0 && skuResult.code !== 200) {
+          throw new Error(skuResult.msg || `保存“${sku.displayName}”规格卡密失败`)
+        }
+      }
     }
 
     const materialResponse = await saveFixedMaterial({
@@ -320,7 +441,7 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
                 </label>
               </div>
               <label v-if="form.deliveryEnabled" class="field">
-                <span>关联卡券</span>
+                <span>{{ hasMultipleSkus ? '商品默认卡券' : '关联卡券' }}</span>
                 <select v-model="form.kamiConfigId">
                   <option value="">保留现有发货配置</option>
                   <option v-for="config in availableKamiConfigs" :key="config.id" :value="config.id">
@@ -328,6 +449,41 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
                   </option>
                 </select>
               </label>
+
+              <div v-if="form.deliveryEnabled && hasMultipleSkus" class="sku-mapping">
+                <div class="sku-mapping__heading">
+                  <div>
+                    <strong>按规格指定卡密</strong>
+                    <p>每个规格可使用独立卡密库；选择“使用商品默认卡券”时沿用上方配置。</p>
+                  </div>
+                  <span>{{ skuRows.length }} 个规格</span>
+                </div>
+                <div class="sku-mapping__list">
+                  <article v-for="sku in skuRows" :key="sku.skuId" class="sku-mapping__item">
+                    <div class="sku-mapping__meta">
+                      <strong>{{ sku.platformName }}</strong>
+                      <span>{{ skuPriceLabel(sku.price) }} · 平台库存 {{ sku.quantity }}</span>
+                    </div>
+                    <label class="field sku-mapping__field">
+                      <span>后台显示名</span>
+                      <input v-model="sku.displayName" maxlength="200" :placeholder="sku.platformName" />
+                    </label>
+                    <label class="field sku-mapping__field">
+                      <span>此规格发送</span>
+                      <select v-model="sku.kamiSelection">
+                        <option value="">使用商品默认卡券</option>
+                        <option v-if="sku.existingConfig && sku.kamiSelection === KEEP_EXISTING_SKU_RULE" :value="KEEP_EXISTING_SKU_RULE">
+                          保留现有规格规则
+                        </option>
+                        <option v-for="config in availableKamiConfigs" :key="config.id" :value="config.id">
+                          {{ config.aliasName }}（{{ kamiAvailabilityLabel(config) }}）
+                        </option>
+                      </select>
+                    </label>
+                  </article>
+                </div>
+              </div>
+
               <div v-if="form.deliveryEnabled" class="config-section__title config-section__sub-option">
                 <div>
                   <h3>自动确认发货</h3>
@@ -458,6 +614,16 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 .config-section { padding: 18px; border: 1px solid #e6eaf0; border-radius: 14px; background: #fff; }
 .config-section__title { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
 .config-section__sub-option { margin-top: 14px; padding-top: 14px; border-top: 1px dashed #e5eaf1; }
+.sku-mapping { margin-top: 16px; padding-top: 16px; border-top: 1px dashed #e5eaf1; }
+.sku-mapping__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.sku-mapping__heading strong { color: #1d2d48; font-size: 14px; }
+.sku-mapping__heading > span { flex: none; padding: 4px 9px; border-radius: 999px; background: #eef4ff; color: #2563c5; font-size: 12px; }
+.sku-mapping__list { display: grid; gap: 10px; margin-top: 12px; }
+.sku-mapping__item { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(150px, 1fr) minmax(190px, 1.2fr); align-items: end; gap: 12px; padding: 13px; border: 1px solid #e5eaf1; border-radius: 11px; background: #fbfcfe; }
+.sku-mapping__meta { align-self: center; display: grid; gap: 5px; min-width: 0; }
+.sku-mapping__meta strong { overflow: hidden; color: #263a58; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.sku-mapping__meta span { color: #7a879b; font-size: 12px; }
+.sku-mapping__field { margin-top: 0; }
 .config-section h3 { margin: 0; color: #1d2d48; font-size: 15px; }
 .config-section p { margin: 6px 0 0; color: #758097; font-size: 13px; line-height: 1.55; }
 .field { display: grid; gap: 8px; margin-top: 16px; color: #536079; font-size: 13px; font-weight: 600; }
@@ -490,5 +656,5 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 .btn:disabled { opacity: .55; cursor: not-allowed; }
 .goods-config-fade-enter-active, .goods-config-fade-leave-active { transition: opacity .18s ease; }
 .goods-config-fade-enter-from, .goods-config-fade-leave-to { opacity: 0; }
-@media (max-width: 620px) { .goods-config-mask { padding: 0; align-items: end; } .goods-config-dialog { width: 100%; max-height: 92vh; border-radius: 20px 20px 0 0; } .goods-config-dialog__header, .goods-config-dialog__content, .goods-config-dialog__footer { padding-left: 18px; padding-right: 18px; } .goods-config-dialog__footer { padding-top: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom)); } .bargain-grid { grid-template-columns: 1fr; } .bargain-grid__wide { grid-column: auto; } }
+@media (max-width: 620px) { .goods-config-mask { padding: 0; align-items: end; } .goods-config-dialog { width: 100%; max-height: 92vh; border-radius: 20px 20px 0 0; } .goods-config-dialog__header, .goods-config-dialog__content, .goods-config-dialog__footer { padding-left: 18px; padding-right: 18px; } .goods-config-dialog__footer { padding-top: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom)); } .bargain-grid { grid-template-columns: 1fr; } .bargain-grid__wide { grid-column: auto; } .sku-mapping__item { grid-template-columns: 1fr; align-items: stretch; } }
 </style>

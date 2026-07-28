@@ -67,6 +67,13 @@ public class AutoDeliveryConfigController {
         }
     }
 
+    @PostMapping("/deleteSku")
+    public ResultObject<Void> deleteSkuConfig(@RequestParam("xianyuAccountId") Long xianyuAccountId,
+                                              @RequestParam("xyGoodsId") String xyGoodsId,
+                                              @RequestParam("skuId") String skuId) {
+        return autoDeliveryConfigService.deleteSkuConfig(xianyuAccountId, xyGoodsId, skuId);
+    }
+
     @PostMapping("/delete")
     public ResultObject<Void> deleteConfig(@RequestParam("xianyuAccountId") Long xianyuAccountId,
                                            @RequestParam("xyGoodsId") String xyGoodsId) {

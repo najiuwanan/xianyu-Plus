@@ -81,6 +81,7 @@ public class OrderController {
                 dto.setConfirmState(order.getConfirmState());
                 dto.setGoodsTitle(order.getGoodsTitle());
                 dto.setSkuName(order.getSkuName());
+                dto.setSkuId(order.getSkuId());
                 dto.setOrderCreateTime(order.getOrderCreateTime());
                 dto.setPaySuccessTime(order.getPaySuccessTime());
                 dto.setConsignTime(order.getConsignTime());

@@ -25,6 +25,7 @@ export interface DeliveryRecordVO {
   confirmState: number
   orderId?: string
   skuName?: string
+  skuId?: string
   orderCreateTime?: string
   paySuccessTime?: string
   consignTime?: string

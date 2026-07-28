@@ -28,6 +28,9 @@ public class XianyuGoodsSku {
 
     private String valueText;
 
+    /** 用户自定义显示名；为空时显示平台规格名称。 */
+    private String displayName;
+
     private Integer propertySortOrder;
 
     private Integer valueSortOrder;

@@ -77,6 +77,7 @@ class AutoDeliveryServiceImplTest {
         detail.buyerUserId = "buyer-42";
         detail.buyerUserName = "测试买家";
         detail.goodsTitle = "测试商品";
+        detail.skuId = "sku-pro";
         detail.buyNum = 1;
 
         XianyuGoodsOrder refreshed = new XianyuGoodsOrder();
@@ -99,7 +100,7 @@ class AutoDeliveryServiceImplTest {
         assertEquals("buyer-42", result.getBuyerUserId());
         verify(orderMapper).updateOrderDetail(
                 eq(11L), eq("goods-1"), eq("buyer-42"), eq("测试买家"),
-                isNull(), isNull(), isNull(), isNull(), eq("测试商品"), isNull(), eq(1));
+                isNull(), isNull(), isNull(), isNull(), eq("sku-pro"), eq("测试商品"), isNull(), eq(1));
     }
 
     @Test

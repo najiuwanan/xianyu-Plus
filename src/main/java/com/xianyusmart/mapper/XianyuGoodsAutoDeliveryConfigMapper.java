@@ -55,6 +55,12 @@ public interface XianyuGoodsAutoDeliveryConfigMapper extends BaseMapper<XianyuGo
             "WHERE sku_id IS NULL AND FIND_IN_SET(#{kamiConfigId}, kami_config_ids) > 0")
     List<XianyuGoodsAutoDeliveryConfig> findDefaultByKamiConfigId(@Param("kamiConfigId") Long kamiConfigId);
     
+    @Delete("DELETE FROM xianyu_goods_auto_delivery_config " +
+            "WHERE xianyu_account_id = #{xianyuAccountId} AND xy_goods_id = #{xyGoodsId} AND sku_id = #{skuId}")
+    int deleteByAccountIdAndGoodsIdAndSkuId(@Param("xianyuAccountId") Long xianyuAccountId,
+                                            @Param("xyGoodsId") String xyGoodsId,
+                                            @Param("skuId") String skuId);
+
     @Delete("DELETE FROM xianyu_goods_auto_delivery_config WHERE xianyu_account_id = #{xianyuAccountId}")
     int deleteByAccountId(@Param("xianyuAccountId") Long xianyuAccountId);
 }

@@ -36,7 +36,7 @@ class PendingOrderPollServiceTest {
         Map<String, Object> detail = Map.of("module", Map.of(
                 "merchantBuyerVO", Map.of("userNick", "测试买家", "userId", "buyer-1"),
                 "merchantCommonData", Map.of("itemId", "item-1", "createTime", "2026-07-25 20:00:00"),
-                "merchantItemVO", Map.of("itemId", "item-1", "title", "测试商品", "skuText", "标准版"),
+                "merchantItemVO", Map.of("itemId", "item-1", "title", "测试商品", "skuText", "标准版", "skuId", "sku-std"),
                 "merchantPriceVO", Map.of("totalPrice", "19.90", "buyNum", 1)
         ));
         when(orderMapper.selectByAccountIdAndOrderId(7L, "order-1")).thenReturn(existing);
@@ -52,7 +52,7 @@ class PendingOrderPollServiceTest {
 
         verify(orderMapper).updateOrderDetail(
                 eq(77L), eq("item-1"), eq("buyer-1"), eq("测试买家"),
-                eq("2026-07-25 20:00:00"), isNull(), isNull(), eq("标准版"),
+                eq("2026-07-25 20:00:00"), isNull(), isNull(), eq("标准版"), eq("sku-std"),
                 eq("测试商品"), eq("19.90"), eq(1));
     }
 

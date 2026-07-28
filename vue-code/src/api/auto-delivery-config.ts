@@ -82,6 +82,14 @@ export function deleteAutoDeliveryConfig(xianyuAccountId: number, xyGoodsId: str
   });
 }
 
+export function deleteAutoDeliverySkuConfig(xianyuAccountId: number, xyGoodsId: string, skuId: string) {
+  return request({
+    url: '/auto-delivery-config/deleteSku',
+    method: 'POST',
+    params: { xianyuAccountId, xyGoodsId, skuId }
+  });
+}
+
 export interface GoodsSku {
   id: string;
   xyGoodsId: string;
@@ -92,6 +100,7 @@ export interface GoodsSku {
   propertyId: number;
   valueId: number;
   valueText: string;
+  displayName?: string;
   propertySortOrder: number;
   valueSortOrder: number;
   features: string;
@@ -120,6 +129,18 @@ export function getGoodsSkuList(xianyuAccountId: number, xyGoodsId: string) {
     url: '/goods-sku/list',
     method: 'POST',
     params: { xianyuAccountId, xyGoodsId }
+  });
+}
+
+export function updateGoodsSkuPreferences(data: {
+  xianyuAccountId: number;
+  xyGoodsId: string;
+  items: Array<{ skuId: string; displayName?: string }>;
+}) {
+  return request<void>({
+    url: '/goods-sku/preferences',
+    method: 'POST',
+    data
   });
 }
 

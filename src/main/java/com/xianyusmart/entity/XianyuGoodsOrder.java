@@ -42,6 +42,8 @@ public class XianyuGoodsOrder {
 
     private String skuName;
 
+    private String skuId;
+
     private String orderCreateTime;
 
     private String paySuccessTime;

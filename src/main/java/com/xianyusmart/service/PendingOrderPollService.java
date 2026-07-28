@@ -7,6 +7,7 @@ import com.xianyusmart.enums.DeliveryStatus;
 import com.xianyusmart.mapper.XianyuGoodsConfigMapper;
 import com.xianyusmart.mapper.XianyuChatMessageMapper;
 import com.xianyusmart.mapper.XianyuGoodsOrderMapper;
+import com.xianyusmart.service.delivery.SkuResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -64,6 +65,9 @@ public class PendingOrderPollService {
 
     @Autowired
     private ObjectMapper objectMapper;
+
+    @Autowired
+    private SkuResolver skuResolver;
 
     @SuppressWarnings("unchecked")
     public void syncOrdersToDb(Long accountId, List<Map<String, Object>> pendingOrders) {
@@ -845,6 +849,7 @@ public class PendingOrderPollService {
 
             String goodsTitle = null;
             String skuName = null;
+            String skuId = null;
             Object merchantItemVO = module.get("merchantItemVO");
             if (merchantItemVO instanceof Map) {
                 Map<String, Object> merchantItem = (Map<String, Object>) merchantItemVO;
@@ -852,6 +857,11 @@ public class PendingOrderPollService {
                 if (title instanceof String) goodsTitle = (String) title;
                 Object sku = merchantItem.get("skuText");
                 if (sku instanceof String) skuName = (String) sku;
+                Object rawSkuId = merchantItem.get("skuId");
+                if (rawSkuId != null && !String.valueOf(rawSkuId).isBlank()) skuId = String.valueOf(rawSkuId);
+            }
+            if ((skuId == null || skuId.isBlank()) && skuName != null) {
+                skuId = skuResolver.resolveSkuIdByText(accountId, xyGoodsId, skuName);
             }
 
             String totalPrice = null;
@@ -899,7 +909,7 @@ public class PendingOrderPollService {
             }
 
             orderMapper.updateOrderDetail(existing.getId(), xyGoodsId, buyerUserId, buyerUserName,
-                    orderCreateTime, paySuccessTime, consignTime, skuName, goodsTitle, totalPrice, buyNum);
+                    orderCreateTime, paySuccessTime, consignTime, skuName, skuId, goodsTitle, totalPrice, buyNum);
             log.info("【账号{}】从详情API补充订单字段: orderId={}", accountId, orderId);
         } catch (Exception e) {
             log.warn("【账号{}】补充订单详情异常: orderId={}", accountId, orderId, e);
