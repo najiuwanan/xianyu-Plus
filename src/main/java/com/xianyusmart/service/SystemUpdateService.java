@@ -497,6 +497,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("2.2.6".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "商品列表新增标题关键字搜索，可与账号和商品状态组合筛选",
+                    "筛选在数据库分页前执行，所有分页中的匹配商品都会正确统计和显示",
+                    "输入停止350毫秒后自动查询，支持回车立即查询和一键清空",
+                    "桌面端和手机端均提供搜索入口，不增加数据库迁移",
+                    "自动发货、自动回复、自动评价和小红花业务规则保持不变"
+            ));
+            return;
+        }
         if ("2.2.5".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "飞牛OS新增网页在线更新，宿主机systemd代理运行且不增加Docker容器",
@@ -506,7 +516,8 @@ public class SystemUpdateService {
                     "健康检查失败自动恢复旧JAR；发货、自动回复、评价和小红花业务规则保持不变"
             ));
             return;
-        }        if ("2.2.4".equals(version)) {
+        }
+        if ("2.2.4".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "商品自动化配置新增多规格卡密映射，每个真实SKU可独立指定卡密库",
                     "支持自定义规格后台显示名，商品重新同步后继续保留",

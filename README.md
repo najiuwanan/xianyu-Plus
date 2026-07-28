@@ -109,7 +109,7 @@ cd ~/xianyu-Plus
 
 ### 飞牛 OS 网页在线更新
 
-升级到 V2.2.5 后，在项目目录执行一次：
+升级到 V2.2.5 或更高版本后，在项目目录执行一次：
 
 ```bash
 sudo ./deploy/self-update/install-online-update.sh
