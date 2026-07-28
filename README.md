@@ -180,9 +180,20 @@ docker compose down
 
 部署完成后，欢迎交流使用体验、功能建议、问题反馈和可改进之处。
 
-扫描下方二维码加入“闲鱼交流”群：
-
-<img src="docs/images/xianyuplus-community-qr.jpg" alt="闲鱼交流微信群二维码" width="250" />
+<table>
+  <tr>
+    <td width="50%" align="center"><strong>闲鱼交流微信群</strong></td>
+    <td width="50%" align="center"><strong>赞赏支持</strong></td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/images/xianyuplus-community-qr.jpg" alt="闲鱼交流微信群二维码" width="250" />
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/images/xianyuplus-reward-qr.jpg" alt="小米粥的赞赏码" width="250" />
+    </td>
+  </tr>
+</table>
 
 > 群二维码存在有效期；如失效，请通过 GitHub Issue 留言，我会补充新的二维码。
 
