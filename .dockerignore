@@ -41,8 +41,10 @@ docs/
 # Docker (不需要复制到构建上下文)
 .dockerignore
 
-# CI/CD
-.github/
+# CI/CD（在线更新专项测试需要读取发布工作流）
+.github/**
+!.github/workflows/
+!.github/workflows/publish-container.yml
 .gitlab-ci.yml
 
 # Temporary files
