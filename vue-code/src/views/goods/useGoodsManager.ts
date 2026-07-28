@@ -28,6 +28,7 @@ export function useGoodsManager() {
   // 商品列表固定以“所有账号”为初始范围，0 表示不传账号筛选条件。
   const selectedAccountId = ref<number | null>(0)
   const statusFilter = ref<string>('')
+  const titleKeyword = ref('')
   const goodsList = ref<GoodsItemWithConfig[]>([])
   const currentPage = ref(1)
   const pageSize = ref(20)
@@ -49,6 +50,7 @@ export function useGoodsManager() {
   const syncProgress = ref<SyncProgressResponse | null>(null)
   const syncing = ref(false)
   let syncProgressTimer: ReturnType<typeof setInterval> | null = null
+  let titleSearchTimer: ReturnType<typeof setTimeout> | null = null
   let syncingAllAccounts = false
   let syncJobs: Array<{
     syncId: string
@@ -154,6 +156,10 @@ export function useGoodsManager() {
 
   onUnmounted(() => {
     stopSyncPolling()
+    if (titleSearchTimer) {
+      clearTimeout(titleSearchTimer)
+      titleSearchTimer = null
+    }
   })
 
   // Computed
@@ -201,6 +207,10 @@ export function useGoodsManager() {
       }
       if (statusFilter.value !== '') {
         params.status = parseInt(statusFilter.value)
+      }
+      const normalizedTitleKeyword = titleKeyword.value.trim()
+      if (normalizedTitleKeyword) {
+        params.titleKeyword = normalizedTitleKeyword
       }
       const response = await getGoodsList(params)
       if (response.code === 0 || response.code === 200) {
@@ -345,6 +355,30 @@ export function useGoodsManager() {
     }
   }
 
+  const handleTitleSearch = () => {
+    if (titleSearchTimer) {
+      clearTimeout(titleSearchTimer)
+      titleSearchTimer = null
+    }
+    currentPage.value = 1
+    clearGoodsSelection()
+    void loadGoods()
+  }
+
+  const handleTitleKeywordInput = () => {
+    if (titleSearchTimer) clearTimeout(titleSearchTimer)
+    titleSearchTimer = setTimeout(() => {
+      titleSearchTimer = null
+      handleTitleSearch()
+    }, 350)
+  }
+
+  const clearTitleKeyword = () => {
+    if (!titleKeyword.value) return
+    titleKeyword.value = ''
+    handleTitleSearch()
+  }
+
   // 状态筛选
   const handleStatusFilter = () => {
     currentPage.value = 1
@@ -447,6 +481,7 @@ export function useGoodsManager() {
     accounts,
     selectedAccountId,
     statusFilter,
+    titleKeyword,
     goodsList,
     currentPage,
     pageSize,
@@ -476,6 +511,9 @@ export function useGoodsManager() {
     toggleAutoReply,
     confirmDelete,
     executeDelete,
+    handleTitleSearch,
+    handleTitleKeywordInput,
+    clearTitleKeyword,
     getGoodsStatusText,
     formatPrice,
     formatTime

@@ -84,6 +84,12 @@ public interface GoodsInfoService {
      * @return 商品列表
      */
     List<XianyuGoodsInfo> listByAccountId(Long xianyuAccountId, int pageNum, int pageSize);
+
+    /**
+     * 按状态、账号和标题关键字组合查询商品列表（分页）。
+     */
+    List<XianyuGoodsInfo> listByFilter(Integer status, Long xianyuAccountId, String titleKeyword,
+                                       int pageNum, int pageSize);
     
     /**
      * 根据状态和账号ID统计商品数量
@@ -101,6 +107,11 @@ public interface GoodsInfoService {
      * @return 商品数量
      */
     int countByAccountId(Long xianyuAccountId);
+
+    /**
+     * 按状态、账号和标题关键字组合统计商品数量。
+     */
+    int countByFilter(Integer status, Long xianyuAccountId, String titleKeyword);
     
     /**
      * 更新商品详情信息

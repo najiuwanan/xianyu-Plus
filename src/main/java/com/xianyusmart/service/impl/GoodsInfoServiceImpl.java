@@ -226,6 +226,28 @@ public class GoodsInfoServiceImpl implements GoodsInfoService {
             return new java.util.ArrayList<>();
         }
     }
+
+    @Override
+    public List<XianyuGoodsInfo> listByFilter(Integer status, Long xianyuAccountId, String titleKeyword,
+                                              int pageNum, int pageSize) {
+        try {
+            LambdaQueryWrapper<XianyuGoodsInfo> queryWrapper = new LambdaQueryWrapper<>();
+            if (status != null) {
+                queryWrapper.eq(XianyuGoodsInfo::getStatus, status);
+            }
+            if (xianyuAccountId != null) {
+                queryWrapper.eq(XianyuGoodsInfo::getXianyuAccountId, xianyuAccountId);
+            }
+            queryWrapper.like(XianyuGoodsInfo::getTitle, titleKeyword);
+            queryWrapper.orderByDesc(XianyuGoodsInfo::getUpdatedTime);
+            int offset = (pageNum - 1) * pageSize;
+            return goodsInfoMapper.selectList(queryWrapper.last("LIMIT " + offset + ", " + pageSize));
+        } catch (Exception e) {
+            log.error("按标题关键字查询商品列表失败: status={}, accountId={}, pageNum={}, pageSize={}",
+                    status, xianyuAccountId, pageNum, pageSize, e);
+            return new java.util.ArrayList<>();
+        }
+    }
     
     @Override
     public int countByStatusAndAccountId(Integer status, Long xianyuAccountId) {
@@ -252,6 +274,24 @@ public class GoodsInfoServiceImpl implements GoodsInfoService {
             return Math.toIntExact(goodsInfoMapper.selectCount(queryWrapper));
         } catch (Exception e) {
             log.error("根据账号ID统计商品数量失败: accountId={}", xianyuAccountId, e);
+            return 0;
+        }
+    }
+
+    @Override
+    public int countByFilter(Integer status, Long xianyuAccountId, String titleKeyword) {
+        try {
+            LambdaQueryWrapper<XianyuGoodsInfo> queryWrapper = new LambdaQueryWrapper<>();
+            if (status != null) {
+                queryWrapper.eq(XianyuGoodsInfo::getStatus, status);
+            }
+            if (xianyuAccountId != null) {
+                queryWrapper.eq(XianyuGoodsInfo::getXianyuAccountId, xianyuAccountId);
+            }
+            queryWrapper.like(XianyuGoodsInfo::getTitle, titleKeyword);
+            return Math.toIntExact(goodsInfoMapper.selectCount(queryWrapper));
+        } catch (Exception e) {
+            log.error("按标题关键字统计商品数量失败: status={}, accountId={}", status, xianyuAccountId, e);
             return 0;
         }
     }

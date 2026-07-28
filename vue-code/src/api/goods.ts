@@ -82,6 +82,7 @@ export function getGoodsList(data: {
   xianyuAccountId?: number;
   onlyOnSale?: boolean;
   status?: number;
+  titleKeyword?: string;
   pageNum?: number;
   pageSize?: number;
 }) {

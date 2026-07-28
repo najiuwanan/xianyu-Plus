@@ -24,6 +24,11 @@ public class ItemListFromDbReqDTO {
      * 商品状态（可选）。传入时优先于 onlyOnSale，null 表示不限制状态。
      */
     private Integer status;
+
+    /**
+     * 商品标题关键字（可选），按包含关系查询。
+     */
+    private String titleKeyword;
     
     /**
      * 页码，从1开始

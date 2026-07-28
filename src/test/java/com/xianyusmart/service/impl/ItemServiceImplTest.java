@@ -70,6 +70,27 @@ class ItemServiceImplTest {
     }
 
     @Test
+    void filtersByTrimmedTitleKeywordAcrossAllAccountsAndPages() {
+        ItemListFromDbReqDTO request = new ItemListFromDbReqDTO();
+        request.setXianyuAccountId(null);
+        request.setOnlyOnSale(false);
+        request.setStatus(0);
+        request.setTitleKeyword("  助力  ");
+        request.setPageNum(2);
+        request.setPageSize(20);
+        when(goodsInfoService.countByFilter(0, null, "助力")).thenReturn(21);
+        when(goodsInfoService.listByFilter(0, null, "助力", 2, 20)).thenReturn(List.of());
+
+        ResultObject<ItemListFromDbRespDTO> result = service.getItemsFromDb(request);
+
+        assertEquals(200, result.getCode());
+        assertEquals(21, result.getData().getTotalCount());
+        assertEquals(2, result.getData().getPageNum());
+        verify(goodsInfoService).countByFilter(0, null, "助力");
+        verify(goodsInfoService).listByFilter(0, null, "助力", 2, 20);
+    }
+
+    @Test
     void savesTextAndImageForProductDefaultReply() {
         ProductDefaultReplyConfigReqDTO request = new ProductDefaultReplyConfigReqDTO();
         request.setXianyuAccountId(1L);

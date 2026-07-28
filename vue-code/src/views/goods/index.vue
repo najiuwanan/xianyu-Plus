@@ -13,6 +13,8 @@ import IconRefresh from '@/components/icons/IconRefresh.vue'
 import IconChevronDown from '@/components/icons/IconChevronDown.vue'
 import IconChevronLeft from '@/components/icons/IconChevronLeft.vue'
 import IconChevronRight from '@/components/icons/IconChevronRight.vue'
+import IconSearch from '@/components/icons/IconSearch.vue'
+import IconClose from '@/components/icons/IconClose.vue'
 
 import GoodsTable from './components/GoodsTable.vue'
 import GoodsDetail from './components/GoodsDetail.vue'
@@ -28,6 +30,7 @@ const {
   accounts,
   selectedAccountId,
   statusFilter,
+  titleKeyword,
   goodsList,
   currentPage,
   total,
@@ -53,7 +56,10 @@ const {
   toggleAutoDelivery,
   toggleAutoReply,
   confirmDelete,
-  executeDelete
+  executeDelete,
+  handleTitleSearch,
+  handleTitleKeywordInput,
+  clearTitleKeyword
 } = useGoodsManager()
 
 defineOptions({ name: 'GoodsIndex' })
@@ -319,6 +325,22 @@ const submitBatchUpdate = async () => {
         <h1 class="goods__title">商品列表</h1>
       </div>
 
+      <label class="goods__search desktop-only">
+        <IconSearch class="goods__search-icon" />
+        <input
+          v-model="titleKeyword"
+          type="search"
+          maxlength="100"
+          placeholder="搜索商品标题"
+          aria-label="搜索商品标题"
+          @input="handleTitleKeywordInput"
+          @keydown.enter.prevent="handleTitleSearch"
+        >
+        <button v-if="titleKeyword" type="button" aria-label="清空商品标题搜索" @click="clearTitleKeyword">
+          <IconClose />
+        </button>
+      </label>
+
       <div class="goods__actions">
         <template v-if="!isMobile">
           <div class="goods__select-wrap">
@@ -382,6 +404,22 @@ const submitBatchUpdate = async () => {
         </div>
       </div>
     </div>
+
+    <label class="goods__search goods__mobile-search">
+      <IconSearch class="goods__search-icon" />
+      <input
+        v-model="titleKeyword"
+        type="search"
+        maxlength="100"
+        placeholder="搜索商品标题"
+        aria-label="搜索商品标题"
+        @input="handleTitleKeywordInput"
+        @keydown.enter.prevent="handleTitleSearch"
+      >
+      <button v-if="titleKeyword" type="button" aria-label="清空商品标题搜索" @click="clearTitleKeyword">
+        <IconClose />
+      </button>
+    </label>
 
     <div v-if="selectedGoodsCount > 0" class="goods__batch-toolbar">
       <span>已选择 {{ selectedGoodsCount }} 个商品</span>

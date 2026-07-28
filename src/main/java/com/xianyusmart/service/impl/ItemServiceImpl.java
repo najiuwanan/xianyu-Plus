@@ -329,10 +329,17 @@ public class ItemServiceImpl implements ItemService {
             
             Integer status = reqDTO.getStatus();
             boolean onlyOnSale = status == null && (reqDTO.getOnlyOnSale() == null || reqDTO.getOnlyOnSale());
+            Integer effectiveStatus = status != null ? status : (onlyOnSale ? 0 : null);
+            String titleKeyword = reqDTO.getTitleKeyword() == null ? "" : reqDTO.getTitleKeyword().trim();
+            if (titleKeyword.length() > 100) {
+                titleKeyword = titleKeyword.substring(0, 100);
+            }
             
             // 统计总数
             int totalCount;
-            if (status != null || onlyOnSale) {
+            if (!titleKeyword.isBlank()) {
+                totalCount = goodsInfoService.countByFilter(effectiveStatus, reqDTO.getXianyuAccountId(), titleKeyword);
+            } else if (status != null || onlyOnSale) {
                 totalCount = goodsInfoService.countByStatusAndAccountId(status != null ? status : 0, reqDTO.getXianyuAccountId());
             } else {
                 totalCount = goodsInfoService.countByAccountId(reqDTO.getXianyuAccountId());
@@ -353,7 +360,10 @@ public class ItemServiceImpl implements ItemService {
             
             // 获取当前页的商品列表
             List<XianyuGoodsInfo> pagedItems;
-            if (status != null || onlyOnSale) {
+            if (!titleKeyword.isBlank()) {
+                pagedItems = goodsInfoService.listByFilter(effectiveStatus, reqDTO.getXianyuAccountId(),
+                        titleKeyword, pageNum, pageSize);
+            } else if (status != null || onlyOnSale) {
                 pagedItems = goodsInfoService.listByStatusAndAccountId(status != null ? status : 0,
                         reqDTO.getXianyuAccountId(), pageNum, pageSize);
             } else {
