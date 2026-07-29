@@ -497,6 +497,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("2.2.7".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "凭证页新增一键修复连接，优先自动刷新WebSocket Token并重连",
+                    "普通失效自动进入扫码更新；扫码成功后更新Cookie、Token并恢复连接",
+                    "需要安全验证时主按钮变为继续验证并修复，完成验证返回后自动进入扫码更新",
+                    "直接扫码和手动更新Cookie收纳到高级操作，凭证查看复制与多账号提示继续保留",
+                    "不增加数据库迁移，自动发货、自动回复、自动评价和小红花业务规则保持不变"
+            ));
+            return;
+        }
         if ("2.2.6".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "商品列表新增标题关键字搜索，可与账号和商品状态组合筛选",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import IconCookie from '@/components/icons/IconCookie.vue'
 import IconKey from '@/components/icons/IconKey.vue'
 import IconQrCode from '@/components/icons/IconQrCode.vue'
@@ -32,22 +32,39 @@ interface Props {
   connectionStatus: ConnectionStatus | null
   accountName?: string
   accountUnb?: string
+  repairing?: boolean
 }
 
 interface Emits {
   (e: 'update:modelValue', value: boolean): void
+  (e: 'repair-connection'): void
   (e: 'qr-update'): void
   (e: 'manual-update'): void
-  (e: 'refresh-reconnect'): void
-  (e: 'verify-security'): void
 }
 
 type CredentialKey = 'cookie' | 'websocket' | 'h5'
 
 const expandedCredential = ref<CredentialKey | null>(null)
+const showAdvancedActions = ref(false)
 
-defineProps<Props>()
+const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
+
+const verificationRequired = computed(() =>
+  props.connectionStatus?.captchaRequired === true
+  || props.connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED'
+)
+
+const repairActionLabel = computed(() => {
+  if (props.repairing) return '正在修复连接…'
+  return verificationRequired.value ? '继续验证并修复' : '修复连接'
+})
+
+const repairHint = computed(() => {
+  if (verificationRequired.value) return '平台要求安全验证。系统会打开闲鱼IM，完成后返回本页即可继续扫码更新。'
+  if (props.connectionStatus?.connected) return '当前连接正常；需要时点击一次，系统会自动检查Token并恢复连接。'
+  return '系统会先自动刷新Token并重连；自动处理未完成时才引导扫码更新。'
+})
 
 const getCookieStatusColor = (status?: number) => {
   if (status === 1) return '#30D158'
@@ -148,6 +165,10 @@ const handleClose = () => {
   emit('update:modelValue', false)
 }
 
+const handleRepairConnection = () => {
+  if (!props.repairing) emit('repair-connection')
+}
+
 const handleQRUpdate = () => {
   emit('qr-update')
 }
@@ -156,12 +177,8 @@ const handleManualUpdate = () => {
   emit('manual-update')
 }
 
-const handleRefreshReconnect = () => {
-  emit('refresh-reconnect')
-}
-
-const handleVerifySecurity = () => {
-  emit('verify-security')
+const toggleAdvancedActions = () => {
+  showAdvancedActions.value = !showAdvancedActions.value
 }
 
 </script>
@@ -180,20 +197,31 @@ const handleVerifySecurity = () => {
 
         <!-- Content -->
         <div class="modal-content">
-          <!-- Action Buttons -->
-          <div class="action-buttons">
-            <button class="btn btn--primary" @click="handleQRUpdate">
-              <IconQrCode />
-              <span>扫码更新</span>
-            </button>
-            <button class="btn btn--secondary" @click="handleManualUpdate">
-              <IconCookie />
-              <span>手动更新Cookie</span>
-            </button>
-            <button class="btn btn--secondary" @click="handleRefreshReconnect">
+          <div class="repair-panel" :class="{ 'repair-panel--verification': verificationRequired }">
+            <div class="repair-panel__copy">
+              <strong>{{ verificationRequired ? '需要完成平台验证' : '一键修复连接' }}</strong>
+              <p>{{ repairHint }}</p>
+            </div>
+            <button class="btn btn--primary repair-panel__button" :disabled="repairing" @click="handleRepairConnection">
               <IconKey />
-              <span>刷新并重连</span>
+              <span>{{ repairActionLabel }}</span>
             </button>
+          </div>
+
+          <div class="advanced-actions">
+            <button class="advanced-actions__toggle" type="button" @click="toggleAdvancedActions">
+              {{ showAdvancedActions ? '收起高级操作' : '高级操作' }}
+            </button>
+            <div v-if="showAdvancedActions" class="advanced-actions__content">
+              <button class="btn btn--secondary" @click="handleQRUpdate">
+                <IconQrCode />
+                <span>直接扫码更新</span>
+              </button>
+              <button class="btn btn--secondary" @click="handleManualUpdate">
+                <IconCookie />
+                <span>手动更新Cookie</span>
+              </button>
+            </div>
           </div>
 
           <div class="credential-table">
@@ -276,18 +304,11 @@ const handleVerifySecurity = () => {
             <small v-if="connectionStatus?.tokenRenewalNextRetryAt">下次尝试：{{ formatTimestamp(connectionStatus.tokenRenewalNextRetryAt) }}</small>
           </div>
 
-          <div
-            class="verification-actions"
-            :class="{ 'verification-actions--idle': !connectionStatus?.captchaRequired && connectionStatus?.tokenRenewalState !== 'VERIFICATION_REQUIRED' }"
-          >
+          <div v-if="verificationRequired" class="verification-actions">
             <div class="verification-actions__copy">
-              <strong>{{ connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED' ? '需要完成平台验证' : '平台安全验证入口' }}</strong>
-              <p>当前账号：{{ accountName || '未设置备注' }} · UNB：{{ accountUnb || '--' }}</p>
-              <p v-if="connectionStatus?.captchaRequired || connectionStatus?.tokenRenewalState === 'VERIFICATION_REQUIRED'">请在该账号对应的浏览器登录环境打开闲鱼 IM 并完成验证，然后扫码更新或手动填写最新 Cookie；更新成功后系统会恢复连接。</p>
-              <p v-else>入口始终保留。多账号时请先确认浏览器中登录的账号与上方备注、UNB一致。</p>
-            </div>
-            <div class="verification-actions__buttons">
-              <button class="btn btn--primary" @click="handleVerifySecurity">打开闲鱼 IM</button>
+              <strong>当前账号需要平台验证</strong>
+              <p>账号：{{ accountName || '未设置备注' }} · UNB：{{ accountUnb || '--' }}</p>
+              <p>点击上方“继续验证并修复”，完成闲鱼IM验证后返回本页，系统会自动弹出扫码更新。</p>
             </div>
           </div>
         </div>
@@ -397,11 +418,46 @@ const handleVerifySecurity = () => {
   display: none;
 }
 
-.action-buttons {
+.repair-panel {
   display: flex;
-  gap: 12px;
-  margin-bottom: 24px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 10px;
+  padding: 16px;
+  border: 1px solid rgba(10,132,255,.20);
+  border-radius: 14px;
+  background: rgba(10,132,255,.07);
 }
+
+.repair-panel--verification {
+  border-color: rgba(255,159,10,.30);
+  background: rgba(255,159,10,.09);
+}
+
+.repair-panel__copy { min-width: 0; flex: 1; }
+.repair-panel__copy strong { display: block; color: #1c1c1e; font-size: 15px; }
+.repair-panel__copy p { margin: 5px 0 0; color: #637085; font-size: 12px; line-height: 1.55; }
+.repair-panel__button { min-width: 180px; flex: 0 0 auto !important; }
+.repair-panel__button:disabled { cursor: wait; opacity: .62; }
+
+.advanced-actions {
+  margin-bottom: 18px;
+  text-align: right;
+}
+
+.advanced-actions__toggle {
+  padding: 5px 8px;
+  border: 0;
+  color: #637085;
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.advanced-actions__toggle:hover { color: #0A84FF; }
+.advanced-actions__content { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.advanced-actions__content .btn { max-width: 190px; padding: 9px 12px; font-size: 12px; }
 
 .btn {
   display: flex;
@@ -650,7 +706,10 @@ const handleVerifySecurity = () => {
   .modal-header { padding: 15px 16px; }
   .modal-title { font-size: 16px; }
   .modal-content { padding: 14px; }
-  .action-buttons { flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .repair-panel { align-items: stretch; flex-direction: column; gap: 12px; }
+  .repair-panel__button { width: 100%; min-width: 0; }
+  .advanced-actions__content { flex-direction: column; }
+  .advanced-actions__content .btn { width: 100%; max-width: none; }
   .btn { padding: 10px 12px; font-size: 13px; }
   .credential-table__header { display: none; }
   .credential-row {

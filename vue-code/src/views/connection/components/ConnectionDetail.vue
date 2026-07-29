@@ -57,6 +57,7 @@ let statusInterval: number | null = null
 const showManualUpdateCookieDialog = ref(false)
 const showQRUpdateDialog = ref(false)
 const showCredentialDialog = ref(false)
+const repairingConnection = ref(false)
 const autoConnectOnStartup = ref(props.autoConnectOnStartup !== 0)
 
 watch(() => props.autoConnectOnStartup, (value) => {
@@ -111,7 +112,7 @@ const handleStartConnection = async () => {
     } else if (response.code === 1001 && response.data?.needCaptcha) {
       await loadConnectionStatus(true)
       showCredentialDialog.value = true
-      showInfo(response.data?.message || '闲鱼要求网页安全验证，自动刷新与重连已暂停。请在凭证页点击“立即验证”。')
+      showInfo(response.data?.message || '闲鱼要求网页安全验证，自动刷新与重连已暂停。请在凭证页点击“继续验证并修复”。')
     } else {
       throw new Error(response.msg || '启动连接失败')
     }
@@ -149,52 +150,112 @@ const handleStopConnection = async () => {
   }
 }
 
-const handleRefreshAndReconnect = async () => {
-  if (!props.accountId) return
+let verificationWindow: Window | null = null
+let verificationWindowTimer: number | null = null
+let verificationOpenedAt = 0
+
+const isVerificationRequired = () => connectionStatus.value?.captchaRequired === true
+  || connectionStatus.value?.tokenRenewalState === 'VERIFICATION_REQUIRED'
+
+const clearVerificationReturnWatch = () => {
+  window.removeEventListener('focus', handleVerificationWindowFocus)
+  if (verificationWindowTimer) {
+    clearInterval(verificationWindowTimer)
+    verificationWindowTimer = null
+  }
+  verificationWindow = null
+  verificationOpenedAt = 0
+}
+
+const beginQRUpdateAfterVerification = () => {
+  clearVerificationReturnWatch()
+  showCredentialDialog.value = false
+  showQRUpdateDialog.value = true
+  showInfo('平台验证已完成后，请使用同一个闲鱼账号扫码更新；成功后系统会自动恢复连接')
+}
+
+const handleVerificationWindowFocus = () => {
+  if (!verificationOpenedAt || Date.now() - verificationOpenedAt < 1200) return
+  beginQRUpdateAfterVerification()
+}
+
+const handleOpenSecurityVerification = () => {
+  clearVerificationReturnWatch()
+  const opened = window.open('https://www.goofish.com/im', '_blank')
+  if (!opened) {
+    showError('浏览器拦截了新窗口，请允许本站打开闲鱼页面')
+    return false
+  }
+  verificationWindow = opened
+  verificationOpenedAt = Date.now()
+  try { opened.opener = null } catch { /* browser isolation */ }
+  window.addEventListener('focus', handleVerificationWindowFocus)
+  verificationWindowTimer = window.setInterval(() => {
+    try {
+      if (verificationWindow?.closed) beginQRUpdateAfterVerification()
+    } catch { /* cross-origin window state may be unavailable temporarily */ }
+  }, 800)
+  showInfo(`请确认浏览器登录的是“${props.accountName || props.accountUnb || '当前账号'}”；完成验证后返回本页，系统会自动弹出扫码更新`)
+  return true
+}
+
+const openQRRecovery = (message: string) => {
+  showCredentialDialog.value = false
+  showQRUpdateDialog.value = true
+  showInfo(message)
+}
+
+const handleRepairConnection = async () => {
+  if (!props.accountId || repairingConnection.value) return
+  if (isVerificationRequired()) {
+    handleOpenSecurityVerification()
+    return
+  }
+  repairingConnection.value = true
   statusLoading.value = true
   try {
+    await loadConnectionStatus(true)
+    if (isVerificationRequired()) {
+      showInfo('已检测到平台安全验证，请点击“继续验证并修复”打开闲鱼IM')
+      return
+    }
+
     const refreshed = await refreshToken(props.accountId)
     if ((refreshed.code !== 0 && refreshed.code !== 200) || !refreshed.data?.wsTokenRefreshed) {
-      throw new Error(refreshed.msg || refreshed.data?.message || 'WebSocket Token刷新失败')
+      throw new Error(refreshed.msg || refreshed.data?.message || 'Token自动刷新未完成')
     }
 
     if (connectionStatus.value?.connected) {
       const stopped = await stopConnection(props.accountId)
       if (stopped.code !== 0 && stopped.code !== 200) {
-        throw new Error(stopped.msg || '断开旧连接失败')
+        throw new Error(stopped.msg || '旧连接停止失败')
       }
     }
 
     const started = await startConnection(props.accountId)
     if (started.code === 1001 && started.data?.needCaptcha) {
       await loadConnectionStatus(true)
-      showCredentialDialog.value = true
-      showInfo(started.data?.message || '平台要求安全验证，请在凭证页点击“立即验证”')
+      showInfo(started.data?.message || '平台要求安全验证，请点击“继续验证并修复”')
       return
     }
     if (started.code !== 0 && started.code !== 200) {
-      throw new Error(started.msg || 'WebSocket重新连接失败')
+      throw new Error(started.msg || '重新连接失败')
     }
 
     await loadConnectionStatus(true)
-    showSuccess('WebSocket Token已刷新并重新连接')
+    showSuccess('连接已自动修复，无需其他操作')
   } catch (error: any) {
     await loadConnectionStatus(true)
-    showError('刷新并重连失败：' + (error.message || '未知错误'))
+    if (isVerificationRequired()) {
+      showCredentialDialog.value = true
+      showInfo('平台要求安全验证，请点击“继续验证并修复”')
+    } else {
+      openQRRecovery(`自动修复未完成：${error.message || '凭证需要更新'}。请扫码一次，系统将自动恢复连接`)
+    }
   } finally {
+    repairingConnection.value = false
     statusLoading.value = false
   }
-}
-
-const handleOpenSecurityVerification = () => {
-  const verificationUrl = 'https://www.goofish.com/im'
-  const opened = window.open(verificationUrl, '_blank')
-  if (!opened) {
-    showError('浏览器拦截了新窗口，请允许本站打开闲鱼页面')
-    return
-  }
-  try { opened.opener = null } catch { /* browser isolation */ }
-  showInfo(`请确认浏览器当前登录的是“${props.accountName || props.accountUnb || '当前账号'}”，完成平台验证后返回本页扫码或手动更新Cookie`)
 }
 
 const handleRefresh = async () => {
@@ -214,6 +275,7 @@ const canSyncGoods = computed(() => connectionStatus.value?.cookieStatus === 1)
 const canAutoReply = computed(() => connectionStatus.value?.connected === true)
 
 watch(() => props.accountId, (newId) => {
+  clearVerificationReturnWatch()
   if (newId) {
     loadConnectionStatus()
     if (statusInterval) clearInterval(statusInterval)
@@ -233,6 +295,7 @@ watch(() => props.accountId, (newId) => {
 
 onBeforeUnmount(() => {
   if (statusInterval) clearInterval(statusInterval)
+  clearVerificationReturnWatch()
 })
 </script>
 
@@ -333,10 +396,10 @@ onBeforeUnmount(() => {
       :connection-status="connectionStatus"
       :account-name="accountName"
       :account-unb="accountUnb"
-      @qr-update="showQRUpdateDialog = true"
-      @manual-update="showManualUpdateCookieDialog = true"
-      @refresh-reconnect="handleRefreshAndReconnect"
-      @verify-security="handleOpenSecurityVerification"
+      :repairing="repairingConnection"
+      @repair-connection="handleRepairConnection"
+      @qr-update="showCredentialDialog = false; showQRUpdateDialog = true"
+      @manual-update="showCredentialDialog = false; showManualUpdateCookieDialog = true"
     />
 
     <ManualUpdateCookieModal
