@@ -4,6 +4,7 @@ import { getKamiConfigs, type KamiConfig } from '@/api/kami-config'
 import {
   batchUpdateGoodsConfig,
   getProductDefaultReplyConfig,
+  syncSingleGoods,
   updateAutoConfirmShipment,
   updateProductDefaultReplyConfig,
   type GoodsItemWithConfig
@@ -19,7 +20,7 @@ import {
 } from '@/api/auto-delivery-config'
 import { getFixedMaterial, saveFixedMaterial } from '@/api/ai'
 import { uploadImage } from '@/api/image'
-import { showError, showSuccess } from '@/utils'
+import { showError, showInfo, showSuccess } from '@/utils'
 
 interface Props {
   modelValue: boolean
@@ -36,6 +37,9 @@ const emit = defineEmits<{
 
 const loading = ref(false)
 const saving = ref(false)
+const syncingSkus = ref(false)
+const skuSyncMessage = ref('')
+const skuSyncFailed = ref(false)
 const defaultReplyImageUploading = ref(false)
 const defaultReplyImageInput = ref<HTMLInputElement | null>(null)
 const kamiConfigs = ref<KamiConfig[]>([])
@@ -95,6 +99,100 @@ const kamiAvailabilityLabel = (config: KamiConfig) => {
   return `${config.availableCount} 可用`
 }
 
+const applySkuRows = (skus: GoodsSku[], deliveryConfigs: AutoDeliveryConfig[]) => {
+  const exactConfigs = new Map(deliveryConfigs
+    .filter((config) => config.skuId)
+    .map((config) => [String(config.skuId), config]))
+  skuRows.value = skus
+    .filter((sku) => sku.skuId != null && String(sku.skuId).trim() !== '')
+    .map((sku) => {
+      const skuId = String(sku.skuId)
+      const existingConfig = exactConfigs.get(skuId) || null
+      const configuredKamiIds = existingConfig?.kamiConfigIds
+        ?.split(',').map((value) => value.trim()).filter(Boolean) || []
+      let kamiSelection: SkuKamiSelection = ''
+      if (existingConfig) {
+        const configuredKamiId = Number(configuredKamiIds[0])
+        kamiSelection = existingConfig.deliveryMode === 2
+          && configuredKamiIds.length === 1
+          && Number.isFinite(configuredKamiId)
+          && availableKamiConfigIds.value.has(configuredKamiId)
+          ? configuredKamiId
+          : KEEP_EXISTING_SKU_RULE
+      }
+      const platformName = skuPlatformName(sku)
+      return {
+        skuId,
+        platformName,
+        displayName: sku.displayName?.trim() || platformName,
+        price: Number(sku.price),
+        quantity: Number(sku.quantity || 0),
+        kamiSelection,
+        existingConfig
+      }
+    })
+}
+
+const skuCountMessage = () => {
+  if (skuRows.value.length > 1) {
+    return `已识别 ${skuRows.value.length} 个规格，可以分别指定卡密库。`
+  }
+  if (skuRows.value.length === 1) {
+    return '当前只识别到 1 个规格，商品将使用默认发货规则。'
+  }
+  return '暂未同步到商品规格；如果闲鱼商品实际有多个规格，请重新同步。'
+}
+
+const syncSkuDetails = async () => {
+  if (!props.item || !props.accountId || syncingSkus.value) return
+  syncingSkus.value = true
+  skuSyncFailed.value = false
+  skuSyncMessage.value = '正在从闲鱼重新同步商品规格…'
+  try {
+    const syncResponse = await syncSingleGoods({
+      xianyuAccountId: props.accountId,
+      xyGoodsId: props.item.item.xyGoodId
+    })
+    if (syncResponse.code !== 0 && syncResponse.code !== 200) {
+      throw new Error(syncResponse.msg || '商品规格同步失败')
+    }
+    if (!syncResponse.data?.success) {
+      skuSyncFailed.value = true
+      skuSyncMessage.value = syncResponse.data?.message || '商品详情同步未完成，请检查账号凭证后重试。'
+      showError(skuSyncMessage.value)
+      return
+    }
+
+    const [skuResponse, configResponse] = await Promise.all([
+      getGoodsSkuList(props.accountId, props.item.item.xyGoodId),
+      getAutoDeliveryConfigsByGoodsId({
+        xianyuAccountId: props.accountId,
+        xyGoodsId: props.item.item.xyGoodId
+      })
+    ])
+    if (skuResponse.code !== 0 && skuResponse.code !== 200) {
+      throw new Error(skuResponse.msg || '读取商品规格失败')
+    }
+    if (configResponse.code !== 0 && configResponse.code !== 200) {
+      throw new Error(configResponse.msg || '读取规格发货配置失败')
+    }
+    applySkuRows(skuResponse.data || [], configResponse.data || [])
+    skuSyncMessage.value = skuCountMessage()
+    if (hasMultipleSkus.value) {
+      showSuccess(skuSyncMessage.value)
+    } else {
+      showInfo(skuSyncMessage.value)
+    }
+    emit('saved')
+  } catch (error: any) {
+    skuSyncFailed.value = true
+    skuSyncMessage.value = error?.message || '商品规格同步失败，请稍后重试。'
+    showError(skuSyncMessage.value)
+  } finally {
+    syncingSkus.value = false
+  }
+}
+
 const close = () => {
   if (!saving.value) emit('update:modelValue', false)
 }
@@ -121,6 +219,8 @@ const loadConfig = async () => {
   form.bargainInstructions = ''
   form.kamiConfigId = props.item.kamiConfigId ?? ''
   skuRows.value = []
+  skuSyncMessage.value = ''
+  skuSyncFailed.value = false
   try {
     const [kamiResponse, materialResponse, deliveryConfigResponse, defaultReplyResponse, skuResponse] = await Promise.all([
       getKamiConfigs(),
@@ -153,37 +253,11 @@ const loadConfig = async () => {
     form.autoConfirmShipment = defaultConfig?.autoConfirmShipment === 1
 
     if (skuResponse.code === 0 || skuResponse.code === 200) {
-      const exactConfigs = new Map(deliveryConfigs
-        .filter((config) => config.skuId)
-        .map((config) => [String(config.skuId), config]))
-      skuRows.value = (skuResponse.data || [])
-        .filter((sku) => sku.skuId != null && String(sku.skuId).trim() !== '')
-        .map((sku) => {
-          const skuId = String(sku.skuId)
-          const existingConfig = exactConfigs.get(skuId) || null
-          const configuredKamiIds = existingConfig?.kamiConfigIds
-            ?.split(',').map((value) => value.trim()).filter(Boolean) || []
-          let kamiSelection: SkuKamiSelection = ''
-          if (existingConfig) {
-            const configuredKamiId = Number(configuredKamiIds[0])
-            kamiSelection = existingConfig.deliveryMode === 2
-              && configuredKamiIds.length === 1
-              && Number.isFinite(configuredKamiId)
-              && availableKamiConfigIds.value.has(configuredKamiId)
-              ? configuredKamiId
-              : KEEP_EXISTING_SKU_RULE
-          }
-          const platformName = skuPlatformName(sku)
-          return {
-            skuId,
-            platformName,
-            displayName: sku.displayName?.trim() || platformName,
-            price: Number(sku.price),
-            quantity: Number(sku.quantity || 0),
-            kamiSelection,
-            existingConfig
-          }
-        })
+      applySkuRows(skuResponse.data || [], deliveryConfigs)
+      skuSyncMessage.value = skuCountMessage()
+    } else {
+      skuSyncFailed.value = true
+      skuSyncMessage.value = skuResponse.msg || '商品规格读取失败，请重新同步。'
     }
     if ((defaultReplyResponse.code === 0 || defaultReplyResponse.code === 200) && defaultReplyResponse.data) {
       form.productDefaultReplyEnabled = defaultReplyResponse.data.productDefaultReplyOn === 1
@@ -450,15 +524,30 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
                 </select>
               </label>
 
-              <div v-if="form.deliveryEnabled && hasMultipleSkus" class="sku-mapping">
+              <div class="sku-mapping">
                 <div class="sku-mapping__heading">
                   <div>
                     <strong>按规格指定卡密</strong>
-                    <p>每个规格可使用独立卡密库；选择“使用商品默认卡券”时沿用上方配置。</p>
+                    <p>同步闲鱼商品规格后，每个规格可使用独立卡密库；未单独指定时沿用商品默认卡券。</p>
                   </div>
-                  <span>{{ skuRows.length }} 个规格</span>
+                  <div class="sku-mapping__actions">
+                    <span>{{ skuRows.length }} 个规格</span>
+                    <button
+                      class="sku-mapping__sync"
+                      type="button"
+                      :disabled="syncingSkus || loading"
+                      @click="syncSkuDetails"
+                    >
+                      {{ syncingSkus ? '同步中…' : '重新同步规格' }}
+                    </button>
+                  </div>
                 </div>
-                <div class="sku-mapping__list">
+
+                <div v-if="!form.deliveryEnabled" class="sku-mapping__empty">
+                  <strong>多规格发货当前未启用</strong>
+                  <p>先开启上方“自动发货”，识别到多个规格后即可分别指定卡密库。</p>
+                </div>
+                <div v-else-if="hasMultipleSkus" class="sku-mapping__list">
                   <article v-for="sku in skuRows" :key="sku.skuId" class="sku-mapping__item">
                     <div class="sku-mapping__meta">
                       <strong>{{ sku.platformName }}</strong>
@@ -482,6 +571,17 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
                     </label>
                   </article>
                 </div>
+                <div v-else class="sku-mapping__empty">
+                  <strong>{{ skuRows.length === 1 ? '目前只识别到 1 个规格' : '暂未识别到商品规格' }}</strong>
+                  <p>如果闲鱼端实际设置了多个规格，请点击“重新同步规格”；同步失败原因会直接显示在这里。</p>
+                </div>
+                <p
+                  v-if="skuSyncMessage"
+                  class="sku-mapping__status"
+                  :class="{ 'sku-mapping__status--error': skuSyncFailed }"
+                >
+                  {{ skuSyncMessage }}
+                </p>
               </div>
 
               <div v-if="form.deliveryEnabled" class="config-section__title config-section__sub-option">
@@ -617,7 +717,16 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 .sku-mapping { margin-top: 16px; padding-top: 16px; border-top: 1px dashed #e5eaf1; }
 .sku-mapping__heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .sku-mapping__heading strong { color: #1d2d48; font-size: 14px; }
-.sku-mapping__heading > span { flex: none; padding: 4px 9px; border-radius: 999px; background: #eef4ff; color: #2563c5; font-size: 12px; }
+.sku-mapping__actions { display: flex; flex: none; align-items: center; gap: 8px; }
+.sku-mapping__actions > span { padding: 4px 9px; border-radius: 999px; background: #eef4ff; color: #2563c5; font-size: 12px; white-space: nowrap; }
+.sku-mapping__sync { min-height: 30px; padding: 5px 10px; border: 1px solid #b9cef4; border-radius: 8px; background: #fff; color: #2563c5; cursor: pointer; font-size: 12px; font-weight: 600; }
+.sku-mapping__sync:hover:not(:disabled) { border-color: #7ea7ea; background: #f5f8ff; }
+.sku-mapping__sync:disabled { cursor: not-allowed; opacity: .58; }
+.sku-mapping__empty { display: grid; gap: 5px; margin-top: 12px; padding: 13px; border: 1px dashed #cfd9e8; border-radius: 10px; background: #f8fafc; }
+.sku-mapping__empty strong { color: #405474; font-size: 13px; }
+.sku-mapping__empty p { margin: 0; color: #78869a; font-size: 12px; line-height: 1.6; }
+.sku-mapping__status { margin: 10px 0 0; color: #506784; font-size: 12px; line-height: 1.6; }
+.sku-mapping__status--error { color: #c2413a; }
 .sku-mapping__list { display: grid; gap: 10px; margin-top: 12px; }
 .sku-mapping__item { display: grid; grid-template-columns: minmax(140px, .8fr) minmax(150px, 1fr) minmax(190px, 1.2fr); align-items: end; gap: 12px; padding: 13px; border: 1px solid #e5eaf1; border-radius: 11px; background: #fbfcfe; }
 .sku-mapping__meta { align-self: center; display: grid; gap: 5px; min-width: 0; }
@@ -656,5 +765,5 @@ watch(() => [props.modelValue, props.item?.item.xyGoodId, props.accountId], load
 .btn:disabled { opacity: .55; cursor: not-allowed; }
 .goods-config-fade-enter-active, .goods-config-fade-leave-active { transition: opacity .18s ease; }
 .goods-config-fade-enter-from, .goods-config-fade-leave-to { opacity: 0; }
-@media (max-width: 620px) { .goods-config-mask { padding: 0; align-items: end; } .goods-config-dialog { width: 100%; max-height: 92vh; border-radius: 20px 20px 0 0; } .goods-config-dialog__header, .goods-config-dialog__content, .goods-config-dialog__footer { padding-left: 18px; padding-right: 18px; } .goods-config-dialog__footer { padding-top: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom)); } .bargain-grid { grid-template-columns: 1fr; } .bargain-grid__wide { grid-column: auto; } .sku-mapping__item { grid-template-columns: 1fr; align-items: stretch; } }
+@media (max-width: 620px) { .goods-config-mask { padding: 0; align-items: end; } .goods-config-dialog { width: 100%; max-height: 92vh; border-radius: 20px 20px 0 0; } .goods-config-dialog__header, .goods-config-dialog__content, .goods-config-dialog__footer { padding-left: 18px; padding-right: 18px; } .goods-config-dialog__footer { padding-top: 14px; padding-bottom: calc(14px + env(safe-area-inset-bottom)); } .bargain-grid { grid-template-columns: 1fr; } .bargain-grid__wide { grid-column: auto; } .sku-mapping__heading { align-items: stretch; flex-direction: column; } .sku-mapping__actions { justify-content: space-between; } .sku-mapping__item { grid-template-columns: 1fr; align-items: stretch; } }
 </style>

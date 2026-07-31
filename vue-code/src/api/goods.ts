@@ -77,6 +77,13 @@ export interface SyncProgressResponse {
   estimatedRemainingTime: number;
 }
 
+export interface SyncSingleItemResponse {
+  success: boolean;
+  verificationRequired: boolean;
+  captchaUrl?: string;
+  message: string;
+}
+
 // 获取商品列表
 export function getGoodsList(data: {
   xianyuAccountId?: number;
@@ -99,6 +106,15 @@ export function refreshGoods(xianyuAccountId: number) {
     url: '/items/refresh',
     method: 'POST',
     data: { xianyuAccountId }
+  });
+}
+
+// 重新同步单个商品详情（包含 SKU 规格）。
+export function syncSingleGoods(data: { xianyuAccountId: number; xyGoodsId: string }) {
+  return request<SyncSingleItemResponse>({
+    url: '/items/syncSingle',
+    method: 'POST',
+    data
   });
 }
 
