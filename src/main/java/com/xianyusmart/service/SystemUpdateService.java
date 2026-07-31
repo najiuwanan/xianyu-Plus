@@ -497,6 +497,16 @@ public class SystemUpdateService {
     private void applyBundledReleaseNotes(SystemUpdateStatusRespDTO status) {
         if (status.getUpdateHighlights() != null && !status.getUpdateHighlights().isEmpty()) return;
         String version = normalizeVersion(status.getLatestVersion());
+        if ("2.2.8".equals(version)) {
+            status.setUpdateHighlights(List.of(
+                    "商品配置始终显示多规格发货区域，并提供单商品重新同步规格入口",
+                    "同步后立即显示识别数量、失败原因或平台安全验证提示",
+                    "识别到多个真实SKU后可为每个规格分别选择卡密库",
+                    "账号列表在账号号后直接显示当前备注，点击即可修改",
+                    "不增加数据库迁移，自动发货、自动确认发货、自动回复、自动评价和小红花业务规则保持不变"
+            ));
+            return;
+        }
         if ("2.2.7".equals(version)) {
             status.setUpdateHighlights(List.of(
                     "凭证页新增一键修复连接，优先自动刷新WebSocket Token并重连",

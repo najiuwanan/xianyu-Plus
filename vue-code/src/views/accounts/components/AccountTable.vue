@@ -162,8 +162,14 @@ const refreshAvatar = (account: Account) => {
           <span v-else>{{ (account.accountNote || account.unb || '未').charAt(0) }}</span>
         </button>
         <div class="account-card__info">
-          <span class="account-card__name">{{ account.unb || '未命名账号' }}</span>
-          <span class="account-card__unb">ID: {{ account.id }} · 备注：{{ account.accountNote || '添加备注' }}</span>
+          <div class="account-card__name-row">
+            <span class="account-card__name">{{ account.unb || '未命名账号' }}</span>
+            <button type="button" class="account-note-edit" title="修改账号备注" @click="emit('edit', account)">
+              <IconEdit />
+              <span>{{ account.accountNote || '添加备注' }}</span>
+            </button>
+          </div>
+          <span class="account-card__unb">ID: {{ account.id }}</span>
         </div>
         <span
           class="account-card__status"
@@ -275,8 +281,14 @@ const refreshAvatar = (account: Account) => {
                 <span v-else>{{ (account.accountNote || account.unb || '鱼').charAt(0) }}</span>
               </button>
               <div class="account-identity__content">
-                <strong>{{ account.unb || '未命名账号' }}</strong>
-                <span>UNB：{{ account.unb }} · ID：{{ account.id }} · 备注：{{ account.accountNote || '添加备注' }}</span>
+                <div class="account-identity__title-row">
+                  <strong>{{ account.unb || '未命名账号' }}</strong>
+                  <button type="button" class="account-note-edit" title="修改账号备注" @click="emit('edit', account)">
+                    <IconEdit />
+                    <span>{{ account.accountNote || '添加备注' }}</span>
+                  </button>
+                </div>
+                <span class="account-identity__meta">UNB：{{ account.unb }} · ID：{{ account.id }}</span>
               </div>
             </div>
           </div>
@@ -473,6 +485,14 @@ const refreshAvatar = (account: Account) => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.account-card__name-row,
+.account-identity__title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
 }
 
 .account-card__name {
@@ -794,8 +814,8 @@ const refreshAvatar = (account: Account) => {
 
 .account-identity__content { min-width: 0; }
 
-.account-identity__content strong,
-.account-identity__content span {
+.account-identity__title-row > strong,
+.account-identity__meta {
   display: block;
   max-width: 250px;
   overflow: hidden;
@@ -803,17 +823,51 @@ const refreshAvatar = (account: Account) => {
   white-space: nowrap;
 }
 
-.account-identity__content strong {
+.account-identity__title-row > strong {
   color: #26364d;
   font-size: 14px;
   font-weight: 700;
 }
 
-.account-identity__content span {
+.account-identity__meta {
   margin-top: 3px;
   color: #79879a;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+.account-note-edit {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 145px;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: 1px solid #d7e2f2;
+  border-radius: 999px;
+  background: #f7faff;
+  color: #3972bd;
+  cursor: pointer;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.account-note-edit:hover {
+  border-color: #a9c4e8;
+  background: #eef5ff;
+}
+
+.account-note-edit svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.account-note-edit span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .table__td--time {
